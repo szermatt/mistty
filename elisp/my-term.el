@@ -6,7 +6,15 @@
     map
     ))
 
-(define-derived-mode my-term-mode term-mode "My Term" "Major mode for my term" )
+(defvar my-term--pre-point nil)
+(make-local-variable 'my-term--pre-point)
+
+(defvar my-term--outside-pregion nil)
+(make-local-variable 'my-term--outside-pregion)
+
+(define-derived-mode my-term-mode term-mode "My Term" "Major mode for my term"
+  (my-term-enable)
+  )
 
 (defsubst my-term--buffer-p (buffer)
   "Return the buffer if the buffer is a live my-term buffer."
@@ -52,7 +60,9 @@
      (current-buffer)
      (buffer-name)
      (or explicit-shell-file-name shell-file-name (getenv "ESHELL"))
-     nil nil)))
+     nil nil)
+    (set-process-filter (get-buffer-process (current-buffer)) #'my-term-emulate-terminal)
+    ))
 
 (defun my-term-self-insert-command (n &optional c)
   (interactive "p")
@@ -65,5 +75,63 @@
 (defun my-term-send-input ()
   (interactive)
   (my-term-self-insert-command 1 "\n"))
+
+(defun my-term-char-enable ()
+  (interactive)
+  (add-hook 'pre-command-hook #'term-set-goto-process-mark nil t)
+  (add-hook 'post-command-hook #'term-goto-process-mark-maybe nil t))
+
+(defun my-term-char-disable ()
+  (interactive)
+  (remove-hook 'pre-command-hook #'term-set-goto-process-mark t)
+  (remove-hook 'post-command-hook #'term-goto-process-mark-maybe t))
+
+(defun my-term-enable ()
+  (interactive)
+  (add-hook 'pre-command-hook #'my-term--pre-command nil t)
+  (add-hook 'post-command-hook #'my-term--post-command nil t))
+
+(defun my-term-disable ()
+  (interactive)
+  (remove-hook 'pre-command-hook #'my-term--pre-command t)
+  (remove-hook 'post-command-hook #'my-term--post-command t))
+
+(defun my-term--pre-command ()
+  (setq my-term-pre-point (point)))
+
+(defun my-term--post-command ()
+  (when (/= (point) my-term-pre-point)
+    (when (or
+           (and (eq my-term--outside-pregion '<) (>= (point) (marker-position (term-process-mark))))
+           (and (eq my-term--outside-pregion '>) (<= (point) (marker-position (term-process-mark)))))
+      (setq my-term--outside-pregion nil))
+    (when (not my-term--outside-pregion)
+      (let* ((proc (get-buffer-process (current-buffer)))
+             (pmark (if proc
+                        (marker-position (process-mark proc) )
+                      (point)))
+             (p (point))
+             (diff (- pmark p )))
+        (when (/= 0 diff)
+          (let ((str (make-string (* 3 (abs diff)) ?\ ))
+                (direction-char (if (< diff 0) ?C ?D)))
+            (dotimes (i (abs diff))
+              (aset str (* i 3) ?\e)
+              (aset str (+ (* i 3) 1) ?\O)
+              (aset str (+ (* i 3) 2) direction-char))
+            (term-send-raw-string str)
+            (accept-process-output proc 0 50 t)
+            (let ((pmark (marker-position (term-process-mark))))
+              (if (= p pmark)
+                  (progn
+                    (setq buffer-read-only nil
+                          my-term--outside-pregion nil))
+                (setq buffer-read-only t
+                      my-term--outside-pregion (if (< p pmark) '< '>))
+                (goto-char p)))))))))
+
+(defun my-term-emulate-terminal (proc str)
+  (setq my-term--outside-pregion nil)
+  (term-emulate-terminal proc str))
 
 (provide 'my-term)

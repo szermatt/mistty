@@ -122,7 +122,7 @@
    (my-term-wait-for-output)
    (should (equal "$ echo babar\nbabar\n" (my-term-test-content)))))
 
-(ert-deftest test-my-term-kill-word ()
+(ert-deftest test-my-term-delete-at-end ()
   (with-my-term-buffer
    (term-send-raw-string "echo hello world")
    (my-term-wait-for-output)

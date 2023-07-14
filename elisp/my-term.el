@@ -161,7 +161,7 @@
                              (my-term--repeat-string old-length "\eOC")
                              (my-term--repeat-string old-length "\b"))
                        (setq my-term--current-pmark end)))
-                    (t "")))
+                    (_ "")))
                 changes ""))))
     (term-send-raw-string str)
     (accept-process-output (get-buffer-process (current-buffer)) 0 50 t)))

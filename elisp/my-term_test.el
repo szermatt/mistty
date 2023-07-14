@@ -121,3 +121,18 @@
    (term-send-raw-string "\n")
    (my-term-wait-for-output)
    (should (equal "$ echo babar\nbabar\n" (my-term-test-content)))))
+
+(ert-deftest test-my-term-kill-word ()
+  (with-my-term-buffer
+   (term-send-raw-string "echo hello world")
+   (my-term-wait-for-output)
+   (should (equal "$ echo hello world<>" (my-term-test-content)))
+   (run-hooks 'pre-command-hook)
+   (delete-region (- (point) 6) (point))
+   (run-hooks 'post-command-hook)
+   (my-term-wait-for-output)
+   (should (equal "$ echo hello<>" (my-term-test-content)))
+   (term-send-raw-string "\n")
+   (my-term-wait-for-output)
+   (should (equal "$ echo hello\nhello\n" (my-term-test-content)))))
+

@@ -10,6 +10,9 @@
 (defvar my-term--pre-point nil)
 (make-local-variable 'my-term--pre-point)
 
+(defvar my-term--pre-pmark nil)
+(make-local-variable 'my-term--pre-pmark)
+
 (defvar my-term--outside-pregion nil)
 (make-local-variable 'my-term--outside-pregion)
 
@@ -110,7 +113,8 @@
   (push (list 'after beg end old-length (buffer-substring-no-properties beg end)) my-term--changes))
 
 (defun my-term--pre-command ()
-  (setq my-term-pre-point (point)))
+  (setq my-term-pre-point (point)
+        my-term-pre-pmark (marker-position (term-process-mark))))
 
 (defun my-term--post-command ()
   (let ((after-command-point (point)))
@@ -144,7 +148,8 @@
       (`(before ,beg ,end ,old-content)
        (delete-region beg end)
        (goto-char beg)
-       (insert old-content)))))
+       (insert old-content))))
+  (set-marker (term-process-mark) my-term-pre-pmark))
 
 (defvar my-term--current-pmark nil)
 (make-local-variable 'my-term--current-pmark)

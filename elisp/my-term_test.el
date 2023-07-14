@@ -24,17 +24,33 @@
 (defun my-term-wait-for-output ()
   (accept-process-output (get-buffer-process (current-buffer)) 0 100 t))
 
+(defun my-term-test-content  ()
+  (interactive)
+  (let ((output (buffer-substring-no-properties (point-min) (point-max))))
+    (setq output (replace-regexp-in-string "\\$ \n?$" "" output))
+    (setq output (replace-regexp-in-string "[ \t]*$" "" output))
+    output))
+
 (ert-deftest test-my-term-simple-command ()
   (with-my-term-buffer
    (term-send-raw-string "echo hello\n")
    (my-term-wait-for-output)
-   (should (equal "$ echo hello\nhello\n$ "
-                  (buffer-substring-no-properties (point-min) (point-max))))))
+   (should (equal "$ echo hello\nhello\n" (my-term-test-content)))))
 
 (ert-deftest test-my-term-keystrokes ()
   (with-my-term-buffer-selected
    (should (equal 'my-term-self-insert-command (key-binding (kbd "e"))))
    (execute-kbd-macro (kbd "e c h o SPC o k RET"))
    (my-term-wait-for-output)
-   (should (equal "$ echo ok\nok\n$ \n"
-                  (buffer-substring-no-properties (point-min) (point-max))))))
+   (should (equal "$ echo ok\nok\n" (my-term-test-content)))))
+
+(ert-deftest test-my-term-reconcile-position ()
+  (with-my-term-buffer
+   (term-send-raw-string "echo world")
+   (my-term-wait-for-output)
+   (run-hooks 'pre-command-hook)
+   (goto-char (- (point) 5))
+   (run-hooks 'post-command-hook)
+   (term-send-raw-string "hello ")
+   (my-term-wait-for-output)
+   (should (equal "$ echo hello world" (my-term-test-content)))))

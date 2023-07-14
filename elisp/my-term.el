@@ -1,3 +1,4 @@
+;; -*- lexical-binding: t -*-
 
 (defvar my-term-mode-map
   (let ((map (make-sparse-keymap)))
@@ -12,7 +13,12 @@
 (defvar my-term--outside-pregion nil)
 (make-local-variable 'my-term--outside-pregion)
 
+(defvar my-term--changes nil)
+(make-local-variable 'my-term--changes)
+
+
 (define-derived-mode my-term-mode term-mode "My Term" "Major mode for my term"
+  (setq my-term--changes nil)
   (my-term-enable)
   )
 
@@ -28,10 +34,8 @@
 
 (defun my-term--buffers ()
   "List of live term buffers, sorted."
-  (let ((remote-id (if default-directory (file-remote-p default-directory) nil)))
-    (sort (delq nil (mapcar #'my-term--buffer-p (buffer-list)))
-          (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
-
+  (sort (delq nil (mapcar #'my-term--buffer-p (buffer-list)))
+        (lambda (a b) (string< (buffer-name a) (buffer-name b)))))
 
 (defun my-term ()
   (interactive)
@@ -51,17 +55,16 @@
         (switch-to-buffer (car existing-tail))
       (error "no next my-term buffer"))))
 
+(defun my-term--setup (program &rest args)
+  (my-term-mode)
+  (term-exec (current-buffer) (buffer-name) program nil args)
+  (set-process-filter (get-buffer-process (current-buffer)) #'my-term-emulate-terminal))
+
 (defun my-term-create ()
   (interactive)
   (with-current-buffer (generate-new-buffer "*my-term*")
-    (my-term-mode)
+    (my-term--setup (or explicit-shell-file-name shell-file-name (getenv "ESHELL")))
     (switch-to-buffer (current-buffer))
-    (term-exec
-     (current-buffer)
-     (buffer-name)
-     (or explicit-shell-file-name shell-file-name (getenv "ESHELL"))
-     nil nil)
-    (set-process-filter (get-buffer-process (current-buffer)) #'my-term-emulate-terminal)
     ))
 
 (defun my-term-self-insert-command (n &optional c)
@@ -89,17 +92,81 @@
 (defun my-term-enable ()
   (interactive)
   (add-hook 'pre-command-hook #'my-term--pre-command nil t)
-  (add-hook 'post-command-hook #'my-term--post-command nil t))
+  (add-hook 'post-command-hook #'my-term--post-command nil t)
+  (add-hook 'before-change-functions #'my-term--before-change nil t)
+  (add-hook 'after-change-functions #'my-term--after-change nil t) )
 
 (defun my-term-disable ()
   (interactive)
   (remove-hook 'pre-command-hook #'my-term--pre-command t)
-  (remove-hook 'post-command-hook #'my-term--post-command t))
+  (remove-hook 'post-command-hook #'my-term--post-command t)
+  (remove-hook 'before-change-functions #'my-term--before-change t)
+  (remove-hook 'after-change-functions #'my-term--after-change t))
+
+(defun my-term--before-change (beg end)
+  (push (list 'before beg end (buffer-substring-no-properties beg end)) my-term--changes))
+
+(defun my-term--after-change (beg end old-length)
+  (push (list 'after beg end old-length (buffer-substring-no-properties beg end)) my-term--changes))
 
 (defun my-term--pre-command ()
   (setq my-term-pre-point (point)))
 
 (defun my-term--post-command ()
+  (let ((after-command-point (point)))
+    (when my-term--changes
+      (my-term--reconcile-changes)
+      (setq my-term--outside-pregion nil)
+      (goto-char after-command-point))
+    (my-term--reconcile-point)))
+
+(defun my-term--reconcile-changes ()
+  (interactive)
+  (when my-term--changes
+    (let ((changes my-term--changes)
+          (inhibit-modification-hooks t)
+          (buffer-read-only nil))
+      (setq my-term--changes nil)
+      (my-term--revert-changes changes)
+      (my-term--replay-changes (nreverse changes))
+      ;; 2. replay, going this time from older to newer
+      ;; 3. let it percolate
+      (accept-process-output (get-buffer-process (current-buffer)) 0 50 t))))
+
+(defun my-term--revert-changes (changes)
+  (dolist (c changes)
+    (pcase c
+      (`(after ,beg ,end ,old-length ,_)
+       (delete-region beg end)
+       (goto-char beg)
+       ;; insert a placeholder so future positions are correct
+       (insert (make-string old-length ?\ )))
+      (`(before ,beg ,end ,old-content)
+       (delete-region beg end)
+       (goto-char beg)
+       (insert old-content)))))
+
+(defvar my-term--current-pmark nil)
+(make-local-variable 'my-term--current-pmark)
+
+(defun my-term--replay-changes (changes)
+  (let ((str (let ((my-term--current-pmark (marker-position (term-process-mark))))
+               (mapconcat
+                (lambda (c)
+                  (pcase c
+                    (`(after ,beg ,end ,old-length ,new-content)
+                     (prog1 (concat
+                             (my-term--str-to-move-pmark my-term--current-pmark beg)
+                             new-content
+                             (my-term--repeat-string old-length "\eOC")
+                             (my-term--repeat-string old-length "\b"))
+                       (setq my-term--current-pmark end)))
+                    (t "")))
+                changes ""))))
+    (term-send-raw-string str)
+    (accept-process-output (get-buffer-process (current-buffer)) 0 50 t)))
+
+(defun my-term--reconcile-point ()
   (when (/= (point) my-term-pre-point)
     (when (or
            (and (eq my-term--outside-pregion '<) (>= (point) (marker-position (term-process-mark))))
@@ -107,34 +174,42 @@
       (setq my-term--outside-pregion nil))
     (when (not my-term--outside-pregion)
       (let* ((p (point))
-             (move-status (my-term--try-to-move-pmark-to p)))
-        (setq my-term--outside-pregion move-status)
-        (if (null move-status)
-            (setq buffer-read-only nil)
-          (setq buffer-read-only t)
+             (diff (my-term--try-to-move-pmark-to p)))
+        (if (zerop diff)
+            (setq my-term--outside-pregion nil
+                  buffer-read-only nil)
+          (setq my-term--outside-pregion (if (< diff 0) '< '>)
+                buffer-read-only t)
           (goto-char p))))))
 
+(defun my-term--repeat-string (count elt)
+  (let ((elt-len (length elt)))
+    (if (= 1 elt-len)
+        (make-string count (aref elt 0))
+      (let ((str (make-string (* count elt-len) ?\ )))
+        (dotimes (i count)
+          (dotimes (j elt-len)
+            (aset str (+ (* i elt-len) j) (aref elt j))))
+        str))))
+  
 (defun my-term--try-to-move-pmark-to (goal)
   (let* ((proc (get-buffer-process (current-buffer)))
-         (pmark (marker-position (process-mark proc)))
-         (diff (- pmark goal )))
-    (when (/= 0 diff)
-      (let ((str (make-string (* 3 (abs diff)) ?\ ))
-            (direction-char (if (< diff 0) ?C ?D)))
-        (dotimes (i (abs diff))
-          (aset str (* i 3) ?\e)
-          (aset str (+ (* i 3) 1) ?\O)
-          (aset str (+ (* i 3) 2) direction-char))
-        (term-send-raw-string str)
-        (accept-process-output proc 0 50 t)
-        (let ((pmark (marker-position (process-mark proc))))
-          (cond
-           ((< goal pmark) '<)
-           ((> goal pmark '>)
-            nil)))))))
+         (str (my-term--str-to-move-pmark (marker-position (process-mark proc)) goal)))
+    (if (zerop (length str))
+        0
+      (term-send-raw-string str)
+      (accept-process-output proc 0 50 t)
+      (- goal (marker-position (process-mark proc))))))
+
+(defun my-term--str-to-move-pmark (pmark goal)
+  (let ((diff (- pmark goal)))
+    (if (zerop diff)
+        ""
+      (my-term--repeat-string (abs diff) (if (< diff 0) "\eOC" "\eOD")))))
 
 (defun my-term-emulate-terminal (proc str)
   (setq my-term--outside-pregion nil)
-  (term-emulate-terminal proc str))
+  (let ((inhibit-modification-hooks t))
+    (term-emulate-terminal proc str)))
 
 (provide 'my-term)

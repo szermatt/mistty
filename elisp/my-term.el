@@ -1,5 +1,7 @@
 ;; -*- lexical-binding: t -*-
 
+(require 'term)
+
 (defvar my-term-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [remap self-insert-command] 'my-term-self-insert-command )

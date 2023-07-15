@@ -24,19 +24,20 @@
 (defun my-term-wait-for-output ()
   (accept-process-output (get-buffer-process (current-buffer)) 0 100 t))
 
-(defun my-term-test-content  ()
+(defun my-term-test-content  (&optional nopointers)
   (interactive)
   (let ((output (buffer-substring-no-properties (point-min) (point-max)))
         (p (- (point) (point-min)))
         (pmark (- (marker-position (process-mark (get-buffer-process (current-buffer)))) (point-min))))
-    (setq output
-          (cond 
-           ((= p pmark)
-            (concat (substring output 0 p) "<>" (substring output p)))
-           ((> p pmark)
-            (concat (substring output 0 pmark) "<pmark>" (substring output pmark p) "<>" (substring output p)))
-           ((< p pmark)
-            (concat (substring output 0 p) "<>" (substring output p pmark) "<pmark>" (substring output pmark)))))
+    (unless nopointers 
+      (setq output
+            (cond 
+             ((= p pmark)
+              (concat (substring output 0 p) "<>" (substring output p)))
+             ((> p pmark)
+              (concat (substring output 0 pmark) "<pmark>" (substring output pmark p) "<>" (substring output p)))
+             ((< p pmark)
+              (concat (substring output 0 p) "<>" (substring output p pmark) "<pmark>" (substring output pmark))))))
     (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output))
     (setq output (replace-regexp-in-string "[ \t]*$" "" output))
     output))
@@ -70,7 +71,7 @@
 
 (ert-deftest test-my-term-insert ()
   (with-my-term-buffer
-   (term-send-raw-string (concat "echo world" (my-term--repeat-string 5 "\eOD")))
+   (term-send-raw-string (concat "echo world" (my-term--repeat-string 5 my-term-left-str)))
    (my-term-wait-for-output)
    (run-hooks 'pre-command-hook)
    (insert "hello ")
@@ -131,3 +132,28 @@
    (my-term-wait-for-output)
    (should (equal "$ echo hello\nhello\n" (my-term-test-content)))))
 
+(ert-deftest test-my-term-append-multiline ()
+  (with-my-term-buffer
+   (term-send-raw-string "echo \"")
+   (my-term-wait-for-output)
+   (run-hooks 'pre-command-hook)
+   (insert "1st\n2nd\n3rd\"")
+   (run-hooks 'post-command-hook)
+   (should (equal "$ echo \"1st\n2nd\n3rd\"" (my-term-test-content 'nopointers)))
+   (term-send-raw-string "\n")
+   (my-term-wait-for-output)
+   (should (equal "$ echo \"1st\n2nd\n3rd\"\n1st\n2nd\n3rd\n" (my-term-test-content)))))
+
+(ert-deftest test-my-term-replace-multiline ()
+  (with-my-term-buffer
+   (run-hooks 'pre-command-hook)
+   (insert "echo \"hello\nworld\"")
+   (run-hooks 'post-command-hook)
+   (should (equal "$ echo \"hello\nworld\"<>" (my-term-test-content)))
+   (term-send-raw-string (my-term--repeat-string 6 my-term-left-str))
+   (my-term-wait-for-output)
+   (should (equal "$ echo \"hello\n<>world\"" (my-term-test-content)))
+   (run-hooks 'pre-command-hook)
+   (replace-string "world" "le monde")
+   (run-hooks 'post-command-hook)
+   (should (equal "$ echo \"hello\nle monde<>\"\n" (my-term-test-content)))))

@@ -21,6 +21,11 @@
 (defvar my-term--changes nil)
 (make-local-variable 'my-term--changes)
 
+(defconst my-term-left-str "\eOD")
+(defconst my-term-right-str "\eOC")
+(defconst my-term-bracketed-paste-start-str "\e[200~")
+(defconst my-term-bracketed-paste-end-str "\e[201~")
+
 
 (define-derived-mode my-term-mode term-mode "My Term" "Major mode for my term"
   (setq my-term--changes nil)
@@ -84,29 +89,35 @@
   (interactive)
   (my-term-self-insert-command 1 "\n"))
 
-(defun my-term-char-enable ()
-  (interactive)
-  (add-hook 'pre-command-hook #'term-set-goto-process-mark nil t)
-  (add-hook 'post-command-hook #'term-goto-process-mark-maybe nil t))
-
-(defun my-term-char-disable ()
-  (interactive)
-  (remove-hook 'pre-command-hook #'term-set-goto-process-mark t)
-  (remove-hook 'post-command-hook #'term-goto-process-mark-maybe t))
-
 (defun my-term-enable ()
   (interactive)
+  (add-hook 'term-osc-hook #'my-term--osc-bracketed-paste nil t)
   (add-hook 'pre-command-hook #'my-term--pre-command nil t)
   (add-hook 'post-command-hook #'my-term--post-command nil t)
+  (add-hook 'post-command-hook #'my-term--show-pmark 10 t)
   (add-hook 'before-change-functions #'my-term--before-change nil t)
   (add-hook 'after-change-functions #'my-term--after-change nil t) )
 
 (defun my-term-disable ()
   (interactive)
+  (remove-hook 'term-osc-hook #'my-term--osc-bracketed-paste t)
   (remove-hook 'pre-command-hook #'my-term--pre-command t)
   (remove-hook 'post-command-hook #'my-term--post-command t)
+  (remove-hook 'post-command-hook #'my-term--show-pmark t)
   (remove-hook 'before-change-functions #'my-term--before-change t)
   (remove-hook 'after-change-functions #'my-term--after-change t))
+
+(defvar my-term-bracketed-paste nil)
+(make-local-variable 'my-term-bracketed-paste)
+(defun my-term--osc-bracketed-paste (str)
+  (prog1 nil ;; never "consume" these OSC command so hooks can react to them
+    (cond
+     ((equal str "?2004h")
+      (message "bracketed paste on")
+      (setq my-term-bracketed-paste t))
+     ((equal str "?2004l")
+      (message "bracketed paste off")
+      (setq my-term-bracketed-paste nil)))))
 
 (defun my-term--before-change (beg end)
   (push (list 'before beg end (buffer-substring-no-properties beg end)) my-term--changes))
@@ -118,13 +129,24 @@
   (setq my-term-pre-point (point)
         my-term-pre-pmark (marker-position (term-process-mark))))
 
+(defvar my-term--pmark-overlay nil)
+(make-local-variable 'my-term--pmark-overlay)
+(defun my-term--show-pmark ()
+  (let ((pmark (marker-position (term-process-mark))))
+    (if my-term--pmark-overlay
+        (move-overlay my-term--pmark-overlay pmark (1+ pmark))
+      (setq my-term--pmark-overlay (make-overlay pmark (1+ pmark))))
+    (overlay-put my-term--pmark-overlay 'face '(background-color . "red"))))
+
 (defun my-term--post-command ()
   (let ((after-command-point (point)))
-    (when my-term--changes
-      (my-term--reconcile-changes)
-      (setq my-term--outside-pregion nil)
-      (goto-char after-command-point))
-    (my-term--reconcile-point)))
+    (if my-term--changes
+        (progn
+          (my-term--reconcile-changes)
+          (setq my-term--outside-pregion nil)
+          (goto-char after-command-point)
+          (my-term--reconcile-point 'forced))
+      (my-term--reconcile-point))))
 
 (defun my-term--reconcile-changes ()
   (interactive)
@@ -164,17 +186,25 @@
                     (`(after ,beg ,end ,old-length ,new-content)
                      (prog1 (concat
                              (my-term--str-to-move-pmark my-term--current-pmark beg)
-                             new-content
-                             (my-term--repeat-string old-length "\eOC")
-                             (my-term--repeat-string old-length "\b"))
+                             (my-term--repeat-string old-length my-term-right-str)
+                             (my-term--repeat-string old-length "\b")
+                             (my-term--bracketed-string new-content)
+                             my-term-left-str my-term-right-str)
                        (setq my-term--current-pmark end)))
                     (_ "")))
                 changes ""))))
     (term-send-raw-string str)
     (accept-process-output (get-buffer-process (current-buffer)) 0 50 t)))
 
-(defun my-term--reconcile-point ()
-  (when (/= (point) my-term-pre-point)
+(defsubst my-term--bracketed-string (str)
+  (if (zerop (length str))
+      ""
+    (concat my-term-bracketed-paste-start-str
+            str
+            my-term-bracketed-paste-end-str)))
+
+(defun my-term--reconcile-point (&optional forced)
+  (when (or forced (/= (point) my-term-pre-point))
     (when (or
            (and (eq my-term--outside-pregion '<) (>= (point) (marker-position (term-process-mark))))
            (and (eq my-term--outside-pregion '>) (<= (point) (marker-position (term-process-mark)))))
@@ -212,7 +242,9 @@
   (let ((diff (- pmark goal)))
     (if (zerop diff)
         ""
-      (my-term--repeat-string (abs diff) (if (< diff 0) "\eOC" "\eOD")))))
+      (my-term--repeat-string
+       (abs diff)
+       (if (< diff 0) my-term-right-str my-term-left-str)))))
 
 (defun my-term-emulate-terminal (proc str)
   (setq my-term--outside-pregion nil)

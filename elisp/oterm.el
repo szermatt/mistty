@@ -6,6 +6,12 @@
 (defvar-local oterm-term-buffer nil)
 (defvar-local oterm-term-proc nil)
 (defvar-local oterm-sync-marker nil)
+(defvar oterm--inhibit-sync nil)
+
+(defconst oterm-left-str "\eOD")
+(defconst oterm-right-str "\eOC")
+(defconst oterm-bracketed-paste-start-str "\e[200~")
+(defconst oterm-bracketed-paste-end-str "\e[201~")
 
 (defvar oterm-mode-map
   (let ((oterm-mode-map (make-sparse-keymap)))
@@ -45,11 +51,12 @@
     (term-char-mode))
   (let ((proc (get-buffer-process oterm-term-buffer)))
     (with-current-buffer oterm-work-buffer
-      (setq oterm-term-proc oterm-term-proc))
+      (setq oterm-term-proc proc))
     (with-current-buffer oterm-term-buffer
-      (setq oterm-term-proc oterm-term-proc)
+      (setq oterm-term-proc proc)
       (process-put proc 'oterm-work-buffer oterm-work-buffer)
       (process-put proc 'oterm-term-buffer oterm-term-buffer)
+      (message "bind process filter")
       (set-process-filter proc #'oterm-emulate-terminal)
       (set-process-sentinel proc #'oterm-sentinel))))
 
@@ -110,11 +117,24 @@
   (let ((old-pmark (marker-position (process-mark proc)))
         (work-buffer (process-get proc 'oterm-work-buffer)))
     (term-emulate-terminal proc str)
-    (when (buffer-live-p work-buffer)
+    (when (and (not oterm--inhibit-sync) (buffer-live-p work-buffer))
       (with-current-buffer work-buffer
-        (oterm--term-to-work)
-        (when (/= old-pmark (marker-position (process-mark proc)))
-          (oterm--pmarker-to-point))))))
+        (oterm--refresh-work-buffer-after-change old-pmark)))))
+
+(defun oterm--refresh-work-buffer-after-change (old-pmark)
+  (with-current-buffer oterm-work-buffer
+    (when (buffer-live-p oterm-term-buffer)
+      (goto-char (oterm--work-pmark))
+      (oterm--term-to-work)
+      (oterm--update-properties)
+      (when (/= old-pmark (marker-position (process-mark oterm-term-proc)))
+        (oterm--pmarker-to-point)))))
+
+(defun oterm--work-pmark ()
+  "The terminal process mark as a position within the work buffer."
+  (with-current-buffer oterm-work-buffer
+    (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
+                           (- (point) oterm-sync-marker)))))
 
 (defun oterm--pmarker-to-point ()
   (when (buffer-live-p oterm-term-buffer)
@@ -146,6 +166,47 @@
             (narrow-to-region oterm-sync-marker (point-max-marker))
             (replace-buffer-contents oterm-term-buffer)))))))
 
+(defun oterm--update-properties ()
+  (with-current-buffer oterm-work-buffer
+    (let ((pmark (oterm--work-pmark))
+          new-pmark beg end)
+      (save-excursion
+        (goto-char pmark)
+        (setq beg (line-beginning-position))
+        (setq end (line-end-position)))
+      (when (/= end beg)
+        (if (and (not (text-property-any beg pmark 'oterm 'prompt))
+                 (not (text-property-any beg pmark 'oterm 'command)))
+            ;; This is the first time pmark is on this line. Try to
+            ;; figure out where the command and prompt are.
+            (progn
+              (when (> pmark beg)
+                (oterm--send-and-wait (oterm--repeat-string (- pmark beg) oterm-left-str)))
+              (setq new-pmark (oterm--work-pmark))
+              (when (and (>= new-pmark beg) (<= new-pmark end) (<= new-pmark pmark))
+                ;; sanity check on new-pmark, in case the process is in the middle of updating
+                ;; its content.
+                (when (> new-pmark beg)
+                  (add-text-properties beg new-pmark '(oterm prompt)))
+                (when (< new-pmark end)
+                  (add-text-properties new-pmark end '(oterm command field oterm-command)))
+                (when (> pmark new-pmark)
+                  (oterm--send-and-wait (oterm-repeat-string (- pmark new-pmark) oterm-right-str))))
+              ;; Since we used send-and wait, which inhibit work
+              ;; buffer update, it might be necessary to update the
+              ;; buffer content now.
+              (oterm--refresh-work-buffer-after-change pmark))
+          (add-text-properties
+           (or (next-single-property-change beg 'oterm) pmark)
+           end
+           '(oterm command field oterm-command)))))))
+
+(defun oterm--send-and-wait (str)
+  (let ((oterm--inhibit-sync t))
+    (oterm-send-raw-string str)
+    (when (accept-process-output oterm-term-proc 1 nil t) ;; TODO: tune the timeout
+      (while (accept-process-output oterm-term-proc 0 nil t)))))
+
 (defun oterm-send-raw-string (str)
   (with-current-buffer oterm-term-buffer
     (term-send-raw-string str)))
@@ -160,4 +221,13 @@
   (interactive)
   (oterm-self-insert-command 1 "\n"))
 
+(defun oterm--repeat-string (count elt)
+  (let ((elt-len (length elt)))
+    (if (= 1 elt-len)
+        (make-string count (aref elt 0))
+      (let ((str (make-string (* count elt-len) ?\ )))
+        (dotimes (i count)
+          (dotimes (j elt-len)
+            (aset str (+ (* i elt-len) j) (aref elt j))))
+        str))))
 (provide 'oterm)

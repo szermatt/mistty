@@ -32,13 +32,11 @@
                   term-height 24
                   term-width 80)
       (term--reset-scroll-region))
+    (add-hook 'kill-buffer-hook 'oterm--kill-term-buffer nil t)))
 
-    (message "(3)work: %s/%s term: %s/%s"
-             (buffer-local-value 'oterm-work-buffer work-buffer)
-             (buffer-local-value 'oterm-work-buffer term-buffer)
-             (buffer-local-value 'oterm-term-buffer work-buffer)
-             (buffer-local-value 'oterm-term-buffer term-buffer))
-    ))
+(defun oterm--kill-term-buffer ()
+  (message "kill term buffer")
+  (kill-buffer oterm-term-buffer))
 
 (defun oterm--exec (program &rest args)
   (oterm-mode)
@@ -46,11 +44,14 @@
     (term-exec oterm-term-buffer (buffer-name oterm-term-buffer) program nil args)
     (term-char-mode))
   (let ((proc (get-buffer-process oterm-term-buffer)))
-    (with-current-buffer oterm-term-buffer
-      (setq oterm-term-proc oterm-term-proc))
     (with-current-buffer oterm-work-buffer
       (setq oterm-term-proc oterm-term-proc))
-    (set-process-filter proc #'oterm-emulate-terminal)))
+    (with-current-buffer oterm-term-buffer
+      (setq oterm-term-proc oterm-term-proc)
+      (process-put proc 'oterm-work-buffer oterm-work-buffer)
+      (process-put proc 'oterm-term-buffer oterm-term-buffer)
+      (set-process-filter proc #'oterm-emulate-terminal)
+      (set-process-sentinel proc #'oterm-sentinel))))
 
 (defsubst oterm--buffer-p (buffer)
   "Return the buffer if the buffer is a live oterm buffer."
@@ -92,39 +93,58 @@
     (switch-to-buffer (current-buffer))
     ))
 
+(defun oterm-sentinel (proc msg)
+  (when (memq (process-status proc) '(signal exit))
+    (let ((work-buffer (process-get proc 'oterm-work-buffer))
+          (term-buffer (process-get proc 'oterm-term-buffer)))
+      (if (buffer-live-p work-buffer)
+          (progn
+            (while (accept-process-output proc 0 0 t))
+            (term-sentinel proc msg)
+            (with-current-buffer work-buffer
+              (oterm--term-to-work))
+            (kill-buffer term-buffer))
+        (term-sentinel proc msg)))))
+    
 (defun oterm-emulate-terminal (proc str)
-  (let ((old-pmark (marker-position (process-mark proc))))
+  (let ((old-pmark (marker-position (process-mark proc)))
+        (work-buffer (process-get proc 'oterm-work-buffer)))
     (term-emulate-terminal proc str)
-    (oterm--term-to-work)
-    (when (/= old-pmark (marker-position (process-mark proc)))
-      (oterm--pmarker-to-point))))
+    (when (buffer-live-p work-buffer)
+      (with-current-buffer work-buffer
+        (oterm--term-to-work)
+        (when (/= old-pmark (marker-position (process-mark proc)))
+          (oterm--pmarker-to-point))))))
 
 (defun oterm--pmarker-to-point ()
-  (with-current-buffer oterm-work-buffer
-    (goto-char (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
-                                      (- (point) oterm-sync-marker))))))
+  (when (buffer-live-p oterm-term-buffer)
+    (with-current-buffer oterm-work-buffer
+      (goto-char (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
+                                        (- (point) oterm-sync-marker)))))))
 
 (defun oterm--update-sync-markers ()
-  (with-current-buffer oterm-term-buffer
-    (when (< oterm-sync-marker term-home-marker)
-      (save-excursion
-        (goto-char oterm-sync-marker)
-        (let ((lines (count-lines oterm-sync-marker term-home-marker)))
-          (with-current-buffer oterm-work-buffer
-            (save-excursion
-              (goto-char oterm-sync-marker)
-              (forward-line lines)
-              (move-marker oterm-sync-marker (point))))
-          (move-marker oterm-sync-marker term-home-marker))))))
+  (when (buffer-live-p oterm-term-buffer)
+    (with-current-buffer oterm-term-buffer
+      (when (< oterm-sync-marker term-home-marker)
+        (save-excursion
+          (goto-char oterm-sync-marker)
+          (let ((lines (count-lines oterm-sync-marker term-home-marker)))
+            (with-current-buffer oterm-work-buffer
+              (save-excursion
+                (goto-char oterm-sync-marker)
+                (forward-line lines)
+                (move-marker oterm-sync-marker (point))))
+            (move-marker oterm-sync-marker term-home-marker)))))))
 
 (defun oterm--term-to-work ()
-  (with-current-buffer oterm-term-buffer
-    (save-restriction
-      (narrow-to-region oterm-sync-marker (point-max-marker))
-      (with-current-buffer oterm-work-buffer
-        (save-restriction
-          (narrow-to-region oterm-sync-marker (point-max-marker))
-          (replace-buffer-contents oterm-term-buffer))))))
+  (when (buffer-live-p oterm-term-buffer)
+    (with-current-buffer oterm-term-buffer
+      (save-restriction
+        (narrow-to-region oterm-sync-marker (point-max-marker))
+        (with-current-buffer oterm-work-buffer
+          (save-restriction
+            (narrow-to-region oterm-sync-marker (point-max-marker))
+            (replace-buffer-contents oterm-term-buffer)))))))
 
 (defun oterm-send-raw-string (str)
   (with-current-buffer oterm-term-buffer

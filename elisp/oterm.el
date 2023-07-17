@@ -11,6 +11,7 @@
   (let ((oterm-mode-map (make-sparse-keymap)))
     (define-key oterm-mode-map [remap self-insert-command] 'oterm-self-insert-command )
     (define-key oterm-mode-map [(return)] 'oterm-send-input)
+    (define-key oterm-mode-map [?\t] 'oterm-self-insert-command)
     oterm-mode-map
     ))
 

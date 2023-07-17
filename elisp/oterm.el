@@ -113,9 +113,10 @@
     (term-emulate-terminal proc str)
     (when (buffer-live-p work-buffer)
       (with-current-buffer work-buffer
-        (oterm--term-to-work)
-        (when (/= old-pmark (marker-position (process-mark proc)))
-          (oterm--pmarker-to-point))))))
+        (when (buffer-live-p oterm-term-buffer)
+              (oterm--term-to-work)
+              (when (/= old-pmark (marker-position (process-mark proc)))
+                (oterm--pmarker-to-point)))))))
 
 (defun oterm--work-pmark ()
   "The terminal process mark as a position within the work buffer."
@@ -129,29 +130,35 @@
       (goto-char (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
                                         (- (point) oterm-sync-marker)))))))
 
-(defun oterm--update-sync-markers ()
-  (when (buffer-live-p oterm-term-buffer)
-    (with-current-buffer oterm-term-buffer
-      (when (< oterm-sync-marker term-home-marker)
-        (save-excursion
-          (goto-char oterm-sync-marker)
-          (let ((lines (count-lines oterm-sync-marker term-home-marker)))
-            (with-current-buffer oterm-work-buffer
-              (save-excursion
-                (goto-char oterm-sync-marker)
-                (forward-line lines)
-                (move-marker oterm-sync-marker (point))))
-            (move-marker oterm-sync-marker term-home-marker)))))))
-
 (defun oterm--term-to-work ()
-  (when (buffer-live-p oterm-term-buffer)
-    (with-current-buffer oterm-term-buffer
-      (save-restriction
-        (narrow-to-region oterm-sync-marker (point-max-marker))
+  (with-current-buffer oterm-term-buffer
+    (save-restriction
+      (narrow-to-region oterm-sync-marker (point-max-marker))
+      (with-current-buffer oterm-work-buffer
+        (save-restriction
+          (narrow-to-region oterm-sync-marker (point-max-marker))
+          (replace-buffer-contents oterm-term-buffer)))))
+  
+  ;; now that we know the content after sync-marker is identical on
+  ;; both buffers, we can safely move sync marker on both buffers
+  ;; using char count to end as basis.
+  (with-current-buffer oterm-term-buffer
+    (when (< oterm-sync-marker term-home-marker)
+      (move-marker oterm-sync-marker (marker-position term-home-marker))
+      (let ((chars-from-end (- (point-max) term-home-marker)))
         (with-current-buffer oterm-work-buffer
-          (save-restriction
-            (narrow-to-region oterm-sync-marker (point-max-marker))
-            (replace-buffer-contents oterm-term-buffer)))))))
+          (move-marker oterm-sync-marker (- (point-max) chars-from-end))))))
+
+  ;; Truncate the term buffer, since scrolling back is available on
+  ;; the work buffer anyways. This has to be done now, after syncing
+  ;; the marker, and not in term-emulate-terminal, which is why
+  ;; term-buffer-maximum-size is set to 0.
+  (with-current-buffer oterm-term-buffer
+    (let ((inhibit-read-only t))
+      (save-excursion
+        (goto-char oterm-sync-marker)
+        (forward-line -5)
+        (delete-region (point-min) (point))))))
 
 (defun oterm-send-raw-string (str)
   (with-current-buffer oterm-term-buffer

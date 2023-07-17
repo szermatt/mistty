@@ -46,9 +46,9 @@
     (term-char-mode))
   (let ((proc (get-buffer-process oterm-term-buffer)))
     (with-current-buffer oterm-work-buffer
-      (setq oterm-term-proc oterm-term-proc))
+      (setq oterm-term-proc proc))
     (with-current-buffer oterm-term-buffer
-      (setq oterm-term-proc oterm-term-proc)
+      (setq oterm-term-proc proc)
       (process-put proc 'oterm-work-buffer oterm-work-buffer)
       (process-put proc 'oterm-term-buffer oterm-term-buffer)
       (set-process-filter proc #'oterm-emulate-terminal)

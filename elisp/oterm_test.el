@@ -20,29 +20,6 @@
       (with-selected-window (display-buffer (current-buffer))
         ,@body))))
   
-(defun oterm-wait-for-output ()
-  (unless (accept-process-output oterm-term-proc 0 500 t)
-    (error "no output"))
-  (while (accept-process-output oterm-term-proc 0 0 t)))
-
-(defun oterm-test-content  (&optional nopointers)
-  (interactive)
-  (let ((output (buffer-substring-no-properties (point-min) (point-max)))
-        (p (- (point) (point-min)))
-        (pmark (- (oterm--work-pmark) (point-min))))
-    (unless nopointers 
-      (setq output
-            (cond 
-             ((= p pmark)
-              (concat (substring output 0 p) "<>" (substring output p)))
-             ((> p pmark)
-              (concat (substring output 0 pmark) "<pmark>" (substring output pmark p) "<>" (substring output p)))
-             ((< p pmark)
-              (concat (substring output 0 p) "<>" (substring output p pmark) "<pmark>" (substring output pmark))))))
-    (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output))
-    (setq output (replace-regexp-in-string "[ \t]*$" "" output))
-    output))
-
 (ert-deftest test-oterm-simple-command ()
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello\n")
@@ -68,6 +45,29 @@
    (oterm-send-raw-string "exit\n")
    (oterm-wait-for-term-buffer-and-proc-to-die oterm-term-buffer oterm-term-proc 2)
    (should (string-suffix-p "finished\n" (buffer-substring-no-properties (point-min) (point-max))))))
+
+(defun oterm-wait-for-output ()
+  (unless (accept-process-output oterm-term-proc 0 500 t)
+    (error "no output"))
+  (while (accept-process-output oterm-term-proc 0 0 t)))
+
+(defun oterm-test-content  (&optional nopointers)
+  (interactive)
+  (let ((output (buffer-substring-no-properties (point-min) (point-max)))
+        (p (- (point) (point-min)))
+        (pmark (- (oterm--work-pmark) (point-min))))
+    (unless nopointers 
+      (setq output
+            (cond 
+             ((= p pmark)
+              (concat (substring output 0 p) "<>" (substring output p)))
+             ((> p pmark)
+              (concat (substring output 0 pmark) "<pmark>" (substring output pmark p) "<>" (substring output p)))
+             ((< p pmark)
+              (concat (substring output 0 p) "<>" (substring output p pmark) "<pmark>" (substring output pmark))))))
+    (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output))
+    (setq output (replace-regexp-in-string "[ \t]*$" "" output))
+    output))
 
 (defun oterm-wait-for-term-buffer-and-proc-to-die (buf proc deadline)
   (should (not (null buf)))

@@ -56,3 +56,21 @@
    (oterm-wait-for-output)
    (should (equal "$ echo ok\nok\n" (oterm-test-content)))))
 
+(ert-deftest test-oterm-kill-term-buffer ()
+  (let* ((buffer-and-proc (with-oterm-buffer
+                           (cons oterm-term-buffer oterm-term-proc)))
+         (term-buffer (car buffer-and-proc))
+         (term-proc (cdr buffer-and-proc)))
+    (should (not (buffer-live-p term-buffer)))
+    (should (not (process-live-p term-proc)))))
+
+(ert-deftest test-oterm-term-buffer-exits ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "exit\n")
+   (let ((tstart (current-time)))
+     (while (or (process-live-p oterm-term-proc) (buffer-live-p oterm-term-buffer))
+       (accept-process-output nil 0 10)
+       (when (> (float-time (time-subtract (current-time) tstart)) 2)
+         (error "process didn't end"))))
+   (should (string-suffix-p "finished\n" (buffer-substring-no-properties (point-min) (point-max))))))
+

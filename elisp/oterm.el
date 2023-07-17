@@ -117,6 +117,12 @@
         (when (/= old-pmark (marker-position (process-mark proc)))
           (oterm--pmarker-to-point))))))
 
+(defun oterm--work-pmark ()
+  "The terminal process mark as a position within the work buffer."
+  (with-current-buffer oterm-work-buffer
+    (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
+                           (- (point) oterm-sync-marker)))))
+
 (defun oterm--pmarker-to-point ()
   (when (buffer-live-p oterm-term-buffer)
     (with-current-buffer oterm-work-buffer

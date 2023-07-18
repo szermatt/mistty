@@ -25,27 +25,27 @@
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello\n")
    (oterm-wait-for-output)
-   (should (equal "$ echo hello\nhello\n" (oterm-test-content)))))
+   (should (equal "$ echo hello\nhello" (oterm-test-content)))))
 
 (ert-deftest test-oterm-keystrokes ()
   (with-oterm-buffer-selected
    (execute-kbd-macro (kbd "e c h o SPC e r r DEL DEL DEL o k RET"))
    (oterm-wait-for-output)
-   (should (equal "$ echo ok\nok\n" (oterm-test-content)))))
+   (should (equal "$ echo ok\nok" (oterm-test-content)))))
 
 (ert-deftest test-oterm-reconcile-insert ()
   (with-oterm-buffer
    (insert "echo hello")
    (should (equal "$ echo hello<>" (oterm-test-content)))
-   (should (equal "hello\n" (oterm-run-and-capture-command-output)))))
+   (should (equal "hello" (oterm-run-and-capture-command-output)))))
 
 (ert-deftest test-oterm-reconcile-delete ()
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello")
    (oterm-wait-for-output)
    (delete-region (- (point) 5) (- (point) 2))
-   (should (equal "$ echo lo<>\n" (oterm-test-content)))
-   (should (equal "lo\n" (oterm-run-and-capture-command-output)))))
+   (should (equal "$ echo lo<>" (oterm-test-content)))
+   (should (equal "lo" (oterm-run-and-capture-command-output)))))
 
 (ert-deftest test-oterm-reconcile-replace ()
   (with-oterm-buffer
@@ -54,7 +54,7 @@
    (goto-char (point-min))
    (replace-string "hello" "bonjour")
    (should (equal "$ echo bonjour<>" (oterm-test-content)))
-   (should (equal "bonjour\n" (oterm-run-and-capture-command-output)))))
+   (should (equal "bonjour" (oterm-run-and-capture-command-output)))))
 
 (ert-deftest test-oterm-change-before-prompt ()
   (with-oterm-buffer
@@ -78,7 +78,35 @@
      ;; modification, though it moves the point.
      (oterm-send-raw-string "\n")
      (oterm-wait-for-output)
-     (should (equal "$ echo bonjour\nhello\n$ echo world\nworld\n" (oterm-test-content))))))
+     (should (equal "$ echo bonjour\nhello\n$ echo world\nworld" (oterm-test-content))))))
+
+(ert-deftest test-oterm-send-command-because-at-prompt ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "echo hello")
+   (oterm-wait-for-output)
+   (oterm-send-command-if-at-prompt)
+   (oterm-wait-for-output)
+   (should (equal "$ echo hello\nhello" (oterm-test-content)))))
+
+(ert-deftest test-oterm-send-newline-because-not-at-prompt ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "echo hello\n")
+   (oterm-wait-for-output)
+   (goto-char (+ (point-min) 7))
+   (oterm-send-command-if-at-prompt)
+   (should (equal "$ echo\n<>hello\nhello" (oterm-test-content)))))
+
+(ert-deftest test-oterm-send-newline-because-not-at-prompt-multiline ()
+  (with-oterm-buffer
+   (insert "echo hello\necho world")
+   (goto-char (point-min))
+   ;; pmark is on the second line, at the end of "world" and point is
+   ;; on the line above, on the prompt.
+   ;; oterm-send-command-if-at-prompt needs to be able to figure out
+   ;; that the line it's on is still part of the prompt.
+   (oterm-send-command-if-at-prompt)
+   (oterm-wait-for-output)
+   (should (equal "$ echo hello\necho world\nhello\nworld" (oterm-test-content)))))
 
 (ert-deftest test-oterm-kill-term-buffer ()
   (let* ((buffer-and-proc (with-oterm-buffer
@@ -99,7 +127,7 @@
      (oterm-send-raw-string loop-command)
      (oterm-wait-for-output)
      (should (equal (concat "$ " loop-command "<>") (oterm-test-content)))
-     (should (equal (mapconcat (lambda (i) (format "line %d\n" i)) (number-sequence 0 49) "")
+     (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 49) "\n")
                     (oterm-run-and-capture-command-output))))))
 
 (ert-deftest test-oterm-scroll-with-many-commands ()
@@ -108,7 +136,7 @@
      (dotimes (i 10)
        (oterm-send-raw-string loop-command)
        (oterm-wait-for-output)
-       (should (equal (mapconcat (lambda (i) (format "line %d\n" i)) (number-sequence 0 4) "")
+       (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 4) "\n")
                       (oterm-run-and-capture-command-output)))))))
 
 (defun oterm-wait-for-output ()
@@ -125,7 +153,7 @@ everything between the two prompts, return it, and narrow the
 buffer to a new region at the beginning of the new prompt."
   (let ((first-prompt-end (point))
         next-prompt-start output)
-    (oterm-send-input)
+    (oterm-send-command)
     (while (not (save-excursion
                   (goto-char first-prompt-end)
                   (search-forward-regexp (concat "^" (regexp-quote oterm-test-prompt)) nil 'noerror)))
@@ -147,7 +175,7 @@ buffer to a new region at the beginning of the new prompt."
     (when (and (not nopointer) (>= p 0) (<= p length))
       (setq output (concat (substring output 0 p) "<>" (substring output p))))
     (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output))
-    (setq output (replace-regexp-in-string "[ \t]*$" "" output))
+    (setq output (replace-regexp-in-string "[ \t\n]*$" "" output))
     output))
 
 (defun oterm-wait-for-term-buffer-and-proc-to-die (buf proc deadline)

@@ -16,9 +16,12 @@
 
 (defvar oterm-mode-map (make-sparse-keymap))
 
-(defvar oterm-term-map (let ((oterm-term-map (make-sparse-keymap)))
-  (define-key oterm-term-map (kbd "RET") 'oterm-send-input)
-  oterm-term-map))
+(defvar oterm-term-map
+  (let ((oterm-term-map (make-sparse-keymap)))
+    (define-key oterm-term-map (kbd "RET") 'oterm-send-command-if-at-prompt)
+    (define-key oterm-term-map [S-return] 'newline)
+    (define-key oterm-term-map [remap indent-for-tab-command] 'oterm-send-self-if-at-prompt)
+    oterm-term-map))
 
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term"
   (let ((work-buffer (current-buffer))
@@ -165,7 +168,8 @@
       (oterm--move-sync-mark term-home-marker))))
 
 (defun oterm--move-sync-mark (pos)
-  (let ((chars-from-end (- (point-max) pos)))
+  (let ((chars-from-end (- (point-max)
+                           (save-excursion (goto-char pos) (line-beginning-position)))))
     (with-current-buffer oterm-term-buffer
       (move-marker oterm-sync-marker (- (point-max) chars-from-end)))
     (with-current-buffer oterm-work-buffer
@@ -188,9 +192,49 @@
   (with-current-buffer oterm-term-buffer
     (term-send-raw-string str)))
 
-(defun oterm-send-input ()
+(defun oterm--at-prompt-1 ()
+  (let ((pmark (oterm--pmark)))
+    (or (>= (point) pmark)
+        (>= (save-excursion (line-beginning-position))
+            (save-excursion (goto-char pmark) (line-beginning-position))))))
+
+(defun oterm--at-prompt-p ()
+  "Figure out whether a command should be sent to the terminal.
+
+Terminal commands should be sent to the terminal if the point is
+at the prompt otherwise it should be applied directly to the work
+buffer."
+  (if (oterm--at-prompt-1)
+      t
+    (oterm--send-and-wait (oterm--move-pmark-str (point)))
+      (prog1 (oterm--at-prompt-1)
+        (let ((pmark (oterm--pmark)))
+          (when (> pmark (point))
+            (oterm--move-sync-mark pmark)))
+        (oterm--term-to-work))))
+
+(defun oterm-send-command-if-at-prompt ()
+  "Send the current command to the shell if point is at prompt, otherwise
+send a newline."
+  (interactive)
+  (if (oterm--at-prompt-p)
+      (let ((keys (this-command-keys)))
+        (oterm-send-command))
+    (newline)))
+
+(defun oterm-send-command ()
+  "Send the current command to the shell."
   (interactive)
   (oterm-send-raw-string "\n"))
+
+(defun oterm-send-self-if-at-prompt ()
+  "Send the current key if the point is at prompt, otherwise
+execute the remapped command."
+  (interactive)
+  (if (oterm--at-prompt-p)
+      (let ((keys (this-command-keys)))
+        (oterm-send-raw-string (make-string 1 (aref keys (1- (length keys))))))
+    (call-interactively this-original-command)))
 
 (defun oterm--modification-hook (ov is-after beg end &optional old-length)
   (when (and (buffer-live-p oterm-term-buffer) is-after)
@@ -208,8 +252,7 @@
         ;; unnecessarily. TODO: What if the process is just not
         ;; accepting any input at this time? We might move sync mark
         ;; to far down.
-        (let ((pmark-line (save-excursion (goto-char pmark) (line-beginning-position))))
-          (oterm--move-sync-mark pmark-line)))
+        (oterm--move-sync-mark pmark))
 
       (when (>= pmark beg)
         ;; Replay the portion of the change that we think we can

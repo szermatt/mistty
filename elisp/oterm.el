@@ -6,26 +6,36 @@
 (defvar-local oterm-term-buffer nil)
 (defvar-local oterm-term-proc nil)
 (defvar-local oterm-sync-marker nil)
+(defvar-local oterm-sync-ov nil)
+(defvar oterm--inhibit-sync nil)
 
-(defvar oterm-mode-map
-  (let ((oterm-mode-map (make-sparse-keymap)))
-    (define-key oterm-mode-map [remap self-insert-command] 'oterm-self-insert-command )
-    (define-key oterm-mode-map (kbd "RET") 'oterm-send-input)
-    (define-key oterm-mode-map (kbd "TAB") 'oterm-self-insert-command)
-    oterm-mode-map
-    ))
+(defconst oterm-left-str "\eOD")
+(defconst oterm-right-str "\eOC")
+(defconst oterm-bracketed-paste-start-str "\e[200~")
+(defconst oterm-bracketed-paste-end-str "\e[201~")
+
+(defvar oterm-mode-map (make-sparse-keymap))
+
+(defvar oterm-term-map (let ((oterm-term-map (make-sparse-keymap)))
+  (define-key oterm-term-map (kbd "RET") 'oterm-send-input)
+  oterm-term-map))
 
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term"
   (let ((work-buffer (current-buffer))
         (term-buffer (generate-new-buffer (concat " oterm tty " (buffer-name)) 'inhibit-buffer-hooks)))
     (setq oterm-work-buffer work-buffer)
     (setq oterm-term-buffer term-buffer)
-    (setq oterm-sync-marker (copy-marker 0))
+    (setq oterm-sync-marker (copy-marker (point-min)))
+    (setq oterm-sync-ov (make-overlay (point-min) (point-max) nil nil 'rear-advance))
+    (overlay-put oterm-sync-ov 'face '(background-color . "black"))
+    (overlay-put oterm-sync-ov 'keymap oterm-term-map)
+    (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
     (with-current-buffer term-buffer
       (term-mode)
       (setq oterm-work-buffer work-buffer)
       (setq oterm-term-buffer term-buffer)
-      (setq oterm-sync-marker (copy-marker 0))
+      (setq oterm-sync-marker (copy-marker (point-min)))
       (setq-local term-suppress-hard-newline t
                   term-char-mode-buffer-read-only t
                   term-char-mode-point-at-process-mark t
@@ -36,7 +46,6 @@
     (add-hook 'kill-buffer-hook 'oterm--kill-term-buffer nil t)))
 
 (defun oterm--kill-term-buffer ()
-  (message "kill term buffer")
   (kill-buffer oterm-term-buffer))
 
 (defun oterm--exec (program &rest args)
@@ -106,23 +115,28 @@
               (oterm--term-to-work))
             (kill-buffer term-buffer))
         (term-sentinel proc msg)))))
-    
+
 (defun oterm-emulate-terminal (proc str)
-  (let ((old-pmark (marker-position (process-mark proc)))
-        (work-buffer (process-get proc 'oterm-work-buffer)))
+  (let ((inhibit-modification-hooks t)
+        (old-pmark (marker-position (process-mark proc)))
+        (work-buffer (process-get proc 'oterm-work-buffer))
+        (term-buffer (process-get proc 'oterm-term-buffer)))
     (term-emulate-terminal proc str)
-    (when (buffer-live-p work-buffer)
+    (when (buffer-live-p term-buffer)
+      (with-current-buffer term-buffer
+        (goto-char (process-mark proc))))
+    (when (and (not oterm--inhibit-sync) (buffer-live-p work-buffer))
       (with-current-buffer work-buffer
         (when (buffer-live-p oterm-term-buffer)
               (oterm--term-to-work)
               (when (/= old-pmark (marker-position (process-mark proc)))
-                (oterm--pmarker-to-point)))))))
+                (oterm--pmarker-to-point))
+              )))))
 
-(defun oterm--work-pmark ()
-  "The terminal process mark as a position within the work buffer."
-  (with-current-buffer oterm-work-buffer
-    (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
-                           (- (point) oterm-sync-marker)))))
+(defun oterm--pmark ()
+  "The terminal process mark as a position within the current buffer (work or term)."
+  (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
+                         (- (point) oterm-sync-marker))))
 
 (defun oterm--pmarker-to-point ()
   (when (buffer-live-p oterm-term-buffer)
@@ -135,19 +149,29 @@
     (save-restriction
       (narrow-to-region oterm-sync-marker (point-max-marker))
       (with-current-buffer oterm-work-buffer
-        (save-restriction
-          (narrow-to-region oterm-sync-marker (point-max-marker))
-          (replace-buffer-contents oterm-term-buffer)))))
-  
+        (let ((saved-undo buffer-undo-list))
+          (save-excursion
+            (save-restriction
+              (narrow-to-region oterm-sync-marker (point-max-marker))
+              (let ((inhibit-modification-hooks t))
+                (replace-buffer-contents oterm-term-buffer))))
+          (setq buffer-undor-list saved-undo)))))
+
   ;; now that we know the content after sync-marker is identical on
   ;; both buffers, we can safely move sync marker on both buffers
   ;; using char count to end as basis.
   (with-current-buffer oterm-term-buffer
     (when (< oterm-sync-marker term-home-marker)
-      (move-marker oterm-sync-marker (marker-position term-home-marker))
-      (let ((chars-from-end (- (point-max) term-home-marker)))
-        (with-current-buffer oterm-work-buffer
-          (move-marker oterm-sync-marker (- (point-max) chars-from-end))))))
+      (oterm--move-sync-mark term-home-marker))))
+
+(defun oterm--move-sync-mark (pos)
+  (let ((chars-from-end (- (point-max) pos)))
+    (with-current-buffer oterm-term-buffer
+      (move-marker oterm-sync-marker (- (point-max) chars-from-end)))
+    (with-current-buffer oterm-work-buffer
+      (let ((sync-pos (- (point-max) chars-from-end)))
+        (move-marker oterm-sync-marker sync-pos)
+        (move-overlay oterm-sync-ov sync-pos (point-max)))))
 
   ;; Truncate the term buffer, since scrolling back is available on
   ;; the work buffer anyways. This has to be done now, after syncing
@@ -164,14 +188,84 @@
   (with-current-buffer oterm-term-buffer
     (term-send-raw-string str)))
 
-(defun oterm-self-insert-command (n &optional c)
-  (interactive "p")
-  (with-current-buffer oterm-term-buffer
-    (let ((keys (or c (this-command-keys))))
-        (term-send-raw-string (make-string n (aref keys (1- (length keys))))))))
-
 (defun oterm-send-input ()
   (interactive)
   (oterm-send-raw-string "\n"))
+
+(defun oterm--modification-hook (ov is-after beg end &optional old-length)
+  (when (and (buffer-live-p oterm-term-buffer) is-after)
+    ;; Attempt to replay the change in the terminal.
+    (let ((pmark (oterm--pmark)))
+      (oterm--send-and-wait (oterm--move-str pmark beg))
+      (setq pmark (oterm--pmark))
+      ;; pmark is as close to beg as we can make it
+
+      (when (> pmark beg)
+        ;; We couldn't move pmark as far back as beg. Presumably,
+        ;; pmark is now at the leftmost modifiable position of the
+        ;; command line. Update the sync marker to start sync there
+        ;; from now on and avoid getting this hook called
+        ;; unnecessarily. TODO: What if the process is just not
+        ;; accepting any input at this time? We might move sync mark
+        ;; to far down.
+        (let ((pmark-line (save-excursion (goto-char pmark) (line-beginning-position))))
+          (oterm--move-sync-mark pmark-line)))
+
+      (when (>= pmark beg)
+        ;; Replay the portion of the change that we think we can
+        ;; replay.
+        ;;
+        ;; TODO: what if [beg, end] start in the command-line portion
+        ;; of the screen and end in the portion of the screen
+        ;; containing zsh completion? We'd be "replaying" zsh
+        ;; completion results.
+        (let ((content-to-replay (if (<= pmark end) (buffer-substring-no-properties pmark end) ""))
+              (chars-to-delete (- (or old-length 0) (- pmark beg))))
+          (oterm--send-and-wait
+           (concat
+            (when (> chars-to-delete 0)
+              (concat (oterm--repeat-string chars-to-delete oterm-right-str)
+                      (oterm--repeat-string chars-to-delete "\b")))
+            (when (> (length content-to-replay) 0)
+              (concat
+               ;; TODO: check whether bracketed paste is available
+               oterm-bracketed-paste-start-str content-to-replay oterm-bracketed-paste-end-str
+               ;; Readline keeps text inserted this way as active
+               ;; region. The following is meant to de-activate the region.
+               oterm-left-str oterm-right-str))))))
+
+    ;; Copy the modifications on the term buffer to the work buffer.
+    ;; This might undo part of the modification that couldn't be
+    ;; replayed, but only those after the *new* sync marker.
+    (oterm--term-to-work))))
+
+(defun oterm--send-and-wait (str)
+  (when (and str (not (zerop (length str))))
+    (let ((oterm--inhibit-sync t))
+      (oterm-send-raw-string str)
+      (when (accept-process-output oterm-term-proc 1 nil t) ;; TODO: tune the timeout
+        (while (accept-process-output oterm-term-proc 0 nil t))))))
+
+(defun oterm--move-str (from to)
+  (let ((diff (- from to)))
+    (if (zerop diff)
+        nil
+      (oterm--repeat-string
+       (abs diff)
+       (if (< diff 0) oterm-right-str oterm-left-str)))))
+
+(defun oterm--move-pmark-str (to)
+  (oterm--move-str (oterm--pmark) to))
+
+(defun oterm--repeat-string (count elt)
+  (let ((elt-len (length elt)))
+    (if (= 1 elt-len)
+        (make-string count (aref elt 0))
+      (let ((str (make-string (* count elt-len) ?\ )))
+        (dotimes (i count)
+          (dotimes (j elt-len)
+            (aset str (+ (* i elt-len) j) (aref elt j))))
+        str))))
+
 
 (provide 'oterm)

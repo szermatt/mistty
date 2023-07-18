@@ -29,10 +29,56 @@
 
 (ert-deftest test-oterm-keystrokes ()
   (with-oterm-buffer-selected
-   (should (equal 'oterm-self-insert-command (key-binding (kbd "e"))))
-   (execute-kbd-macro (kbd "e c h o SPC o k RET"))
+   (execute-kbd-macro (kbd "e c h o SPC e r r DEL DEL DEL o k RET"))
    (oterm-wait-for-output)
    (should (equal "$ echo ok\nok\n" (oterm-test-content)))))
+
+(ert-deftest test-oterm-reconcile-insert ()
+  (with-oterm-buffer
+   (insert "echo hello")
+   (should (equal "$ echo hello<>" (oterm-test-content)))
+   (should (equal "hello\n" (oterm-run-and-capture-command-output)))))
+
+(ert-deftest test-oterm-reconcile-delete ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "echo hello")
+   (oterm-wait-for-output)
+   (delete-region (- (point) 5) (- (point) 2))
+   (should (equal "$ echo lo<>\n" (oterm-test-content)))
+   (should (equal "lo\n" (oterm-run-and-capture-command-output)))))
+
+(ert-deftest test-oterm-reconcile-replace ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "echo hello")
+   (oterm-wait-for-output)
+   (goto-char (point-min))
+   (replace-string "hello" "bonjour")
+   (should (equal "$ echo bonjour<>" (oterm-test-content)))
+   (should (equal "bonjour\n" (oterm-run-and-capture-command-output)))))
+
+(ert-deftest test-oterm-change-before-prompt ()
+  (with-oterm-buffer
+   (let (beg end)
+     (oterm-send-raw-string "echo hello")
+     (oterm-wait-for-output)
+     (setq beg (- (point) 5))
+     (setq end (point))
+     (oterm-send-raw-string "\n")
+     (oterm-wait-for-output)
+     (oterm-send-raw-string "echo world")  
+     (oterm-wait-for-output)
+     (should (equal "$ echo hello\nhello\n$ echo world<>" (oterm-test-content)))
+     (delete-region beg end)
+     (goto-char beg)
+     (insert "bonjour")
+     ;; the modification is available and the point is after the insertion
+     (should (equal "$ echo bonjour<>\nhello\n$ echo world" (oterm-test-content)))
+     
+     ;; the next command executes normally and doesn't revert the
+     ;; modification, though it moves the point.
+     (oterm-send-raw-string "\n")
+     (oterm-wait-for-output)
+     (should (equal "$ echo bonjour\nhello\n$ echo world\nworld\n" (oterm-test-content))))))
 
 (ert-deftest test-oterm-kill-term-buffer ()
   (let* ((buffer-and-proc (with-oterm-buffer
@@ -90,26 +136,16 @@ buffer to a new region at the beginning of the new prompt."
     (narrow-to-region next-prompt-start (point-max))
     output))
 
-(defun oterm-test-content  (&optional start end nopointers)
+(defun oterm-test-content  (&optional start end nopointer)
   (interactive)
   (let* ((start (or start (point-min)))
          (end (or end (point-max)))
          (output (buffer-substring-no-properties start end))
          (p (- (point) start))
-         (pmark (- (oterm--work-pmark) start))
+         (pmark (- (oterm--pmark) start))
          (length (- end start)))
-    (unless nopointers 
-      (setq output
-            (cond 
-             ((and (> p pmark) (>= p 0) (< p length) (>= pmark 0) (< pmark length))
-              (concat (substring output 0 pmark) "<pmark>" (substring output pmark p) "<>" (substring output p)))
-             ((and (< p pmark) (>= p 0) (< p length) (>= pmark 0) (< pmark length))
-              (concat (substring output 0 p) "<>" (substring output p pmark) "<pmark>" (substring output pmark)))
-             ((and (>= p 0) (<= p length))
-              (concat (substring output 0 p) "<>" (substring output p)))
-             ((and (>= pmark 0) (<= pmark length))
-              (concat (substring output 0 p) "<pmark>" (substring output p)))
-             (t output))))
+    (when (and (not nopointer) (>= p 0) (<= p length))
+      (setq output (concat (substring output 0 p) "<>" (substring output p))))
     (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output))
     (setq output (replace-regexp-in-string "[ \t]*$" "" output))
     output))

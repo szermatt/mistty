@@ -29,6 +29,9 @@
 (defconst oterm-bracketed-paste-start-str "\e[200~")
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 
+(defface oterm-debug-face '((t :inverse-video t))
+  "Face used to highlight `oterm-sync-ov' for debugging.")
+
 (defvar oterm-mode-map
   (let ((oterm-mode-map (make-sparse-keymap)))
     (define-key oterm-mode-map (kbd "C-c C-c") 'oterm-send-raw-key)
@@ -51,7 +54,7 @@
     (setq oterm-term-buffer term-buffer)
     (setq oterm-sync-marker (copy-marker (point-min)))
     (setq oterm-sync-ov (make-overlay (point-min) (point-max) nil nil 'rear-advance))
-    (overlay-put oterm-sync-ov 'face '(background-color . "black"))
+    (overlay-put oterm-sync-ov 'face 'oterm-debug-face)
     (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
     (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))

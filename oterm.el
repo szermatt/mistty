@@ -172,11 +172,8 @@
               (narrow-to-region oterm-sync-marker (point-max-marker))
               (let ((inhibit-modification-hooks t))
                 (replace-buffer-contents oterm-term-buffer))))
-          (setq buffer-undor-list saved-undo)))))
-
-  ;; now that we know the content after sync-marker is identical on
-  ;; both buffers, we can safely move sync marker on both buffers
-  ;; using char count to end as basis.
+          (setq buffer-undo-list saved-undo)))))
+  ;; Next time, only sync the visible portion of the terminal.
   (with-current-buffer oterm-term-buffer
     (when (< oterm-sync-marker term-home-marker)
       (oterm--move-sync-mark term-home-marker))))
@@ -232,8 +229,7 @@ buffer."
 send a newline."
   (interactive)
   (if (oterm--at-prompt-p)
-      (let ((keys (this-command-keys)))
-        (oterm-send-command))
+      (oterm-send-command)
     (newline)))
 
 (defun oterm-send-command ()
@@ -250,7 +246,7 @@ execute the remapped command."
         (oterm-send-raw-string (make-string 1 (aref keys (1- (length keys))))))
     (call-interactively this-original-command)))
 
-(defun oterm--modification-hook (ov is-after beg end &optional old-length)
+(defun oterm--modification-hook (_ov is-after beg end &optional old-length)
   (when (and (buffer-live-p oterm-term-buffer) is-after)
     ;; Attempt to replay the change in the terminal.
     (let ((pmark (oterm--pmark)))

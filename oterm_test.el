@@ -132,7 +132,7 @@
 (ert-deftest test-oterm-scroll-with-many-commands ()
   (with-oterm-buffer
    (let ((loop-command "for i in {0..4}; do echo line $i; done"))
-     (dotimes (i 10)
+     (dotimes (_ 10)
        (oterm-send-raw-string loop-command)
        (oterm-wait-for-output)
        (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 4) "\n")
@@ -186,7 +186,6 @@ of the beginning of the prompt."
          (end (or end (point-max)))
          (output (buffer-substring-no-properties start end))
          (p (- (point) start))
-         (pmark (- (oterm--pmark) start))
          (length (- end start)))
     (when (and (not nopointer) (>= p 0) (<= p length))
       (setq output (concat (substring output 0 p) "<>" (substring output p))))

@@ -37,6 +37,10 @@
     (define-key oterm-mode-map (kbd "C-c C-c") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-z") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-\\") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-p") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-n") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-r") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-s") 'oterm-send-raw-key)
     oterm-mode-map))
 
 (defvar oterm-prompt-map

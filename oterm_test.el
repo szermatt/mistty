@@ -7,7 +7,7 @@
 (defconst oterm-test-prompt "$ ")
 (defmacro with-oterm-buffer (&rest body)
   `(ert-with-test-buffer ()
-     (oterm--exec "/usr/local/bin/bash" "--noprofile" "--norc")
+     (oterm--exec "/usr/local/bin/bash" "--noprofile" "--norc" "-i")
      (while (eq (point-min) (point-max))
        (accept-process-output oterm-term-proc 0 100 t))
      (oterm-send-raw-string (concat "PS1='" oterm-test-prompt "'"))
@@ -94,6 +94,19 @@
    (goto-char (+ (point-min) 7))
    (oterm-send-command-if-at-prompt)
    (should (equal "$ echo\n<>hello\nhello" (oterm-test-content)))))
+
+(ert-deftest test-oterm-send-tab-to-complete  ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "ech world")
+   (oterm-wait-for-output)
+   ;; Move the point before doing completion, to make sure that
+   ;; oterm-send-if-at-prompt moves the pmark to the right position
+   ;; before sending TAB.
+   (goto-char (+ (point-min) 5))
+   (should (equal "$ ech<> world" (oterm-test-content)))
+   (oterm-send-tab-if-at-prompt)
+   (oterm-wait-for-output)
+   (should (equal "$ echo<> world" (oterm-test-content)))))
 
 (ert-deftest test-oterm-send-newline-because-not-at-prompt-multiline ()
   (with-oterm-buffer

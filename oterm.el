@@ -28,14 +28,20 @@
 (defconst oterm-bracketed-paste-start-str "\e[200~")
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 
-(defvar oterm-mode-map (make-sparse-keymap))
+(defvar oterm-mode-map
+  (let ((oterm-mode-map (make-sparse-keymap)))
+    (define-key oterm-mode-map (kbd "C-c C-c") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-z") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-\\") 'oterm-send-raw-key)
+    oterm-mode-map))
 
-(defvar oterm-term-map
-  (let ((oterm-term-map (make-sparse-keymap)))
-    (define-key oterm-term-map (kbd "RET") 'oterm-send-command-if-at-prompt)
-    (define-key oterm-term-map [S-return] 'newline)
-    (define-key oterm-term-map [remap indent-for-tab-command] 'oterm-send-self-if-at-prompt)
-    oterm-term-map))
+(defvar oterm-prompt-map
+  (let ((oterm-prompt-map (make-sparse-keymap)))
+    (define-key oterm-prompt-map (kbd "RET") 'oterm-send-command-if-at-prompt)
+    (define-key oterm-prompt-map [S-return] 'newline)
+    (define-key oterm-prompt-map (kbd "TAB") 'oterm-send-tab-if-at-prompt)
+    (define-key oterm-prompt-map (kbd "C-d") 'oterm-delchar-or-maybe-eof)
+    oterm-prompt-map))
 
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
   (let ((work-buffer (current-buffer))
@@ -45,7 +51,7 @@
     (setq oterm-sync-marker (copy-marker (point-min)))
     (setq oterm-sync-ov (make-overlay (point-min) (point-max) nil nil 'rear-advance))
     (overlay-put oterm-sync-ov 'face '(background-color . "black"))
-    (overlay-put oterm-sync-ov 'keymap oterm-term-map)
+    (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
     (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
     (with-current-buffer term-buffer
@@ -203,22 +209,24 @@
   (with-current-buffer oterm-term-buffer
     (term-send-raw-string str)))
 
-(defun oterm--at-prompt-1 ()
+(defun oterm--at-prompt-1 (&optional inexact)
   (let ((pmark (oterm--pmark)))
-    (or (>= (point) pmark)
-        (>= (save-excursion (line-beginning-position))
-            (save-excursion (goto-char pmark) (line-beginning-position))))))
+    (if inexact
+        (or (>= (point) pmark)
+            (>= (save-excursion (line-beginning-position))
+                (save-excursion (goto-char pmark) (line-beginning-position))))
+        (= (point) pmark))))
 
-(defun oterm--at-prompt-p ()
+(defun oterm--at-prompt-p (&optional inexact)
   "Figure out whether a command should be sent to the terminal.
 
 Terminal commands should be sent to the terminal if the point is
 at the prompt otherwise it should be applied directly to the work
 buffer."
-  (if (oterm--at-prompt-1)
+  (if (oterm--at-prompt-1 inexact)
       t
     (oterm--send-and-wait (oterm--move-pmark-str (point)))
-      (prog1 (oterm--at-prompt-1)
+      (prog1 (oterm--at-prompt-1 inexact)
         (let ((pmark (oterm--pmark)))
           (when (> pmark (point))
             (oterm--move-sync-mark pmark)))
@@ -228,14 +236,34 @@ buffer."
   "Send the current command to the shell if point is at prompt, otherwise
 send a newline."
   (interactive)
-  (if (oterm--at-prompt-p)
+  (if (oterm--at-prompt-p 'inexact)
       (oterm-send-command)
     (newline)))
+
+(defun oterm-send-raw-key ()
+  (interactive)
+  (let ((keys (this-command-keys)))
+    (oterm-send-raw-string (make-string 1 (aref keys (1- (length keys)))))))
+
+(defun oterm-delchar-or-maybe-eof (arg)
+  (interactive "p")
+  (if (or (eobp) (progn
+                   (oterm--send-and-wait (oterm--move-pmark-str (point-max)))
+                   (prog1 (= (oterm--pmark) (point))
+                     (oterm--term-to-work))))
+      (oterm-send-raw-string (kbd "C-d"))
+    (delete-char arg)))
 
 (defun oterm-send-command ()
   "Send the current command to the shell."
   (interactive)
   (oterm-send-raw-string "\n"))
+
+(defun oterm-send-tab-if-at-prompt ()
+  (interactive)
+  (if (oterm--at-prompt-p)
+      (oterm-send-raw-string "\t")
+    (call-interactively 'indent-for-tab-command)))
 
 (defun oterm-send-self-if-at-prompt ()
   "Send the current key if the point is at prompt, otherwise
@@ -319,7 +347,6 @@ execute the remapped command."
           (dotimes (j elt-len)
             (aset str (+ (* i elt-len) j) (aref elt j))))
         str))))
-
 
 (provide 'oterm)
 

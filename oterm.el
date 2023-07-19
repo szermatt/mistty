@@ -180,6 +180,18 @@ all should rightly be part of term.el."
       (unless (zerop (length final-str))
         (term-emulate-terminal proc final-str)))))
 
+(defun oterm--maybe-bracketed-str (str)
+  (when (string-match "\t" str)
+    (setq str (replace-string "\t" (make-string tab-width " "))))
+  (cond
+   ((not oterm-bracketed-paste) str)
+   ((not (string-match "[[:cntrl:]]" str)) str)
+   (t (concat oterm-bracketed-paste-start-str
+              str
+              oterm-bracketed-paste-end-str
+              oterm-left-str
+              oterm-right-str))))
+
 (defun oterm--pmark ()
   "The terminal process mark as a position within the current buffer (work or term)."
   (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
@@ -332,14 +344,7 @@ execute the remapped command."
             (when (> chars-to-delete 0)
               (concat (oterm--repeat-string chars-to-delete oterm-right-str)
                       (oterm--repeat-string chars-to-delete "\b")))
-            (when (> (length content-to-replay) 0)
-              (if oterm-bracketed-paste
-                  (concat
-                   oterm-bracketed-paste-start-str content-to-replay oterm-bracketed-paste-end-str
-                   ;; Readline keeps text inserted this way as active
-                   ;; region. The following is meant to de-activate the region.
-                   oterm-left-str oterm-right-str)
-                content-to-replay))))))
+            (oterm--maybe-bracketed-str content-to-replay)))))
 
     ;; Copy the modifications on the term buffer to the work buffer.
     ;; This might undo part of the modification that couldn't be

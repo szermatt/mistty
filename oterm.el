@@ -1,6 +1,20 @@
-;; -*- lexical-binding: t -*-
+;;; oterm.el --- One Terminal -*- lexical-binding: t -*-
+
+;; Copyright (C) 2023 Stephane Zermatten
+
+;; Author: Stephane Zermatten <szermatt@gmx.net>
+;; Version: 0.1
+;; Package-Requires: ((emacs "28.2"))
+;; Keywords: convenience, unix
+;; URL: http://github.com/szermatt/mixterm
+
+
+;;; Commentary:
+;; 
 
 (require 'term)
+
+;;; Code:
 
 (defvar-local oterm-work-buffer nil)
 (defvar-local oterm-term-buffer nil)
@@ -23,7 +37,7 @@
     (define-key oterm-term-map [remap indent-for-tab-command] 'oterm-send-self-if-at-prompt)
     oterm-term-map))
 
-(define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term"
+(define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
   (let ((work-buffer (current-buffer))
         (term-buffer (generate-new-buffer (concat " oterm tty " (buffer-name)) 'inhibit-buffer-hooks)))
     (setq oterm-work-buffer work-buffer)
@@ -67,7 +81,7 @@
       (set-process-sentinel proc #'oterm-sentinel))))
 
 (defsubst oterm--buffer-p (buffer)
-  "Return the buffer if the buffer is a live oterm buffer."
+  "Return the BUFFER if the buffer is a live oterm buffer."
   (if (and buffer
            (bufferp buffer)
            (eq 'oterm-mode (buffer-local-value 'major-mode buffer))
@@ -312,3 +326,5 @@ execute the remapped command."
 
 
 (provide 'oterm)
+
+;;; oterm.el ends here

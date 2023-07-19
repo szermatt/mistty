@@ -10,9 +10,9 @@
      (oterm--exec "/usr/local/bin/bash" "--noprofile" "--norc")
      (while (eq (point-min) (point-max))
        (accept-process-output oterm-term-proc 0 100 t))
-     (oterm-send-raw-string (concat "PS1='" oterm-test-prompt "'\n"))
+     (oterm-send-raw-string (concat "PS1='" oterm-test-prompt "'"))
      (oterm-wait-for-output)
-     (narrow-to-region (- (point) 2) (point-max))
+     (narrow-to-region (oterm-send-and-wait-for-prompt) (point-max))
      ,@body))
 
 (defmacro with-oterm-buffer-selected (&rest body)
@@ -29,15 +29,14 @@
 
 (ert-deftest test-oterm-keystrokes ()
   (with-oterm-buffer-selected
-   (execute-kbd-macro (kbd "e c h o SPC e r r DEL DEL DEL o k RET"))
-   (oterm-wait-for-output)
-   (should (equal "$ echo ok\nok" (oterm-test-content)))))
+   (execute-kbd-macro (kbd "e c h o SPC e r r DEL DEL DEL o k"))
+   (should (equal "ok" (oterm-send-and-capture-command-output (lambda () (execute-kbd-macro (kbd "RET"))))))))
 
 (ert-deftest test-oterm-reconcile-insert ()
   (with-oterm-buffer
    (insert "echo hello")
    (should (equal "$ echo hello<>" (oterm-test-content)))
-   (should (equal "hello" (oterm-run-and-capture-command-output)))))
+   (should (equal "hello" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-reconcile-delete ()
   (with-oterm-buffer
@@ -45,7 +44,7 @@
    (oterm-wait-for-output)
    (delete-region (- (point) 5) (- (point) 2))
    (should (equal "$ echo lo<>" (oterm-test-content)))
-   (should (equal "lo" (oterm-run-and-capture-command-output)))))
+   (should (equal "lo" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-reconcile-replace ()
   (with-oterm-buffer
@@ -54,7 +53,7 @@
    (goto-char (point-min))
    (replace-string "hello" "bonjour")
    (should (equal "$ echo bonjour<>" (oterm-test-content)))
-   (should (equal "bonjour" (oterm-run-and-capture-command-output)))))
+   (should (equal "bonjour" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-change-before-prompt ()
   (with-oterm-buffer
@@ -128,7 +127,7 @@
      (oterm-wait-for-output)
      (should (equal (concat "$ " loop-command "<>") (oterm-test-content)))
      (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 49) "\n")
-                    (oterm-run-and-capture-command-output))))))
+                    (oterm-send-and-capture-command-output))))))
 
 (ert-deftest test-oterm-scroll-with-many-commands ()
   (with-oterm-buffer
@@ -137,32 +136,49 @@
        (oterm-send-raw-string loop-command)
        (oterm-wait-for-output)
        (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 4) "\n")
-                      (oterm-run-and-capture-command-output)))))))
+                      (oterm-send-and-capture-command-output)))))))
 
 (defun oterm-wait-for-output ()
   "Wait for process output, which should be short and immediate."
   (unless (accept-process-output oterm-term-proc 0 500 t)
     (error "no output")))
 
-(defun oterm-run-and-capture-command-output ()
-  "Return everything between two prompts.
+(defun oterm-send-and-capture-command-output (&optional send-command-func narrow)
+  "Send the current commanhd line with SEND-COMMAND-FUNC and return its output.
 
 This function sends RET to the process, then waits for the next
 prompt to appear. Once the prompt has appeared, it captures
 everything between the two prompts, return it, and narrow the
 buffer to a new region at the beginning of the new prompt."
   (let ((first-prompt-end (point))
-        next-prompt-start output)
-    (oterm-send-command)
+        output-start next-prompt-start output)
+    (setq next-prompt-start (oterm-send-and-wait-for-prompt send-command-func))
+    (setq output-start
+          (save-excursion
+            (goto-char first-prompt-end)
+            ;; If BACKSPACE was used, there could be leftover spaces
+            ;; at the end of the line when the tty overwrites intead
+            ;; of deleting.
+            (goto-char (line-end-position))
+            (1+ (point))))
+    (setq output (oterm-test-content output-start next-prompt-start))
+    (when narrow
+      (narrow-to-region next-prompt-start (point-max)))
+    output))
+
+(defun oterm-send-and-wait-for-prompt (&optional send-command-func)
+  "Send the current command line with SEND-COMMAND-FUNC and wait for a prompt to appear.
+
+Puts the point at the end of the prompt and return the position
+of the beginning of the prompt."
+  (let ((before-send (point)))
+    (funcall (or send-command-func #'oterm-send-command))
     (while (not (save-excursion
-                  (goto-char first-prompt-end)
+                  (goto-char before-send)
                   (search-forward-regexp (concat "^" (regexp-quote oterm-test-prompt)) nil 'noerror)))
       (unless (accept-process-output oterm-term-proc 1 nil t)
         (error "no output")))
-    (setq next-prompt-start (match-beginning 0))
-    (setq output (oterm-test-content (1+ first-prompt-end) next-prompt-start))
-    (narrow-to-region next-prompt-start (point-max))
-    output))
+    (match-beginning 0)))
 
 (defun oterm-test-content  (&optional start end nopointer)
   (interactive)

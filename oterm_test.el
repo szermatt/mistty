@@ -151,6 +151,16 @@
        (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 4) "\n")
                       (oterm-send-and-capture-command-output)))))))
 
+(ert-deftest test-oterm-bracketed-paste ()
+  (with-oterm-buffer
+   (should (equal oterm-bracketed-paste t))
+   (oterm-send-raw-string "read yesorno && echo answer: $yesorno\n")
+   (oterm-wait-for-output)
+   (should (equal oterm-bracketed-paste nil))
+   (should (equal "answer: no" (oterm-send-and-capture-command-output
+                                (lambda ()
+                                  (insert "no\n")))))))
+
 (defun oterm-wait-for-output ()
   "Wait for process output, which should be short and immediate."
   (unless (accept-process-output oterm-term-proc 0 500 t)

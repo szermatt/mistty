@@ -21,6 +21,7 @@
 (defvar-local oterm-term-proc nil)
 (defvar-local oterm-sync-marker nil)
 (defvar-local oterm-sync-ov nil)
+(defvar-local oterm-bracketed-paste nil)
 (defvar oterm--inhibit-sync nil)
 
 (defconst oterm-left-str "\eOD")
@@ -83,8 +84,8 @@
       (setq oterm-term-proc proc)
       (process-put proc 'oterm-work-buffer oterm-work-buffer)
       (process-put proc 'oterm-term-buffer oterm-term-buffer)
-      (set-process-filter proc #'oterm-emulate-terminal)
-      (set-process-sentinel proc #'oterm-sentinel))))
+      (set-process-filter proc #'oterm-process-filter)
+      (set-process-sentinel proc #'oterm-process-sentinel))))
 
 (defsubst oterm--buffer-p (buffer)
   "Return the BUFFER if the buffer is a live oterm buffer."
@@ -126,7 +127,7 @@
     (switch-to-buffer (current-buffer))
     ))
 
-(defun oterm-sentinel (proc msg)
+(defun oterm-process-sentinel (proc msg)
   (when (memq (process-status proc) '(signal exit))
     (let ((work-buffer (process-get proc 'oterm-work-buffer))
           (term-buffer (process-get proc 'oterm-term-buffer)))
@@ -139,12 +140,12 @@
             (kill-buffer term-buffer))
         (term-sentinel proc msg)))))
 
-(defun oterm-emulate-terminal (proc str)
+(defun oterm-process-filter (proc str)
   (let ((inhibit-modification-hooks t)
         (old-pmark (marker-position (process-mark proc)))
         (work-buffer (process-get proc 'oterm-work-buffer))
         (term-buffer (process-get proc 'oterm-term-buffer)))
-    (term-emulate-terminal proc str)
+    (oterm-emulate-terminal proc str)
     (when (buffer-live-p term-buffer)
       (with-current-buffer term-buffer
         (goto-char (process-mark proc))))
@@ -155,6 +156,29 @@
               (when (/= old-pmark (marker-position (process-mark proc)))
                 (oterm--pmarker-to-point))
               )))))
+
+(defun oterm-emulate-terminal (proc str)
+  "Handle special terminal codes, then call `term-emlate-terminal'.
+
+This functions intercepts some extented sequences term.el. This
+all should rightly be part of term.el."
+  (let ((start 0) found)
+    (while (setq found (string-match "\e\\[\\(\\?2004[hl]\\)" str start))
+      (let ((ext (match-string 1 str))
+            (next (match-end 0)))
+        (term-emulate-terminal proc (substring str start next))
+        (let ((buf (process-get proc 'oterm-work-buffer)))
+          (when (buffer-live-p buf)
+            (with-current-buffer buf
+              (cond
+               ((equal ext "?2004h")
+                (setq oterm-bracketed-paste t))
+               ((equal ext "?2004l")
+                (setq oterm-bracketed-paste nil))))))
+        (setq start next)))
+    (let ((final-str (substring str start)))
+      (unless (zerop (length final-str))
+        (term-emulate-terminal proc final-str)))))
 
 (defun oterm--pmark ()
   "The terminal process mark as a position within the current buffer (work or term)."
@@ -277,7 +301,8 @@ execute the remapped command."
 (defun oterm--modification-hook (_ov is-after beg end &optional old-length)
   (when (and (buffer-live-p oterm-term-buffer) is-after)
     ;; Attempt to replay the change in the terminal.
-    (let ((pmark (oterm--pmark)))
+    (let ((pmark (oterm--pmark))
+          (initial-point (point)))
       (oterm--send-and-wait (oterm--move-str pmark beg))
       (setq pmark (oterm--pmark))
       ;; pmark is as close to beg as we can make it
@@ -308,17 +333,25 @@ execute the remapped command."
               (concat (oterm--repeat-string chars-to-delete oterm-right-str)
                       (oterm--repeat-string chars-to-delete "\b")))
             (when (> (length content-to-replay) 0)
-              (concat
-               ;; TODO: check whether bracketed paste is available
-               oterm-bracketed-paste-start-str content-to-replay oterm-bracketed-paste-end-str
-               ;; Readline keeps text inserted this way as active
-               ;; region. The following is meant to de-activate the region.
-               oterm-left-str oterm-right-str))))))
+              (if oterm-bracketed-paste
+                  (concat
+                   oterm-bracketed-paste-start-str content-to-replay oterm-bracketed-paste-end-str
+                   ;; Readline keeps text inserted this way as active
+                   ;; region. The following is meant to de-activate the region.
+                   oterm-left-str oterm-right-str)
+                content-to-replay))))))
 
     ;; Copy the modifications on the term buffer to the work buffer.
     ;; This might undo part of the modification that couldn't be
     ;; replayed, but only those after the *new* sync marker.
-    (oterm--term-to-work))))
+    (oterm--term-to-work)
+
+    ;; If insertion went right, the pmark should be at the end of the
+    ;; insertion zone, so moving the point to the pmark guarantees
+    ;; that the pointer position makes sense, even after the changes
+    ;; applied to the work buffer by oterm--term-to-work.
+    (when (equal initial-point end)
+      (goto-char (oterm--pmark))))))
 
 (defun oterm--send-and-wait (str)
   (when (and str (not (zerop (length str))))

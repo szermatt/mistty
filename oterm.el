@@ -166,6 +166,9 @@
     (when (buffer-live-p term-buffer)
       (with-current-buffer term-buffer
         (goto-char (process-mark proc))))
+    (when (and (buffer-live-p work-buffer) (buffer-live-p term-buffer))
+      (with-current-buffer work-buffer
+        (setq default-directory (buffer-local-value 'default-directory term-buffer))))
     (when (and (not oterm--inhibit-sync) (buffer-live-p work-buffer))
       (with-current-buffer work-buffer
         (when (buffer-live-p oterm-term-buffer)

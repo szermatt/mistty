@@ -55,6 +55,13 @@
    (should (equal "$ echo bonjour<>" (oterm-test-content)))
    (should (equal "bonjour" (oterm-send-and-capture-command-output)))))
 
+(ert-deftest test-oterm-recover-from-deleted-prompt ()
+  (with-oterm-buffer
+   (delete-region (point-min) (point-max))
+   (insert "echo hello")
+   (should (equal "echo hello<>" (oterm-test-content)))
+   (should (equal "hello" (oterm-send-and-capture-command-output)))))
+
 (ert-deftest test-oterm-change-before-prompt ()
   (with-oterm-buffer
    (let (beg end)

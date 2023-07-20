@@ -321,21 +321,24 @@ execute the remapped command."
   (when (and (buffer-live-p oterm-term-buffer) is-after)
     ;; Attempt to replay the change in the terminal.
     (let ((pmark (oterm--pmark))
-          (initial-point (point)))
+          (initial-point (point))
+          (content (buffer-substring-no-properties beg end)))
       (oterm--send-and-wait (oterm--move-str pmark beg))
       (setq pmark (oterm--pmark))
       ;; pmark is as close to beg as we can make it
 
+      ;; We couldn't move pmark as far back as beg. Presumably, the
+      ;; process mark points to the leftmost modifiable position of
+      ;; the command line. Update the sync marker to start sync there
+      ;; from now on and avoid getting this hook called unnecessarily.
+      ;; This is done from inside the term buffer as the modifications
+      ;; of the work buffer could interfere. TODO: What if the process
+      ;; is just not accepting any input at this time? We might move
+      ;; sync mark to far down.
       (when (> pmark beg)
-        ;; We couldn't move pmark as far back as beg. Presumably,
-        ;; pmark is now at the leftmost modifiable position of the
-        ;; command line. Update the sync marker to start sync there
-        ;; from now on and avoid getting this hook called
-        ;; unnecessarily. TODO: What if the process is just not
-        ;; accepting any input at this time? We might move sync mark
-        ;; to far down.
-        (oterm--move-sync-mark pmark))
-
+        (with-current-buffer oterm-term-buffer
+          (oterm--move-sync-mark (process-mark oterm-term-proc))))
+      
       (when (>= pmark beg)
         ;; Replay the portion of the change that we think we can
         ;; replay.
@@ -344,7 +347,7 @@ execute the remapped command."
         ;; of the screen and end in the portion of the screen
         ;; containing zsh completion? We'd be "replaying" zsh
         ;; completion results.
-        (let ((content-to-replay (if (<= pmark end) (buffer-substring-no-properties pmark end) ""))
+        (let ((content-to-replay (if (<= pmark end) (substring content (- pmark beg)) ""))
               (chars-to-delete (- (or old-length 0) (- pmark beg))))
           (oterm--send-and-wait
            (concat

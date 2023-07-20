@@ -28,9 +28,20 @@
    (oterm-wait-for-output)
    (should (equal "$ echo hello\nhello" (oterm-test-content)))))
 
+(ert-deftest test-oterm-simple-command-zsh ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "echo hello\n")
+   (oterm-wait-for-output)
+   (should (equal "$ echo hello\nhello" (oterm-test-content)))))
+
 (ert-deftest test-oterm-keystrokes ()
   (with-oterm-buffer-selected
-   (execute-kbd-macro (kbd "e c h o SPC e r r DEL DEL DEL o k"))
+   (execute-kbd-macro (kbd "e c h o SPC o k"))
+   (should (equal "ok" (oterm-send-and-capture-command-output (lambda () (execute-kbd-macro (kbd "RET"))))))))
+
+(ert-deftest test-oterm-keystrokes-backspace ()
+  (with-oterm-buffer-selected
+   (execute-kbd-macro (kbd "e c h o SPC f o o DEL DEL DEL o k"))
    (should (equal "ok" (oterm-send-and-capture-command-output (lambda () (execute-kbd-macro (kbd "RET"))))))))
 
 (ert-deftest test-oterm-reconcile-insert ()
@@ -58,9 +69,18 @@
 
 (ert-deftest test-oterm-recover-from-deleted-prompt ()
   (with-oterm-buffer
+   (widen) ;; delete *everything
    (delete-region (point-min) (point-max))
    (insert "echo hello")
-   (should (equal "echo hello<>" (oterm-test-content)))
+   (should (equal "$ echo hello<>" (oterm-test-content)))
+   (should (equal "hello" (oterm-send-and-capture-command-output)))))
+
+(ert-deftest test-oterm-recover-from-deleted-prompt-zsh ()
+  (with-oterm-buffer-zsh
+   (widen) ;; delete *everything
+   (delete-region (point-min) (point-max))
+   (insert "echo hello")
+   (should (equal "$ echo hello<>" (oterm-test-content)))
    (should (equal "hello" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-change-before-prompt ()

@@ -13,6 +13,7 @@
 ;; 
 
 (require 'term)
+(require 'subr-x)
 
 ;;; Code:
 
@@ -29,8 +30,12 @@
 (defconst oterm-bracketed-paste-start-str "\e[200~")
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 
-(defface oterm-debug-face '((t :inverse-video t))
+(defface oterm-debug-face
+  '((t (:box (:line-width (2 . 2) :color "red" :style released-button))))
   "Face used to highlight `oterm-sync-ov' for debugging.")
+
+(defface oterm-debug-prompt-face '((t (:background "green")))
+  "Face used to highlight prompts for debugging.")
 
 (defvar oterm-mode-map
   (let ((oterm-mode-map (make-sparse-keymap)))
@@ -49,6 +54,7 @@
     (define-key oterm-prompt-map [S-return] 'newline)
     (define-key oterm-prompt-map (kbd "TAB") 'oterm-send-tab-if-at-prompt)
     (define-key oterm-prompt-map (kbd "C-d") 'oterm-delchar-or-maybe-eof)
+    (define-key oterm-prompt-map (kbd "C-a") 'oterm-beginning-of-line)
     oterm-prompt-map))
 
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
@@ -228,8 +234,7 @@ all should rightly be part of term.el."
       (oterm--move-sync-mark term-home-marker))))
 
 (defun oterm--move-sync-mark (pos)
-  (let ((chars-from-end (- (point-max)
-                           (save-excursion (goto-char pos) (line-beginning-position)))))
+  (let ((chars-from-end (- (point-max) (oterm--bol-pos-from pos))))
     (with-current-buffer oterm-term-buffer
       (move-marker oterm-sync-marker (- (point-max) chars-from-end)))
     (with-current-buffer oterm-work-buffer
@@ -256,9 +261,21 @@ all should rightly be part of term.el."
   (let ((pmark (oterm--pmark)))
     (if inexact
         (or (>= (point) pmark)
-            (>= (save-excursion (line-beginning-position))
-                (save-excursion (goto-char pmark) (line-beginning-position))))
+            (>= (oterm--bol-pos-from (point))
+                (oterm--bol-pos-from pmark)))
         (= (point) pmark))))
+
+(defun oterm--bol-pos-from (pos)
+  (save-excursion
+    (goto-char pos)
+    (let ((inhibit-field-text-motion t))
+      (line-beginning-position))))
+
+(defun oterm--eol-pos-from (pos)
+  (save-excursion
+    (goto-char pos)
+    (let ((inhibit-field-text-motion t))
+      (line-end-position))))
 
 (defun oterm--at-prompt-p (&optional inexact)
   "Figure out whether a command should be sent to the terminal.
@@ -272,8 +289,20 @@ buffer."
       (prog1 (oterm--at-prompt-1 inexact)
         (let ((pmark (oterm--pmark)))
           (when (> pmark (point))
+            (oterm--mark-prompt-end pmark)
             (oterm--move-sync-mark pmark)))
         (oterm--term-to-work))))
+
+(defun oterm--mark-prompt-end (end)
+  (add-text-properties
+   (oterm--bol-pos-from end)
+   (min (point-max) end)
+   ;; This is used to remember a prompt when we've seen it, as
+   ;; detecting a prompt require communicating with the process. Not
+   ;; setting field because prompts aren't detected systematically,
+   ;; only when needed, so we'd never know how (beginning-of-line) and
+   ;; the like would behave.
+   '(oterm prompt rear-nonsticky t face oterm-debug-prompt-face)))
 
 (defun oterm-send-command-if-at-prompt ()
   "Send the current command to the shell if point is at prompt, otherwise
@@ -322,7 +351,8 @@ execute the remapped command."
     ;; Attempt to replay the change in the terminal.
     (let ((pmark (oterm--pmark))
           (initial-point (point))
-          (content (buffer-substring-no-properties beg end)))
+          (content-to-replay (buffer-substring-no-properties beg end))
+          (chars-to-delete old-length))
       (oterm--send-and-wait (oterm--move-str pmark beg))
       (setq pmark (oterm--pmark))
       ;; pmark is as close to beg as we can make it
@@ -336,25 +366,29 @@ execute the remapped command."
       ;; is just not accepting any input at this time? We might move
       ;; sync mark to far down.
       (when (> pmark beg)
+        (oterm--mark-prompt-end pmark)
         (with-current-buffer oterm-term-buffer
           (oterm--move-sync-mark (process-mark oterm-term-proc))))
-      
-      (when (>= pmark beg)
-        ;; Replay the portion of the change that we think we can
-        ;; replay.
-        ;;
-        ;; TODO: what if [beg, end] start in the command-line portion
-        ;; of the screen and end in the portion of the screen
-        ;; containing zsh completion? We'd be "replaying" zsh
-        ;; completion results.
-        (let ((content-to-replay (if (<= pmark end) (substring content (- pmark beg)) ""))
-              (chars-to-delete (- (or old-length 0) (- pmark beg))))
-          (oterm--send-and-wait
-           (concat
-            (when (> chars-to-delete 0)
-              (concat (oterm--repeat-string chars-to-delete oterm-right-str)
-                      (oterm--repeat-string chars-to-delete "\b")))
-            (oterm--maybe-bracketed-str content-to-replay)))))
+
+      ;; Replay the portion of the change that we think we can
+      ;; replay.
+      ;;
+      ;; TODO: what if [beg, end] start in the command-line portion
+      ;; of the screen and end in the portion of the screen
+      ;; containing zsh completion? We'd be "replaying" zsh
+      ;; completion results.
+      (cond
+       ((< pmark beg)
+        (setq content-to-replay "" chars-to-delete 0))
+       ((> pmark beg)
+        (setq content-to-replay (if (<= pmark end) (substring content-to-replay (- pmark beg)) "")
+              chars-to-delete (- chars-to-delete (- pmark beg)))))
+      (oterm--send-and-wait
+       (concat
+        (when (> chars-to-delete 0)
+          (concat (oterm--repeat-string chars-to-delete oterm-right-str)
+                  (oterm--repeat-string chars-to-delete "\b")))
+        (oterm--maybe-bracketed-str content-to-replay)))
 
     ;; Copy the modifications on the term buffer to the work buffer.
     ;; This might undo part of the modification that couldn't be
@@ -395,6 +429,23 @@ execute the remapped command."
           (dotimes (j elt-len)
             (aset str (+ (* i elt-len) j) (aref elt j))))
         str))))
+
+(defun oterm-beginning-of-line ()
+  (interactive)
+  (if (eq last-command 'oterm-beginning-of-line)
+      (beginning-of-line)
+    (let* ((bol (oterm--bol-pos-from (point)))
+           (known-prompt-pos (text-property-not-all bol (point) 'oterm 'prompt)))
+      (if (and known-prompt-pos (> known-prompt-pos bol))
+          (goto-char known-prompt-pos)
+        (oterm--send-and-wait (oterm--move-pmark-str bol))
+        (let ((pmark (oterm--pmark)))
+          (when (> pmark bol)
+            (oterm--mark-prompt-end pmark)
+            (oterm--move-sync-mark pmark))
+          (if (and (>= pmark bol) (< pmark (oterm--eol-pos-from (point))))
+              (goto-char pmark)
+            (goto-char bol)))))))
 
 (provide 'oterm)
 

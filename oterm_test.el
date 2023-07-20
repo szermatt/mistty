@@ -189,6 +189,52 @@
                                 (lambda ()
                                   (insert "no\n")))))))
 
+(ert-deftest test-oterm-bol ()
+  (with-oterm-buffer
+   (let ((initial-pos (point)))
+     (insert "echo hello")
+
+     ;; The first time, move the point after the prompt.
+     ;; This move the pmark.
+     (oterm-beginning-of-line)
+     (should (equal (point) initial-pos))
+
+     ;; The first time, move to the real line start.
+     (let ((last-command 'oterm-beginning-of-line))
+       (oterm-beginning-of-line))
+     (should (equal (point) (point-min)))
+
+     ;; If called again. This uses the text properties set the first
+     ;; time.
+     (goto-char (point-max))
+     (oterm-beginning-of-line)
+     (should (equal (point) initial-pos)))))
+
+(ert-deftest test-oterm-bol-multiline ()
+  (with-oterm-buffer
+   (let ((initial-pos (point)))
+     (insert "echo \"hello\nworld\"")
+     ;; Point is in the 2nd line, after world, and there's no prompt
+     ;; on that line, so just go there.
+     (oterm-beginning-of-line)
+     (should (equal (point) (oterm--bol-pos-from (point)))))))
+
+(ert-deftest test-oterm-bol-outside-of-prompt ()
+  (with-oterm-buffer
+   (let (prompt-start)
+     (insert "echo one")
+     (oterm-send-and-wait-for-prompt)
+     (setq prompt-start (point))
+     (insert "echo two")
+     (oterm-send-and-wait-for-prompt)
+     (insert "echo three")
+
+     ;; This is before the prompt; just go to the real line beginning,
+     ;; even though there's an old prompt on that line.
+     (goto-char (+ 3 prompt-start))
+     (oterm-beginning-of-line)
+     (should (equal (point) (oterm--bol-pos-from prompt-start))))))
+
 (defun oterm-test-setup (shell)
   (cond
    ((eq shell 'bash)

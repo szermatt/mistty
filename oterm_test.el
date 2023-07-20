@@ -5,14 +5,15 @@
 (require 'ert-x)
 
 (defconst oterm-test-prompt "$ ")
-(defmacro with-oterm-buffer (&rest body)
+
+(cl-defmacro with-oterm-buffer (&rest body)
   `(ert-with-test-buffer ()
-     (oterm--exec "/usr/local/bin/bash" "--noprofile" "--norc" "-i")
-     (while (eq (point-min) (point-max))
-       (accept-process-output oterm-term-proc 0 100 t))
-     (oterm-send-raw-string (concat "PS1='" oterm-test-prompt "'"))
-     (oterm-wait-for-output)
-     (narrow-to-region (oterm-send-and-wait-for-prompt) (point-max))
+     (oterm-test-setup 'bash)
+     ,@body))
+
+(cl-defmacro with-oterm-buffer-zsh (&rest body)
+  `(ert-with-test-buffer ()
+     (oterm-test-setup 'zsh)
      ,@body))
 
 (defmacro with-oterm-buffer-selected (&rest body)
@@ -167,6 +168,19 @@
    (should (equal "answer: no" (oterm-send-and-capture-command-output
                                 (lambda ()
                                   (insert "no\n")))))))
+
+(defun oterm-test-setup (shell)
+  (cond
+   ((eq shell 'bash)
+    (oterm--exec "/usr/local/bin/bash" "--noprofile" "--norc" "-i"))
+   ((eq shell 'zsh)
+    (oterm--exec "/usr/local/bin/zsh" "-i" "--no-rcs"))
+   (t (error "Unsupported shell %s" shell)))
+  (while (eq (point-min) (point-max))
+    (accept-process-output oterm-term-proc 0 100 t))
+  (oterm-send-raw-string (concat "PS1='" oterm-test-prompt "'"))
+  (oterm-wait-for-output)
+  (narrow-to-region (oterm-send-and-wait-for-prompt) (point-max)))
 
 (defun oterm-wait-for-output ()
   "Wait for process output, which should be short and immediate."

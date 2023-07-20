@@ -46,6 +46,8 @@
     (define-key oterm-mode-map (kbd "C-c C-n") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-r") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-s") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-a") 'oterm-goto-pmark-and-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-e") 'oterm-goto-pmark-and-send-raw-key)
     oterm-mode-map))
 
 (defvar oterm-prompt-map
@@ -308,12 +310,27 @@ buffer."
   "Send the current command to the shell if point is at prompt, otherwise
 send a newline."
   (interactive)
-  (if (oterm--at-prompt-p 'inexact)
-      (oterm-send-command)
-    (newline)))
+  (let ((pmark (oterm--pmark)))
+    (if (and (text-property-any (oterm--bol-pos-from (point)) (oterm--eol-pos-from (point)) 'oterm 'prompt)
+             (>= (point) (oterm--bol-pos-from pmark)))
+        (oterm-send-raw-string "\n")
+      (oterm--send-and-wait (oterm--move-pmark-str oterm-sync-marker))
+      (setq pmark (oterm--pmark))
+      (oterm--mark-prompt-end pmark)
+      (when (> pmark oterm-sync-marker)
+        (oterm--move-sync-mark pmark))
+      (if (>= (point) (oterm--bol-pos-from pmark))
+          (oterm-send-raw-string "\n")
+        (newline)))))
 
 (defun oterm-send-raw-key ()
   (interactive)
+  (let ((keys (this-command-keys)))
+    (oterm-send-raw-string (make-string 1 (aref keys (1- (length keys)))))))
+
+(defun oterm-goto-pmark-and-send-raw-key ()
+  (interactive)
+  (goto-char (oterm--pmark))
   (let ((keys (this-command-keys)))
     (oterm-send-raw-string (make-string 1 (aref keys (1- (length keys)))))))
 

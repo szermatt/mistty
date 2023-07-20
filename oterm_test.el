@@ -235,6 +235,68 @@
      (oterm-beginning-of-line)
      (should (equal (point) (oterm--bol-pos-from prompt-start))))))
 
+(ert-deftest test-oterm-next-prompt ()
+  (with-oterm-buffer
+   (let (one two three current)
+     (setq one (point))
+     (insert "echo one")
+     (oterm-send-and-wait-for-prompt)
+     (setq prompt-start (point))
+     (setq two (point))
+     (insert "echo two")
+     (oterm-send-and-wait-for-prompt)
+     (setq three (point))
+     (insert "echo three")
+     (oterm-send-and-wait-for-prompt)
+     (setq current (point))
+     (insert "echo current")
+
+     (goto-char (point-min))
+     (oterm-next-prompt 1)
+     (should (equal one (point)))
+
+     (oterm-next-prompt 1)
+     (should (equal two (point)))
+
+     (oterm-next-prompt 1)
+     (should (equal three (point)))
+
+     (oterm-next-prompt 1)
+     (should (equal current (point)))
+
+     (should-error (oterm-next-prompt 1))
+
+     (goto-char (point-min))
+     (oterm-next-prompt 2)
+     (should (equal two (point)))
+     
+     (oterm-next-prompt 2)
+     (should (equal current (point))))))
+
+(ert-deftest test-oterm-previous-prompt ()
+  (with-oterm-buffer
+   (let (one two three current)
+     (setq one (point))
+     (insert "echo one")
+     (oterm-send-and-wait-for-prompt)
+     (setq prompt-start (point))
+     (setq two (point))
+     (insert "echo two")
+     (oterm-send-and-wait-for-prompt)
+     (setq three (point))
+     (insert "echo three")
+     (oterm-send-and-wait-for-prompt)
+     (setq current (point))
+     (insert "echo current")
+
+     (oterm-previous-prompt 1)
+     (should (equal three (point)))
+
+     (oterm-previous-prompt 2)
+     (should (equal one (point)))
+
+     (should-error (oterm-previous-prompt 1)))))
+
 (defun oterm-test-setup (shell)
   (cond
    ((eq shell 'bash)

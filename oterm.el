@@ -48,6 +48,8 @@
     (define-key oterm-mode-map (kbd "C-c C-s") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-a") 'oterm-goto-pmark-and-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-e") 'oterm-goto-pmark-and-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-n") 'oterm-next-prompt)
+    (define-key oterm-mode-map (kbd "C-c C-p") 'oterm-previous-prompt)
     oterm-mode-map))
 
 (defvar oterm-prompt-map
@@ -323,6 +325,19 @@ send a newline."
           (oterm-send-raw-string "\n")
         (newline)))))
 
+(defun oterm-send-command ()
+  "Send the current command to the shell."
+  (interactive)
+  (let ((pmark (oterm--pmark)))
+    (if (text-property-any (oterm--bol-pos-from (point)) (oterm--eol-pos-from (point)) 'oterm 'prompt)
+        (oterm-send-raw-string "\n")
+      (oterm--send-and-wait (oterm--move-pmark-str oterm-sync-marker))
+      (setq pmark (oterm--pmark))
+      (oterm--mark-prompt-end pmark)
+      (when (> pmark oterm-sync-marker)
+        (oterm--move-sync-mark pmark))
+      (oterm-send-raw-string "\n"))))
+
 (defun oterm-send-raw-key ()
   (interactive)
   (let ((keys (this-command-keys)))
@@ -342,11 +357,6 @@ send a newline."
                      (oterm--term-to-work))))
       (oterm-send-raw-string (kbd "C-d"))
     (delete-char arg)))
-
-(defun oterm-send-command ()
-  "Send the current command to the shell."
-  (interactive)
-  (oterm-send-raw-string "\n"))
 
 (defun oterm-send-tab-if-at-prompt ()
   (interactive)
@@ -453,7 +463,9 @@ execute the remapped command."
       (beginning-of-line)
     (let* ((bol (oterm--bol-pos-from (point)))
            (known-prompt-pos (text-property-not-all bol (point) 'oterm 'prompt)))
-      (if (and known-prompt-pos (> known-prompt-pos bol))
+      (if (and known-prompt-pos
+               (> known-prompt-pos bol)
+               (>= known-prompt-pos (oterm--bol-pos-from (oterm--pmark))))
           (goto-char known-prompt-pos)
         (oterm--send-and-wait (oterm--move-pmark-str bol))
         (let ((pmark (oterm--pmark)))
@@ -463,6 +475,28 @@ execute the remapped command."
           (if (and (>= pmark bol) (< pmark (oterm--eol-pos-from (point))))
               (goto-char pmark)
             (goto-char bol)))))))
+
+(defun oterm-next-prompt (n)
+  (interactive "p")
+  (dotimes (_ n)
+    (if (setq found (text-property-any (point) (point-max) 'oterm 'prompt))
+        (goto-char (next-single-property-change found 'oterm))
+      (let ((pmark (oterm--pmark)))
+        (if (>= (point) (oterm--bol-pos-from pmark))
+            (error "No next prompt")
+          ;; The last prompt may need to be detected.
+          (oterm--send-and-wait (oterm--move-pmark-str oterm-sync-marker))
+          (setq pmark (oterm--pmark))
+          (oterm--mark-prompt-end pmark)
+          (when (> pmark oterm-sync-marker)
+            (oterm--move-sync-mark pmark))
+          (goto-char pmark))))))
+
+(defun oterm-previous-prompt (n)
+  (interactive "p")
+  (dotimes (_ n)
+    (unless (text-property-search-backward 'oterm 'prompt)
+      (error "No previous prompt"))))
 
 (provide 'oterm)
 

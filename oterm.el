@@ -97,9 +97,9 @@
 (defmacro oterm--with-live-buffer (buf &rest body)
   (declare (indent 1))
   (let ((tempvar (make-symbol "buf")))
-    `(let ((tempvar ,buf))
-       (when (buffer-live-p tempvar)
-         (with-current-buffer tempvar
+    `(let ((,tempvar ,buf))
+       (when (buffer-live-p ,tempvar)
+         (with-current-buffer ,tempvar
            ,@body)))))
     
 (defun oterm--kill-term-buffer ()
@@ -190,7 +190,7 @@
         (unless oterm--inhibit-sync
           (oterm--term-to-work)
           (when bracketed-paste-turned-on
-            (oterm--move-sync-mark (process-mark proc)))
+            (oterm--move-sync-mark (oterm--pmark) 'set-prompt))
           (when (/= old-pmark (marker-position (process-mark proc)))
             (goto-char (oterm--pmark))))))))
 
@@ -249,12 +249,26 @@ all should rightly be part of term.el."
                 (let ((inhibit-modification-hooks t))
                   (replace-buffer-contents oterm-term-buffer))))
             (setq buffer-undo-list saved-undo)))))
+    
     ;; Next time, only sync the visible portion of the terminal.
     (with-current-buffer oterm-term-buffer
       (when (< oterm-sync-marker term-home-marker)
-        (oterm--move-sync-mark term-home-marker 'not-a-prompt)))))
+        (oterm--move-sync-mark term-home-marker)))
 
-(defun oterm--move-sync-mark (pos &optional not-a-prompt)
+    ;; Truncate the term buffer, since scrolling back is available on
+    ;; the work buffer anyways. This has to be done now, after syncing
+    ;; the marker, and not in term-emulate-terminal, which is why
+    ;; term-buffer-maximum-size is set to 0.
+    (with-current-buffer oterm-term-buffer
+      (let ((inhibit-read-only t))
+        (save-excursion
+          (goto-char term-home-marker)
+          (forward-line -5)
+          (delete-region (point-min) (point)))))
+
+    ))
+
+(defun oterm--move-sync-mark (pos &optional set-prompt)
   (let ((chars-from-bol (- pos (oterm--bol-pos-from pos)))
         (chars-from-end (- (point-max) (oterm--bol-pos-from pos))))
     (with-current-buffer oterm-term-buffer
@@ -265,30 +279,17 @@ all should rightly be part of term.el."
           (remove-text-properties oterm-sync-marker oterm-cmd-start-marker '(read-only t))))
       (let* ((sync-pos (- (point-max) chars-from-end))
              (cmd-start-pos (+ sync-pos chars-from-bol)))
-        (message "move sync marker from %s to %s (+%s -> %s)" oterm-sync-marker sync-pos chars-from-bol cmd-start-pos)
         (move-marker oterm-sync-marker sync-pos)
         (move-marker oterm-cmd-start-marker cmd-start-pos)
         (move-overlay oterm-sync-ov sync-pos (point-max))
-        (when (and (not not-a-prompt) (> cmd-start-pos sync-pos))
+        (when (and set-prompt (> cmd-start-pos sync-pos))
           (add-text-properties sync-pos cmd-start-pos
                                '(oterm prompt
                                        field 'oterm-prompt
                                        rear-nonsticky t
                                        face oterm-debug-prompt-face))
           (add-text-properties sync-pos cmd-start-pos
-                               '(read-only t front-sticky t))
-          ))))
-
-  ;; Truncate the term buffer, since scrolling back is available on
-  ;; the work buffer anyways. This has to be done now, after syncing
-  ;; the marker, and not in term-emulate-terminal, which is why
-  ;; term-buffer-maximum-size is set to 0.
-  (with-current-buffer oterm-term-buffer
-    (let ((inhibit-read-only t))
-      (save-excursion
-        (goto-char (min term-home-marker oterm-sync-marker))
-        (when (zerop (forward-line -5))
-          (delete-region (point-min) (point)))))))
+                               '(read-only t front-sticky t)))))))
 
 (defun oterm-send-raw-string (str)
   (when (and str (not (zerop (length str))))
@@ -366,8 +367,7 @@ all should rightly be part of term.el."
       ;; is just not accepting any input at this time? We might move
       ;; sync mark to far down.
       (when (> pmark beg)
-        (with-current-buffer oterm-term-buffer
-          (oterm--move-sync-mark (process-mark oterm-term-proc))))
+        (oterm--move-sync-mark pmark 'set-prompt))
 
       ;; Replay the portion of the change that we think we can
       ;; replay.
@@ -431,10 +431,11 @@ all should rightly be part of term.el."
 
 (defun oterm-next-prompt (n)
   (interactive "p")
-  (dotimes (_ n)
-    (if (setq found (text-property-any (point) (point-max) 'oterm 'prompt))
-        (goto-char (or (next-single-property-change found 'oterm) (point-max)))
-      (error "No next prompt"))))
+  (let (found)
+    (dotimes (_ n)
+      (if (setq found (text-property-any (point) (point-max) 'oterm 'prompt))
+          (goto-char (or (next-single-property-change found 'oterm) (point-max)))
+        (error "No next prompt")))))
 
 (defun oterm-previous-prompt (n)
   (interactive "p")

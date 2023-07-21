@@ -25,14 +25,12 @@
 (ert-deftest test-oterm-simple-command ()
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello\n")
-   (oterm-wait-for-output)
-   (should (equal "$ echo hello\nhello" (oterm-test-content)))))
+   (should (equal "hello" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-simple-command-zsh ()
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello\n")
-   (oterm-wait-for-output)
-   (should (equal "$ echo hello\nhello" (oterm-test-content)))))
+   (should (equal "hello" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-keystrokes ()
   (with-oterm-buffer-selected
@@ -67,21 +65,15 @@
    (should (equal "$ echo bonjour<>" (oterm-test-content)))
    (should (equal "bonjour" (oterm-send-and-capture-command-output)))))
 
-(ert-deftest test-oterm-recover-from-deleted-prompt ()
+(ert-deftest test-oterm-prevent-deleting-prompt ()
   (with-oterm-buffer
-   (widen) ;; delete *everything
-   (delete-region (point-min) (point-max))
-   (insert "echo hello")
-   (should (equal "$ echo hello<>" (oterm-test-content)))
-   (should (equal "hello" (oterm-send-and-capture-command-output)))))
+   (should-error (backward-delete-char))
+   (should-error (delete-region (point-min) (point-max)))))
 
-(ert-deftest test-oterm-recover-from-deleted-prompt-zsh ()
+(ert-deftest test-oterm-prevent-deleting-prompt-zsh ()
   (with-oterm-buffer-zsh
-   (widen) ;; delete *everything
-   (delete-region (point-min) (point-max))
-   (insert "echo hello")
-   (should (equal "$ echo hello<>" (oterm-test-content)))
-   (should (equal "hello" (oterm-send-and-capture-command-output)))))
+   (should-error (backward-delete-char))
+   (should-error (delete-region (point-min) (point-max)))))
 
 (ert-deftest test-oterm-change-before-prompt ()
   (with-oterm-buffer
@@ -108,20 +100,28 @@
      (should (equal "$ echo bonjour\nhello\n$ echo world\nworld" (oterm-test-content))))))
 
 (ert-deftest test-oterm-send-command-because-at-prompt ()
-  (with-oterm-buffer
+  (with-oterm-buffer-selected
    (oterm-send-raw-string "echo hello")
    (oterm-wait-for-output)
-   (oterm-send-command-if-at-prompt)
+   (execute-kbd-macro (kbd "RET"))
    (oterm-wait-for-output)
    (should (equal "$ echo hello\nhello" (oterm-test-content)))))
 
 (ert-deftest test-oterm-send-newline-because-not-at-prompt ()
-  (with-oterm-buffer
+  (with-oterm-buffer-selected
    (oterm-send-raw-string "echo hello\n")
    (oterm-wait-for-output)
    (goto-char (+ (point-min) 7))
-   (oterm-send-command-if-at-prompt)
+   (execute-kbd-macro (kbd "RET"))
    (should (equal "$ echo\n<>hello\nhello" (oterm-test-content)))))
+
+(ert-deftest test-oterm-send-newline-because-not-at-prompt-multiline ()
+  (with-oterm-buffer-selected
+   (insert "echo hello\necho world")
+   (goto-char (point-min))
+   (execute-kbd-macro (kbd "RET"))
+   (oterm-wait-for-output)
+   (should (equal "$ echo hello\necho world\nhello\nworld" (oterm-test-content)))))
 
 (ert-deftest test-oterm-send-tab-to-complete  ()
   (with-oterm-buffer
@@ -130,23 +130,14 @@
    ;; Move the point before doing completion, to make sure that
    ;; oterm-send-if-at-prompt moves the pmark to the right position
    ;; before sending TAB.
+   (oterm-pre-command)
    (goto-char (+ (point-min) 5))
+   (oterm-post-command)
+   (oterm-wait-for-output)
    (should (equal "$ ech<> world" (oterm-test-content)))
-   (oterm-send-tab-if-at-prompt)
+   (oterm-send-tab)
    (oterm-wait-for-output)
    (should (equal "$ echo<> world" (oterm-test-content)))))
-
-(ert-deftest test-oterm-send-newline-because-not-at-prompt-multiline ()
-  (with-oterm-buffer
-   (insert "echo hello\necho world")
-   (goto-char (point-min))
-   ;; pmark is on the second line, at the end of "world" and point is
-   ;; on the line above, on the prompt.
-   ;; oterm-send-command-if-at-prompt needs to be able to figure out
-   ;; that the line it's on is still part of the prompt.
-   (oterm-send-command-if-at-prompt)
-   (oterm-wait-for-output)
-   (should (equal "$ echo hello\necho world\nhello\nworld" (oterm-test-content)))))
 
 (ert-deftest test-oterm-kill-term-buffer ()
   (let* ((buffer-and-proc (with-oterm-buffer
@@ -195,29 +186,21 @@
      (insert "echo hello")
 
      ;; The first time, move the point after the prompt.
-     ;; This move the pmark.
-     (oterm-beginning-of-line)
+     (beginning-of-line)
      (should (equal (point) initial-pos))
 
      ;; The first time, move to the real line start.
-     (let ((last-command 'oterm-beginning-of-line))
-       (oterm-beginning-of-line))
-     (should (equal (point) (point-min)))
-
-     ;; If called again. This uses the text properties set the first
-     ;; time.
-     (goto-char (point-max))
-     (oterm-beginning-of-line)
-     (should (equal (point) initial-pos)))))
+     (let ((inhibit-field-text-motion t))
+       (beginning-of-line))
+     (should (equal (point) (point-min))))))
 
 (ert-deftest test-oterm-bol-multiline ()
   (with-oterm-buffer
-   (let ((initial-pos (point)))
-     (insert "echo \"hello\nworld\"")
-     ;; Point is in the 2nd line, after world, and there's no prompt
-     ;; on that line, so just go there.
-     (oterm-beginning-of-line)
-     (should (equal (point) (oterm--bol-pos-from (point)))))))
+   (insert "echo \"hello\nworld\"")
+   ;; Point is in the 2nd line, after world, and there's no prompt
+   ;; on that line, so just go there.
+   (beginning-of-line)
+   (should (equal (point) (oterm--bol-pos-from (point))))))
 
 (ert-deftest test-oterm-bol-outside-of-prompt ()
   (with-oterm-buffer
@@ -232,8 +215,8 @@
      ;; This is before the prompt; just go to the real line beginning,
      ;; even though there's an old prompt on that line.
      (goto-char (+ 3 prompt-start))
-     (oterm-beginning-of-line)
-     (should (equal (point) (oterm--bol-pos-from prompt-start))))))
+     (beginning-of-line)
+     (should (equal (point) prompt-start)))))
 
 (ert-deftest test-oterm-next-prompt ()
   (with-oterm-buffer
@@ -241,7 +224,6 @@
      (setq one (point))
      (insert "echo one")
      (oterm-send-and-wait-for-prompt)
-     (setq prompt-start (point))
      (setq two (point))
      (insert "echo two")
      (oterm-send-and-wait-for-prompt)
@@ -275,12 +257,10 @@
 
 (ert-deftest test-oterm-previous-prompt ()
   (with-oterm-buffer
-   (let (one two three current)
+   (let (one three current)
      (setq one (point))
      (insert "echo one")
      (oterm-send-and-wait-for-prompt)
-     (setq prompt-start (point))
-     (setq two (point))
      (insert "echo two")
      (oterm-send-and-wait-for-prompt)
      (setq three (point))
@@ -289,6 +269,9 @@
      (setq current (point))
      (insert "echo current")
 
+     (oterm-previous-prompt 1)
+     (should (equal current (point)))
+     
      (oterm-previous-prompt 1)
      (should (equal three (point)))
 

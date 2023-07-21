@@ -280,6 +280,15 @@
 
      (should-error (oterm-previous-prompt 1)))))
 
+(ert-deftest test-oterm-dirtrack ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "cd /\n")
+   (oterm-send-and-wait-for-prompt)
+   (should (equal "/" default-directory))
+   (oterm-send-raw-string "cd ~\n")
+   (oterm-send-and-wait-for-prompt)
+   (should (equal (file-name-as-directory (getenv "HOME")) default-directory))))
+
 (defun oterm-test-setup (shell)
   (cond
    ((eq shell 'bash)

@@ -14,6 +14,7 @@
 
 (require 'term)
 (require 'subr-x)
+(require 'text-property-search)
 
 ;;; Code:
 
@@ -21,6 +22,7 @@
 (defvar-local oterm-term-buffer nil)
 (defvar-local oterm-term-proc nil)
 (defvar-local oterm-sync-marker nil)
+(defvar-local oterm-cmd-start-marker nil)
 (defvar-local oterm-sync-ov nil)
 (defvar-local oterm-bracketed-paste nil)
 (defvar-local oterm--old-point nil)
@@ -35,7 +37,10 @@
   '((t (:box (:line-width (2 . 2) :color "red" :style released-button))))
   "Face used to highlight `oterm-sync-ov' for debugging.")
 
-(defface oterm-debug-prompt-face '((t (:background "green")))
+(defface oterm-debug-prompt-face '((t (:background "dark green")))
+  "Face used to highlight prompts for debugging.")
+
+(defface oterm-debug-insert-face '((t (:background "cyan")))
   "Face used to highlight prompts for debugging.")
 
 (defvar oterm-mode-map
@@ -47,6 +52,7 @@
     (define-key oterm-mode-map (kbd "C-c C-n") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-r") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-s") 'oterm-send-raw-key)
+    (define-key oterm-mode-map (kbd "C-c C-g") 'oterm-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-a") 'oterm-goto-pmark-and-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-e") 'oterm-goto-pmark-and-send-raw-key)
     (define-key oterm-mode-map (kbd "C-c C-n") 'oterm-next-prompt)
@@ -55,11 +61,10 @@
 
 (defvar oterm-prompt-map
   (let ((oterm-prompt-map (make-sparse-keymap)))
-    (define-key oterm-prompt-map (kbd "RET") 'oterm-send-command-if-at-prompt)
+    (define-key oterm-prompt-map (kbd "RET") 'oterm-send-command)
     (define-key oterm-prompt-map [S-return] 'newline)
-    (define-key oterm-prompt-map (kbd "TAB") 'oterm-send-tab-if-at-prompt)
+    (define-key oterm-prompt-map (kbd "TAB") 'oterm-send-tab)
     (define-key oterm-prompt-map (kbd "C-d") 'oterm-delchar-or-maybe-eof)
-    (define-key oterm-prompt-map (kbd "C-a") 'oterm-beginning-of-line)
     oterm-prompt-map))
 
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
@@ -68,9 +73,11 @@
     (setq oterm-work-buffer work-buffer)
     (setq oterm-term-buffer term-buffer)
     (setq oterm-sync-marker (copy-marker (point-min)))
+    (setq oterm-cmd-start-marker (copy-marker (point-min)))
     (setq oterm-sync-ov (make-overlay (point-min) (point-max) nil nil 'rear-advance))
     (overlay-put oterm-sync-ov 'face 'oterm-debug-face)
     (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
+    ;;(overlay-put oterm-sync-ov 'insert-in-front-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
     (with-current-buffer term-buffer
@@ -87,6 +94,14 @@
       (term--reset-scroll-region))
     (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)))
 
+(defmacro oterm--with-live-buffer (buf &rest body)
+  (declare (indent 1))
+  (let ((tempvar (make-symbol "buf")))
+    `(let ((tempvar ,buf))
+       (when (buffer-live-p tempvar)
+         (with-current-buffer tempvar
+           ,@body)))))
+    
 (defun oterm--kill-term-buffer ()
   (kill-buffer oterm-term-buffer))
 
@@ -161,47 +176,48 @@
         (term-sentinel proc msg)))))
 
 (defun oterm-process-filter (proc str)
-  (let ((inhibit-modification-hooks t)
-        (old-pmark (marker-position (process-mark proc)))
+  (let ((old-pmark (marker-position (process-mark proc)))
         (work-buffer (process-get proc 'oterm-work-buffer))
-        (term-buffer (process-get proc 'oterm-term-buffer)))
-    (oterm-emulate-terminal proc str)
-    (when (buffer-live-p term-buffer)
-      (with-current-buffer term-buffer
-        (goto-char (process-mark proc))))
-    (when (and (buffer-live-p work-buffer) (buffer-live-p term-buffer))
-      (with-current-buffer work-buffer
-        (setq default-directory (buffer-local-value 'default-directory term-buffer))))
-    (when (and (not oterm--inhibit-sync) (buffer-live-p work-buffer))
-      (with-current-buffer work-buffer
-        (when (buffer-live-p oterm-term-buffer)
-              (oterm--term-to-work)
-              (when (/= old-pmark (marker-position (process-mark proc)))
-                (oterm--pmarker-to-point))
-              )))))
+        (term-buffer (process-get proc 'oterm-term-buffer))
+        (bracketed-paste-turned-on nil)
+        (inhibit-modification-hooks t))
+    (setq bracketed-paste-turned-on (oterm-emulate-terminal proc str))
+    (oterm--with-live-buffer term-buffer
+      (goto-char (process-mark proc)))
+    (oterm--with-live-buffer work-buffer
+      (when (buffer-live-p term-buffer)
+        (setq default-directory (buffer-local-value 'default-directory term-buffer))
+        (unless oterm--inhibit-sync
+          (oterm--term-to-work)
+          (when bracketed-paste-turned-on
+            (oterm--move-sync-mark (process-mark proc)))
+          (when (/= old-pmark (marker-position (process-mark proc)))
+            (goto-char (oterm--pmark))))))))
 
 (defun oterm-emulate-terminal (proc str)
   "Handle special terminal codes, then call `term-emlate-terminal'.
 
 This functions intercepts some extented sequences term.el. This
 all should rightly be part of term.el."
-  (let ((start 0) found)
+  (let ((start 0)
+        (bracketed-paste-turned-on nil)
+        found)
     (while (setq found (string-match "\e\\[\\(\\?2004[hl]\\)" str start))
       (let ((ext (match-string 1 str))
             (next (match-end 0)))
         (term-emulate-terminal proc (substring str start next))
-        (let ((buf (process-get proc 'oterm-work-buffer)))
-          (when (buffer-live-p buf)
-            (with-current-buffer buf
-              (cond
-               ((equal ext "?2004h")
-                (setq oterm-bracketed-paste t))
-               ((equal ext "?2004l")
-                (setq oterm-bracketed-paste nil))))))
+        (oterm--with-live-buffer (process-get proc 'oterm-work-buffer)
+          (cond
+           ((equal ext "?2004h")
+            (setq oterm-bracketed-paste t
+                  bracketed-paste-turned-on t))
+           ((equal ext "?2004l")
+            (setq oterm-bracketed-paste nil))))
         (setq start next)))
     (let ((final-str (substring str start)))
       (unless (zerop (length final-str))
-        (term-emulate-terminal proc final-str)))))
+        (term-emulate-terminal proc final-str)))
+    bracketed-paste-turned-on))
 
 (defun oterm--maybe-bracketed-str (str)
   (when (string-match "\t" str)
@@ -220,37 +236,48 @@ all should rightly be part of term.el."
   (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
                          (- (point) oterm-sync-marker))))
 
-(defun oterm--pmarker-to-point ()
-  (when (buffer-live-p oterm-term-buffer)
-    (with-current-buffer oterm-work-buffer
-      (goto-char (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
-                                        (- (point) oterm-sync-marker)))))))
-
 (defun oterm--term-to-work ()
-  (with-current-buffer oterm-term-buffer
-    (save-restriction
-      (narrow-to-region oterm-sync-marker (point-max-marker))
-      (with-current-buffer oterm-work-buffer
-        (let ((saved-undo buffer-undo-list))
-          (save-excursion
-            (save-restriction
-              (narrow-to-region oterm-sync-marker (point-max-marker))
-              (let ((inhibit-modification-hooks t))
-                (replace-buffer-contents oterm-term-buffer))))
-          (setq buffer-undo-list saved-undo)))))
-  ;; Next time, only sync the visible portion of the terminal.
-  (with-current-buffer oterm-term-buffer
-    (when (< oterm-sync-marker term-home-marker)
-      (oterm--move-sync-mark term-home-marker))))
+  (let ((inhibit-modification-hooks t))
+    (with-current-buffer oterm-term-buffer
+      (save-restriction
+        (narrow-to-region oterm-sync-marker (point-max-marker))
+        (with-current-buffer oterm-work-buffer
+          (let ((saved-undo buffer-undo-list))
+            (save-excursion
+              (save-restriction
+                (narrow-to-region oterm-sync-marker (point-max-marker))
+                (let ((inhibit-modification-hooks t))
+                  (replace-buffer-contents oterm-term-buffer))))
+            (setq buffer-undo-list saved-undo)))))
+    ;; Next time, only sync the visible portion of the terminal.
+    (with-current-buffer oterm-term-buffer
+      (when (< oterm-sync-marker term-home-marker)
+        (oterm--move-sync-mark term-home-marker 'not-a-prompt)))))
 
-(defun oterm--move-sync-mark (pos)
-  (let ((chars-from-end (- (point-max) (oterm--bol-pos-from pos))))
+(defun oterm--move-sync-mark (pos &optional not-a-prompt)
+  (let ((chars-from-bol (- pos (oterm--bol-pos-from pos)))
+        (chars-from-end (- (point-max) (oterm--bol-pos-from pos))))
     (with-current-buffer oterm-term-buffer
       (move-marker oterm-sync-marker (- (point-max) chars-from-end)))
     (with-current-buffer oterm-work-buffer
-      (let ((sync-pos (- (point-max) chars-from-end)))
+      (when (> oterm-cmd-start-marker oterm-sync-marker)
+        (let ((inhibit-read-only t))
+          (remove-text-properties oterm-sync-marker oterm-cmd-start-marker '(read-only t))))
+      (let* ((sync-pos (- (point-max) chars-from-end))
+             (cmd-start-pos (+ sync-pos chars-from-bol)))
+        (message "move sync marker from %s to %s (+%s -> %s)" oterm-sync-marker sync-pos chars-from-bol cmd-start-pos)
         (move-marker oterm-sync-marker sync-pos)
-        (move-overlay oterm-sync-ov sync-pos (point-max)))))
+        (move-marker oterm-cmd-start-marker cmd-start-pos)
+        (move-overlay oterm-sync-ov sync-pos (point-max))
+        (when (and (not not-a-prompt) (> cmd-start-pos sync-pos))
+          (add-text-properties sync-pos cmd-start-pos
+                               '(oterm prompt
+                                       field 'oterm-prompt
+                                       rear-nonsticky t
+                                       face oterm-debug-prompt-face))
+          (add-text-properties sync-pos cmd-start-pos
+                               '(read-only t front-sticky t))
+          ))))
 
   ;; Truncate the term buffer, since scrolling back is available on
   ;; the work buffer anyways. This has to be done now, after syncing
@@ -259,9 +286,9 @@ all should rightly be part of term.el."
   (with-current-buffer oterm-term-buffer
     (let ((inhibit-read-only t))
       (save-excursion
-        (goto-char oterm-sync-marker)
-        (forward-line -5)
-        (delete-region (point-min) (point))))))
+        (goto-char (min term-home-marker oterm-sync-marker))
+        (when (zerop (forward-line -5))
+          (delete-region (point-min) (point)))))))
 
 (defun oterm-send-raw-string (str)
   (when (and str (not (zerop (length str))))
@@ -288,62 +315,15 @@ all should rightly be part of term.el."
     (let ((inhibit-field-text-motion t))
       (line-end-position))))
 
-(defun oterm--at-prompt-p (&optional inexact)
-  "Figure out whether a command should be sent to the terminal.
-
-Terminal commands should be sent to the terminal if the point is
-at the prompt otherwise it should be applied directly to the work
-buffer."
-  (if (oterm--at-prompt-1 inexact)
-      t
-    (oterm--send-and-wait (oterm--move-pmark-str (point)))
-      (prog1 (oterm--at-prompt-1 inexact)
-        (let ((pmark (oterm--pmark)))
-          (when (> pmark (point))
-            (oterm--mark-prompt-end pmark)
-            (oterm--move-sync-mark pmark)))
-        (oterm--term-to-work))))
-
-(defun oterm--mark-prompt-end (end)
-  (add-text-properties
-   (oterm--bol-pos-from end)
-   (min (point-max) end)
-   ;; This is used to remember a prompt when we've seen it, as
-   ;; detecting a prompt require communicating with the process. Not
-   ;; setting field because prompts aren't detected systematically,
-   ;; only when needed, so we'd never know how (beginning-of-line) and
-   ;; the like would behave.
-   '(oterm prompt rear-nonsticky t face oterm-debug-prompt-face)))
-
-(defun oterm-send-command-if-at-prompt ()
-  "Send the current command to the shell if point is at prompt, otherwise
-send a newline."
-  (interactive)
-  (let ((pmark (oterm--pmark)))
-    (if (and (text-property-any (oterm--bol-pos-from (point)) (oterm--eol-pos-from (point)) 'oterm 'prompt)
-             (>= (point) (oterm--bol-pos-from pmark)))
-        (oterm-send-raw-string "\n")
-      (oterm--send-and-wait (oterm--move-pmark-str oterm-sync-marker))
-      (setq pmark (oterm--pmark))
-      (oterm--mark-prompt-end pmark)
-      (when (> pmark oterm-sync-marker)
-        (oterm--move-sync-mark pmark))
-      (if (>= (point) (oterm--bol-pos-from pmark))
-          (oterm-send-raw-string "\n")
-        (newline)))))
-
 (defun oterm-send-command ()
   "Send the current command to the shell."
   (interactive)
-  (let ((pmark (oterm--pmark)))
-    (if (text-property-any (oterm--bol-pos-from (point)) (oterm--eol-pos-from (point)) 'oterm 'prompt)
-        (oterm-send-raw-string "\n")
-      (oterm--send-and-wait (oterm--move-pmark-str oterm-sync-marker))
-      (setq pmark (oterm--pmark))
-      (oterm--mark-prompt-end pmark)
-      (when (> pmark oterm-sync-marker)
-        (oterm--move-sync-mark pmark))
-      (oterm-send-raw-string "\n"))))
+  (oterm-send-raw-string "\n"))
+
+(defun oterm-send-tab ()
+  "Send TAB to the shell."
+  (interactive)
+  (oterm-send-raw-string "\t"))
 
 (defun oterm-send-raw-key ()
   (interactive)
@@ -358,35 +338,21 @@ send a newline."
 
 (defun oterm-delchar-or-maybe-eof (arg)
   (interactive "p")
-  (if (or (eobp) (progn
-                   (oterm--send-and-wait (oterm--move-pmark-str (point-max)))
-                   (prog1 (= (oterm--pmark) (point))
-                     (oterm--term-to-work))))
+  (if (zerop (length (replace-regexp-in-string "[[:blank:]]*" (buffer-substring-no-properties oterm-sync-marker (oterm--eol-pos-from oterm-sync-marker)) "")))
       (oterm-send-raw-string (kbd "C-d"))
     (delete-char arg)))
 
-(defun oterm-send-tab-if-at-prompt ()
-  (interactive)
-  (if (oterm--at-prompt-p)
-      (oterm-send-raw-string "\t")
-    (call-interactively 'indent-for-tab-command)))
-
-(defun oterm-send-self-if-at-prompt ()
-  "Send the current key if the point is at prompt, otherwise
-execute the remapped command."
-  (interactive)
-  (if (oterm--at-prompt-p)
-      (let ((keys (this-command-keys)))
-        (oterm-send-raw-string (make-string 1 (aref keys (1- (length keys))))))
-    (call-interactively this-original-command)))
-
-(defun oterm--modification-hook (_ov is-after beg end &optional old-length)
-  (when (and (buffer-live-p oterm-term-buffer) is-after)
+(defun oterm--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
+  (when (and (buffer-live-p oterm-term-buffer)
+             is-after
+             (>= orig-end oterm-cmd-start-marker))
     ;; Attempt to replay the change in the terminal.
-    (let ((pmark (oterm--pmark))
-          (initial-point (point))
-          (content-to-replay (buffer-substring-no-properties beg end))
-          (chars-to-delete old-length))
+    (let* ((pmark (oterm--pmark))
+           (initial-point (point))
+           (beg (max orig-beg oterm-cmd-start-marker))
+           (end (max orig-end oterm-cmd-start-marker))
+           (content-to-replay (buffer-substring-no-properties beg end))
+           (chars-to-delete (- old-length (- beg orig-beg))))
       (oterm--send-and-wait (oterm--move-str pmark beg))
       (setq pmark (oterm--pmark))
       ;; pmark is as close to beg as we can make it
@@ -400,7 +366,6 @@ execute the remapped command."
       ;; is just not accepting any input at this time? We might move
       ;; sync mark to far down.
       (when (> pmark beg)
-        (oterm--mark-prompt-end pmark)
         (with-current-buffer oterm-term-buffer
           (oterm--move-sync-mark (process-mark oterm-term-proc))))
 
@@ -464,40 +429,12 @@ execute the remapped command."
             (aset str (+ (* i elt-len) j) (aref elt j))))
         str))))
 
-(defun oterm-beginning-of-line ()
-  (interactive)
-  (if (eq last-command 'oterm-beginning-of-line)
-      (beginning-of-line)
-    (let* ((bol (oterm--bol-pos-from (point)))
-           (known-prompt-pos (text-property-not-all bol (point) 'oterm 'prompt)))
-      (if (and known-prompt-pos
-               (> known-prompt-pos bol)
-               (>= known-prompt-pos (oterm--bol-pos-from (oterm--pmark))))
-          (goto-char known-prompt-pos)
-        (oterm--send-and-wait (oterm--move-pmark-str bol))
-        (let ((pmark (oterm--pmark)))
-          (when (> pmark bol)
-            (oterm--mark-prompt-end pmark)
-            (oterm--move-sync-mark pmark))
-          (if (and (>= pmark bol) (< pmark (oterm--eol-pos-from (point))))
-              (goto-char pmark)
-            (goto-char bol)))))))
-
 (defun oterm-next-prompt (n)
   (interactive "p")
   (dotimes (_ n)
     (if (setq found (text-property-any (point) (point-max) 'oterm 'prompt))
-        (goto-char (next-single-property-change found 'oterm))
-      (let ((pmark (oterm--pmark)))
-        (if (>= (point) (oterm--bol-pos-from pmark))
-            (error "No next prompt")
-          ;; The last prompt may need to be detected.
-          (oterm--send-and-wait (oterm--move-pmark-str oterm-sync-marker))
-          (setq pmark (oterm--pmark))
-          (oterm--mark-prompt-end pmark)
-          (when (> pmark oterm-sync-marker)
-            (oterm--move-sync-mark pmark))
-          (goto-char pmark))))))
+        (goto-char (or (next-single-property-change found 'oterm) (point-max)))
+      (error "No next prompt"))))
 
 (defun oterm-previous-prompt (n)
   (interactive "p")
@@ -509,7 +446,9 @@ execute the remapped command."
   (setq oterm--old-point (point)))
 
 (defun oterm-post-command ()
-  (when (and (/= (point) oterm--old-point)
+  (when (and oterm--old-point
+             (/= (point) oterm--old-point)
+             (markerp oterm-sync-marker)
              (>= (point) oterm-sync-marker)
              (process-live-p oterm-term-proc)
              (buffer-live-p oterm-term-buffer))

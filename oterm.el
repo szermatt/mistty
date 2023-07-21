@@ -23,6 +23,7 @@
 (defvar-local oterm-sync-marker nil)
 (defvar-local oterm-sync-ov nil)
 (defvar-local oterm-bracketed-paste nil)
+(defvar-local oterm--old-point nil)
 (defvar oterm--inhibit-sync nil)
 
 (defconst oterm-left-str "\eOD")
@@ -84,7 +85,7 @@
                   term-height 24
                   term-width 80)
       (term--reset-scroll-region))
-    (add-hook 'kill-buffer-hook 'oterm--kill-term-buffer nil t)))
+    (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)))
 
 (defun oterm--kill-term-buffer ()
   (kill-buffer oterm-term-buffer))
@@ -95,14 +96,16 @@
     (term-exec oterm-term-buffer (buffer-name oterm-term-buffer) program nil args)
     (term-char-mode))
   (let ((proc (get-buffer-process oterm-term-buffer)))
-    (with-current-buffer oterm-work-buffer
-      (setq oterm-term-proc proc))
     (with-current-buffer oterm-term-buffer
       (setq oterm-term-proc proc)
       (process-put proc 'oterm-work-buffer oterm-work-buffer)
       (process-put proc 'oterm-term-buffer oterm-term-buffer)
       (set-process-filter proc #'oterm-process-filter)
-      (set-process-sentinel proc #'oterm-process-sentinel))))
+      (set-process-sentinel proc #'oterm-process-sentinel))
+    (with-current-buffer oterm-work-buffer
+      (setq oterm-term-proc proc)
+      (add-hook 'pre-command-hook #'oterm-pre-command nil t)
+      (add-hook 'post-command-hook #'oterm-post-command nil t))))
 
 (defsubst oterm--buffer-p (buffer)
   "Return the BUFFER if the buffer is a live oterm buffer."
@@ -261,8 +264,9 @@ all should rightly be part of term.el."
         (delete-region (point-min) (point))))))
 
 (defun oterm-send-raw-string (str)
-  (with-current-buffer oterm-term-buffer
-    (term-send-raw-string str)))
+  (when (and str (not (zerop (length str))))
+    (with-current-buffer oterm-term-buffer
+      (term-send-raw-string str))))
 
 (defun oterm--at-prompt-1 (&optional inexact)
   (let ((pmark (oterm--pmark)))
@@ -500,6 +504,16 @@ execute the remapped command."
   (dotimes (_ n)
     (unless (text-property-search-backward 'oterm 'prompt)
       (error "No previous prompt"))))
+
+(defun oterm-pre-command ()
+  (setq oterm--old-point (point)))
+
+(defun oterm-post-command ()
+  (when (and (/= (point) oterm--old-point)
+             (>= (point) oterm-sync-marker)
+             (process-live-p oterm-term-proc)
+             (buffer-live-p oterm-term-buffer))
+      (oterm-send-raw-string (oterm--move-pmark-str (point)))))
 
 (provide 'oterm)
 

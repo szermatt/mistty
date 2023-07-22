@@ -64,7 +64,9 @@
     (define-key oterm-prompt-map (kbd "RET") 'oterm-send-command)
     (define-key oterm-prompt-map [S-return] 'newline)
     (define-key oterm-prompt-map (kbd "TAB") 'oterm-send-tab)
+    (define-key oterm-prompt-map (kbd "DEL") 'oterm-send-backspace)
     (define-key oterm-prompt-map (kbd "C-d") 'oterm-delchar-or-maybe-eof)
+    (define-key oterm-prompt-map [remap self-insert-command] 'oterm-self-insert-command )
     oterm-prompt-map))
 
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
@@ -247,7 +249,19 @@ all should rightly be part of term.el."
               (save-restriction
                 (narrow-to-region oterm-sync-marker (point-max-marker))
                 (let ((inhibit-modification-hooks t))
-                  (replace-buffer-contents oterm-term-buffer))))
+                  ;; Clear text properties that might have been set by
+                  ;; the tty in a previous call.
+                  (when (< oterm-cmd-start-marker (point-max))
+                    (set-text-properties oterm-cmd-start-marker (point-max) nil))
+                  (condition-case nil
+                      (replace-buffer-contents oterm-term-buffer)
+                    (text-read-only
+                     ;; Replace-buffer-contents attempted to modify the prompt.
+                     ;; Remove it and try again.
+                     (let ((inhibit-read-only t))
+                       (set-text-properties (point-min) (point-max) nil)
+                       (move-marker oterm-cmd-start-marker oterm-sync-marker)
+                       (replace-buffer-contents oterm-term-buffer)))))))
             (setq buffer-undo-list saved-undo)))))
     
     ;; Next time, only sync the visible portion of the terminal.
@@ -325,6 +339,20 @@ all should rightly be part of term.el."
   "Send TAB to the shell."
   (interactive)
   (oterm-send-raw-string "\t"))
+
+(defun oterm-send-backspace ()
+  "Send DEL to the shell."
+  (interactive)
+  (when (get-pos-property (point) 'read-only)
+    (signal 'text-read-only nil))
+  (oterm-send-raw-string "\b"))
+
+(defun oterm-self-insert-command (n &optional c)
+  (interactive "p")
+  (when (get-pos-property (point) 'read-only)
+    (signal 'text-read-only nil))
+  (let ((keys (this-command-keys)))
+    (oterm-send-raw-string (make-string n (aref keys (1- (length keys)))))))
 
 (defun oterm-send-raw-key ()
   (interactive)

@@ -382,52 +382,62 @@ all should rightly be part of term.el."
            (end (max orig-end oterm-cmd-start-marker))
            (content-to-replay (buffer-substring-no-properties beg end))
            (chars-to-delete (- old-length (- beg orig-beg))))
-      (oterm--send-and-wait (oterm--move-str pmark beg))
-      (setq pmark (oterm--pmark))
-      ;; pmark is as close to beg as we can make it
 
-      ;; We couldn't move pmark as far back as beg. Presumably, the
-      ;; process mark points to the leftmost modifiable position of
-      ;; the command line. Update the sync marker to start sync there
-      ;; from now on and avoid getting this hook called unnecessarily.
-      ;; This is done from inside the term buffer as the modifications
-      ;; of the work buffer could interfere. TODO: What if the process
-      ;; is just not accepting any input at this time? We might move
-      ;; sync mark to far down.
-      (when (> pmark beg)
-        (oterm--move-sync-mark pmark 'set-prompt))
-
-      ;; Replay the portion of the change that we think we can
-      ;; replay.
-      ;;
-      ;; TODO: what if [beg, end] start in the command-line portion
-      ;; of the screen and end in the portion of the screen
-      ;; containing zsh completion? We'd be "replaying" zsh
-      ;; completion results.
-      (cond
-       ((< pmark beg)
-        (setq content-to-replay "" chars-to-delete 0))
-       ((> pmark beg)
-        (setq content-to-replay (if (<= pmark end) (substring content-to-replay (- pmark beg)) "")
-              chars-to-delete (- chars-to-delete (- pmark beg)))))
-      (oterm--send-and-wait
-       (concat
-        (when (> chars-to-delete 0)
-          (concat (oterm--repeat-string chars-to-delete oterm-right-str)
-                  (oterm--repeat-string chars-to-delete "\b")))
-        (oterm--maybe-bracketed-str content-to-replay)))
-
-    ;; Copy the modifications on the term buffer to the work buffer.
-    ;; This might undo part of the modification that couldn't be
-    ;; replayed, but only those after the *new* sync marker.
-    (oterm--term-to-work)
-
-    ;; If insertion went right, the pmark should be at the end of the
-    ;; insertion zone, so moving the point to the pmark guarantees
-    ;; that the pointer position makes sense, even after the changes
-    ;; applied to the work buffer by oterm--term-to-work.
-    (when (equal initial-point end)
-      (goto-char (oterm--pmark))))))
+      (if (and
+           (> chars-to-delete 0)
+           (zerop (length content-to-replay))
+           (= pmark (+ beg chars-to-delete)))
+          (progn
+            (oterm--send-and-wait (oterm--move-str pmark (+ beg chars-to-delete)))
+            (setq pmark (oterm--pmark))
+            (oterm--send-and-wait (oterm--repeat-string (- pmark beg) "\b")))
+        
+        (oterm--send-and-wait (oterm--move-str pmark beg))
+        (setq pmark (oterm--pmark))
+        ;; pmark is as close to beg as we can make it
+        
+        ;; We couldn't move pmark as far back as beg. Presumably, the
+        ;; process mark points to the leftmost modifiable position of
+        ;; the command line. Update the sync marker to start sync there
+        ;; from now on and avoid getting this hook called unnecessarily.
+        ;; This is done from inside the term buffer as the modifications
+        ;; of the work buffer could interfere. TODO: What if the process
+        ;; is just not accepting any input at this time? We might move
+        ;; sync mark to far down.
+        (when (> pmark beg)
+          (oterm--move-sync-mark pmark 'set-prompt))
+        
+        ;; Replay the portion of the change that we think we can
+        ;; replay.
+        ;;
+        ;; TODO: what if [beg, end] start in the command-line portion
+        ;; of the screen and end in the portion of the screen
+        ;; containing zsh completion? We'd be "replaying" zsh
+        ;; completion results.
+        (cond
+         ((< pmark beg)
+          (setq content-to-replay "" chars-to-delete 0))
+         ((> pmark beg)
+          (setq content-to-replay (if (<= pmark end) (substring content-to-replay (- pmark beg)) "")
+                chars-to-delete (- chars-to-delete (- pmark beg)))))
+        (oterm--send-and-wait
+         (concat
+          (when (> chars-to-delete 0)
+            (concat (oterm--repeat-string chars-to-delete oterm-right-str)
+                    (oterm--repeat-string chars-to-delete "\b")))
+          (oterm--maybe-bracketed-str content-to-replay))))
+        
+      ;; Copy the modifications on the term buffer to the work buffer.
+      ;; This might undo part of the modification that couldn't be
+      ;; replayed, but only those after the *new* sync marker.
+      (oterm--term-to-work)
+      
+      ;; If insertion went right, the pmark should be at the end of the
+      ;; insertion zone, so moving the point to the pmark guarantees
+      ;; that the pointer position makes sense, even after the changes
+      ;; applied to the work buffer by oterm--term-to-work.
+      (when (equal initial-point end)
+        (goto-char (oterm--pmark))))))
 
 (defun oterm--send-and-wait (str)
   (when (and str (not (zerop (length str))))

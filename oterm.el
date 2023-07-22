@@ -34,13 +34,10 @@
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 
 (defface oterm-debug-face
-  '((t (:box (:line-width (2 . 2) :color "red" :style released-button))))
+  '((t (:box (:line-width (2 . 2) :color "cyan" :style released-button))))
   "Face used to highlight `oterm-sync-ov' for debugging.")
 
-(defface oterm-debug-prompt-face '((t (:background "dark green")))
-  "Face used to highlight prompts for debugging.")
-
-(defface oterm-debug-insert-face '((t (:background "cyan")))
+(defface oterm-debug-prompt-face '((t (:background "cyan")))
   "Face used to highlight prompts for debugging.")
 
 (defvar oterm-mode-map

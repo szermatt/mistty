@@ -2724,7 +2724,8 @@ See `term-prompt-regexp'."
 	 0)
 	((> count 0)
 	 (let ((H)
-	       (todo (+ count (/ (current-column) term-width))))
+	       (todo count ;; oterm fix: (+ count (/ (current-column) term-width))
+                     ))
 	   (end-of-line)
 	   ;; The loop iterates over buffer lines;
 	   ;; H is the number of screen lines in the current line, i.e.

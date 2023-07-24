@@ -343,8 +343,7 @@
 
 (ert-deftest test-oterm-distance-on-term-with-hard-newlines ()
   (with-oterm-buffer-selected
-   (with-current-buffer oterm-term-buffer (setq term-suppress-hard-newline nil))
-   (oterm--set-process-window-size 80 20)
+   (oterm--set-process-window-width 20)
 
    (oterm-send-raw-string "echo one two three four five six seven eight nine")
    (oterm-send-and-wait-for-prompt)
@@ -364,6 +363,68 @@
      (should (equal -24 (oterm--distance-on-term six one)))
      (should (equal 45 (oterm--distance-on-term one end)))
      (should (equal -45 (oterm--distance-on-term end one))))))
+
+(ert-deftest test-oterm-keep-insert-long-prompt ()
+  (with-oterm-buffer-selected
+   (oterm--set-process-window-width 20)
+
+   (insert "echo ")
+   (insert "one ")
+   (insert "two ")
+   (insert "three ")
+   (insert "four ")
+   (insert "five ")
+   (insert "six ")
+   (insert "seven ")
+   (insert "eight ")
+   (insert "nine")
+
+   (should (equal "$ echo one two three\n four five six seven\n eight nine<>"
+                  (oterm-test-content)))))
+
+(ert-deftest test-oterm-keep-sync-marker-on-long-prompt ()
+  (with-oterm-buffer-selected
+   (oterm--set-process-window-width 20)
+
+   (insert "echo ")
+   (insert "one ")
+   (insert "two ")
+   (insert "three ")
+   (insert "four ")
+   (insert "five ")
+   (insert "six ")
+   (insert "seven ")
+   (insert "eight ")
+   (insert "nine")
+
+   ;; make sure that the newlines didn't confuse the sync marker
+   (should (equal (marker-position oterm-sync-marker) (point-min)))
+   (should (equal (marker-position oterm-cmd-start-marker) (oterm-test-goto "echo one")))))
+
+(ert-deftest test-oterm-keep-track-pointer-on-long-prompt ()
+  (with-oterm-buffer-selected
+   (oterm--set-process-window-width 20)
+
+   (insert "echo ")
+   (insert "one ")
+   (insert "two ")
+   (insert "three ")
+   (insert "four ")
+   (insert "five ")
+   (insert "six ")
+   (insert "seven ")
+   (insert "eight ")
+   (insert "nine")
+
+   ;; make sure that the newlines don't confuse oterm-post-command
+   ;; moving the cursor.
+   (dolist (count '("three" "nine" "four"))
+     (let ((goal-pos))
+       (oterm-pre-command)
+       (setq goal-pos (oterm-test-goto count))
+       (oterm-post-command)
+       (oterm-wait-for-output)
+       (should (equal (oterm-pmark) goal-pos))))))
 
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."

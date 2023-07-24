@@ -397,7 +397,7 @@ all should rightly be part of term.el."
         ;; of the work buffer could interfere. TODO: What if the process
         ;; is just not accepting any input at this time? We might move
         ;; sync mark to far down.
-        (when (> pmark beg)
+        (when (> (oterm--distance-on-term beg pmark) 0)
           (oterm--move-sync-mark pmark 'set-prompt))
 
         (setq beg (max beg pmark)))
@@ -499,17 +499,16 @@ END section to be valid in the term buffer."
       (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point)))))
 
 (defun oterm--window-size-change (_win)
-  (when nil
-    (when (process-live-p oterm-term-proc)
-      (let* ((adjust-func (or (process-get oterm-term-proc 'adjust-window-size-function)
-                              window-adjust-process-window-size-function))
-             (width (car (funcall adjust-func oterm-term-proc (get-buffer-window-list)))))
-        (oterm--set-window-size term-height (or width 132))))))
+  (when (process-live-p oterm-term-proc)
+    (let* ((adjust-func (or (process-get oterm-term-proc 'adjust-window-size-function)
+                            window-adjust-process-window-size-function))
+           (width (car (funcall adjust-func oterm-term-proc (get-buffer-window-list)))))
+      (oterm--set-process-window-width (or width 132)))))
 
-(defun oterm--set-process-window-size (height width)
+(defun oterm--set-process-window-width (width)
   (oterm--with-live-buffer oterm-term-buffer
-    (set-process-window-size oterm-term-proc height width)
-    (term-reset-size height width)))
+    (set-process-window-size oterm-term-proc term-height width)
+    (term-reset-size term-height width)))
 
 (provide 'oterm)
 

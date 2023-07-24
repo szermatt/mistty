@@ -329,6 +329,52 @@
     (should (equal 1 (term-buffer-vertical-motion 1)))
     (should (equal (point-max) (point)))))
 
+(ert-deftest test-oterm-distance-on-term ()
+  (with-oterm-buffer-selected
+   (oterm-send-raw-string "echo one two three four five six seven eight nine")
+   (oterm-send-and-wait-for-prompt)
+
+   (let ((two (oterm-test-goto "two"))
+         (three (oterm-test-goto "three"))
+         (four (oterm-test-goto "four")))
+     (should (equal 4 (oterm--distance-on-term two three)))
+     (should (equal 6 (oterm--distance-on-term three four)))
+     (should (equal -4 (oterm--distance-on-term three two))))))
+
+(ert-deftest test-oterm-distance-on-term-with-hard-newlines ()
+  (with-oterm-buffer-selected
+   (with-current-buffer oterm-term-buffer (setq term-suppress-hard-newline nil))
+   (oterm--set-process-window-size 80 20)
+
+   (oterm-send-raw-string "echo one two three four five six seven eight nine")
+   (oterm-send-and-wait-for-prompt)
+
+   (should (equal (concat "$ echo one two three\n"
+                          " four five six seven\n"
+                          " eight nine\n"
+                          "one two three four f\n"
+                          "ive six seven eight\n"
+                          "nine")
+                  (oterm-test-content)))
+
+   (let ((one (oterm-test-goto "one"))
+         (six (oterm-test-goto "six"))
+         (end (oterm-test-goto-after "nine\n")))
+     (should (equal 24 (oterm--distance-on-term one six)))
+     (should (equal -24 (oterm--distance-on-term six one)))
+     (should (equal 45 (oterm--distance-on-term one end)))
+     (should (equal -45 (oterm--distance-on-term end one))))))
+
+(defun oterm-test-goto (str)
+  "Search for STR, got to its beginning and return that position."
+  (oterm-test-goto-after str)
+  (goto-char (match-beginning 0)))
+
+(defun oterm-test-goto-after (str)
+  "Search for STR, got to its end and return that position."
+  (goto-char (point-min))
+  (search-forward str))
+
 (defun oterm-test-setup (shell)
   (cond
    ((eq shell 'bash)

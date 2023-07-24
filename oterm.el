@@ -84,14 +84,15 @@
       (setq oterm-work-buffer work-buffer)
       (setq oterm-term-buffer term-buffer)
       (setq oterm-sync-marker (copy-marker (point-min)))
-      (setq-local term-suppress-hard-newline t
-                  term-char-mode-buffer-read-only t
+      (setq-local term-char-mode-buffer-read-only t
                   term-char-mode-point-at-process-mark t
                   term-buffer-maximum-size 0
-                  term-height 24
-                  term-width 80)
+                  term-height 1024
+                  term-width (or (window-max-chars-per-line) 80))
       (term--reset-scroll-region))
-    (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)))
+    (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)
+    (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
+    ))
 
 (defmacro oterm--with-live-buffer (buf &rest body)
   (declare (indent 1))
@@ -435,15 +436,31 @@ all should rightly be part of term.el."
         (while (accept-process-output oterm-term-proc 0 nil t))))))
 
 (defun oterm--move-str (from to)
-  (let ((diff (- from to)))
+  (let ((diff (oterm--distance-on-term from to)))
     (if (zerop diff)
         nil
       (oterm--repeat-string
        (abs diff)
-       (if (< diff 0) oterm-right-str oterm-left-str)))))
+       (if (< diff 0) oterm-left-str oterm-right-str)))))
 
-(defun oterm--move-pmark-str (to)
-  (oterm--move-str (oterm-pmark) to))
+
+(defun oterm--distance-on-term (beg end)
+  "Compute the number of cursor moves necessary to get from BEG to END.
+
+This function skips over the `term-line-wrap' newlines introduced by term as if they were not here.
+
+While it takes BEG and END as work buffer positions, it looks in
+the term buffer to figure out, so it's important for the BEG and
+END section to be valid in the term buffer."
+  (with-current-buffer oterm-term-buffer
+    (let ((beg (oterm--from-pos-of (min beg end) oterm-work-buffer))
+          (end (oterm--from-pos-of (max beg end) oterm-work-buffer))
+          (sign (if (< end beg) -1 1)))
+      (let ((pos beg) (nlcount 0))
+        (while (and (< pos end) (setq pos (text-property-any pos end 'term-line-wrap t)))
+          (setq pos (1+ pos))
+          (setq nlcount (1+ nlcount)))
+        (* sign (- (- end beg) nlcount))))))
 
 (defun oterm--repeat-string (count elt)
   (let ((elt-len (length elt)))
@@ -479,7 +496,20 @@ all should rightly be part of term.el."
              (>= (point) oterm-sync-marker)
              (process-live-p oterm-term-proc)
              (buffer-live-p oterm-term-buffer))
-      (oterm-send-raw-string (oterm--move-pmark-str (point)))))
+      (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point)))))
+
+(defun oterm--window-size-change (_win)
+  (when nil
+    (when (process-live-p oterm-term-proc)
+      (let* ((adjust-func (or (process-get oterm-term-proc 'adjust-window-size-function)
+                              window-adjust-process-window-size-function))
+             (width (car (funcall adjust-func oterm-term-proc (get-buffer-window-list)))))
+        (oterm--set-window-size term-height (or width 132))))))
+
+(defun oterm--set-process-window-size (height width)
+  (oterm--with-live-buffer oterm-term-buffer
+    (set-process-window-size oterm-term-proc height width)
+    (term-reset-size height width)))
 
 (provide 'oterm)
 

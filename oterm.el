@@ -189,9 +189,9 @@
         (unless oterm--inhibit-sync
           (oterm--term-to-work)
           (when bracketed-paste-turned-on
-            (oterm--move-sync-mark (oterm--pmark) 'set-prompt))
+            (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
           (when (/= old-pmark (marker-position (process-mark proc)))
-            (goto-char (oterm--pmark))))))))
+            (goto-char (oterm-pmark))))))))
 
 (defun oterm-emulate-terminal (proc str)
   "Handle special terminal codes, then call `term-emlate-terminal'.
@@ -230,7 +230,7 @@ all should rightly be part of term.el."
               oterm-left-str
               oterm-right-str))))
 
-(defun oterm--pmark ()
+(defun oterm-pmark ()
   "The terminal process mark as a position within the current buffer (work or term)."
   (oterm--from-pos-of (process-mark oterm-term-proc) oterm-term-buffer))
 
@@ -312,7 +312,7 @@ all should rightly be part of term.el."
       (term-send-raw-string str))))
 
 (defun oterm--at-prompt-1 (&optional inexact)
-  (let ((pmark (oterm--pmark)))
+  (let ((pmark (oterm-pmark)))
     (if inexact
         (or (>= (point) pmark)
             (>= (oterm--bol-pos-from (point))
@@ -362,7 +362,7 @@ all should rightly be part of term.el."
 
 (defun oterm-goto-pmark-and-send-raw-key ()
   (interactive)
-  (goto-char (oterm--pmark))
+  (goto-char (oterm-pmark))
   (let ((keys (this-command-keys)))
     (oterm-send-raw-string (make-string 1 (aref keys (1- (length keys)))))))
 
@@ -377,7 +377,7 @@ all should rightly be part of term.el."
              is-after
              (>= orig-end oterm-cmd-start-marker))
     ;; Attempt to replay the change in the terminal.
-    (let* ((pmark (oterm--pmark))
+    (let* ((pmark (oterm-pmark))
            (initial-point (point))
            (beg (max orig-beg oterm-cmd-start-marker))
            (end (max orig-end oterm-cmd-start-marker))
@@ -390,11 +390,11 @@ all should rightly be part of term.el."
            (= pmark (+ beg chars-to-delete)))
           (progn
             (oterm--send-and-wait (oterm--move-str pmark (+ beg chars-to-delete)))
-            (setq pmark (oterm--pmark))
+            (setq pmark (oterm-pmark))
             (oterm--send-and-wait (oterm--repeat-string (- pmark beg) "\b")))
         
         (oterm--send-and-wait (oterm--move-str pmark beg))
-        (setq pmark (oterm--pmark))
+        (setq pmark (oterm-pmark))
         ;; pmark is as close to beg as we can make it
         
         ;; We couldn't move pmark as far back as beg. Presumably, the
@@ -438,7 +438,7 @@ all should rightly be part of term.el."
       ;; that the pointer position makes sense, even after the changes
       ;; applied to the work buffer by oterm--term-to-work.
       (when (equal initial-point end)
-        (goto-char (oterm--pmark))))))
+        (goto-char (oterm-pmark))))))
 
 (defun oterm--send-and-wait (str)
   (when (and str (not (zerop (length str))))
@@ -456,7 +456,7 @@ all should rightly be part of term.el."
        (if (< diff 0) oterm-right-str oterm-left-str)))))
 
 (defun oterm--move-pmark-str (to)
-  (oterm--move-str (oterm--pmark) to))
+  (oterm--move-str (oterm-pmark) to))
 
 (defun oterm--repeat-string (count elt)
   (let ((elt-len (length elt)))

@@ -232,8 +232,12 @@ all should rightly be part of term.el."
 
 (defun oterm--pmark ()
   "The terminal process mark as a position within the current buffer (work or term)."
-  (+ oterm-sync-marker (with-current-buffer oterm-term-buffer
-                         (- (point) oterm-sync-marker))))
+  (oterm--from-pos-of (process-mark oterm-term-proc) oterm-term-buffer))
+
+(defun oterm--from-pos-of (pos buffer-of-pos)
+  "Return the local equivalent to POS defined in BUFFER-OF-POS."
+  (+ oterm-sync-marker (with-current-buffer buffer-of-pos
+                         (- pos oterm-sync-marker))))
 
 (defun oterm--term-to-work ()
   (let ((inhibit-modification-hooks t))

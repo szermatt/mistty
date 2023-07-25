@@ -187,11 +187,13 @@
       (when (buffer-live-p term-buffer)
         (setq default-directory (buffer-local-value 'default-directory term-buffer))
         (unless oterm--inhibit-sync
-          (oterm--term-to-work)
-          (when bracketed-paste-turned-on
-            (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
-          (when (/= old-pmark (marker-position (process-mark proc)))
-            (goto-char (oterm-pmark))))))))
+          (let ((point-on-pmark (equal (point) (oterm--from-pos-of old-pmark oterm-term-buffer))))
+            (oterm--term-to-work)
+            (when bracketed-paste-turned-on
+              (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
+            (when (and (/= old-pmark (marker-position (process-mark proc)))
+                       point-on-pmark)
+              (goto-char (oterm-pmark)))))))))
 
 (defun oterm-emulate-terminal (proc str)
   "Handle special terminal codes, then call `term-emlate-terminal'.
@@ -334,6 +336,7 @@ all should rightly be part of term.el."
 (defun oterm-send-command ()
   "Send the current command to the shell."
   (interactive)
+  (goto-char (oterm-pmark))
   (oterm-send-raw-string "\n"))
 
 (defun oterm-send-tab ()
@@ -538,7 +541,8 @@ END section to be valid in the term buffer."
              (markerp oterm-sync-marker)
              (>= (point) oterm-sync-marker)
              (process-live-p oterm-term-proc)
-             (buffer-live-p oterm-term-buffer))
+             (buffer-live-p oterm-term-buffer)
+             oterm-bracketed-paste)
       (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point)))))
 
 (defun oterm--window-size-change (_win)

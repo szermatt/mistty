@@ -6,12 +6,12 @@
 
 (defconst oterm-test-prompt "$ ")
 
-(cl-defmacro with-oterm-buffer (&rest body)
+(defmacro with-oterm-buffer (&rest body)
   `(ert-with-test-buffer ()
      (oterm-test-setup 'bash)
      ,@body))
 
-(cl-defmacro with-oterm-buffer-zsh (&rest body)
+(defmacro with-oterm-buffer-zsh (&rest body)
   `(ert-with-test-buffer ()
      (oterm-test-setup 'zsh)
      ,@body))
@@ -21,7 +21,13 @@
      (with-oterm-buffer
       (with-selected-window (display-buffer (current-buffer))
         ,@body))))
-  
+
+(defmacro oterm-run-command (&rest body)
+  `(progn
+     (oterm-pre-command)
+     (progn ,@body)
+     (oterm-post-command)))
+
 (ert-deftest test-oterm-simple-command ()
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello\n")
@@ -44,7 +50,8 @@
 
 (ert-deftest test-oterm-reconcile-insert ()
   (with-oterm-buffer
-   (insert "echo hello")
+   (oterm-run-command
+    (insert "echo hello"))
    (should (equal "$ echo hello<>" (oterm-test-content)))
    (should (equal "hello" (oterm-send-and-capture-command-output)))))
 
@@ -52,7 +59,10 @@
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello")
    (oterm-wait-for-output)
-   (delete-region (- (point) 5) (- (point) 2))
+   (oterm-run-command
+    (save-excursion
+      (oterm-test-goto "hello")
+      (delete-region (point) (+ 3 (point)))))
    (should (equal "$ echo lo<>" (oterm-test-content)))
    (should (equal "lo" (oterm-send-and-capture-command-output)))))
 
@@ -60,8 +70,9 @@
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello")
    (oterm-wait-for-output)
-   (goto-char (point-min))
-   (replace-string "hello" "bonjour")
+   (oterm-run-command
+    (goto-char (point-min))
+    (replace-string "hello" "bonjour"))
    (should (equal "$ echo bonjour<>" (oterm-test-content)))
    (should (equal "bonjour" (oterm-send-and-capture-command-output)))))
 
@@ -87,9 +98,10 @@
      (oterm-send-raw-string "echo world")  
      (oterm-wait-for-output)
      (should (equal "$ echo hello\nhello\n$ echo world<>" (oterm-test-content)))
-     (delete-region beg end)
-     (goto-char beg)
-     (insert "bonjour")
+     (oterm-run-command
+      (delete-region beg end)
+      (goto-char beg)
+      (insert "bonjour"))
      ;; the modification is available and the point is after the insertion
      (should (equal "$ echo bonjour<>\nhello\n$ echo world" (oterm-test-content)))
      
@@ -130,9 +142,8 @@
    ;; Move the point before doing completion, to make sure that
    ;; oterm-send-if-at-prompt moves the pmark to the right position
    ;; before sending TAB.
-   (oterm-pre-command)
-   (goto-char (+ (point-min) 5))
-   (oterm-post-command)
+   (oterm-run-command
+    (goto-char (+ (point-min) 5)))
    (oterm-wait-for-output)
    (should (equal "$ ech<> world" (oterm-test-content)))
    (oterm-send-tab)
@@ -176,14 +187,14 @@
    (oterm-send-raw-string "read yesorno && echo answer: $yesorno\n")
    (oterm-wait-for-output)
    (should (equal oterm-bracketed-paste nil))
-   (should (equal "answer: no" (oterm-send-and-capture-command-output
-                                (lambda ()
-                                  (insert "no\n")))))))
+   (oterm-run-command (insert "no"))
+   (should (equal "answer: no" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-bol ()
   (with-oterm-buffer
    (let ((initial-pos (point)))
-     (insert "echo hello")
+     (oterm-run-command
+      (insert "echo hello"))
 
      ;; The first time, move the point after the prompt.
      (beginning-of-line)
@@ -196,7 +207,9 @@
 
 (ert-deftest test-oterm-bol-multiline ()
   (with-oterm-buffer
-   (insert "echo \"hello\nworld\"")
+   (oterm-run-command
+    (insert "echo \"hello\nworld\""))
+   
    ;; Point is in the 2nd line, after world, and there's no prompt
    ;; on that line, so just go there.
    (beginning-of-line)
@@ -205,12 +218,15 @@
 (ert-deftest test-oterm-bol-outside-of-prompt ()
   (with-oterm-buffer
    (let (prompt-start)
-     (insert "echo one")
+     (oterm-run-command
+      (insert "echo one"))
      (oterm-send-and-wait-for-prompt)
      (setq prompt-start (point))
-     (insert "echo two")
+     (oterm-run-command
+      (insert "echo two"))
      (oterm-send-and-wait-for-prompt)
-     (insert "echo three")
+     (oterm-run-command
+      (insert "echo three"))
 
      ;; This is before the prompt; just go to the real line beginning,
      ;; even though there's an old prompt on that line.
@@ -222,16 +238,20 @@
   (with-oterm-buffer
    (let (one two three current)
      (setq one (point))
-     (insert "echo one")
+     (oterm-run-command
+      (insert "echo one"))
      (oterm-send-and-wait-for-prompt)
      (setq two (point))
-     (insert "echo two")
+     (oterm-run-command
+      (insert "echo two"))
      (oterm-send-and-wait-for-prompt)
      (setq three (point))
-     (insert "echo three")
+     (oterm-run-command
+      (insert "echo three"))
      (oterm-send-and-wait-for-prompt)
      (setq current (point))
-     (insert "echo current")
+     (oterm-run-command
+      (insert "echo current"))
 
      (goto-char (point-min))
      (oterm-next-prompt 1)
@@ -259,15 +279,19 @@
   (with-oterm-buffer
    (let (one three current)
      (setq one (point))
-     (insert "echo one")
+     (oterm-run-command
+      (insert "echo one"))
      (oterm-send-and-wait-for-prompt)
-     (insert "echo two")
+     (oterm-run-command
+      (insert "echo two"))
      (oterm-send-and-wait-for-prompt)
      (setq three (point))
-     (insert "echo three")
+     (oterm-run-command
+      (insert "echo three"))
      (oterm-send-and-wait-for-prompt)
      (setq current (point))
-     (insert "echo current")
+     (oterm-run-command
+      (insert "echo current"))
 
      (oterm-previous-prompt 1)
      (should (equal current (point)))
@@ -291,11 +315,14 @@
 
 (ert-deftest test-oterm-bash-backward-history-search ()
   (with-oterm-buffer-selected
-   (insert "echo first")
+   (oterm-run-command
+    (insert "echo first"))
    (oterm-send-and-wait-for-prompt)
-   (insert "echo second")
+   (oterm-run-command
+    (insert "echo second"))
    (oterm-send-and-wait-for-prompt)
-   (insert "echo third")
+   (oterm-run-command
+    (insert "echo third"))
    (oterm-send-and-wait-for-prompt)
    (narrow-to-region (oterm--bol-pos-from (point)) (point-max))
    (oterm-send-raw-string "?\C-r")
@@ -364,21 +391,14 @@
      (should (equal 45 (oterm--distance-on-term one end)))
      (should (equal -45 (oterm--distance-on-term end one))))))
 
-(ert-deftest test-oterm-keep-insert-long-prompt ()
+(ert-deftest test-oterm-insert-long-prompt ()
   (with-oterm-buffer-selected
    (oterm--set-process-window-width 20)
 
-   (insert "echo ")
-   (insert "one ")
-   (insert "two ")
-   (insert "three ")
-   (insert "four ")
-   (insert "five ")
-   (insert "six ")
-   (insert "seven ")
-   (insert "eight ")
-   (insert "nine")
-
+   (oterm-run-command
+    (insert "echo one two three four five six seven eight nine"))
+   (while (length= (oterm-test-content) 0)
+     (accept-process-output oterm-term-proc 0 500 t))
    (should (equal "$ echo one two three\n four five six seven\n eight nine<>"
                   (oterm-test-content)))))
 
@@ -386,16 +406,10 @@
   (with-oterm-buffer-selected
    (oterm--set-process-window-width 20)
 
-   (insert "echo ")
-   (insert "one ")
-   (insert "two ")
-   (insert "three ")
-   (insert "four ")
-   (insert "five ")
-   (insert "six ")
-   (insert "seven ")
-   (insert "eight ")
-   (insert "nine")
+   (oterm-run-command
+    (insert "echo one two three four five six seven eight nine"))
+   (while (length= (oterm-test-content) 0)
+     (accept-process-output oterm-term-proc 0 500 t))
 
    ;; make sure that the newlines didn't confuse the sync marker
    (should (equal (marker-position oterm-sync-marker) (point-min)))
@@ -405,16 +419,10 @@
   (with-oterm-buffer-selected
    (oterm--set-process-window-width 20)
 
-   (insert "echo ")
-   (insert "one ")
-   (insert "two ")
-   (insert "three ")
-   (insert "four ")
-   (insert "five ")
-   (insert "six ")
-   (insert "seven ")
-   (insert "eight ")
-   (insert "nine")
+   (oterm-run-command
+    (insert "echo one two three four five six seven eight nine"))
+   (while (length= (oterm-test-content) 0)
+     (accept-process-output oterm-term-proc 0 500 t))
 
    ;; make sure that the newlines don't confuse oterm-post-command
    ;; moving the cursor.
@@ -425,108 +433,6 @@
        (oterm-post-command)
        (oterm-wait-for-output)
        (should (equal (oterm-pmark) goal-pos))))))
-
-(ert-deftest test-oterm-merge-changes ()
-  (let ((changes
-         '((13 "hello" "g h i ")
-           (18 ", world" nil)
-           (13 "bonjour" "hello")
-           (9 "<<" "e f ")
-           (20 "le monde>>" "worldj k l")
-           (20 "tout " nil)
-           (33 "!>>" ">> m n")
-           (33 " " nil)))
-        (merged `((9
-                   "<<bonjour, tout le monde !>>"
-                   ,(length "e f g h i j k l m n")))))
-    (with-temp-buffer
-     (insert "a b c d e f g h i j k l m n o p")
-     (message "start recording")
-     (oterm--start-recording)
-     (message "apply-changes")
-     (oterm-test-apply-changes changes)
-     (message "apply-changes done")
-     (should (equal "a b c d <<bonjour, tout le monde !>> o p"
-                    (buffer-substring-no-properties (point-min) (point-max))))
-     (message "oterm--end-recording")
-     (should (equal merged (oterm--end-recording))))
-   ))
-
-(defun oterm-test-apply-changes (changes)
-  (dolist (c changes)
-    (message "apply %s" c)
-    (pcase c
-      (`(,beg ,insert ,delete)
-       (when delete
-         (let* ((delete-end (+ beg (length delete)))
-                (to-delete (buffer-substring-no-properties
-                            beg delete-end)))
-           (if (string= delete to-delete)
-               (delete-region beg delete-end)
-             (error "invalid change: %s (unexpected deletion of '%s'" c to-delete ))))
-       (when insert
-         (save-excursion
-           (goto-char beg)
-           (insert insert)))
-       (message "after %s: >>%s<<\nintervals: %s"
-                c (buffer-substring-no-properties (point-min) (point-max))
-                (merge-intervals (filter-intervals (object-intervals (current-buffer)) '(oterm-inserted oterm-shift))))
-       )
-      (_ (error "invalid change: %s" c)))))
-
-(defvar oterm--recording nil)
-(defun oterm--start-recording ()
-  (setq oterm--recording t)
-  (add-hook 'after-change-functions #'oterm--record-after-change 0 t))
-
-(defun oterm--end-recording ()
-  (unless oterm--recording
-    (error "not recording"))
-  (remove-hook 'after-change-functions #'oterm--record-after-change t)
-  (setq oterm--recording nil)
-  (let ((current-shift 0)
-        (initial-point-max (point-max))
-        changes)
-    (save-excursion
-      (goto-char (point-min))
-      (while (< (point) (point-max))
-        (message "@%s/%s" (point) (point-max))
-        (cond
-         ((get-text-property (point) 'oterm-inserted)
-          (let ((change-start (+ (point) current-shift))
-                delete-end)
-            (message "insert")
-            (goto-char (or (next-property-change (point)) (point-max)))
-            (message "insert to %s" (point))
-            (if (< (point) (point-max))
-                (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
-                  (setq delete-end (+ (point) shift))
-                  (setq current-shift shift))
-              (setq delete-end initial-point-max))
-            (message "delete-end: %s" delete-end)
-            (push (list change-start
-                        (buffer-substring-no-properties change-start (point))
-                        (- delete-end change-start))
-                  changes)))
-         ((let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
-            (> shift current-shift))
-          (message "shift from %s to %s" current-shift shift)
-          (push (list (+ (point) current-shift) "" (- shift current-shift)) changes)
-          (setq current-shift shift)
-          (goto-char (1+ (point))))
-         (t (goto-char (1+ (point)))))))
-    (remove-text-properties (point-min) (point-max) '(oterm-inserted oter-shift))
-    changes))
-
-(defun oterm--record-after-change (beg end old-length)
-  (add-text-properties beg end '(oterm-inserted t))
-  (remove-text-properties beg end '(oterm-shift nil))
-  (let ((pos end) (shift (- old-length (- end beg))))
-    ;; TODO: optimize
-    (while (< pos (point-max))
-      (unless (get-text-property pos 'oterm-inserted)
-        (put-text-property pos (1+ pos) 'oterm-shift (+ (or (get-text-property pos 'oterm-shift) 0) shift)))
-      (setq pos (1+ pos)))))
 
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."
@@ -618,3 +524,37 @@ of the beginning of the prompt."
               ((buffer-live-p buf)
                (error "Buffer %s wasn't killed." buf))
               (t (error "Something else went wrong.")))))))
+
+(defun oterm-filter-plist (options allowed)
+  "Filter a symbol and values list OPTIONS to online include ALLOWED symbols.
+
+For example, filtering (:key value :other-key value) with allowed
+list of (:key) will return (:key value)."
+  (let ((filtered-list))
+    (dolist (key allowed)
+      (when (plist-member options key)
+        (setq filtered-list
+              (plist-put filtered-list key (plist-get options key)))))
+    filtered-list))
+
+(defun oterm-filter-intervals (intervals allowed)
+  (delq nil (mapcar
+             (lambda (c)
+               (pcase c
+                 (`(,beg ,end ,props)
+                  (let ((filtered (oterm-filter-plist props allowed)))
+                    (when filtered
+                      `(,beg ,end ,filtered))))))
+             intervals)))
+  
+(defun oterm-merge-intervals (intervals)
+  (let ((c intervals))
+    (while c
+      (pcase c
+        ((and `((,beg1 ,end1 ,props1) (,beg2 ,end2 ,props2) . ,tail)
+              (guard (and (= end1 beg2)
+                          (equal props1 props2))))
+         (setcar c `(,beg1 ,end2 ,props1))
+         (setcdr c tail))
+        (_ (setq c (cdr c)))))
+    intervals))

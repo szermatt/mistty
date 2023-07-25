@@ -26,7 +26,7 @@
 (defvar-local oterm-sync-ov nil)
 (defvar-local oterm-bracketed-paste nil)
 (defvar-local oterm--old-point nil)
-(defvar oterm--inhibit-sync nil)
+(defvar-local oterm--inhibit-sync nil)
 
 (defconst oterm-left-str "\eOD")
 (defconst oterm-right-str "\eOC")
@@ -76,7 +76,6 @@
     (setq oterm-sync-ov (make-overlay (point-min) (point-max) nil nil 'rear-advance))
     (overlay-put oterm-sync-ov 'face 'oterm-debug-face)
     (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
-    ;;(overlay-put oterm-sync-ov 'insert-in-front-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
     (with-current-buffer term-buffer
@@ -383,50 +382,87 @@ all should rightly be part of term.el."
            (beg (max orig-beg oterm-cmd-start-marker))
            (end (max orig-end oterm-cmd-start-marker))
            (old-end (max (+ orig-beg old-length) oterm-cmd-start-marker)))
+      (add-text-properties beg end '(oterm-inserted t))
+      (remove-text-properties beg end '(oterm-shift nil))
+      (let ((pos end)
+            (shift (- old-end end)))
+        ;; TODO: optimize
+        (while (< pos (point-max))
+          (unless (get-text-property pos 'oterm-inserted)
+            (put-text-property pos (1+ pos) 'oterm-shift (+ (or (get-text-property pos 'oterm-shift) 0) shift)))
+          (setq pos (1+ pos)))))))
 
-      (when (> end beg)
-        (oterm--send-and-wait (oterm--move-str pmark beg))
-        (setq pmark (oterm-pmark))
-        ;; pmark is as close to beg as we can make it
+(defun oterm--collect-modifications ()
+  (save-restriction
+    (narrow-to-region oterm-sync-marker (point-max))
+    (let ((current-shift 0)
+          changes)
+      (save-excursion
+        (goto-char (point-min))
+        (while (< (point) (point-max))
+          (if (get-text-property (point) 'oterm-inserted)
+              (progn
+                (let ((change-start (+ (point) current-shift))
+                      delete-end)
+                  (goto-char (or (next-single-property-change (point) 'oterm-inserted) (point-max)))
+                  (if (< (point) (point-max))
+                      (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
+                        (setq old-length (- (+ (point) shift) change-start))
+                        (setq current-shift shift))
+                    (setq old-length -1))
+                  (push (list change-start
+                              (buffer-substring-no-properties change-start (point))
+                              old-length)
+                        changes)))
+            (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
+              (when (> shift current-shift)
+                (push (list (+ (point) current-shift) "" (- shift current-shift)) changes)
+                (setq current-shift shift)))
+            (goto-char (1+ (point))))))
+      (let ((inhibit-read-only t))
+        (remove-text-properties (point-min) (point-max) '(oterm-inserted oterm-shift)))
+      (nreverse changes))))
 
-        ;; We couldn't move pmark as far back as beg. Presumably, the
-        ;; process mark points to the leftmost modifiable position of
-        ;; the command line. Update the sync marker to start sync there
+(defun oterm--replay-modification (orig-beg content old-length)
+  (let* ((pmark (oterm-pmark))
+         (initial-point (point))
+         (beg orig-beg)
+         (end (+ orig-beg (length content)))
+         (old-end (if (> old-length 0) (+ orig-beg old-length) (oterm--from-pos-of
+                                                                (with-current-buffer oterm-term-buffer (point-max))
+                                                                oterm-term-buffer))))
+    (when (> end beg)
+      (oterm--send-and-wait (oterm--move-str pmark beg))
+      (setq pmark (oterm-pmark))
+      ;; pmark is as close to beg as we can make it
+      
+      ;; We couldn't move pmark as far back as beg. Presumably, the
+      ;; process mark points to the leftmost modifiable position of
+      ;; the command line. Update the sync marker to start sync there
         ;; from now on and avoid getting this hook called unnecessarily.
-        ;; This is done from inside the term buffer as the modifications
-        ;; of the work buffer could interfere. TODO: What if the process
-        ;; is just not accepting any input at this time? We might move
-        ;; sync mark to far down.
-        (when (> (oterm--distance-on-term beg pmark) 0)
-          (oterm--move-sync-mark pmark 'set-prompt))
-
-        (setq beg (max beg pmark)))
-
+      ;; This is done from inside the term buffer as the modifications
+      ;; of the work buffer could interfere. TODO: What if the process
+      ;; is just not accepting any input at this time? We might move
+      ;; sync mark to far down.
+      (when (> (oterm--distance-on-term beg pmark) 0)
+        (oterm--move-sync-mark pmark 'set-prompt))
+      
+      (setq beg (max beg pmark)))
+    
+    (when (> old-end beg)
+      (oterm--send-and-wait (oterm--move-str pmark old-end))
+      (setq pmark (oterm-pmark))
+      (setq old-end (max beg (min old-end pmark))))
+    
+    ;; Replay the portion of the change that we think we can
+    ;; replay.
+    (oterm--send-and-wait
+     (concat
       (when (> old-end beg)
-        (oterm--send-and-wait (oterm--move-str pmark old-end))
-        (setq pmark (oterm-pmark))
-        (setq old-end (max beg (min old-end pmark))))
-
-      ;; Replay the portion of the change that we think we can
-      ;; replay.
-      (oterm--send-and-wait
-       (concat
-        (when (> old-end beg)
-          (oterm--repeat-string (- old-end beg) "\b"))
-        (when (> end beg)
-          (oterm--maybe-bracketed-str (buffer-substring-no-properties beg end)))))
-
-      ;; Copy the modifications on the term buffer to the work buffer.
-      ;; This might undo part of the modification that couldn't be
-      ;; replayed, but only those after the *new* sync marker.
-      (oterm--term-to-work)
-
-      ;; If insertion went right, the pmark should be at the end of the
-      ;; insertion zone, so moving the point to the pmark guarantees
-      ;; that the pointer position makes sense, even after the changes
-      ;; applied to the work buffer by oterm--term-to-work.
-      (when (equal initial-point end)
-        (goto-char (oterm-pmark))))))
+        (oterm--repeat-string (oterm--distance-on-term beg old-end) "\b"))
+      (when (> end beg)
+        (oterm--maybe-bracketed-str (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
+  )
 
 (defun oterm--send-and-wait (str)
   (when (and str (not (zerop (length str))))
@@ -487,9 +523,16 @@ END section to be valid in the term buffer."
       (error "No previous prompt"))))
 
 (defun oterm-pre-command ()
-  (setq oterm--old-point (point)))
+  (setq oterm--old-point (point)
+        oterm--inhibit-sync t))
 
 (defun oterm-post-command ()
+  (setq oterm--inhibit-sync nil)
+  (save-excursion
+    (let ((changes (oterm--collect-modifications)))
+      (dolist (c changes)
+        (apply #'oterm--replay-modification c)
+        (oterm--term-to-work))))
   (when (and oterm--old-point
              (/= (point) oterm--old-point)
              (markerp oterm-sync-marker)

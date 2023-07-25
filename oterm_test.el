@@ -426,6 +426,108 @@
        (oterm-wait-for-output)
        (should (equal (oterm-pmark) goal-pos))))))
 
+(ert-deftest test-oterm-merge-changes ()
+  (let ((changes
+         '((13 "hello" "g h i ")
+           (18 ", world" nil)
+           (13 "bonjour" "hello")
+           (9 "<<" "e f ")
+           (20 "le monde>>" "worldj k l")
+           (20 "tout " nil)
+           (33 "!>>" ">> m n")
+           (33 " " nil)))
+        (merged `((9
+                   "<<bonjour, tout le monde !>>"
+                   ,(length "e f g h i j k l m n")))))
+    (with-temp-buffer
+     (insert "a b c d e f g h i j k l m n o p")
+     (message "start recording")
+     (oterm--start-recording)
+     (message "apply-changes")
+     (oterm-test-apply-changes changes)
+     (message "apply-changes done")
+     (should (equal "a b c d <<bonjour, tout le monde !>> o p"
+                    (buffer-substring-no-properties (point-min) (point-max))))
+     (message "oterm--end-recording")
+     (should (equal merged (oterm--end-recording))))
+   ))
+
+(defun oterm-test-apply-changes (changes)
+  (dolist (c changes)
+    (message "apply %s" c)
+    (pcase c
+      (`(,beg ,insert ,delete)
+       (when delete
+         (let* ((delete-end (+ beg (length delete)))
+                (to-delete (buffer-substring-no-properties
+                            beg delete-end)))
+           (if (string= delete to-delete)
+               (delete-region beg delete-end)
+             (error "invalid change: %s (unexpected deletion of '%s'" c to-delete ))))
+       (when insert
+         (save-excursion
+           (goto-char beg)
+           (insert insert)))
+       (message "after %s: >>%s<<\nintervals: %s"
+                c (buffer-substring-no-properties (point-min) (point-max))
+                (merge-intervals (filter-intervals (object-intervals (current-buffer)) '(oterm-inserted oterm-shift))))
+       )
+      (_ (error "invalid change: %s" c)))))
+
+(defvar oterm--recording nil)
+(defun oterm--start-recording ()
+  (setq oterm--recording t)
+  (add-hook 'after-change-functions #'oterm--record-after-change 0 t))
+
+(defun oterm--end-recording ()
+  (unless oterm--recording
+    (error "not recording"))
+  (remove-hook 'after-change-functions #'oterm--record-after-change t)
+  (setq oterm--recording nil)
+  (let ((current-shift 0)
+        (initial-point-max (point-max))
+        changes)
+    (save-excursion
+      (goto-char (point-min))
+      (while (< (point) (point-max))
+        (message "@%s/%s" (point) (point-max))
+        (cond
+         ((get-text-property (point) 'oterm-inserted)
+          (let ((change-start (+ (point) current-shift))
+                delete-end)
+            (message "insert")
+            (goto-char (or (next-property-change (point)) (point-max)))
+            (message "insert to %s" (point))
+            (if (< (point) (point-max))
+                (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
+                  (setq delete-end (+ (point) shift))
+                  (setq current-shift shift))
+              (setq delete-end initial-point-max))
+            (message "delete-end: %s" delete-end)
+            (push (list change-start
+                        (buffer-substring-no-properties change-start (point))
+                        (- delete-end change-start))
+                  changes)))
+         ((let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
+            (> shift current-shift))
+          (message "shift from %s to %s" current-shift shift)
+          (push (list (+ (point) current-shift) "" (- shift current-shift)) changes)
+          (setq current-shift shift)
+          (goto-char (1+ (point))))
+         (t (goto-char (1+ (point)))))))
+    (remove-text-properties (point-min) (point-max) '(oterm-inserted oter-shift))
+    changes))
+
+(defun oterm--record-after-change (beg end old-length)
+  (add-text-properties beg end '(oterm-inserted t))
+  (remove-text-properties beg end '(oterm-shift nil))
+  (let ((pos end) (shift (- old-length (- end beg))))
+    ;; TODO: optimize
+    (while (< pos (point-max))
+      (unless (get-text-property pos 'oterm-inserted)
+        (put-text-property pos (1+ pos) 'oterm-shift (+ (or (get-text-property pos 'oterm-shift) 0) shift)))
+      (setq pos (1+ pos)))))
+
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."
   (oterm-test-goto-after str)

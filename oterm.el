@@ -491,6 +491,8 @@ all should rightly be part of term.el."
        (abs diff)
        (if (< diff 0) oterm-left-str oterm-right-str)))))
 
+(defun oterm--safe-pos (pos)
+  (min (point-max) (max (point-min) pos)))
 
 (defun oterm--distance-on-term (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.
@@ -501,8 +503,8 @@ While it takes BEG and END as work buffer positions, it looks in
 the term buffer to figure out, so it's important for the BEG and
 END section to be valid in the term buffer."
   (with-current-buffer oterm-term-buffer
-    (let ((beg (oterm--from-pos-of (min beg end) oterm-work-buffer))
-          (end (oterm--from-pos-of (max beg end) oterm-work-buffer))
+    (let ((beg (oterm--safe-pos (oterm--from-pos-of (min beg end) oterm-work-buffer)))
+          (end (oterm--safe-pos (oterm--from-pos-of (max beg end) oterm-work-buffer)))
           (sign (if (< end beg) -1 1)))
       (let ((pos beg) (nlcount 0))
         (while (and (< pos end) (setq pos (text-property-any pos end 'term-line-wrap t)))

@@ -26,7 +26,9 @@
   `(progn
      (oterm-pre-command)
      (progn ,@body)
-     (oterm-post-command)))
+     (let ((timer (oterm-post-command)))
+       (while (memq timer timer-list)
+         (timer-event-handler timer)))))
 
 (ert-deftest test-oterm-simple-command ()
   (with-oterm-buffer

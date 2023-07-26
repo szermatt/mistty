@@ -68,6 +68,7 @@
     oterm-prompt-map))
 
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
+  :interactive nil 
   (let ((work-buffer (current-buffer))
         (term-buffer (generate-new-buffer (concat " oterm tty " (buffer-name)) 'inhibit-buffer-hooks)))
     (setq oterm-work-buffer work-buffer)
@@ -93,6 +94,7 @@
     (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)
     (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
     ))
+ (put 'oterm-mode 'mode-class 'special)
 
 (defmacro oterm--with-live-buffer (buf &rest body)
   (declare (indent 1))

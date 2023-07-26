@@ -432,7 +432,7 @@ all should rightly be part of term.el."
       (setq oterm--deleted-point-max nil)
       (let ((inhibit-read-only t)
             (inhibit-modification-hooks t))
-        (remove-text-properties (point-min) (point-max) '(oterm-inserted oterm-shift oterm-end)))
+        (remove-text-properties (point-min) (point-max) '(oterm-inserted t oterm-shift t oterm-end t)))
       (nreverse changes))))
 
 (defun oterm--replay-modification (orig-beg content old-length)

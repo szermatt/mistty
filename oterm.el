@@ -35,7 +35,7 @@
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 
 (defface oterm-debug-face
-  '((t (:box (:line-width (2 . 2) :color "cyan" :style released-button))))
+  nil ;;'((t (:box (:line-width (2 . 2) :color "cyan" :style released-button))))
   "Face used to highlight `oterm-sync-ov' for debugging.")
 
 (defface oterm-debug-prompt-face '((t (:background "cyan")))
@@ -544,19 +544,23 @@ END section to be valid in the term buffer."
 
 (defun oterm-post-command ()
   (setq oterm--inhibit-sync nil)
-  (save-excursion
-    (let ((changes (oterm--collect-modifications)))
-      (dolist (c changes)
-        (apply #'oterm--replay-modification c)
-        (oterm--term-to-work))))
-  (when (and oterm--old-point
-             (/= (point) oterm--old-point)
-             (markerp oterm-sync-marker)
-             (>= (point) oterm-sync-marker)
-             (process-live-p oterm-term-proc)
-             (buffer-live-p oterm-term-buffer)
-             oterm-bracketed-paste)
-    (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point)))))
+  (run-at-time 0 nil #'oterm-post-command-1 oterm-work-buffer))
+
+(defun oterm-post-command-1 (buf)
+  (oterm--with-live-buffer buf
+    (save-excursion
+      (let ((changes (oterm--collect-modifications)))
+        (dolist (c changes)
+          (apply #'oterm--replay-modification c)
+          (oterm--term-to-work))))
+    (when (and oterm--old-point
+               (/= (point) oterm--old-point)
+               (markerp oterm-sync-marker)
+               (>= (point) oterm-sync-marker)
+               (process-live-p oterm-term-proc)
+               (buffer-live-p oterm-term-buffer)
+               oterm-bracketed-paste)
+      (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point))))))
 
 (defun oterm--window-size-change (_win)
   (when (process-live-p oterm-term-proc)

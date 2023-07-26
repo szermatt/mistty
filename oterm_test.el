@@ -66,6 +66,17 @@
    (should (equal "$ echo lo<>" (oterm-test-content)))
    (should (equal "lo" (oterm-send-and-capture-command-output)))))
 
+(ert-deftest test-oterm-reconcile-delete-last-word ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "echo hello world")
+   (oterm-wait-for-output)
+   (oterm-run-command
+    (save-excursion
+      (oterm-test-goto " world")
+      (delete-region (point) (point-max))))
+   (should (equal "$ echo hello<>" (oterm-test-content)))
+   (should (equal "hello" (oterm-send-and-capture-command-output)))))
+
 (ert-deftest test-oterm-reconcile-replace ()
   (with-oterm-buffer
    (oterm-send-raw-string "echo hello")

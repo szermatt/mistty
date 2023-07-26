@@ -118,7 +118,7 @@
      
      ;; the next command executes normally and doesn't revert the
      ;; modification, though it moves the point.
-     (oterm-send-raw-string "\n")
+     (oterm-send-command)
      (oterm-wait-for-output)
      (should (equal "$ echo bonjour\nhello\n$ echo world\nworld" (oterm-test-content))))))
 

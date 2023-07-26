@@ -67,35 +67,6 @@
     (define-key oterm-prompt-map [remap self-insert-command] 'oterm-self-insert-command )
     oterm-prompt-map))
 
-(define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
-  :interactive nil 
-  (let ((work-buffer (current-buffer))
-        (term-buffer (generate-new-buffer (concat " oterm tty " (buffer-name)) 'inhibit-buffer-hooks)))
-    (setq oterm-work-buffer work-buffer)
-    (setq oterm-term-buffer term-buffer)
-    (setq oterm-sync-marker (copy-marker (point-min)))
-    (setq oterm-cmd-start-marker (copy-marker (point-min)))
-    (setq oterm-sync-ov (make-overlay (point-min) (point-max) nil nil 'rear-advance))
-    (overlay-put oterm-sync-ov 'face 'oterm-debug-face)
-    (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
-    (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
-    (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
-    (with-current-buffer term-buffer
-      (term-mode)
-      (setq oterm-work-buffer work-buffer)
-      (setq oterm-term-buffer term-buffer)
-      (setq oterm-sync-marker (copy-marker (point-min)))
-      (setq-local term-char-mode-buffer-read-only t
-                  term-char-mode-point-at-process-mark t
-                  term-buffer-maximum-size 0
-                  term-height 1024
-                  term-width (or (window-max-chars-per-line) 80))
-      (term--reset-scroll-region))
-    (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)
-    (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
-    ))
- (put 'oterm-mode 'mode-class 'special)
-
 (defmacro oterm--with-live-buffer (buf &rest body)
   (declare (indent 1))
   (let ((tempvar (make-symbol "buf")))
@@ -103,27 +74,89 @@
        (when (buffer-live-p ,tempvar)
          (with-current-buffer ,tempvar
            ,@body)))))
-    
-(defun oterm--kill-term-buffer ()
-  (kill-buffer oterm-term-buffer))
+
+(define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
+  :interactive nil
+  (setq oterm-work-buffer (current-buffer))
+  (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)
+  (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
+  (add-hook 'pre-command-hook #'oterm-pre-command nil t)
+  (add-hook 'post-command-hook #'oterm-post-command nil t))
+(put 'oterm-mode 'mode-class 'special)
 
 (defun oterm--exec (program &rest args)
   (oterm-mode)
-  (with-current-buffer oterm-term-buffer
-    (term-exec oterm-term-buffer (buffer-name oterm-term-buffer) program nil args)
-    (term-char-mode))
-  (let ((proc (get-buffer-process oterm-term-buffer)))
-    (with-current-buffer oterm-term-buffer
-      (setq oterm-term-proc proc)
-      (process-put proc 'oterm-work-buffer oterm-work-buffer)
-      (process-put proc 'oterm-term-buffer oterm-term-buffer)
-      (set-process-filter proc #'oterm-process-filter)
-      (set-process-sentinel proc #'oterm-process-sentinel))
-    (with-current-buffer oterm-work-buffer
-      (setq oterm-term-proc proc)
-      (add-hook 'pre-command-hook #'oterm-pre-command nil t)
-      (add-hook 'post-command-hook #'oterm-post-command nil t))))
+  (oterm--attach (oterm--create-term program args)))
 
+(defun oterm--create-term (program args)
+  (let ((term-buffer (generate-new-buffer (concat " oterm tty " (buffer-name)) 'inhibit-buffer-hooks)))
+    (with-current-buffer term-buffer
+      (term-mode)
+      (setq-local term-char-mode-buffer-read-only t
+                  term-char-mode-point-at-process-mark t
+                  term-buffer-maximum-size 0
+                  term-height 1024
+                  term-width (or (window-max-chars-per-line) 80))
+      (term--reset-scroll-region)
+      (term-exec term-buffer (buffer-name oterm-term-buffer) program nil args)
+      (term-char-mode))
+    term-buffer))
+
+(defun oterm--attach (term-buffer)
+  (let ((work-buffer (current-buffer))
+        (proc (get-buffer-process term-buffer)))
+
+    (process-put proc 'oterm-work-buffer work-buffer)
+    (process-put proc 'oterm-term-buffer term-buffer)
+
+    (setq oterm-term-proc proc)
+    (setq oterm-term-buffer term-buffer)
+    (setq oterm-sync-marker (copy-marker (point-max)))
+    (setq oterm-cmd-start-marker (copy-marker oterm-sync-marker))
+    (setq oterm-sync-ov (make-overlay oterm-sync-marker (point-max) nil nil 'rear-advance))
+
+    (with-current-buffer term-buffer
+      (setq oterm-term-proc proc)
+      (setq oterm-work-buffer work-buffer)
+      (setq oterm-term-buffer term-buffer)
+      (setq oterm-sync-marker (copy-marker term-home-marker)))
+
+    (overlay-put oterm-sync-ov 'face 'oterm-debug-face)
+    (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
+    (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (set-process-filter proc #'oterm-process-filter)
+    (set-process-sentinel proc #'oterm-process-sentinel)
+    
+    (oterm--term-to-work)))
+
+(defun oterm--detach ()
+  (when oterm-sync-ov
+    (delete-overlay oterm-sync-ov)
+    (setq oterm-sync-ov nil))
+  (when oterm-term-proc
+    (set-process-filter oterm-term-proc #'term-emulate-terminal)
+    (set-process-sentinel oterm-term-proc #'term-sentinel)
+    (process-put oterm-term-proc 'oterm-work-buffer nil)
+    (setq oterm-term-proc nil))
+  (when oterm-sync-marker
+    (move-marker oterm-sync-marker nil)
+    (setq oterm-sync-marker nil))
+  (when oterm-cmd-start-marker
+    (move-marker oterm-cmd-start-marker nil)
+    (setq oterm-cmd-start-marker nil))
+  (oterm--with-live-buffer oterm-term-buffer
+    (setq oterm-work-buffer nil)
+    (when oterm-sync-marker
+      (move-marker oterm-sync-marker nil)
+      (setq oterm-sync-marker nil)))
+  (setq oterm-term-buffer nil))
+
+(defun oterm--kill-term-buffer ()
+  (when (buffer-live-p oterm-term-buffer)
+    (kill-buffer oterm-term-buffer)))
+      
 (defsubst oterm--buffer-p (buffer)
   "Return the BUFFER if the buffer is a live oterm buffer."
   (if (and buffer
@@ -165,38 +198,42 @@
     ))
 
 (defun oterm-process-sentinel (proc msg)
-  (when (memq (process-status proc) '(signal exit))
-    (let ((work-buffer (process-get proc 'oterm-work-buffer))
-          (term-buffer (process-get proc 'oterm-term-buffer)))
-      (if (buffer-live-p work-buffer)
-          (progn
-            (while (accept-process-output proc 0 0 t))
-            (term-sentinel proc msg)
-            (with-current-buffer work-buffer
-              (oterm--term-to-work))
-            (kill-buffer term-buffer))
-        (term-sentinel proc msg)))))
+  (let ((work-buffer (process-get proc 'oterm-work-buffer))
+        (term-buffer (process-get proc 'oterm-term-buffer)))
+    (if (buffer-live-p work-buffer)
+        (when (memq (process-status proc) '(signal exit))
+          (while (accept-process-output proc 0 0 t))
+          (term-sentinel proc msg)
+          (with-current-buffer work-buffer
+            (oterm--term-to-work)
+            (oterm--detach))
+          (kill-buffer term-buffer)))
+    ;; detached term buffer
+    (term-sentinel proc msg)))
 
 (defun oterm-process-filter (proc str)
-  (let ((old-pmark (marker-position (process-mark proc)))
-        (work-buffer (process-get proc 'oterm-work-buffer))
-        (term-buffer (process-get proc 'oterm-term-buffer))
-        (bracketed-paste-turned-on nil)
-        (inhibit-modification-hooks t))
-    (setq bracketed-paste-turned-on (oterm-emulate-terminal proc str))
-    (oterm--with-live-buffer term-buffer
-      (goto-char (process-mark proc)))
-    (oterm--with-live-buffer work-buffer
-      (when (buffer-live-p term-buffer)
-        (setq default-directory (buffer-local-value 'default-directory term-buffer))
-        (unless oterm--inhibit-sync
-          (let ((point-on-pmark (equal (point) (oterm--from-pos-of old-pmark oterm-term-buffer))))
-            (oterm--term-to-work)
-            (when bracketed-paste-turned-on
-              (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
-            (when (and (/= old-pmark (marker-position (process-mark proc)))
-                       point-on-pmark)
-              (goto-char (oterm-pmark)))))))))
+  (let ((work-buffer (process-get proc 'oterm-work-buffer))
+        (term-buffer (process-get proc 'oterm-term-buffer)))
+    (if (and (buffer-live-p work-buffer) (buffer-live-p term-buffer))
+        (let ((old-pmark (marker-position (process-mark proc)))
+              (bracketed-paste-turned-on nil)
+              (inhibit-modification-hooks t))
+          (setq bracketed-paste-turned-on (oterm-emulate-terminal proc str))
+          (oterm--with-live-buffer term-buffer
+            (goto-char (process-mark proc)))
+          (oterm--with-live-buffer work-buffer
+            (when (buffer-live-p term-buffer)
+              (setq default-directory (buffer-local-value 'default-directory term-buffer))
+              (unless oterm--inhibit-sync
+                (let ((point-on-pmark (equal (point) (oterm--from-pos-of old-pmark oterm-term-buffer))))
+                  (oterm--term-to-work)
+                  (when bracketed-paste-turned-on
+                    (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
+                  (when (and (/= old-pmark (marker-position (process-mark proc)))
+                             point-on-pmark)
+                    (goto-char (oterm-pmark))))))))
+      ;; detached term buffer
+      (term-emulate-terminal proc str))))
 
 (defun oterm-emulate-terminal (proc str)
   "Handle special terminal codes, then call `term-emlate-terminal'.
@@ -204,9 +241,8 @@
 This functions intercepts some extented sequences term.el. This
 all should rightly be part of term.el."
   (let ((start 0)
-        (bracketed-paste-turned-on nil)
-        found)
-    (while (setq found (string-match "\e\\[\\(\\?2004[hl]\\)" str start))
+        (bracketed-paste-turned-on nil))
+    (while (string-match "\e\\[\\(\\?2004[hl]\\)" str start)
       (let ((ext (match-string 1 str))
             (next (match-end 0)))
         (term-emulate-terminal proc (substring str start next))
@@ -350,7 +386,7 @@ all should rightly be part of term.el."
     (signal 'text-read-only nil))
   (oterm-send-raw-string "\b"))
 
-(defun oterm-self-insert-command (n &optional c)
+(defun oterm-self-insert-command (n)
   (interactive "p")
   (when (get-pos-property (point) 'read-only)
     (signal 'text-read-only nil))
@@ -378,10 +414,7 @@ all should rightly be part of term.el."
   (when (and (buffer-live-p oterm-term-buffer)
              is-after
              (>= orig-end oterm-cmd-start-marker))
-    ;; Attempt to replay the change in the terminal.
     (let ((inhibit-read-only t)
-          (pmark (oterm-pmark))
-          (initial-point (point))
           (beg (max orig-beg oterm-cmd-start-marker))
           (end (max orig-end oterm-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) oterm-cmd-start-marker)))
@@ -408,8 +441,7 @@ all should rightly be part of term.el."
         (while (< (point) (point-max))
           (if (get-text-property (point) 'oterm-inserted)
               (progn
-                (let ((change-start (+ (point) current-shift))
-                      delete-end)
+                (let ((change-start (+ (point) current-shift)))
                   (goto-char (or (next-single-property-change (point) 'oterm-inserted) (point-max)))
                   (if (< (point) (point-max))
                       (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
@@ -439,7 +471,6 @@ all should rightly be part of term.el."
 
 (defun oterm--replay-modification (orig-beg content old-length)
   (let* ((pmark (oterm-pmark))
-         (initial-point (point))
          (beg orig-beg)
          (end (+ orig-beg (length content)))
          (old-end (if (> old-length 0) (+ orig-beg old-length) (oterm--from-pos-of
@@ -547,20 +578,25 @@ END section to be valid in the term buffer."
   (run-at-time 0 nil #'oterm-post-command-1 oterm-work-buffer))
 
 (defun oterm-post-command-1 (buf)
+  ;; replay modifications recorded during the command
   (oterm--with-live-buffer buf
-    (save-excursion
-      (let ((changes (oterm--collect-modifications)))
-        (dolist (c changes)
-          (apply #'oterm--replay-modification c)
-          (oterm--term-to-work))))
-    (when (and oterm--old-point
-               (/= (point) oterm--old-point)
-               (markerp oterm-sync-marker)
-               (>= (point) oterm-sync-marker)
-               (process-live-p oterm-term-proc)
-               (buffer-live-p oterm-term-buffer)
-               oterm-bracketed-paste)
-      (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point))))))
+    (when (and (process-live-p oterm-term-proc)
+               (buffer-live-p oterm-term-buffer))
+      (save-excursion
+        (let ((changes (oterm--collect-modifications)))
+          (dolist (c changes)
+            (apply #'oterm--replay-modification c)
+            (oterm--term-to-work))))))
+
+  ;; move process mark to follow point
+  (when (and oterm--old-point
+             (/= (point) oterm--old-point)
+             (markerp oterm-sync-marker)
+             (>= (point) oterm-sync-marker)
+             (process-live-p oterm-term-proc)
+             (buffer-live-p oterm-term-buffer)
+             oterm-bracketed-paste)
+    (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point)))))
 
 (defun oterm--window-size-change (_win)
   (when (process-live-p oterm-term-proc)

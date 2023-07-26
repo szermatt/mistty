@@ -27,6 +27,7 @@
 (defvar-local oterm-bracketed-paste nil)
 (defvar-local oterm--old-point nil)
 (defvar-local oterm--inhibit-sync nil)
+(defvar-local oterm--deleted-point-max nil)
 
 (defconst oterm-left-str "\eOD")
 (defconst oterm-right-str "\eOC")
@@ -380,11 +381,12 @@ all should rightly be part of term.el."
              is-after
              (>= orig-end oterm-cmd-start-marker))
     ;; Attempt to replay the change in the terminal.
-    (let* ((pmark (oterm-pmark))
-           (initial-point (point))
-           (beg (max orig-beg oterm-cmd-start-marker))
-           (end (max orig-end oterm-cmd-start-marker))
-           (old-end (max (+ orig-beg old-length) oterm-cmd-start-marker)))
+    (let ((inhibit-read-only t)
+          (pmark (oterm-pmark))
+          (initial-point (point))
+          (beg (max orig-beg oterm-cmd-start-marker))
+          (end (max orig-end oterm-cmd-start-marker))
+          (old-end (max (+ orig-beg old-length) oterm-cmd-start-marker)))
       (add-text-properties beg end '(oterm-inserted t))
       (remove-text-properties beg end '(oterm-shift nil))
       (let ((pos end)
@@ -393,12 +395,15 @@ all should rightly be part of term.el."
         (while (< pos (point-max))
           (unless (get-text-property pos 'oterm-inserted)
             (put-text-property pos (1+ pos) 'oterm-shift (+ (or (get-text-property pos 'oterm-shift) 0) shift)))
-          (setq pos (1+ pos)))))))
+          (setq pos (1+ pos))))
+      (when (> old-end (point-max))
+        (setq oterm--deleted-point-max t)))))
 
 (defun oterm--collect-modifications ()
   (save-restriction
     (narrow-to-region oterm-sync-marker (point-max))
     (let ((current-shift 0)
+          last-noninsert
           changes)
       (save-excursion
         (goto-char (point-min))
@@ -412,18 +417,26 @@ all should rightly be part of term.el."
                       (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
                         (setq old-length (- (+ (point) shift) change-start))
                         (setq current-shift shift))
-                    (setq old-length -1))
+                    (if (not oterm--deleted-point-max)
+                        (setq old-length 0)
+                      (setq old-length -1
+                            oterm--deleted-point-max nil))
                   (push (list change-start
                               (buffer-substring-no-properties change-start (point))
                               old-length)
-                        changes)))
+                        changes))))
+            (setq last-noninsert (+ (point) (or (get-text-property (point) 'oterm-shift) 0)))
             (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
               (when (> shift current-shift)
                 (push (list (+ (point) current-shift) "" (- shift current-shift)) changes)
                 (setq current-shift shift)))
             (goto-char (1+ (point))))))
-      (let ((inhibit-read-only t))
-        (remove-text-properties (point-min) (point-max) '(oterm-inserted oterm-shift)))
+      (when (and oterm--deleted-point-max (or (null changes) (/= -1 (nth 2 (car changes)))))
+        (push (list (or (1+ last-noninsert) (point-min)) "" -1) changes))
+      (setq oterm--deleted-point-max nil)
+      (let ((inhibit-read-only t)
+            (inhibit-modification-hooks t))
+        (remove-text-properties (point-min) (point-max) '(oterm-inserted oterm-shift oterm-end)))
       (nreverse changes))))
 
 (defun oterm--replay-modification (orig-beg content old-length)
@@ -442,7 +455,7 @@ all should rightly be part of term.el."
       ;; We couldn't move pmark as far back as beg. Presumably, the
       ;; process mark points to the leftmost modifiable position of
       ;; the command line. Update the sync marker to start sync there
-        ;; from now on and avoid getting this hook called unnecessarily.
+      ;; from now on and avoid getting this hook called unnecessarily.
       ;; This is done from inside the term buffer as the modifications
       ;; of the work buffer could interfere. TODO: What if the process
       ;; is just not accepting any input at this time? We might move
@@ -543,7 +556,7 @@ END section to be valid in the term buffer."
              (process-live-p oterm-term-proc)
              (buffer-live-p oterm-term-buffer)
              oterm-bracketed-paste)
-      (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point)))))
+    (oterm-send-raw-string (oterm--move-str (oterm-pmark) (point)))))
 
 (defun oterm--window-size-change (_win)
   (when (process-live-p oterm-term-proc)

@@ -253,17 +253,13 @@ all should rightly be part of term.el."
               (save-restriction
                 (narrow-to-region oterm-sync-marker (point-max-marker))
                 (let ((inhibit-modification-hooks t))
-                  ;; Clear text properties that might have been set by
-                  ;; the tty in a previous call.
-                  (when (< oterm-cmd-start-marker (point-max))
-                    (set-text-properties oterm-cmd-start-marker (point-max) nil))
                   (condition-case nil
                       (replace-buffer-contents oterm-term-buffer)
                     (text-read-only
                      ;; Replace-buffer-contents attempted to modify the prompt.
                      ;; Remove it and try again.
                      (let ((inhibit-read-only t))
-                       (set-text-properties (point-min) (point-max) nil)
+                       (remove-text-properties (point-min) (point-max) '(oterm t face t read-only t))
                        (move-marker oterm-cmd-start-marker oterm-sync-marker)
                        (replace-buffer-contents oterm-term-buffer)))))))
             (setq buffer-undo-list saved-undo)))))

@@ -127,26 +127,29 @@
 (ert-deftest test-oterm-send-command-because-at-prompt ()
   (with-oterm-buffer-selected
    (oterm-send-raw-string "echo hello")
-   (oterm-wait-for-output)
-   (execute-kbd-macro (kbd "RET"))
-   (oterm-wait-for-output)
+   (should (equal "hello" (oterm-send-and-capture-command-output
+                           (lambda ()
+                             (execute-kbd-macro (kbd "RET"))))))
    (should (equal "$ echo hello\nhello" (oterm-test-content)))))
 
 (ert-deftest test-oterm-send-newline-because-not-at-prompt ()
   (with-oterm-buffer-selected
-   (oterm-send-raw-string "echo hello\n")
-   (oterm-wait-for-output)
-   (goto-char (+ (point-min) 7))
+   (oterm-send-raw-string "echo hello")
+   (oterm-send-and-wait-for-prompt)
+   (oterm-run-command
+    (oterm-test-goto "hello"))
    (execute-kbd-macro (kbd "RET"))
    (should (equal "$ echo\n<>hello\nhello" (oterm-test-content)))))
 
 (ert-deftest test-oterm-send-newline-because-not-at-prompt-multiline ()
   (with-oterm-buffer-selected
-   (insert "echo hello\necho world")
-   (goto-char (point-min))
+   (oterm-run-command
+    (insert "echo hello\necho world"))
+   (oterm-send-and-wait-for-prompt)
+   (oterm-run-command
+    (oterm-test-goto "hello"))
    (execute-kbd-macro (kbd "RET"))
-   (oterm-wait-for-output)
-   (should (equal "$ echo hello\necho world\nhello\nworld" (oterm-test-content)))))
+   (should (equal "$ echo\n<>hello\necho world\nhello\nworld" (oterm-test-content)))))
 
 (ert-deftest test-oterm-send-tab-to-complete  ()
   (with-oterm-buffer

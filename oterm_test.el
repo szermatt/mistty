@@ -386,7 +386,7 @@
 
 (ert-deftest test-oterm-distance-on-term-with-hard-newlines ()
   (with-oterm-buffer-selected
-   (oterm--set-process-window-width 20)
+   (oterm--set-process-window-size 20 20)
 
    (oterm-send-raw-string "echo one two three four five six seven eight nine")
    (oterm-send-and-wait-for-prompt)
@@ -409,7 +409,7 @@
 
 (ert-deftest test-oterm-insert-long-prompt ()
   (with-oterm-buffer-selected
-   (oterm--set-process-window-width 20)
+   (oterm--set-process-window-size 20 20)
 
    (oterm-run-command
     (insert "echo one two three four five six seven eight nine"))
@@ -420,7 +420,7 @@
 
 (ert-deftest test-oterm-keep-sync-marker-on-long-prompt ()
   (with-oterm-buffer-selected
-   (oterm--set-process-window-width 20)
+   (oterm--set-process-window-size 20 20)
 
    (oterm-run-command
     (insert "echo one two three four five six seven eight nine"))
@@ -433,7 +433,7 @@
 
 (ert-deftest test-oterm-keep-track-pointer-on-long-prompt ()
   (with-oterm-buffer-selected
-   (oterm--set-process-window-width 20)
+   (oterm--set-process-window-size 20 20)
 
    (oterm-run-command
     (insert "echo one two three four five six seven eight nine"))

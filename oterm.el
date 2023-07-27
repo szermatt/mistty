@@ -95,7 +95,7 @@
       (setq-local term-char-mode-buffer-read-only t
                   term-char-mode-point-at-process-mark t
                   term-buffer-maximum-size 0
-                  term-height 1024
+                  term-height (or (floor (window-screen-lines)) 24)
                   term-width (or (window-max-chars-per-line) 80))
       (term--reset-scroll-region)
       (term-exec term-buffer (buffer-name oterm-term-buffer) program nil args)
@@ -613,13 +613,13 @@ END section to be valid in the term buffer."
   (when (process-live-p oterm-term-proc)
     (let* ((adjust-func (or (process-get oterm-term-proc 'adjust-window-size-function)
                             window-adjust-process-window-size-function))
-           (width (car (funcall adjust-func oterm-term-proc (get-buffer-window-list)))))
-      (oterm--set-process-window-width (or width 132)))))
+           (size (funcall adjust-func oterm-term-proc (get-buffer-window-list))))
+      (oterm--set-process-window-width (or (car size) 80) (or (cdr size) 24) ))))
 
-(defun oterm--set-process-window-width (width)
+(defun oterm--set-process-window-size (width height)
   (oterm--with-live-buffer oterm-term-buffer
-    (set-process-window-size oterm-term-proc term-height width)
-    (term-reset-size term-height width)))
+    (set-process-window-size oterm-term-proc height width)
+    (term-reset-size height width)))
 
 (defun oterm--enter-fullscreen (proc str)
   (error "TODO: oterm--enter-fullscreen"))

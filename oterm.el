@@ -85,9 +85,12 @@
     (define-key map (kbd "C-c C-a") 'oterm-send-raw-key)
     (define-key map (kbd "C-c C-e") 'oterm-send-raw-key)
     (define-key map (kbd "C-c C-j") 'oterm-switch-to-fallback-buffer)
+    (define-key map (kbd "C-c C-n") 'oterm-switch-to-fallback-buffer)
+    (define-key map (kbd "C-c C-p") 'oterm-switch-to-fallback-buffer)
     (define-key map (kbd "RET") 'oterm-send-raw-key)
     (define-key map (kbd "TAB") 'oterm-send-raw-key)
     (define-key map (kbd "DEL") 'oterm-send-raw-key)
+    (define-key map (kbd "ESC ESC") 'oterm-send-raw-key)
     (define-key map (kbd "C-d") 'oterm-send-raw-key)
     (define-key map [remap self-insert-command] 'oterm-send-raw-key )
     

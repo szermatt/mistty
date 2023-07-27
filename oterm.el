@@ -36,6 +36,7 @@
 (defconst oterm-bracketed-paste-start-str "\e[200~")
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 (defconst oterm-rmcup "\e[47l")
+(defconst oterm-fullscreen-mode-message "\nCommand running in fullscreen mode. Type C-c C-j to between this and the fullscreen buffer.")
 
 (defface oterm-debug-face
   nil ;;'((t (:box (:line-width (2 . 2) :color "cyan" :style released-button))))
@@ -745,7 +746,9 @@ END section to be valid in the term buffer."
       (with-current-buffer scrollback-buffer
         (oterm-mode)
         (setq oterm-sync-marker (copy-marker sync-marker-pos))
-        (setq oterm-fs-buffer fs-buffer))
+        (setq oterm-fs-buffer fs-buffer)
+        (save-excursion
+          (insert oterm-fullscreen-mode-message)))
       
       (oterm-fs-mode)
       (setq oterm-scrollback-buffer scrollback-buffer)
@@ -763,9 +766,14 @@ END section to be valid in the term buffer."
       (let ((inhibit-read-only t))
         (delete-region (point-min) (point-max))
         (when (buffer-live-p scrollback-buffer)
-          (setq sync-marker-pos
-                (with-current-buffer scrollback-buffer
-                  (marker-position oterm-sync-marker)))
+          (with-current-buffer scrollback-buffer
+            (setq sync-marker-pos (marker-position oterm-sync-marker))
+            (save-excursion
+              (when (string= (buffer-substring-no-properties
+                              (max (point-min) (- (point-max) (length oterm-fullscreen-mode-message)))
+                              (point-max))
+                             oterm-fullscreen-mode-message)
+                (delete-region (- (point-max) (length oterm-fullscreen-mode-message)) (point-max)))))
           (buffer-swap-text scrollback-buffer)
           (let ((kill-buffer-query-functions nil))
             (kill-buffer scrollback-buffer))))

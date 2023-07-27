@@ -154,8 +154,10 @@
   (setq oterm-term-buffer nil))
 
 (defun oterm--kill-term-buffer ()
-  (when (buffer-live-p oterm-term-buffer)
-    (kill-buffer oterm-term-buffer)))
+  (let ((term-buffer oterm-term-buffer))
+    (oterm--detach)
+    (when (buffer-live-p term-buffer)
+      (kill-buffer term-buffer))))
       
 (defsubst oterm--buffer-p (buffer)
   "Return the BUFFER if the buffer is a live oterm buffer."
@@ -213,27 +215,36 @@
 
 (defun oterm-process-filter (proc str)
   (let ((work-buffer (process-get proc 'oterm-work-buffer))
-        (term-buffer (process-get proc 'oterm-term-buffer)))
-    (if (and (buffer-live-p work-buffer) (buffer-live-p term-buffer))
-        (let ((old-pmark (marker-position (process-mark proc)))
+        (term-buffer (process-get proc 'oterm-term-buffer))
+        smcup-pos)
+    (cond
+     ;; detached term buffer
+     ((or (not (buffer-live-p work-buffer)) (not (buffer-live-p term-buffer)))
+      (term-emulate-terminal proc str))
+     
+     ;; switch to fullscreen
+     ((setq smcup-pos (string-search "\e[47h" str))
+      (oterm-process-filter proc (substring str 0 smcup-pos))
+      (with-current-buffer work-buffer
+        (oterm--enter-fullscreen proc (substring str smcup-pos))))
+     
+     ;; normal processing
+     (t (let ((old-pmark (marker-position (process-mark proc)))
               (bracketed-paste-turned-on nil)
               (inhibit-modification-hooks t))
           (setq bracketed-paste-turned-on (oterm-emulate-terminal proc str))
-          (oterm--with-live-buffer term-buffer
+          (with-current-buffer term-buffer
             (goto-char (process-mark proc)))
-          (oterm--with-live-buffer work-buffer
-            (when (buffer-live-p term-buffer)
-              (setq default-directory (buffer-local-value 'default-directory term-buffer))
-              (unless oterm--inhibit-sync
-                (let ((point-on-pmark (equal (point) (oterm--from-pos-of old-pmark oterm-term-buffer))))
-                  (oterm--term-to-work)
-                  (when bracketed-paste-turned-on
-                    (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
-                  (when (and (/= old-pmark (marker-position (process-mark proc)))
-                             point-on-pmark)
-                    (goto-char (oterm-pmark))))))))
-      ;; detached term buffer
-      (term-emulate-terminal proc str))))
+          (with-current-buffer work-buffer
+            (setq default-directory (buffer-local-value 'default-directory term-buffer))
+            (unless oterm--inhibit-sync
+              (let ((point-on-pmark (equal (point) (oterm--from-pos-of old-pmark oterm-term-buffer))))
+                (oterm--term-to-work)
+                (when bracketed-paste-turned-on
+                  (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
+                (when (and (/= old-pmark (marker-position (process-mark proc)))
+                           point-on-pmark)
+                  (goto-char (oterm-pmark)))))))))))
 
 (defun oterm-emulate-terminal (proc str)
   "Handle special terminal codes, then call `term-emlate-terminal'.
@@ -609,6 +620,9 @@ END section to be valid in the term buffer."
   (oterm--with-live-buffer oterm-term-buffer
     (set-process-window-size oterm-term-proc term-height width)
     (term-reset-size term-height width)))
+
+(defun oterm--enter-fullscreen (proc str)
+  (error "TODO: oterm--enter-fullscreen"))
 
 (provide 'oterm)
 

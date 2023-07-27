@@ -450,6 +450,14 @@
        (oterm-wait-for-output)
        (should (equal (oterm-pmark) goal-pos))))))
 
+(ert-deftest test-oterm-enter-fullscreen ()
+  (with-oterm-buffer
+    (oterm-send-raw-string "echo before entering fullscreen; vi")
+    (oterm-send-command)
+    (should (condition-case nil
+                (dotimes (_ 10) (accept-process-output oterm-term-proc 0 500 t))
+              (error t)))))
+
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."
   (oterm-test-goto-after str)

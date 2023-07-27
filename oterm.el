@@ -724,7 +724,6 @@ END section to be valid in the term buffer."
         (oterm--set-process-window-size (car size) (cdr size))))))
 
 (defun oterm--set-process-window-size (width height)
-  (message "window size %sx%s" width height)
   (oterm--with-live-buffer oterm-term-buffer
     (set-process-window-size oterm-term-proc height width)
     (term-reset-size height width)))

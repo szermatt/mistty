@@ -58,6 +58,7 @@
     (define-key map (kbd "C-c C-e") 'oterm-goto-pmark-and-send-raw-key)
     (define-key map (kbd "C-c C-n") 'oterm-next-prompt)
     (define-key map (kbd "C-c C-p") 'oterm-previous-prompt)
+    (define-key map (kbd "C-c C-j") 'oterm-switch-to-fs-buffer)
     map))
 
 (defvar oterm-prompt-map
@@ -82,6 +83,7 @@
     (define-key map (kbd "C-c C-g") 'oterm-send-raw-key)
     (define-key map (kbd "C-c C-a") 'oterm-send-raw-key)
     (define-key map (kbd "C-c C-e") 'oterm-send-raw-key)
+    (define-key map (kbd "C-c C-j") 'oterm-switch-to-fallback-buffer)
     (define-key map (kbd "RET") 'oterm-send-raw-key)
     (define-key map (kbd "TAB") 'oterm-send-raw-key)
     (define-key map (kbd "DEL") 'oterm-send-raw-key)
@@ -772,6 +774,18 @@ END section to be valid in the term buffer."
       (oterm--attach term-buffer sync-marker-pos)
       (when (length> terminal-sequence 0)
         (funcall (process-filter proc) proc terminal-sequence)))))
+
+(defun oterm-switch-to-fs-buffer ()
+  (interactive)
+  (if (buffer-live-p oterm-fs-buffer)
+      (switch-to-buffer oterm-fs-buffer)
+    (error "No fullscreen buffer available.")))
+
+(defun oterm-switch-to-fallback-buffer ()
+  (interactive)
+  (if (buffer-live-p oterm-scrollback-buffer)
+      (switch-to-buffer oterm-scrollback-buffer)
+    (error "No scrollback buffer available.")))
 
 (provide 'oterm)
 

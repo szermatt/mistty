@@ -452,21 +452,56 @@
 
 (ert-deftest test-oterm-enter-fullscreen ()
   (with-oterm-buffer-selected
-    (let ((bufname (buffer-name)))
+    (let ((bufname (buffer-name))
+          (work-buffer oterm-work-buffer)
+          (term-buffer oterm-term-buffer)
+          (proc oterm-term-proc))
       
+      (execute-kbd-macro (kbd "v i RET"))
+      (while (not (buffer-local-value 'oterm-fullscreen work-buffer))
+        (accept-process-output proc 0 500 t))
+      (should (eq oterm-term-buffer (window-buffer (selected-window))))
+      (should (equal (concat bufname " scrollback") (buffer-name work-buffer)))
+      (should (equal bufname (buffer-name term-buffer)))
+      
+      (execute-kbd-macro (kbd ": q ! RET"))
+      (while (buffer-local-value 'oterm-fullscreen work-buffer)
+        (accept-process-output proc 0 500 t))
+      (should (eq oterm-work-buffer (window-buffer (selected-window))))
+      (should (equal (concat " oterm tty " bufname) (buffer-name term-buffer)))
+      (should (equal bufname (buffer-name work-buffer))))))
+
+(ert-deftest test-oterm-kill-fullscreen-buffer-kills-scrollback ()
+  (with-oterm-buffer-selected
+    (let ((work-buffer oterm-work-buffer)
+          (term-buffer oterm-term-buffer)
+          (proc oterm-term-proc))
       (execute-kbd-macro (kbd "v i RET"))
       (while (not (buffer-local-value 'oterm-fullscreen oterm-work-buffer))
         (accept-process-output oterm-term-proc 0 500 t))
-      (should (eq oterm-term-buffer (window-buffer (selected-window))))
-      (should (equal (concat bufname " scrollback") (buffer-name oterm-work-buffer)))
-      (should (equal bufname (buffer-name oterm-term-buffer)))
-      
-      (execute-kbd-macro (kbd ": q ! RET"))
-      (while (buffer-local-value 'oterm-fullscreen oterm-work-buffer)
-        (accept-process-output oterm-term-proc 0 500 t))
-      (should (eq oterm-work-buffer (window-buffer (selected-window))))
-      (should (equal (concat " oterm tty " bufname) (buffer-name oterm-term-buffer)))
-      (should (equal bufname (buffer-name oterm-work-buffer))))))
+
+      (kill-buffer oterm-term-buffer)
+      (oterm-wait-for-term-buffer-and-proc-to-die work-buffer proc 2))))
+
+(ert-deftest test-oterm-proc-dies-during-fullscreen ()
+  (with-oterm-buffer-selected
+    (let ((bufname (buffer-name))
+          (work-buffer oterm-work-buffer)
+          (term-buffer oterm-term-buffer)
+          (proc oterm-term-proc))
+      (execute-kbd-macro (kbd "v i RET"))
+      (while (not (buffer-local-value 'oterm-fullscreen oterm-work-buffer))
+        (accept-process-output proc 0 500 t))
+
+      (signal-process proc 'SIGILL)
+
+      (oterm-wait-for-term-buffer-and-proc-to-die term-buffer proc 2)
+
+      (should (buffer-live-p work-buffer))
+      (should (eq work-buffer (window-buffer (selected-window))))
+      (should (string-suffix-p "illegal instruction: 4\n" (buffer-substring-no-properties (point-min) (point-max))))
+      (should (equal bufname (buffer-name work-buffer)))
+      (should (not (buffer-local-value 'oterm-fullscreen oterm-work-buffer))))))
 
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."

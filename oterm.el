@@ -120,8 +120,9 @@
   (let ((work-buffer (current-buffer))
         (proc (get-buffer-process term-buffer)))
 
-    (process-put proc 'oterm-work-buffer work-buffer)
-    (process-put proc 'oterm-term-buffer term-buffer)
+    (when proc
+      (process-put proc 'oterm-work-buffer work-buffer)
+      (process-put proc 'oterm-term-buffer term-buffer))
 
     (setq oterm-term-proc proc)
     (setq oterm-term-buffer term-buffer)
@@ -142,8 +143,9 @@
     (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
 
-    (set-process-filter proc #'oterm-process-filter)
-    (set-process-sentinel proc #'oterm-process-sentinel)
+    (when proc
+      (set-process-filter proc #'oterm-process-filter)
+      (set-process-sentinel proc #'oterm-process-sentinel))
 
     (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)
     (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
@@ -710,7 +712,8 @@ END section to be valid in the term buffer."
     (save-excursion
       (goto-char (point-max))
       (when-let ((match (text-property-search-backward 'oterm 'message)))
-        (delete-region (prop-match-beginning match) (prop-match-end match))))
+        (let ((inhibit-read-only t))
+          (delete-region (prop-match-beginning match) (prop-match-end match)))))
 
     (let ((bufname (buffer-name oterm-term-buffer)))
       (with-current-buffer oterm-term-buffer

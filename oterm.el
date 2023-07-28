@@ -34,8 +34,6 @@
 (defconst oterm-right-str "\eOC")
 (defconst oterm-bracketed-paste-start-str "\e[200~")
 (defconst oterm-bracketed-paste-end-str "\e[201~")
-(defconst oterm-rmcup "\e[47l")
-(defconst oterm-smcup "\e[47h")
 (defconst oterm-fullscreen-mode-message
   (let ((s "Fullscreen mode ON. Type C-c C-j to between the tty and scrollback buffer."))
     (add-text-properties 0 (length s) '(oterm message) s)
@@ -255,18 +253,18 @@
 
 (defun oterm-process-filter (proc str)
   (let ((work-buffer (process-get proc 'oterm-work-buffer))
-        (term-buffer (process-get proc 'oterm-term-buffer))
-        smcup-pos)
+        (term-buffer (process-get proc 'oterm-term-buffer)))
     (cond
      ;; detached term buffer
      ((or (not (buffer-live-p work-buffer)) (not (buffer-live-p term-buffer)))
       (term-emulate-terminal proc str))
      
      ;; switch to fullscreen
-     ((setq smcup-pos (string-search oterm-smcup str))
-      (oterm-process-filter proc (substring str 0 smcup-pos))
-      (with-current-buffer work-buffer
-        (oterm--enter-fullscreen proc (substring str smcup-pos))))
+     ((string-match "\e\\[\\??47l" str)
+      (let ((smcup-pos (match-beginning 0)))
+        (oterm-process-filter proc (substring str 0 smcup-pos))
+        (with-current-buffer work-buffer
+          (oterm--enter-fullscreen proc (substring str smcup-pos)))))
      
      ;; normal processing
      (t (let ((old-pmark (marker-position (process-mark proc)))
@@ -276,7 +274,9 @@
           (with-current-buffer term-buffer
             (goto-char (process-mark proc)))
           (with-current-buffer work-buffer
-            (setq default-directory (buffer-local-value 'default-directory term-buffer))
+            (condition-case nil
+                (setq default-directory (buffer-local-value 'default-directory term-buffer))
+              (error nil))
             (unless oterm--inhibit-sync
               (let ((point-on-pmark (equal (point) (oterm--from-pos-of old-pmark oterm-term-buffer))))
                 (oterm--term-to-work)
@@ -312,12 +312,11 @@ all should rightly be part of term.el."
 
 (defun oterm--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'oterm-work-buffer))
-        (term-buffer (process-get proc 'oterm-term-buffer))
-        rmcup-pos)
-    (if (and (setq rmcup-pos (string-search oterm-rmcup str))
+        (term-buffer (process-get proc 'oterm-term-buffer)))
+    (if (and (string-match "\e\\[\\??47h" str)
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
-        (progn ;; leave fullscreen
+        (let ((rmcup-pos (match-beginning 0)))
           (term-emulate-terminal proc (substring str 0 rmcup-pos))
           (with-current-buffer work-buffer
             (oterm--leave-fullscreen proc (substring str rmcup-pos))))
@@ -516,11 +515,11 @@ all should rightly be part of term.el."
                     (if (not oterm--deleted-point-max)
                         (setq old-length 0)
                       (setq old-length -1
-                            oterm--deleted-point-max nil))
+                            oterm--deleted-point-max nil)))
                   (push (list change-start
                               (buffer-substring-no-properties change-start (point))
                               old-length)
-                        changes))))
+                        changes)))
             (setq last-noninsert (+ (point) (or (get-text-property (point) 'oterm-shift) 0)))
             (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
               (when (> shift current-shift)

@@ -20,13 +20,12 @@
 
 (defvar-local oterm-work-buffer nil)
 (defvar-local oterm-term-buffer nil)
-(defvar-local oterm-scrollback-buffer nil)
-(defvar-local oterm-fs-buffer nil)
 (defvar-local oterm-term-proc nil)
 (defvar-local oterm-sync-marker nil)
 (defvar-local oterm-cmd-start-marker nil)
 (defvar-local oterm-sync-ov nil)
 (defvar-local oterm-bracketed-paste nil)
+(defvar-local oterm-fullscreen nil)
 (defvar-local oterm--old-point nil)
 (defvar-local oterm--inhibit-sync nil)
 (defvar-local oterm--deleted-point-max nil)
@@ -36,7 +35,11 @@
 (defconst oterm-bracketed-paste-start-str "\e[200~")
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 (defconst oterm-rmcup "\e[47l")
-(defconst oterm-fullscreen-mode-message "\nCommand running in fullscreen mode. Type C-c C-j to between this and the fullscreen buffer.")
+(defconst oterm-smcup "\e[47h")
+(defconst oterm-fullscreen-mode-message
+  (let ((s "Fullscreen mode ON. Type C-c C-j to between the tty and scrollback buffer."))
+    (add-text-properties 0 (length s) '(oterm message) s)
+    s))
 
 (defface oterm-debug-face
   nil ;;'((t (:box (:line-width (2 . 2) :color "cyan" :style released-button))))
@@ -59,7 +62,7 @@
     (define-key map (kbd "C-c C-e") 'oterm-goto-pmark-and-send-raw-key)
     (define-key map (kbd "C-c C-n") 'oterm-next-prompt)
     (define-key map (kbd "C-c C-p") 'oterm-previous-prompt)
-    (define-key map (kbd "C-c C-j") 'oterm-switch-to-fs-buffer)
+    (define-key map (kbd "C-c C-j") 'oterm-switch-to-fullscreen-buffer)
     map))
 
 (defvar oterm-prompt-map
@@ -70,40 +73,6 @@
     (define-key map (kbd "DEL") 'oterm-send-backspace)
     (define-key map (kbd "C-d") 'oterm-delchar-or-maybe-eof)
     (define-key map [remap self-insert-command] 'oterm-self-insert-command )
-    map))
-
-(defvar oterm-fs-mode-map
-  (let ((map (make-sparse-keymap)))  
-    (define-key map (kbd "C-c C-c") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-z") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-\\") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-p") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-n") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-r") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-s") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-g") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-a") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-e") 'oterm-send-raw-key)
-    (define-key map (kbd "C-c C-j") 'oterm-switch-to-fallback-buffer)
-    (define-key map (kbd "C-c C-n") 'oterm-switch-to-fallback-buffer)
-    (define-key map (kbd "C-c C-p") 'oterm-switch-to-fallback-buffer)
-    (define-key map (kbd "RET") 'oterm-send-raw-key)
-    (define-key map (kbd "TAB") 'oterm-send-raw-key)
-    (define-key map (kbd "DEL") 'oterm-send-raw-key)
-    (define-key map (kbd "ESC ESC") 'oterm-send-raw-key)
-    (define-key map (kbd "C-d") 'oterm-send-raw-key)
-    (define-key map [remap self-insert-command] 'oterm-send-raw-key )
-    
-    (define-key map [up] 'oterm-send-up)
-    (define-key map [down] 'oterm-send-down)
-    (define-key map [right] 'oterm-send-right)
-    (define-key map [left] 'oterm-send-left)
-    (define-key map [home] 'oterm-send-home)
-    (define-key map [end] 'oterm-send-end)
-    (define-key map [insert] 'oterm-send-insert)
-    (define-key map [prior] 'oterm-send-prior)
-    (define-key map [next] 'oterm-send-next)
-    
     map))
 
 (defun oterm-send-up    () (interactive) (oterm-send-raw-string "\eOA"))
@@ -124,22 +93,11 @@
          (with-current-buffer ,tempvar
            ,@body)))))
 
-(define-derived-mode oterm-fs-mode fundamental-mode "One Term (Fullscreen)" "Major mode for Fullscreen One Term."
-  :interactive nil
-  (setq buffer-read-only t)
-  (setq oterm-work-buffer (current-buffer))
-  (add-hook 'kill-buffer-hook #'oterm--kill-sub-buffers nil t)
-  (add-hook 'window-size-change-functions #'oterm--window-size-change nil t))
-(put 'oterm-fs-mode 'mode-class 'special)
-
 (define-derived-mode oterm-mode fundamental-mode "One Term" "Major mode for One Term."
   :interactive nil
   (setq buffer-read-only nil)
   (setq oterm-work-buffer (current-buffer))
-  (add-hook 'kill-buffer-hook #'oterm--kill-sub-buffers nil t)
-  (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
-  (add-hook 'pre-command-hook #'oterm-pre-command nil t)
-  (add-hook 'post-command-hook #'oterm-post-command nil t))
+  )
 (put 'oterm-mode 'mode-class 'special)
 
 (defun oterm--exec (program &rest args)
@@ -160,7 +118,7 @@
       (term-char-mode))
     term-buffer))
 
-(defun oterm--attach (term-buffer &optional sync-marker-pos)
+(defun oterm--attach (term-buffer)
   (let ((work-buffer (current-buffer))
         (proc (get-buffer-process term-buffer)))
 
@@ -169,7 +127,8 @@
 
     (setq oterm-term-proc proc)
     (setq oterm-term-buffer term-buffer)
-    (setq oterm-sync-marker (copy-marker (or sync-marker-pos (point-max))))
+    (unless oterm-sync-marker
+      (setq oterm-sync-marker (copy-marker (point-max))))
     (setq oterm-cmd-start-marker (copy-marker oterm-sync-marker))
     (setq oterm-sync-ov (make-overlay oterm-sync-marker (point-max) nil nil 'rear-advance))
 
@@ -177,7 +136,8 @@
       (setq oterm-term-proc proc)
       (setq oterm-work-buffer work-buffer)
       (setq oterm-term-buffer term-buffer)
-      (setq oterm-sync-marker (copy-marker term-home-marker)))
+      (unless oterm-sync-marker
+        (setq oterm-sync-marker (copy-marker term-home-marker))))
 
     (overlay-put oterm-sync-ov 'face 'oterm-debug-face)
     (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
@@ -186,58 +146,44 @@
 
     (set-process-filter proc #'oterm-process-filter)
     (set-process-sentinel proc #'oterm-process-sentinel)
-    
+
+    (add-hook 'kill-buffer-hook #'oterm--kill-term-buffer nil t)
+    (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
+    (add-hook 'pre-command-hook #'oterm-pre-command nil t)
+    (add-hook 'post-command-hook #'oterm-post-command nil t)
+
     (oterm--term-to-work)))
 
-(defun oterm--attach-fs (term-buffer)
-  (let ((work-buffer (current-buffer))
-        (proc (get-buffer-process term-buffer)))
-
-    (process-put proc 'oterm-work-buffer work-buffer)
-    (process-put proc 'oterm-term-buffer term-buffer)
-
-    (setq oterm-term-proc proc)
-    (setq oterm-term-buffer term-buffer)
-
-    (with-current-buffer term-buffer
-      (setq oterm-term-proc proc)
-      (setq oterm-work-buffer work-buffer)
-      (setq oterm-term-buffer term-buffer))
-
-    (set-process-filter proc #'oterm-fs-process-filter)
-    (set-process-sentinel proc #'oterm-process-sentinel)
-
-    (oterm--fs-term-to-work)))
-
-(defun oterm--detach ()
+(defun oterm--detach (&optional keep-sync-markers)
+  (remove-hook 'kill-buffer-hook #'oterm--kill-term-buffer t)
+  (remove-hook 'window-size-change-functions #'oterm--window-size-change t)
+  (remove-hook 'pre-command-hook #'oterm-pre-command t)
+  (remove-hook 'post-command-hook #'oterm-post-command t)
+  
   (when oterm-sync-ov
     (delete-overlay oterm-sync-ov)
     (setq oterm-sync-ov nil))
   (when oterm-term-proc
     (set-process-filter oterm-term-proc #'term-emulate-terminal)
     (set-process-sentinel oterm-term-proc #'term-sentinel)
-    (process-put oterm-term-proc 'oterm-work-buffer nil)
     (setq oterm-term-proc nil))
-  (when oterm-sync-marker
-    (move-marker oterm-sync-marker nil)
-    (setq oterm-sync-marker nil))
   (when oterm-cmd-start-marker
     (move-marker oterm-cmd-start-marker nil)
     (setq oterm-cmd-start-marker nil))
-  (oterm--with-live-buffer oterm-term-buffer
-    (setq oterm-work-buffer nil)
-    ;; keep oterm-sync-marker so it can be used again after leaving
-    ;; fullscreen mode.
-    )
-  (setq oterm-term-buffer nil))
+  (unless keep-sync-markers
+    (when oterm-sync-marker
+      (move-marker oterm-sync-marker nil)
+      (setq oterm-sync-marker nil))
+    (oterm--with-live-buffer oterm-term-buffer
+      (move-marker oterm-sync-marker nil)
+      (setq oterm-sync-marker nil))))
 
-(defun oterm--kill-sub-buffers ()
-  (let ((buffers (list oterm-term-buffer oterm-scrollback-buffer)))
+(defun oterm--kill-term-buffer ()
+  (let ((term-buffer oterm-term-buffer))
     (oterm--detach)
-    (dolist (b buffers)
-      (when (buffer-live-p b)
-        (let ((kill-buffer-query-functions nil))
-          (kill-buffer b))))))
+    (when (buffer-live-p term-buffer)
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer term-buffer)))))
       
 (defsubst oterm--buffer-p (buffer)
   "Return the BUFFER if the buffer is a live oterm buffer."
@@ -293,6 +239,20 @@
     ;; detached term buffer
     (term-sentinel proc msg)))
 
+(defun oterm--fs-process-sentinel (proc msg)
+  (let ((process-dead (memq (process-status proc) '(signal exit)))
+        (term-buffer (process-get proc 'oterm-term-buffer))
+        (work-buffer (process-get proc 'oterm-work-buffer)))
+    (cond
+     ((and process-dead (buffer-live-p term-buffer) (buffer-live-p work-buffer))
+      (oterm--leave-fullscreen proc "")
+      (oterm-process-sentinel proc msg))
+     ((and process-dead (not (buffer-live-p term-buffer)) (buffer-live-p work-buffer))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer (process-get proc 'oterm-work-buffer)))
+      (term-sentinel proc msg))
+     (t (term-sentinel proc msg)))))
+
 (defun oterm-process-filter (proc str)
   (let ((work-buffer (process-get proc 'oterm-work-buffer))
         (term-buffer (process-get proc 'oterm-term-buffer))
@@ -303,7 +263,7 @@
       (term-emulate-terminal proc str))
      
      ;; switch to fullscreen
-     ((setq smcup-pos (string-search "\e[47h" str))
+     ((setq smcup-pos (string-search oterm-smcup str))
       (oterm-process-filter proc (substring str 0 smcup-pos))
       (with-current-buffer work-buffer
         (oterm--enter-fullscreen proc (substring str smcup-pos))))
@@ -350,36 +310,19 @@ all should rightly be part of term.el."
         (term-emulate-terminal proc final-str)))
     bracketed-paste-turned-on))
 
-(defun oterm-fs-process-filter (proc str)
+(defun oterm--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'oterm-work-buffer))
         (term-buffer (process-get proc 'oterm-term-buffer))
         rmcup-pos)
-    (cond
-     ;; detached term buffer
-     ((or (not (buffer-live-p work-buffer)) (not (buffer-live-p term-buffer)))
-      (term-emulate-terminal proc str))
-     
-     ;; exit from fullscreen
-     ((setq rmcup-pos (string-search oterm-rmcup str))
-      (term-emulate-terminal proc (substring str 0 (+ rmcup-pos (length oterm-rmcup))))
-      (with-current-buffer work-buffer
-        (oterm--leave-fullscreen proc (substring str (+ rmcup-pos (length oterm-rmcup))))))
-     
-     ;; normal processing
-     (t
-      (term-emulate-terminal proc str)
-      (setq default-directory (buffer-local-value 'default-directory term-buffer))
-      (with-current-buffer work-buffer
-        (oterm--fs-term-to-work))))))
-
-(defun oterm--fs-term-to-work ()
-  (let ((inhibit-read-only t))
-    (deactivate-mark)
-    (let ((content (with-current-buffer oterm-term-buffer
-                     (buffer-substring term-home-marker (point-max)))))
-      (delete-region (point-min) (point-max))
-      (insert content))
-    (goto-char (marker-position (process-mark oterm-term-proc)))))
+    (if (and (setq rmcup-pos (string-search oterm-rmcup str))
+             (buffer-live-p work-buffer)
+             (buffer-live-p term-buffer))
+        (progn ;; leave fullscreen
+          (term-emulate-terminal proc (substring str 0 rmcup-pos))
+          (with-current-buffer work-buffer
+            (oterm--leave-fullscreen proc (substring str rmcup-pos))))
+      ;; normal processing
+      (term-emulate-terminal proc str))))
 
 (defun oterm--maybe-bracketed-str (str)
   (when (string-match "\t" str)
@@ -736,66 +679,77 @@ END section to be valid in the term buffer."
 
 (defun oterm--enter-fullscreen (proc terminal-sequence)
   (oterm--with-live-buffer (process-get proc 'oterm-work-buffer)
-    (let ((term-buffer (process-buffer proc))
-          (fs-buffer (current-buffer))
-          (sync-marker-pos (marker-position oterm-sync-marker))
-          scrollback-buffer)
-      
-      (oterm--detach)
+    (oterm--detach 'keep-sync-markers)
+    (setq oterm-fullscreen t)
 
-      (setq scrollback-buffer (generate-new-buffer (concat (buffer-name) " scrollback")))
-      (let ((inhibit-read-only t))
-        (buffer-swap-text scrollback-buffer))
-      (with-current-buffer scrollback-buffer
-        (oterm-mode)
-        (setq oterm-sync-marker (copy-marker sync-marker-pos))
-        (setq oterm-fs-buffer fs-buffer)
-        (save-excursion
-          (insert oterm-fullscreen-mode-message)))
-      
-      (oterm-fs-mode)
-      (setq oterm-scrollback-buffer scrollback-buffer)
-      (oterm--attach-fs term-buffer)
-      (when (length> terminal-sequence 0)
-        (funcall (process-filter proc) proc terminal-sequence)))))
+    (save-excursion
+      (goto-char (point-max))
+      (insert oterm-fullscreen-mode-message))
+    
+    (let ((bufname (buffer-name)))
+      (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
+      (with-current-buffer oterm-term-buffer
+        (local-set-key [remap term-line-mode] #'oterm-switch-to-scrollback-buffer)
+        (rename-buffer bufname)
+        (turn-on-font-lock)))
+    (oterm--replace-buffer-everywhere oterm-work-buffer oterm-term-buffer)
+
+    (message oterm-fullscreen-mode-message)
+
+    (set-process-filter proc #'oterm--fs-process-filter)
+    (set-process-sentinel proc #'oterm--fs-process-sentinel)
+    
+    (when (length> terminal-sequence 0)
+      (funcall (process-filter proc) proc terminal-sequence))))
 
 (defun oterm--leave-fullscreen (proc terminal-sequence)
   (oterm--with-live-buffer (process-get proc 'oterm-work-buffer)
-    (let ((scrollback-buffer oterm-scrollback-buffer)
-          (term-buffer (process-buffer proc))
-          sync-marker-pos)
-      (oterm--detach)
-      
-      (let ((inhibit-read-only t))
-        (delete-region (point-min) (point-max))
-        (when (buffer-live-p scrollback-buffer)
-          (with-current-buffer scrollback-buffer
-            (setq sync-marker-pos (marker-position oterm-sync-marker))
-            (save-excursion
-              (when (string= (buffer-substring-no-properties
-                              (max (point-min) (- (point-max) (length oterm-fullscreen-mode-message)))
-                              (point-max))
-                             oterm-fullscreen-mode-message)
-                (delete-region (- (point-max) (length oterm-fullscreen-mode-message)) (point-max)))))
-          (buffer-swap-text scrollback-buffer)
-          (let ((kill-buffer-query-functions nil))
-            (kill-buffer scrollback-buffer))))
-  
-      (oterm-mode)
-      (oterm--attach term-buffer sync-marker-pos)
-      (when (length> terminal-sequence 0)
-        (funcall (process-filter proc) proc terminal-sequence)))))
+    (setq oterm-fullscreen nil)
 
-(defun oterm-switch-to-fs-buffer ()
+    (oterm--attach (process-buffer proc))
+
+    (save-excursion
+      (goto-char (point-max))
+      (when-let ((match (text-property-search-backward 'oterm 'message)))
+        (delete-region (prop-match-beginning match) (prop-match-end match))))
+
+    (let ((bufname (buffer-name oterm-term-buffer)))
+      (with-current-buffer oterm-term-buffer
+        (rename-buffer (generate-new-buffer-name (concat " oterm-tty " bufname))))
+      (rename-buffer bufname))
+    (oterm--replace-buffer-everywhere oterm-term-buffer oterm-work-buffer)
+    (with-current-buffer oterm-term-buffer
+      (font-lock-mode -1))
+    
+    (when (length> terminal-sequence 0)
+      (funcall (process-filter proc) proc terminal-sequence))))
+
+(defun oterm--replace-buffer-everywhere (oldbuf newbuf)
+  (walk-windows
+   (lambda (win)
+     (let ((prev-buffers (window-prev-buffers win))
+           (modified nil))
+       (when (eq (window-buffer win) oldbuf)
+         (set-window-buffer win newbuf)
+         (setq modified t))
+       (dolist (entry prev-buffers)
+         (when (eq (car entry) oldbuf)
+           (setcar entry newbuf)
+           (set modified t)))
+       (when modified
+         (set-window-prev-buffers win prev-buffers))))))
+
+(defun oterm-switch-to-fullscreen-buffer ()
   (interactive)
-  (if (buffer-live-p oterm-fs-buffer)
-      (switch-to-buffer oterm-fs-buffer)
+  (if (and oterm-fullscreen (buffer-live-p oterm-term-buffer))
+      (switch-to-buffer oterm-term-buffer)
     (error "No fullscreen buffer available.")))
 
-(defun oterm-switch-to-fallback-buffer ()
+(defun oterm-switch-to-scrollback-buffer ()
   (interactive)
-  (if (buffer-live-p oterm-scrollback-buffer)
-      (switch-to-buffer oterm-scrollback-buffer)
+  (if (and (buffer-live-p oterm-work-buffer)
+           (buffer-local-value 'oterm-fullscreen oterm-work-buffer))
+      (switch-to-buffer oterm-work-buffer)
     (error "No scrollback buffer available.")))
 
 (provide 'oterm)

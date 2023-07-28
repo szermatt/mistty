@@ -260,7 +260,7 @@
       (term-emulate-terminal proc str))
      
      ;; switch to fullscreen
-     ((string-match "\e\\[\\??47l" str)
+     ((string-match "\e\\[\\??47h" str)
       (let ((smcup-pos (match-beginning 0)))
         (oterm-process-filter proc (substring str 0 smcup-pos))
         (with-current-buffer work-buffer
@@ -313,7 +313,7 @@ all should rightly be part of term.el."
 (defun oterm--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'oterm-work-buffer))
         (term-buffer (process-get proc 'oterm-term-buffer)))
-    (if (and (string-match "\e\\[\\??47h" str)
+    (if (and (string-match "\e\\[\\??47l" str)
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
         (let ((rmcup-pos (match-beginning 0)))
@@ -510,7 +510,7 @@ all should rightly be part of term.el."
                   (goto-char (or (next-single-property-change (point) 'oterm-inserted) (point-max)))
                   (if (< (point) (point-max))
                       (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
-                        (setq old-length (- (+ (point) shift) change-start))
+                        (setq olduse-length (- (+ (point) shift) change-start))
                         (setq current-shift shift))
                     (if (not oterm--deleted-point-max)
                         (setq old-length 0)
@@ -714,12 +714,13 @@ END section to be valid in the term buffer."
 
     (let ((bufname (buffer-name oterm-term-buffer)))
       (with-current-buffer oterm-term-buffer
-        (rename-buffer (generate-new-buffer-name (concat " oterm-tty " bufname))))
+        (rename-buffer (generate-new-buffer-name (concat " oterm tty " bufname))))
       (rename-buffer bufname))
+
     (oterm--replace-buffer-everywhere oterm-term-buffer oterm-work-buffer)
     (with-current-buffer oterm-term-buffer
       (font-lock-mode -1))
-    
+
     (when (length> terminal-sequence 0)
       (funcall (process-filter proc) proc terminal-sequence))))
 
@@ -734,7 +735,7 @@ END section to be valid in the term buffer."
        (dolist (entry prev-buffers)
          (when (eq (car entry) oldbuf)
            (setcar entry newbuf)
-           (set modified t)))
+           (setq modified t)))
        (when modified
          (set-window-prev-buffers win prev-buffers))))))
 

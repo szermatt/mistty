@@ -450,13 +450,23 @@
        (oterm-wait-for-output)
        (should (equal (oterm-pmark) goal-pos))))))
 
-;; (ert-deftest test-oterm-enter-fullscreen ()
-;;   (with-oterm-buffer
-;;     (oterm-send-raw-string "echo before entering fullscreen; vi")
-;;     (oterm-send-command)
-;;     (should (condition-case nil
-;;                 (dotimes (_ 10) (accept-process-output oterm-term-proc 0 500 t))
-;;               (error t)))))
+(ert-deftest test-oterm-enter-fullscreen ()
+  (with-oterm-buffer-selected
+    (let ((bufname (buffer-name)))
+      
+      (execute-kbd-macro (kbd "v i RET"))
+      (while (not (buffer-local-value 'oterm-fullscreen oterm-work-buffer))
+        (accept-process-output oterm-term-proc 0 500 t))
+      (should (eq oterm-term-buffer (window-buffer (selected-window))))
+      (should (equal (concat bufname " scrollback") (buffer-name oterm-work-buffer)))
+      (should (equal bufname (buffer-name oterm-term-buffer)))
+      
+      (execute-kbd-macro (kbd ": q ! RET"))
+      (while (buffer-local-value 'oterm-fullscreen oterm-work-buffer)
+        (accept-process-output oterm-term-proc 0 500 t))
+      (should (eq oterm-work-buffer (window-buffer (selected-window))))
+      (should (equal (concat " oterm tty " bufname) (buffer-name oterm-term-buffer)))
+      (should (equal bufname (buffer-name oterm-work-buffer))))))
 
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."

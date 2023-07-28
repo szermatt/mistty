@@ -471,6 +471,24 @@
       (should (equal (concat " oterm tty " bufname) (buffer-name term-buffer)))
       (should (equal bufname (buffer-name work-buffer))))))
 
+(ert-deftest test-oterm-enter-fullscreen-alternative-code ()
+  (with-oterm-buffer-selected
+    (let ((bufname (buffer-name))
+          (work-buffer oterm-work-buffer)
+          (term-buffer oterm-term-buffer)
+          (proc oterm-term-proc))
+
+      (oterm-send-raw-string "printf '\\e[?47hPress ENTER: ' && read && printf '\\e[?47lfullscreen off\n'")
+      (oterm-send-command)
+      (while (not (buffer-local-value 'oterm-fullscreen work-buffer))
+        (accept-process-output proc 0 500 t))
+      (should (eq oterm-term-buffer (window-buffer (selected-window))))
+
+      (execute-kbd-macro (kbd "RET"))
+      (while (buffer-local-value 'oterm-fullscreen work-buffer)
+        (accept-process-output proc 0 500 t))
+      (should (eq oterm-work-buffer (window-buffer (selected-window)))))))
+
 (ert-deftest test-oterm-kill-fullscreen-buffer-kills-scrollback ()
   (with-oterm-buffer-selected
     (let ((work-buffer oterm-work-buffer)

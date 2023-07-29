@@ -477,8 +477,8 @@ all should rightly be part of term.el."
     (delete-char arg)))
 
 (defun oterm--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
-  (when (and (buffer-live-p oterm-term-buffer)
-             is-after
+  (when (and is-after
+             oterm-cmd-start-marker
              (>= orig-end oterm-cmd-start-marker))
     (let ((inhibit-read-only t)
           (beg (max orig-beg oterm-cmd-start-marker))
@@ -497,44 +497,84 @@ all should rightly be part of term.el."
         (setq oterm--deleted-point-max t)))))
 
 (defun oterm--collect-modifications ()
+  (let ((changes nil)
+        (last-pos 0)
+        (last-shift 0)
+        (intervals (oterm--change-intervals oterm--deleted-point-max)))
+    (setq oterm--deleted-point-max nil)
+    (while intervals
+      (pcase intervals
+        ;; insert in the middle, possibly replacing a section of text
+        (`((,start inserted) (,end shift ,end-shift) . ,_)
+         (push (list (+ start last-shift)
+                     (buffer-substring-no-properties start end)
+                     (- (+ end end-shift) (+ start last-shift)))
+               changes)
+         ;; processed 2 entries this loop, instead of just 1
+         (setq intervals (cdr intervals)))
+
+        ;; insert at end, delete everything after
+        (`((,start inserted) (,end deleted-to-end))
+         (push (list (+ start last-shift)
+                     (buffer-substring-no-properties start end)
+                     -1)
+               changes)
+         ;; processed 2 entries this loop, instead of just 1
+         (setq intervals (cdr intervals)))
+
+        ;; insert at end
+        (`((,start inserted))
+         (push (list (+ start last-shift)
+                     (buffer-substring-no-properties start (point-max))
+                     0)
+               changes))
+
+        ;; delete a section of original text
+        ((and `((,pos shift ,shift) . ,_)
+              (guard (> shift last-shift)))
+         (push (list (+ pos last-shift)
+                     ""
+                     (- shift last-shift))
+               changes))
+
+        ;; delete to the end of the original text
+        (`((,pos deleted-to-end))
+         (push (list (+ pos last-shift) "" -1)
+               changes)))
+      
+      ;; prepare for next loop
+      (pcase (car intervals)
+        (`(,pos shift ,shift) (setq last-pos pos last-shift shift))
+        (`(,pos . ,_) (setq last-pos pos)))
+      (setq intervals (cdr intervals)))
+    changes))
+
+(defun oterm--change-intervals (&optional deleted-to-end)
   (save-restriction
-    (narrow-to-region oterm-sync-marker (point-max))
-    (let ((current-shift 0)
-          last-noninsert
-          changes)
-      (save-excursion
-        (goto-char (point-min))
-        (while (< (point) (point-max))
-          (if (get-text-property (point) 'oterm-inserted)
-              (progn
-                (let ((change-start (+ (point) current-shift))
-                      old-length)
-                  (goto-char (or (next-single-property-change (point) 'oterm-inserted) (point-max)))
-                  (if (< (point) (point-max))
-                      (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
-                        (setq olduse-length (- (+ (point) shift) change-start))
-                        (setq current-shift shift))
-                    (if (not oterm--deleted-point-max)
-                        (setq old-length 0)
-                      (setq old-length -1
-                            oterm--deleted-point-max nil)))
-                  (push (list change-start
-                              (buffer-substring-no-properties change-start (point))
-                              old-length)
-                        changes)))
-            (setq last-noninsert (+ (point) (or (get-text-property (point) 'oterm-shift) 0)))
-            (let ((shift (or (get-text-property (point) 'oterm-shift) 0)))
-              (when (> shift current-shift)
-                (push (list (+ (point) current-shift) "" (- shift current-shift)) changes)
-                (setq current-shift shift)))
-            (goto-char (1+ (point))))))
-      (when (and oterm--deleted-point-max (or (null changes) (/= -1 (nth 2 (car changes)))))
-        (push (list (or (1+ last-noninsert) (point-min)) "" -1) changes))
-      (setq oterm--deleted-point-max nil)
-      (let ((inhibit-read-only t)
-            (inhibit-modification-hooks t))
-        (remove-text-properties (point-min) (point-max) '(oterm-inserted t oterm-shift t oterm-end t)))
-      (nreverse changes))))
+    (narrow-to-region oterm-cmd-start-marker (point-max))
+    (let ((last-point (point-min))
+          intervals last-at-point )
+      (goto-char last-point)
+      (while (let ((at-point (oterm--change-at-point)))
+               (unless (equal last-at-point at-point)
+                 (when last-at-point
+                   (push `(,last-point . ,last-at-point) intervals))
+                 (setq last-at-point at-point)
+                 (setq last-point (point)))
+               (goto-char (next-property-change (point) (current-buffer) (point-max)))
+               (< (point) (point-max))))
+      (when last-at-point
+        (push `(,last-point . ,last-at-point) intervals))
+      (when deleted-to-end
+        (push `(,(point-max) deleted-to-end) intervals))
+      (nreverse intervals))))
+
+(defun oterm--change-at-point ()
+  (let ((props (text-properties-at (point)))
+        shift)
+    (cond
+     ((plist-get props 'oterm-inserted) `(inserted))
+     ((setq shift (plist-get props 'oterm-shift)) `(shift ,shift)))))
 
 (defun oterm--replay-modification (orig-beg content old-length)
   (let* ((pmark (oterm-pmark))

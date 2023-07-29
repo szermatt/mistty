@@ -521,6 +521,152 @@
       (should (equal bufname (buffer-name work-buffer)))
       (should (not (buffer-local-value 'oterm-fullscreen oterm-work-buffer))))))
 
+(ert-deftest test-oterm-collect-modifications-delete-after-replace ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq oterm-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (delete-region 6 9)
+    (goto-char 6)
+    (insert "new-value")
+    
+    (delete-region 18 21)
+
+    (should (equal "$ abcnew-valueghimno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+
+    ;; The deletion is reported first, even though it was applied
+    ;; last. If we did the reverse and a newline was inserted in the
+    ;; middle of new-value, the deletion would not apply to the right
+    ;; region.
+    (should (equal '((12 "" 3) (6 "new-value" 3)) (oterm--collect-modifications))))))
+
+(ert-deftest test-oterm-collect-modifications-delete-at-end ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq oterm-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (delete-region 6 (point-max))
+    
+    (should (equal "$ abc" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (should (equal '((6 "" -1)) (oterm--collect-modifications))))))
+
+(ert-deftest test-oterm-collect-modifications-insert-then-delete-at-end ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq oterm-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (delete-region 6 (point-max))
+    (goto-char 6)
+    (insert "new-value")
+    
+    (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (should (equal '((6 "new-value" -1)) (oterm--collect-modifications))))))
+
+(ert-deftest test-oterm-collect-modifications-insert-skip-then-delete-at-end ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq oterm-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (delete-region 15 (point-max))
+    (delete-region 9 12)
+    (goto-char 6)
+    (insert "new-value")
+    
+    (should (equal "$ abcnew-valuedefjkl" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (oterm--collect-modifications))))))
+
+(ert-deftest test-oterm-collect-modifications-inserts ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq oterm-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (goto-char 12)
+    (insert "NEW")
+    
+    (goto-char 9)
+    (insert "NEW")
+    
+    (goto-char 6)
+    (insert "NEW")
+    
+    (should (equal "$ abcNEWdefNEWghiNEWjklmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (oterm--collect-modifications))))))
+
+(ert-deftest test-oterm-collect-modifications-insert-at-end ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq oterm-cmd-start-marker (point))
+    
+    (insert "abcdef")
+    (overlay-put ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (goto-char 9)
+    (insert "NEW")
+    
+    (should (equal "$ abcdefNEW" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (should (equal '((9 "NEW" 0)) (oterm--collect-modifications))))))
+
+(ert-deftest test-oterm-collect-modifications-replaces ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq oterm-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'oterm--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'oterm--modification-hook))
+
+    (goto-char 12)
+    (delete-region 12 15)
+    (insert "NEW")
+    
+    (goto-char 6)
+    (delete-region 6 9)
+    (insert "NEW")
+    
+    (should (equal "$ abcNEWghiNEWmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (oterm--collect-modifications))))))
+
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."
   (oterm-test-goto-after str)

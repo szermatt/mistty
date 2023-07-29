@@ -483,17 +483,21 @@ all should rightly be part of term.el."
     (let ((inhibit-read-only t)
           (beg (max orig-beg oterm-cmd-start-marker))
           (end (max orig-end oterm-cmd-start-marker))
-          (old-end (max (+ orig-beg old-length) oterm-cmd-start-marker)))
+          (old-end (max (+ orig-beg old-length) oterm-cmd-start-marker))
+          shift pos)
+      ;; Mark the text that was inserted
       (put-text-property beg end 'oterm-change '(inserted))
-      (let ((pos end)
-            (shift (- old-end end)))
-        ;; TODO: optimize
-        (while (< pos (point-max))
+
+      ;; Update the shift value of everything that comes after.
+      (setq shift (- old-end end))
+      (setq pos end)
+      (while (< pos (point-max))
+        (let ((next-pos (next-single-property-change pos 'oterm-change (current-buffer) (point-max))))
           (pcase (get-text-property pos 'oterm-change)
             (`(shift ,old-shift)
-             (put-text-property pos (1+ pos) 'oterm-change `(shift ,(+ old-shift shift))))
-            ('() (put-text-property pos (1+ pos) 'oterm-change `(shift ,shift))))
-          (setq pos (1+ pos))))
+             (put-text-property pos next-pos 'oterm-change `(shift ,(+ old-shift shift))))
+            ('() (put-text-property pos next-pos 'oterm-change `(shift ,shift))))
+          (setq pos next-pos)))
       (when (> old-end (point-max))
         (setq oterm--deleted-point-max t)))))
 

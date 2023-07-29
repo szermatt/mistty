@@ -18,6 +18,16 @@
 
 ;;; Code:
 
+(defvar oterm-osc-hook nil
+  "Hook run when unknown OSC sequences have been received.
+
+This hook is run on the term-mode buffer. It is passed the
+content of OSC sequence - everything between OSC (ESC ]) and
+ST (ESC \\ or \\a) and may chooose to handle them.
+
+The hook is allowed to modify the term-mode buffer to add text
+properties, for example." )
+
 (defvar-local oterm-work-buffer nil)
 (defvar-local oterm-term-buffer nil)
 (defvar-local oterm-term-proc nil)
@@ -291,18 +301,27 @@ This functions intercepts some extented sequences term.el. This
 all should rightly be part of term.el."
   (let ((start 0)
         (bracketed-paste-turned-on nil))
-    (while (string-match "\e\\[\\(\\?2004[hl]\\)" str start)
+    (while (string-match "\e\\(\\[\\?2004[hl]\\|\\]\\([\x08-0x0d\x20-\x7e]*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
       (let ((ext (match-string 1 str))
-            (next (match-end 0)))
-        (term-emulate-terminal proc (substring str start next))
-        (oterm--with-live-buffer (process-get proc 'oterm-work-buffer)
-          (cond
-           ((equal ext "?2004h")
+            (osc (match-string 2 str))
+            (seq-start (match-beginning 0))
+            (seq-end (match-end 0)))
+        (term-emulate-terminal proc (substring str start seq-start))
+        (cond
+         ((equal ext "[?2004h")
+          (oterm--with-live-buffer (process-get proc 'oterm-work-buffer)
             (setq oterm-bracketed-paste t
                   bracketed-paste-turned-on t))
-           ((equal ext "?2004l")
-            (setq oterm-bracketed-paste nil))))
-        (setq start next)))
+          (term-emulate-terminal proc (substring str seq-start seq-end)))
+         ((equal ext "[?2004l")
+          (oterm--with-live-buffer (process-get proc 'oterm-work-buffer)
+            (setq oterm-bracketed-paste nil))
+          (term-emulate-terminal proc (substring str seq-start seq-end)))
+         (osc
+          (oterm--with-live-buffer oterm-term-buffer
+            (let ((inhibit-read-only t))
+              (run-hook-with-args 'oterm-osc-hook osc)))))
+        (setq start seq-end)))
     (let ((final-str (substring str start)))
       (unless (zerop (length final-str))
         (term-emulate-terminal proc final-str)))
@@ -315,11 +334,11 @@ all should rightly be part of term.el."
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
         (let ((rmcup-pos (match-beginning 0)))
-          (term-emulate-terminal proc (substring str 0 rmcup-pos))
+          (oterm-emulate-terminal proc (substring str 0 rmcup-pos))
           (with-current-buffer work-buffer
             (oterm--leave-fullscreen proc (substring str rmcup-pos))))
       ;; normal processing
-      (term-emulate-terminal proc str))))
+      (oterm-emulate-terminal proc str))))
 
 (defun oterm--maybe-bracketed-str (str)
   (let ((str (string-replace "\t" (make-string tab-width ? ) str)))

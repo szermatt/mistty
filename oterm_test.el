@@ -670,6 +670,51 @@
 
     (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (oterm--collect-modifications))))))
 
+(ert-deftest test-oterm-osc ()
+  (with-oterm-buffer
+    (let ((osc-list))
+      (with-current-buffer oterm-term-buffer
+        (add-hook 'oterm-osc-hook
+                  (lambda (seq)
+                    (push seq osc-list))
+                  nil t))
+      (oterm-send-raw-string "printf '\\e]8;;http://www.example.com\\aSome OSC\\e]8;;\\a!\\n'")
+      (should (equal "Some OSC!" (oterm-send-and-capture-command-output)))
+      (should (equal '("8;;http://www.example.com" "8;;") (nreverse osc-list))))))
+
+(ert-deftest test-oterm-osc-standard-end ()
+  (with-oterm-buffer
+    (let ((osc-list))
+      (with-current-buffer oterm-term-buffer
+        (add-hook 'oterm-osc-hook
+                  (lambda (seq)
+                    (push seq osc-list))
+                  nil t))
+      (oterm-send-raw-string "printf '\\e]8;;http://www.example.com\\e\\\\Some OSC\\e]8;;\\e\\\\!\\n'")
+      (should (equal "Some OSC!" (oterm-send-and-capture-command-output)))
+      (should (equal '("8;;http://www.example.com" "8;;") (nreverse osc-list))))))
+
+(ert-deftest test-oterm-osc-add-text-properties ()
+  (with-oterm-buffer
+   (with-current-buffer oterm-term-buffer
+     (let ((start nil)
+           (test-value nil)))
+     (add-hook 'oterm-osc-hook
+               (lambda (seq)
+                 (if (length> seq 0)
+                     (setq test-value seq
+                           start (point))
+                   (put-text-property start (point) 'oterm-test test-value)))
+               nil t))
+   (oterm-send-raw-string "printf 'abc \\e]foobar\\adef\\e]\\a ghi\\n'")
+   (should (equal "abc def ghi" (oterm-send-and-capture-command-output)))
+   (search-backward "def")
+   (should (equal `((,(1- (point)) ,(+ 2 (point)) (oterm-test "foobar")))
+                  (oterm-merge-intervals
+                   (oterm-filter-intervals
+                    (object-intervals (current-buffer))
+                    '(oterm-test)))))))
+
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."
   (oterm-test-goto-after str)

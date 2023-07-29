@@ -39,13 +39,6 @@
     (add-text-properties 0 (length s) '(oterm message) s)
     s))
 
-(defface oterm-debug-face
-  nil ;;'((t (:box (:line-width (2 . 2) :color "cyan" :style released-button))))
-  "Face used to highlight `oterm-sync-ov' for debugging.")
-
-(defface oterm-debug-prompt-face '((t (:background "cyan")))
-  "Face used to highlight prompts for debugging.")
-
 (defvar oterm-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") 'oterm-send-raw-key)
@@ -138,7 +131,6 @@
       (unless oterm-sync-marker
         (setq oterm-sync-marker (copy-marker term-home-marker))))
 
-    (overlay-put oterm-sync-ov 'face 'oterm-debug-face)
     (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
     (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
     (overlay-put oterm-sync-ov 'insert-behind-hooks (list #'oterm--modification-hook))
@@ -404,8 +396,7 @@ all should rightly be part of term.el."
           (add-text-properties sync-pos cmd-start-pos
                                '(oterm prompt
                                        field 'oterm-prompt
-                                       rear-nonsticky t
-                                       face oterm-debug-prompt-face))
+                                       rear-nonsticky t))
           (add-text-properties sync-pos cmd-start-pos
                                '(read-only t front-sticky t)))))))
 

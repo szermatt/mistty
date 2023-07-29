@@ -698,14 +698,14 @@
   (with-oterm-buffer
    (with-current-buffer oterm-term-buffer
      (let ((start nil)
-           (test-value nil)))
-     (add-hook 'oterm-osc-hook
-               (lambda (seq)
-                 (if (length> seq 0)
-                     (setq test-value seq
-                           start (point))
-                   (put-text-property start (point) 'oterm-test test-value)))
-               nil t))
+           (test-value nil))
+       (add-hook 'oterm-osc-hook
+                 (lambda (seq)
+                   (if (length> seq 0)
+                       (setq test-value seq
+                             start (point))
+                     (put-text-property start (point) 'oterm-test test-value)))
+                 nil t)))
    (oterm-send-raw-string "printf 'abc \\e]foobar\\adef\\e]\\a ghi\\n'")
    (should (equal "abc def ghi" (oterm-send-and-capture-command-output)))
    (search-backward "def")

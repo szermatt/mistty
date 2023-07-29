@@ -484,14 +484,15 @@ all should rightly be part of term.el."
           (beg (max orig-beg oterm-cmd-start-marker))
           (end (max orig-end oterm-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) oterm-cmd-start-marker)))
-      (add-text-properties beg end '(oterm-inserted t))
-      (remove-text-properties beg end '(oterm-shift nil))
+      (put-text-property beg end 'oterm-change '(inserted))
       (let ((pos end)
             (shift (- old-end end)))
         ;; TODO: optimize
         (while (< pos (point-max))
-          (unless (get-text-property pos 'oterm-inserted)
-            (put-text-property pos (1+ pos) 'oterm-shift (+ (or (get-text-property pos 'oterm-shift) 0) shift)))
+          (pcase (get-text-property pos 'oterm-change)
+            (`(shift ,old-shift)
+             (put-text-property pos (1+ pos) 'oterm-change `(shift ,(+ old-shift shift))))
+            ('() (put-text-property pos (1+ pos) 'oterm-change `(shift ,shift))))
           (setq pos (1+ pos))))
       (when (> old-end (point-max))
         (setq oterm--deleted-point-max t)))))
@@ -555,26 +556,18 @@ all should rightly be part of term.el."
     (let ((last-point (point-min))
           intervals last-at-point )
       (goto-char last-point)
-      (while (let ((at-point (oterm--change-at-point)))
-               (unless (equal last-at-point at-point)
-                 (when last-at-point
-                   (push `(,last-point . ,last-at-point) intervals))
-                 (setq last-at-point at-point)
-                 (setq last-point (point)))
-               (goto-char (next-property-change (point) (current-buffer) (point-max)))
+      (while (let ((at-point (get-text-property (point) 'oterm-change)))
+               (when last-at-point
+                 (push `(,last-point . ,last-at-point) intervals))
+               (setq last-at-point at-point)
+               (setq last-point (point))
+               (goto-char (next-single-property-change (point) 'oterm-change (current-buffer) (point-max)))
                (< (point) (point-max))))
       (when last-at-point
         (push `(,last-point . ,last-at-point) intervals))
       (when deleted-to-end
         (push `(,(point-max) deleted-to-end) intervals))
       (nreverse intervals))))
-
-(defun oterm--change-at-point ()
-  (let ((props (text-properties-at (point)))
-        shift)
-    (cond
-     ((plist-get props 'oterm-inserted) `(inserted))
-     ((setq shift (plist-get props 'oterm-shift)) `(shift ,shift)))))
 
 (defun oterm--replay-modification (orig-beg content old-length)
   (let* ((pmark (oterm-pmark))

@@ -1,8 +1,13 @@
 ;;; Tests oterm.el -*- lexical-binding: t -*-
 
 (require 'oterm)
+(require 'term)
 (require 'ert)
 (require 'ert-x)
+
+(eval-when-compile
+   ;; defined in term
+  (defvar term-width))
 
 (defconst oterm-test-prompt "$ ")
 
@@ -85,7 +90,8 @@
    (oterm-wait-for-output)
    (oterm-run-command
     (goto-char (point-min))
-    (replace-string "hello" "bonjour"))
+    (search-forward "hello")
+    (replace-match "bonjour" nil t))
    (should (equal "$ echo bonjour<>" (oterm-test-content)))
    (should (equal "bonjour" (oterm-send-and-capture-command-output)))))
 
@@ -473,9 +479,7 @@
 
 (ert-deftest test-oterm-enter-fullscreen-alternative-code ()
   (with-oterm-buffer-selected
-    (let ((bufname (buffer-name))
-          (work-buffer oterm-work-buffer)
-          (term-buffer oterm-term-buffer)
+    (let ((work-buffer oterm-work-buffer)
           (proc oterm-term-proc))
 
       (oterm-send-raw-string "printf '\\e[?47hPress ENTER: ' && read && printf '\\e[?47lfullscreen off\n'")
@@ -492,7 +496,6 @@
 (ert-deftest test-oterm-kill-fullscreen-buffer-kills-scrollback ()
   (with-oterm-buffer-selected
     (let ((work-buffer oterm-work-buffer)
-          (term-buffer oterm-term-buffer)
           (proc oterm-term-proc))
       (execute-kbd-macro (kbd "v i RET"))
       (while (not (buffer-local-value 'oterm-fullscreen oterm-work-buffer))
@@ -719,7 +722,7 @@ buffer to a new region at the beginning of the new prompt."
     output))
 
 (defun oterm-send-and-wait-for-prompt (&optional send-command-func)
-  "Send the current command line with SEND-COMMAND-FUNC and wait for a prompt to appear.
+  "Send the current command line and wait for a prompt to appear.
 
 Puts the point at the end of the prompt and return the position
 of the beginning of the prompt."

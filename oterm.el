@@ -30,6 +30,10 @@
 (defvar-local oterm--inhibit-sync nil)
 (defvar-local oterm--deleted-point-max nil)
 
+(eval-when-compile
+  ;; defined in term.el
+  (defvar term-home-marker))
+ 
 (defconst oterm-left-str "\eOD")
 (defconst oterm-right-str "\eOC")
 (defconst oterm-bracketed-paste-start-str "\e[200~")
@@ -318,19 +322,17 @@ all should rightly be part of term.el."
       (term-emulate-terminal proc str))))
 
 (defun oterm--maybe-bracketed-str (str)
-  (when (string-match "\t" str)
-    (setq str (replace-string "\t" (make-string tab-width " "))))
-  (cond
-   ((not oterm-bracketed-paste) str)
-   ((not (string-match "[[:cntrl:]]" str)) str)
-   (t (concat oterm-bracketed-paste-start-str
-              str
-              oterm-bracketed-paste-end-str
-              oterm-left-str
-              oterm-right-str))))
+  (let ((str (string-replace "\t" (make-string tab-width ? ) str)))
+    (cond
+     ((not oterm-bracketed-paste) str)
+     ((not (string-match "[[:cntrl:]]" str)) str)
+     (t (concat oterm-bracketed-paste-start-str
+                str
+                oterm-bracketed-paste-end-str
+                oterm-left-str
+                oterm-right-str)))))
 
 (defun oterm-pmark ()
-  "The terminal process mark as a position within the current buffer (work or term)."
   (oterm--from-pos-of (process-mark oterm-term-proc) oterm-term-buffer))
 
 (defun oterm--from-pos-of (pos buffer-of-pos)
@@ -494,7 +496,6 @@ all should rightly be part of term.el."
 
 (defun oterm--collect-modifications ()
   (let ((changes nil)
-        (last-pos 0)
         (last-shift 0)
         (intervals (oterm--change-intervals oterm--deleted-point-max)))
     (setq oterm--deleted-point-max nil)
@@ -540,8 +541,7 @@ all should rightly be part of term.el."
       
       ;; prepare for next loop
       (pcase (car intervals)
-        (`(,pos shift ,shift) (setq last-pos pos last-shift shift))
-        (`(,pos . ,_) (setq last-pos pos)))
+        (`(,_ shift ,shift) (setq last-shift shift)))
       (setq intervals (cdr intervals)))
     changes))
 
@@ -625,7 +625,8 @@ all should rightly be part of term.el."
 (defun oterm--distance-on-term (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.
 
-This function skips over the `term-line-wrap' newlines introduced by term as if they were not here.
+This function skips over the `term-line-wrap' newlines introduced
+by term as if they were not here.
 
 While it takes BEG and END as work buffer positions, it looks in
 the term buffer to figure out, so it's important for the BEG and

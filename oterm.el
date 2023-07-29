@@ -518,6 +518,9 @@ all should rightly be part of term.el."
         (last-shift 0)
         (intervals (oterm--change-intervals oterm--deleted-point-max)))
     (setq oterm--deleted-point-max nil)
+    (let ((inhibit-read-only t)
+          (inhibit-modification-hooks t))
+      (remove-text-properties oterm-cmd-start-marker (point-max) '(oterm-change t)))
     (while intervals
       (pcase intervals
         ;; insert in the middle, possibly replacing a section of text

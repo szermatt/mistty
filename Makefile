@@ -1,6 +1,11 @@
 export EMACS ?= $(shell which emacs)
 CASK_DIR := $(shell cask package-directory)
 
+BASH ?= $(shell which bash)
+ZSH ?= $(shell which zsh)
+
+setup_shells="(setq oterm-test-bash-exe \"$(BASH)\" oterm-test-zsh-exe \"$(ZSH)\")"
+
 $(CASK_DIR): Cask
 	cask install
 	@touch $(CASK_DIR)
@@ -17,4 +22,5 @@ compile: cask
 
 .PHONY: test
 test: compile
-	cask emacs --batch -L . -L test -l oterm_test.el -f ert-run-tests-batch
+	cask emacs --batch -L . --eval $(setup_shells) -L test -l oterm_test.el -f ert-run-tests-batch
+

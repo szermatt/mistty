@@ -9,6 +9,9 @@
    ;; defined in term
   (defvar term-width))
 
+(defvar oterm-test-bash-exe (executable-find "bash"))
+(defvar oterm-test-zsh-exe (executable-find "zsh"))
+
 (defconst oterm-test-prompt "$ ")
 
 (defmacro with-oterm-buffer (&rest body)
@@ -728,9 +731,9 @@
 (defun oterm-test-setup (shell)
   (cond
    ((eq shell 'bash)
-    (oterm--exec "/usr/local/bin/bash" "--noprofile" "--norc" "-i"))
+    (oterm--exec oterm-test-bash-exe "--noprofile" "--norc" "-i"))
    ((eq shell 'zsh)
-    (oterm--exec "/usr/local/bin/zsh" "-i" "--no-rcs"))
+    (oterm--exec oterm-test-zsh-exe "-i" "--no-rcs"))
    (t (error "Unsupported shell %s" shell)))
   (while (eq (point-min) (point-max))
     (accept-process-output oterm-term-proc 0 100 t))

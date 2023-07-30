@@ -284,7 +284,7 @@ properties, for example." )
      ((string-match "\ec" str)
       (let ((rs1-after-pos (match-end 0)))
         (oterm-emulate-terminal proc (substring str 0 rs1-after-pos))
-        (setq bracketed-paste nil)
+        (setq oterm-bracketed-paste nil)
         (with-current-buffer work-buffer
           (goto-char (point-max))
           (skip-chars-backward "[:space:]")

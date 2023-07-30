@@ -280,6 +280,22 @@ properties, for example." )
         (with-current-buffer work-buffer
           (oterm--enter-fullscreen proc (substring str smcup-pos)))))
      
+     ;; reset
+     ((string-match "\ec" str)
+      (let ((rs1-after-pos (match-end 0)))
+        (oterm-emulate-terminal proc (substring str 0 rs1-after-pos))
+        (setq bracketed-paste nil)
+        (with-current-buffer work-buffer
+          (goto-char (point-max))
+          (skip-chars-backward "[:space:]")
+          (delete-region (point) (point-max))
+          (insert "\n")
+          (move-marker oterm-sync-marker (point-max))
+          (move-marker oterm-cmd-start-marker (point-max)))
+        (with-current-buffer term-buffer
+          (move-marker oterm-sync-marker term-home-marker))
+        (oterm-process-filter proc (substring str rs1-after-pos))))
+     
      ;; normal processing
      (t (let ((old-pmark (marker-position (process-mark proc)))
               (bracketed-paste-turned-on nil)

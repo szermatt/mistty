@@ -284,37 +284,49 @@ properties, for example." )
      ((string-match "\ec" str)
       (let ((rs1-after-pos (match-end 0)))
         (oterm-emulate-terminal proc (substring str 0 rs1-after-pos))
-        (setq oterm-bracketed-paste nil)
         (with-current-buffer work-buffer
-          (goto-char (point-max))
-          (skip-chars-backward "[:space:]")
-          (delete-region (point) (point-max))
-          (insert "\n")
-          (move-marker oterm-sync-marker (point-max))
-          (move-marker oterm-cmd-start-marker (point-max)))
-        (with-current-buffer term-buffer
-          (move-marker oterm-sync-marker term-home-marker))
+          (setq oterm-bracketed-paste nil)
+          (oterm--reset-markers))
         (oterm-process-filter proc (substring str rs1-after-pos))))
      
      ;; normal processing
-     (t (let ((old-pmark (marker-position (process-mark proc)))
-              (bracketed-paste-turned-on nil)
-              (inhibit-modification-hooks t))
+     (t (let ((bracketed-paste-turned-on nil)
+              (inhibit-modification-hooks t)
+              (old-sync-position (oterm--with-live-buffer term-buffer (marker-position oterm-sync-marker)))
+              (point-on-pmark (oterm--with-live-buffer work-buffer (point) (oterm-pmark))))
           (setq bracketed-paste-turned-on (oterm-emulate-terminal proc str))
-          (with-current-buffer term-buffer
-            (goto-char (process-mark proc)))
-          (with-current-buffer work-buffer
+          (oterm--with-live-buffer term-buffer
+            (goto-char (process-mark proc))
+            (when (or (< oterm-sync-marker old-sync-position)
+                      (< (point) oterm-sync-marker))
+              (oterm--reset-markers)
+              (goto-char (oterm-pmark))
+              (setq point-on-pmark t)))
+          (oterm--with-live-buffer work-buffer
             (condition-case nil
                 (setq default-directory (buffer-local-value 'default-directory term-buffer))
               (error nil))
             (unless oterm--inhibit-sync
-              (let ((point-on-pmark (equal (point) (oterm--from-pos-of old-pmark oterm-term-buffer))))
-                (oterm--term-to-work)
-                (when bracketed-paste-turned-on
-                  (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
-                (when (and (/= old-pmark (marker-position (process-mark proc)))
-                           point-on-pmark)
-                  (goto-char (oterm-pmark)))))))))))
+              (oterm--term-to-work)
+              (when bracketed-paste-turned-on
+                (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
+              (when point-on-pmark
+                (goto-char (oterm-pmark))))))))))
+
+(defun oterm--reset-markers ()
+  (oterm--with-live-buffer oterm-work-buffer
+    (goto-char (point-max))
+    (skip-chars-backward "[:space:]")
+    (let ((inhibit-read-only t))
+      (delete-region (point) (point-max))
+      (insert "\n"))
+    (move-marker oterm-sync-marker (point-max))
+    (move-marker oterm-cmd-start-marker (point-max)))
+  (oterm--with-live-buffer oterm-term-buffer
+    (save-excursion
+      (goto-char term-home-marker)
+      (skip-chars-forward "[:space:]")
+      (move-marker oterm-sync-marker (point)))))
 
 (defun oterm-emulate-terminal (proc str)
   "Handle special terminal codes, then call `term-emlate-terminal'.

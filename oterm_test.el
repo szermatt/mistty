@@ -728,6 +728,16 @@
    (oterm-send-raw-string "echo two")
    (oterm-send-and-wait-for-prompt)
    (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo" (oterm-test-content nil nil 'nopointer)))))
+
+(ert-deftest test-oterm-clear-screen ()
+  (with-oterm-buffer
+   (oterm-send-raw-string "echo one")
+   (oterm-send-and-wait-for-prompt)
+   (oterm-send-raw-string "printf '\\e[2J'")
+   (oterm-send-and-wait-for-prompt)
+   (oterm-send-raw-string "echo two")
+   (oterm-send-and-wait-for-prompt)
+   (should (equal "$ echo one\none\n$ printf '\\e[2J'\n$ echo two\ntwo" (oterm-test-content nil nil 'nopointer)))))
    
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."

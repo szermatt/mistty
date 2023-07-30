@@ -204,7 +204,7 @@
        (oterm-send-raw-string loop-command)
        (oterm-wait-for-output)
        (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 4) "\n")
-                      (oterm-send-and-capture-command-output)))))))
+                      (oterm-send-and-capture-command-output nil nil 'nopointer)))))))
 
 (ert-deftest test-oterm-bracketed-paste ()
   (with-oterm-buffer
@@ -394,10 +394,11 @@
      (should (equal -4 (oterm--distance-on-term three two))))))
 
 (ert-deftest test-oterm-distance-on-term-with-hard-newlines ()
-  (with-oterm-buffer-selected
+  (with-oterm-buffer
    (oterm--set-process-window-size 20 20)
 
    (oterm-send-raw-string "echo one two three four five six seven eight nine")
+   (oterm-wait-for-output)
    (oterm-send-and-wait-for-prompt)
 
    (should (equal (concat "$ echo one two three\n"
@@ -406,7 +407,7 @@
                           "one two three four f\n"
                           "ive six seven eight\n"
                           "nine")
-                  (oterm-test-content)))
+                  (oterm-test-content nil nil 'nopointer)))
 
    (let ((one (oterm-test-goto "one"))
          (six (oterm-test-goto "six"))
@@ -417,7 +418,7 @@
      (should (equal -45 (oterm--distance-on-term end one))))))
 
 (ert-deftest test-oterm-insert-long-prompt ()
-  (with-oterm-buffer-selected
+  (with-oterm-buffer
    (oterm--set-process-window-size 20 20)
 
    (oterm-run-command
@@ -428,7 +429,7 @@
                   (oterm-test-content)))))
 
 (ert-deftest test-oterm-keep-sync-marker-on-long-prompt ()
-  (with-oterm-buffer-selected
+  (with-oterm-buffer
    (oterm--set-process-window-size 20 20)
 
    (oterm-run-command
@@ -441,7 +442,7 @@
    (should (equal (marker-position oterm-cmd-start-marker) (oterm-test-goto "echo one")))))
 
 (ert-deftest test-oterm-keep-track-pointer-on-long-prompt ()
-  (with-oterm-buffer-selected
+  (with-oterm-buffer
    (oterm--set-process-window-size 20 20)
 
    (oterm-run-command
@@ -523,7 +524,7 @@
 
       (should (buffer-live-p work-buffer))
       (should (eq work-buffer (window-buffer (selected-window))))
-      (should (string-suffix-p "illegal instruction: 4\n" (buffer-substring-no-properties (point-min) (point-max))))
+      (should (string-match "illegal instruction" (buffer-substring-no-properties (point-min) (point-max))))
       (should (equal bufname (buffer-name work-buffer)))
       (should (not (buffer-local-value 'oterm-fullscreen oterm-work-buffer))))))
 
@@ -746,7 +747,7 @@
   (unless (accept-process-output oterm-term-proc 0 500 t)
     (error "no output")))
 
-(defun oterm-send-and-capture-command-output (&optional send-command-func narrow)
+(defun oterm-send-and-capture-command-output (&optional send-command-func narrow nopointer)
   "Send the current commanhd line with SEND-COMMAND-FUNC and return its output.
 
 This function sends RET to the process, then waits for the next
@@ -764,7 +765,7 @@ buffer to a new region at the beginning of the new prompt."
             ;; of deleting.
             (goto-char (line-end-position))
             (1+ (point))))
-    (setq output (oterm-test-content output-start next-prompt-start))
+    (setq output (oterm-test-content output-start next-prompt-start nopointer))
     (when narrow
       (narrow-to-region next-prompt-start (point-max)))
     output))

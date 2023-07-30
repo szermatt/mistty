@@ -49,7 +49,7 @@ properties, for example." )
 (defconst oterm-bracketed-paste-start-str "\e[200~")
 (defconst oterm-bracketed-paste-end-str "\e[201~")
 (defconst oterm-fullscreen-mode-message
-  (let ((s "Fullscreen mode ON. Type C-c C-j to between the tty and scrollback buffer."))
+  (let ((s "Fullscreen mode ON. C-c C-j switches between the tty and scrollback buffer."))
     (add-text-properties 0 (length s) '(oterm message) s)
     s))
 

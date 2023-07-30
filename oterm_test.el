@@ -723,11 +723,11 @@
   (with-oterm-buffer
    (oterm-send-raw-string "echo one")
    (oterm-send-and-wait-for-prompt)
+   (oterm-send-raw-string "printf '\\ec'")
+   (oterm-send-and-wait-for-prompt)
    (oterm-send-raw-string "echo two")
    (oterm-send-and-wait-for-prompt)
-   (oterm-send-raw-string "reset")
-   (oterm-send-and-wait-for-prompt)
-   (should (equal "$ echo one\none\n$ echo two\ntwo\n$ reset" (oterm-test-content nil nil 'nopointer)))))
+   (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo" (oterm-test-content nil nil 'nopointer)))))
    
 (defun oterm-test-goto (str)
   "Search for STR, got to its beginning and return that position."
@@ -790,8 +790,8 @@ of the beginning of the prompt."
     (while (not (save-excursion
                   (goto-char before-send)
                   (search-forward-regexp (concat "^" (regexp-quote oterm-test-prompt)) nil 'noerror)))
-      (unless (accept-process-output oterm-term-proc 1 nil t)
-        (error "no output")))
+      (unless (accept-process-output oterm-term-proc 0 500 t)
+        (error "no output >>%s<<" (buffer-substring-no-properties before-send (point-max)))))
     (match-beginning 0)))
 
 (defun oterm-test-content  (&optional start end nopointer)

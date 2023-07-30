@@ -133,8 +133,7 @@ properties, for example." )
 
     (setq oterm-term-proc proc)
     (setq oterm-term-buffer term-buffer)
-    (unless oterm-sync-marker
-      (setq oterm-sync-marker (copy-marker (point-max))))
+    (setq oterm-sync-marker (oterm--create-or-reuse-marker oterm-sync-marker (point-max)))
     (setq oterm-cmd-start-marker (copy-marker oterm-sync-marker))
     (setq oterm-sync-ov (make-overlay oterm-sync-marker (point-max) nil nil 'rear-advance))
 
@@ -142,8 +141,7 @@ properties, for example." )
       (setq oterm-term-proc proc)
       (setq oterm-work-buffer work-buffer)
       (setq oterm-term-buffer term-buffer)
-      (unless oterm-sync-marker
-        (setq oterm-sync-marker (copy-marker term-home-marker))))
+      (setq oterm-sync-marker (oterm--create-or-reuse-marker oterm-sync-marker term-home-marker)))
 
     (overlay-put oterm-sync-ov 'keymap oterm-prompt-map)
     (overlay-put oterm-sync-ov 'modification-hooks (list #'oterm--modification-hook))
@@ -157,8 +155,16 @@ properties, for example." )
     (add-hook 'window-size-change-functions #'oterm--window-size-change nil t)
     (add-hook 'pre-command-hook #'oterm-pre-command nil t)
     (add-hook 'post-command-hook #'oterm-post-command nil t)
+    
+    (oterm--term-to-work)
+    (when proc (goto-char (oterm-pmark)))))
 
-    (oterm--term-to-work)))
+(defun oterm--create-or-reuse-marker (m initial-pos)
+  (if (not (markerp m))
+      (copy-marker initial-pos)
+    (when (= 1 (marker-position m))
+      (move-marker m initial-pos))
+    m))
 
 (defun oterm--detach (&optional keep-sync-markers)
   (remove-hook 'kill-buffer-hook #'oterm--kill-term-buffer t)
@@ -330,13 +336,13 @@ all should rightly be part of term.el."
 (defun oterm--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'oterm-work-buffer))
         (term-buffer (process-get proc 'oterm-term-buffer)))
-    (if (and (string-match "\e\\[\\??47l" str)
+    (if (and (string-match "\e\\[\\??47l\\(\e8\\)?" str)
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
-        (let ((rmcup-pos (match-beginning 0)))
-          (oterm-emulate-terminal proc (substring str 0 rmcup-pos))
+        (let ((after-rmcup-pos (match-beginning 0)))
+          (oterm-emulate-terminal proc (substring str 0 after-rmcup-pos))
           (with-current-buffer work-buffer
-            (oterm--leave-fullscreen proc (substring str rmcup-pos))))
+            (oterm--leave-fullscreen proc (substring str after-rmcup-pos))))
       ;; normal processing
       (oterm-emulate-terminal proc str))))
 
@@ -759,13 +765,7 @@ END section to be valid in the term buffer."
     (setq oterm-fullscreen nil)
 
     (oterm--attach (process-buffer proc))
-
-    (save-excursion
-      (goto-char (point-max))
-      (when-let ((match (text-property-search-backward 'oterm 'message)))
-        (let ((inhibit-read-only t))
-          (delete-region (prop-match-beginning match) (prop-match-end match)))))
-
+    
     (let ((bufname (buffer-name oterm-term-buffer)))
       (with-current-buffer oterm-term-buffer
         (rename-buffer (generate-new-buffer-name (concat " oterm tty " bufname))))

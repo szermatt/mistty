@@ -365,22 +365,6 @@
    (execute-kbd-macro (kbd "RET"))
    (should (equal "second" (oterm-send-and-capture-command-output)))))
 
-(ert-deftest test-term-buffer-vertical-motion ()
-  ;; term-buffer-vertical-motion defined in term.el seems to behave
-  ;; differently from buffer-vertical-motion in this specific case.
-  ;; This causes issues with oterm and large prompts. Let's make sure
-  ;; this is fixed.
-  ;;
-  ;; proposed fix:
-  ;; - (todo (+ count (/ (current-column) term-width)))
-  ;; + (todo count)
-  (ert-with-test-buffer ()
-    (setq term-width 5)
-    (insert "hello\nworld\n")
-    (goto-char (1- (point)))
-    (should (equal 1 (term-buffer-vertical-motion 1)))
-    (should (equal (point-max) (point)))))
-
 (ert-deftest test-oterm-distance-on-term ()
   (with-oterm-buffer-selected
    (oterm-send-raw-string "echo one two three four five six seven eight nine")

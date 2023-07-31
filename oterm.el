@@ -333,8 +333,18 @@ properties, for example." )
 
 This functions intercepts some extented sequences term.el. This
 all should rightly be part of term.el."
-  (let ((start 0)
-        (bracketed-paste-turned-on nil))
+  (cl-letf ((start 0)
+            (bracketed-paste-turned-on nil)
+            ;; Using term-buffer-vertical-motion causes strange
+            ;; issues; avoid it. Using oterm's window to compute
+            ;; vertical motion is correct since the window dimension
+            ;; are kept in sync with the terminal size. Falling back
+            ;; to using the selected window, on the other hand, is
+            ;; questionable.
+            ((symbol-function 'term-buffer-vertical-motion)
+             (lambda (count)
+               (vertical-motion count (or (get-buffer-window oterm-work-buffer)
+                                          (selected-window))))))
     (while (string-match "\e\\(\\[\\?2004[hl]\\|\\]\\([\x08-0x0d\x20-\x7e]*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
       (let ((ext (match-string 1 str))
             (osc (match-string 2 str))

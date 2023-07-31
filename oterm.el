@@ -431,7 +431,18 @@ all should rightly be part of term.el."
                      (let ((inhibit-read-only t))
                        (remove-text-properties (point-min) (point-max) '(oterm t face t read-only t))
                        (move-marker oterm-cmd-start-marker oterm-sync-marker)
-                       (replace-buffer-contents oterm-term-buffer)))))))
+                       (replace-buffer-contents oterm-term-buffer))))
+                  ;; When clearing the screen, commands often leave
+                  ;; lots of newlines and spaces after the text. That
+                  ;; doesn't look good in line mode; clean this up.
+                  (save-excursion
+                    (goto-char (point-max))
+                    (skip-chars-backward "[:space:]")
+                    (skip-chars-forward " \t")
+                    (when (looking-at "\n")
+                      (goto-char (1+ (point))))
+                    (let ((inhibit-read-only t))
+                      (delete-region (point) (point-max)))))))
             (setq buffer-undo-list saved-undo)))))
     
     ;; Next time, only sync the visible portion of the terminal.

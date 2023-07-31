@@ -494,7 +494,7 @@ all should rightly be part of term.el."
   "Send the current command to the shell."
   (interactive)
   (goto-char (oterm-pmark))
-  (oterm-send-raw-string "\n"))
+  (oterm-send-raw-string "\C-m"))
 
 (defun oterm-send-tab ()
   "Send TAB to the shell."

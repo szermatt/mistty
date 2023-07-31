@@ -467,12 +467,13 @@ all should rightly be part of term.el."
         (move-marker oterm-cmd-start-marker cmd-start-pos)
         (move-overlay oterm-sync-ov sync-pos (point-max))
         (when (and set-prompt (> cmd-start-pos sync-pos))
-          (add-text-properties sync-pos cmd-start-pos
-                               '(oterm prompt
-                                       field 'oterm-prompt
-                                       rear-nonsticky t))
-          (add-text-properties sync-pos cmd-start-pos
-                               '(read-only t front-sticky t)))))))
+          (let ((inhibit-read-only t))
+            (add-text-properties sync-pos cmd-start-pos
+                                 '(oterm prompt
+                                         field 'oterm-prompt
+                                         rear-nonsticky t))
+            (add-text-properties sync-pos cmd-start-pos
+                                 '(read-only t front-sticky t))))))))
 
 (defun oterm-send-raw-string (str)
   (when (and str (not (zerop (length str))))

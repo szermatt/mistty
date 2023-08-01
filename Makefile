@@ -4,7 +4,7 @@ CASK_DIR := $(shell cask package-directory)
 BASH ?= $(shell which bash)
 ZSH ?= $(shell which zsh)
 
-setup_shells="(setq oterm-test-bash-exe \"$(BASH)\" oterm-test-zsh-exe \"$(ZSH)\")"
+setup_shells="(setq mistty-test-bash-exe \"$(BASH)\" mistty-test-zsh-exe \"$(ZSH)\")"
 
 $(CASK_DIR): Cask
 	cask install
@@ -22,5 +22,5 @@ compile: cask
 
 .PHONY: test
 test: compile
-	cask emacs --batch -L . --eval $(setup_shells) -L test -l oterm_test.el -f ert-run-tests-batch
+	cask emacs --batch -L . --eval $(setup_shells) -L test -l mistty_test.el -f ert-run-tests-batch
 

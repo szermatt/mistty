@@ -1,7 +1,7 @@
 (source gnu)
 (source melpa)
 
-(package-file "oterm.el")
+(package-file "mistty.el")
 
 (development
  (depends-on "ert-runner"))

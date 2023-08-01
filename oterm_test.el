@@ -240,24 +240,22 @@
 
 (ert-deftest test-oterm-bol-outside-of-prompt ()
   (with-oterm-buffer
-   (let (prompt-start)
-     (oterm-run-command
-      (insert "echo one"))
-     (oterm-send-and-wait-for-prompt)
-     (setq prompt-start (point))
-     (oterm-run-command
-      (insert "echo two"))
-     (oterm-send-and-wait-for-prompt)
-     (oterm-run-command
-      (insert "echo three"))
-
-     ;; (beginning-of-line) moves just after the prompt, even though
-     ;; it's not the active prompt.
-     (oterm-test-goto "two")
-     (beginning-of-line)
-     (should (equal
-              (point) (save-excursion
-                        (oterm-test-goto "echo two")))))))
+   (oterm-run-command
+    (insert "echo one"))
+   (oterm-send-and-wait-for-prompt)
+   (oterm-run-command
+    (insert "echo two"))
+   (oterm-send-and-wait-for-prompt)
+   (oterm-run-command
+    (insert "echo three"))
+   
+   ;; (beginning-of-line) moves just after the prompt, even though
+   ;; it's not the active prompt.
+   (oterm-test-goto "two")
+   (beginning-of-line)
+   (should (equal
+            (point) (save-excursion
+                      (oterm-test-goto "echo two"))))))
 
 (ert-deftest test-oterm-next-prompt ()
   (with-oterm-buffer

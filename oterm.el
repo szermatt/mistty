@@ -302,14 +302,13 @@ properties, for example." )
      (t (let ((bracketed-paste-turned-on nil)
               (inhibit-modification-hooks t)
               (old-sync-position (oterm--with-live-buffer term-buffer (marker-position oterm-sync-marker)))
-              (point-on-pmark (oterm--with-live-buffer work-buffer (point) (oterm-pmark))))
+              (point-on-pmark (oterm--with-live-buffer work-buffer (= (point) (oterm-pmark)))))
           (setq bracketed-paste-turned-on (oterm-emulate-terminal proc str))
           (oterm--with-live-buffer term-buffer
             (goto-char (process-mark proc))
             (when (or (< oterm-sync-marker old-sync-position)
                       (< (point) oterm-sync-marker))
               (oterm--reset-markers)
-              (goto-char (oterm-pmark))
               (setq point-on-pmark t)))
           (oterm--with-live-buffer work-buffer
             (condition-case nil
@@ -320,7 +319,7 @@ properties, for example." )
               (when bracketed-paste-turned-on
                 (oterm--move-sync-mark (oterm-pmark) 'set-prompt))
               (when point-on-pmark
-                (goto-char (oterm-pmark))))))))))
+                (goto-char (oterm--safe-pos (oterm-pmark)))))))))))
 
 (defun oterm--reset-markers ()
   (oterm--with-live-buffer oterm-work-buffer
@@ -413,55 +412,60 @@ all should rightly be part of term.el."
                          (- pos oterm-sync-marker))))
 
 (defun oterm--term-to-work ()
-  (let ((inhibit-modification-hooks t))
-    (with-current-buffer oterm-term-buffer
-      (save-restriction
-        (narrow-to-region oterm-sync-marker (point-max-marker))
-        (with-current-buffer oterm-work-buffer
-          (let ((saved-undo buffer-undo-list))
-            (save-excursion
-              (save-restriction
-                (narrow-to-region oterm-sync-marker (point-max-marker))
-                (let ((inhibit-modification-hooks t))
-                  (condition-case nil
-                      (replace-buffer-contents oterm-term-buffer)
-                    (text-read-only
-                     ;; Replace-buffer-contents attempted to modify the prompt.
-                     ;; Remove it and try again.
-                     (let ((inhibit-read-only t))
-                       (remove-text-properties (point-min) (point-max) '(oterm t face t read-only t))
-                       (move-marker oterm-cmd-start-marker oterm-sync-marker)
-                       (replace-buffer-contents oterm-term-buffer))))
-                  ;; When clearing the screen, commands often leave
-                  ;; lots of newlines and spaces after the text. That
-                  ;; doesn't look good in line mode; clean this up.
-                  (save-excursion
-                    (goto-char (point-max))
-                    (skip-chars-backward "[:space:]")
-                    (skip-chars-forward " \t")
-                    (when (looking-at "\n")
-                      (goto-char (1+ (point))))
-                    (let ((inhibit-read-only t))
-                      (delete-region (point) (point-max)))))))
-            (setq buffer-undo-list saved-undo)))))
+  (let ((inhibit-modification-hooks t)
+        (inhibit-read-only t))
+    (with-current-buffer oterm-work-buffer
+      (let ((initial-undo-list buffer-undo-list)
+            (initial-point (point))
+            (initial-mark (marker-position (mark-marker)))
+            (initial-mark-active mark-active)
+            (prompt-length (- oterm-cmd-start-marker oterm-sync-marker)))
+        (save-restriction
+          (widen)
+          (when (and (> prompt-length 0)
+                     (not (string=
+                           (with-current-buffer oterm-term-buffer
+                             (buffer-substring-no-properties
+                              oterm-sync-marker (oterm--safe-pos (+ oterm-sync-marker prompt-length))))
+                           (buffer-substring-no-properties
+                            oterm-sync-marker oterm-cmd-start-marker))))
+            ;; the prompt was modified; reset it
+            (move-marker oterm-cmd-start-marker oterm-sync-marker)
+            (setq prompt-length 0))
+          (goto-char oterm-cmd-start-marker)
+          (insert (with-current-buffer oterm-term-buffer
+                    (buffer-substring (+ oterm-sync-marker prompt-length) (point-max))))
+          (delete-region (point) (point-max))
+          
+          ;; When clearing the screen, commands often leave
+          ;; lots of newlines and spaces after the text. That
+          ;; doesn't look good in line mode; clean this up.
+          (goto-char (point-max))
+          (skip-chars-backward "[:space:]")
+          (skip-chars-forward " \t")
+          (when (looking-at "\n")
+            (goto-char (1+ (point))))
+          (delete-region (point) (point-max))
+          
+          ;; recover buffer state possibly destroyed by delete-region.
+          (goto-char (oterm--safe-pos initial-point))
+          (move-marker (mark-marker) (when initial-mark (oterm--safe-pos initial-mark)))
+          (setq mark-active initial-mark-active)
+          (setq buffer-undo-list initial-undo-list))))
     
-    ;; Next time, only sync the visible portion of the terminal.
     (with-current-buffer oterm-term-buffer
+      ;; Next time, only sync the visible portion of the terminal.
       (when (< oterm-sync-marker term-home-marker)
-        (oterm--move-sync-mark term-home-marker)))
-
-    ;; Truncate the term buffer, since scrolling back is available on
-    ;; the work buffer anyways. This has to be done now, after syncing
-    ;; the marker, and not in term-emulate-terminal, which is why
-    ;; term-buffer-maximum-size is set to 0.
-    (with-current-buffer oterm-term-buffer
-      (let ((inhibit-read-only t))
-        (save-excursion
-          (goto-char term-home-marker)
-          (forward-line -5)
-          (delete-region (point-min) (point)))))
-
-    ))
+        (oterm--move-sync-mark term-home-marker))
+      
+      ;; Truncate the term buffer, since scrolling back is available on
+      ;; the work buffer anyways. This has to be done now, after syncing
+      ;; the marker, and not in term-emulate-terminal, which is why
+      ;; term-buffer-maximum-size is set to 0.
+      (save-excursion
+        (goto-char term-home-marker)
+        (forward-line -5)
+        (delete-region (point-min) (point))))))
 
 (defun oterm--move-sync-mark (pos &optional set-prompt)
   (let ((chars-from-bol (- pos (oterm--bol-pos-from pos)))
@@ -633,23 +637,24 @@ all should rightly be part of term.el."
     changes))
 
 (defun oterm--change-intervals (&optional deleted-to-end)
-  (save-restriction
-    (narrow-to-region oterm-cmd-start-marker (point-max))
-    (let ((last-point (point-min))
-          intervals last-at-point )
-      (goto-char last-point)
-      (while (let ((at-point (get-text-property (point) 'oterm-change)))
-               (when last-at-point
-                 (push `(,last-point . ,last-at-point) intervals))
-               (setq last-at-point at-point)
-               (setq last-point (point))
-               (goto-char (next-single-property-change (point) 'oterm-change (current-buffer) (point-max)))
-               (< (point) (point-max))))
-      (when last-at-point
-        (push `(,last-point . ,last-at-point) intervals))
-      (when deleted-to-end
-        (push `(,(point-max) deleted-to-end) intervals))
-      (nreverse intervals))))
+  (save-excursion
+    (save-restriction
+      (narrow-to-region oterm-cmd-start-marker (point-max))
+      (let ((last-point (point-min))
+            intervals last-at-point )
+        (goto-char last-point)
+        (while (let ((at-point (get-text-property (point) 'oterm-change)))
+                 (when last-at-point
+                   (push `(,last-point . ,last-at-point) intervals))
+                 (setq last-at-point at-point)
+                 (setq last-point (point))
+                 (goto-char (next-single-property-change (point) 'oterm-change (current-buffer) (point-max)))
+                 (< (point) (point-max))))
+        (when last-at-point
+          (push `(,last-point . ,last-at-point) intervals))
+        (when deleted-to-end
+          (push `(,(point-max) deleted-to-end) intervals))
+        (nreverse intervals)))))
 
 (defun oterm--replay-modification (orig-beg content old-length)
   (let* ((pmark (oterm-pmark))
@@ -765,11 +770,10 @@ END section to be valid in the term buffer."
   (oterm--with-live-buffer buf
     (when (and (process-live-p oterm-term-proc)
                (buffer-live-p oterm-term-buffer))
-      (save-excursion
-        (let ((changes (oterm--collect-modifications)))
-          (dolist (c changes)
-            (apply #'oterm--replay-modification c)
-            (oterm--term-to-work))))))
+      (let ((changes (save-excursion (oterm--collect-modifications))))
+        (dolist (c changes)
+          (apply #'oterm--replay-modification c)
+          (oterm--term-to-work)))))
 
   ;; move process mark to follow point
   (when (and oterm--old-point

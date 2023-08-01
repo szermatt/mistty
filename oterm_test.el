@@ -70,10 +70,9 @@
    (oterm-send-raw-string "echo hello")
    (oterm-wait-for-output)
    (oterm-run-command
-    (save-excursion
       (oterm-test-goto "hello")
-      (delete-region (point) (+ 3 (point)))))
-   (should (equal "$ echo lo<>" (oterm-test-content)))
+      (delete-region (point) (+ 3 (point))))
+   (should (equal "$ echo <>lo" (oterm-test-content)))
    (should (equal "lo" (oterm-send-and-capture-command-output)))))
 
 (ert-deftest test-oterm-reconcile-delete-last-word ()
@@ -217,18 +216,17 @@
 
 (ert-deftest test-oterm-bol ()
   (with-oterm-buffer
-   (let ((initial-pos (point)))
-     (oterm-run-command
-      (insert "echo hello"))
-
-     ;; The first time, move the point after the prompt.
-     (beginning-of-line)
-     (should (equal (point) initial-pos))
-
-     ;; The first time, move to the real line start.
-     (let ((inhibit-field-text-motion t))
-       (beginning-of-line))
-     (should (equal (point) (point-min))))))
+   (oterm-run-command
+    (insert "echo hello")
+    
+    ;; Move the point after the prompt.
+    (beginning-of-line)
+    (should (equal (point) (oterm-test-goto "echo")))
+    
+    ;; Move to the real line start.
+    (let ((inhibit-field-text-motion t))
+      (beginning-of-line))
+    (should (equal (point) (oterm-test-goto "$ echo hello"))))))
 
 (ert-deftest test-oterm-bol-multiline ()
   (with-oterm-buffer
@@ -253,11 +251,13 @@
      (oterm-run-command
       (insert "echo three"))
 
-     ;; This is before the prompt; just go to the real line beginning,
-     ;; even though there's an old prompt on that line.
-     (goto-char (+ 3 prompt-start))
+     ;; (beginning-of-line) moves just after the prompt, even though
+     ;; it's not the active prompt.
+     (oterm-test-goto "two")
      (beginning-of-line)
-     (should (equal (point) prompt-start)))))
+     (should (equal
+              (point) (save-excursion
+                        (oterm-test-goto "echo two")))))))
 
 (ert-deftest test-oterm-next-prompt ()
   (with-oterm-buffer

@@ -39,6 +39,7 @@ properties, for example." )
 (defvar-local oterm--old-point nil)
 (defvar-local oterm--inhibit-sync nil)
 (defvar-local oterm--deleted-point-max nil)
+(defvar-local oterm--point-follows-next-pmark nil)
 
 (eval-when-compile
   ;; defined in term.el
@@ -302,7 +303,12 @@ properties, for example." )
      (t (let ((bracketed-paste-turned-on nil)
               (inhibit-modification-hooks t)
               (old-sync-position (oterm--with-live-buffer term-buffer (marker-position oterm-sync-marker)))
-              (point-on-pmark (oterm--with-live-buffer work-buffer (= (point) (oterm-pmark)))))
+              (point-on-pmark (or oterm--point-follows-next-pmark
+                                  (oterm--with-live-buffer work-buffer
+                                    (or (= (point) (oterm-pmark))
+                                        (and (= (point) (point-max))
+                                             (>= (oterm-pmark) (point-max))))))))
+          (setq oterm--point-follows-next-pmark nil)
           (setq bracketed-paste-turned-on (oterm-emulate-terminal proc str))
           (oterm--with-live-buffer term-buffer
             (goto-char (process-mark proc))
@@ -519,11 +525,13 @@ all should rightly be part of term.el."
   "Send the current command to the shell."
   (interactive)
   (goto-char (oterm-pmark))
+  (setq oterm--point-follows-next-pmark t)
   (oterm-send-raw-string "\C-m"))
 
 (defun oterm-send-tab ()
   "Send TAB to the shell."
   (interactive)
+  (setq oterm--point-follows-next-pmark t)
   (oterm-send-raw-string "\t"))
 
 (defun oterm-send-backspace ()
@@ -531,6 +539,7 @@ all should rightly be part of term.el."
   (interactive)
   (when (get-pos-property (point) 'read-only)
     (signal 'text-read-only nil))
+  (setq oterm--point-follows-next-pmark t)
   (oterm-send-raw-string "\b"))
 
 (defun oterm-self-insert-command (n)
@@ -538,6 +547,7 @@ all should rightly be part of term.el."
   (when (get-pos-property (point) 'read-only)
     (signal 'text-read-only nil))
   (let ((keys (this-command-keys)))
+    (setq oterm--point-follows-next-pmark t)
     (oterm-send-raw-string (make-string n (aref keys (1- (length keys)))))))
 
 (defun oterm-send-raw-key ()
@@ -685,16 +695,25 @@ all should rightly be part of term.el."
       (oterm--send-and-wait (oterm--move-str pmark old-end))
       (setq pmark (oterm-pmark))
       (setq old-end (max beg (min old-end pmark))))
-    
-    ;; Replay the portion of the change that we think we can
-    ;; replay.
-    (oterm--send-and-wait
-     (concat
-      (when (> old-end beg)
-        (oterm--repeat-string (oterm--distance-on-term beg old-end) "\b"))
-      (when (> end beg)
-        (oterm--maybe-bracketed-str (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
-  )
+
+    (let ((replay-seq
+           (concat
+            (when (> old-end beg)
+              (oterm--repeat-string
+               (oterm--distance-on-term beg old-end) "\b"))
+            (when (> end beg)
+              (oterm--maybe-bracketed-str
+               (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
+      (if replay-seq
+          (progn
+            (when (= (point) end)
+              (setq oterm--point-follows-next-pmark t))
+            (oterm-send-raw-string replay-seq)
+            (when (accept-process-output oterm-term-proc 1 nil t)
+              (while (accept-process-output oterm-term-proc 0 nil t))))
+        
+        ;; update the work buffer in case unrelated changes were sent during oterm--send-and-wait
+        (oterm--term-to-work)))))
 
 (defun oterm--send-and-wait (str)
   (when (and str (not (zerop (length str))))
@@ -772,8 +791,7 @@ END section to be valid in the term buffer."
                (buffer-live-p oterm-term-buffer))
       (let ((changes (save-excursion (oterm--collect-modifications))))
         (dolist (c changes)
-          (apply #'oterm--replay-modification c)
-          (oterm--term-to-work)))))
+          (apply #'oterm--replay-modification c)))))
 
   ;; move process mark to follow point
   (when (and oterm--old-point

@@ -283,7 +283,7 @@ properties, for example." )
       (term-emulate-terminal proc str))
      
      ;; switch to fullscreen
-     ((string-match "\e\\[\\??47h" str)
+     ((string-match "\e\\[\\(\\??47\\|\\?104[79]\\)h" str)
       (let ((smcup-pos (match-beginning 0)))
         (mistty-process-filter proc (substring str 0 smcup-pos))
         (with-current-buffer work-buffer
@@ -358,27 +358,37 @@ all should rightly be part of term.el."
              (lambda (count)
                (vertical-motion count (or (get-buffer-window mistty-work-buffer)
                                           (selected-window))))))
-    (while (string-match "\e\\(\\[\\?2004[hl]\\|\\]\\([\x08-0x0d\x20-\x7e]*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
+    (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\([\x08-0x0d\x20-\x7e]*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
       (let ((ext (match-string 1 str))
-            (osc (match-string 2 str))
+            (osc (match-string 3 str))
             (seq-start (match-beginning 0))
-            (seq-end (match-end 0)))
-        (term-emulate-terminal proc (substring str start seq-start))
+            (seq-end (match-end 0))
+            (term-buffer (process-get proc 'mistty-term-buffer))
+            (work-buffer (process-get proc 'mistty-work-buffer)))
         (cond
-         ((equal ext "[?2004h")
-          (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
+         ((equal ext "[?2004h") ; enable bracketed paste
+          (term-emulate-terminal proc (substring str start seq-end))
+          (mistty--with-live-buffer work-buffer
             (setq mistty-bracketed-paste t
-                  bracketed-paste-turned-on t))
-          (term-emulate-terminal proc (substring str seq-start seq-end)))
-         ((equal ext "[?2004l")
-          (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
-            (setq mistty-bracketed-paste nil))
-          (term-emulate-terminal proc (substring str seq-start seq-end)))
+                  bracketed-paste-turned-on t)))
+         ((equal ext "[?2004l") ; disable bracketed paste
+          (term-emulate-terminal proc (substring str start seq-end))
+          (mistty--with-live-buffer work-buffer
+            (setq mistty-bracketed-paste nil)))
+         ((equal ext "[?25h") ; make cursor visible
+          (term-emulate-terminal proc (substring str start seq-end))
+          (mistty--with-live-buffer work-buffer
+            (setq cursor-type t)))
+         ((equal ext "[?25l") ; make cursor invisible
+          (term-emulate-terminal proc (substring str start seq-end))
+          (mistty--with-live-buffer work-buffer
+            (setq cursor-type nil)))
          (osc
-          (mistty--with-live-buffer mistty-term-buffer
+          (term-emulate-terminal proc (substring str start seq-start))
+          (mistty--with-live-buffer term-buffer
             (let ((inhibit-read-only t))
               (run-hook-with-args 'mistty-osc-hook osc)))))
-        (setq start seq-end)))
+          (setq start seq-end)))
     (let ((final-str (substring str start)))
       (unless (zerop (length final-str))
         (term-emulate-terminal proc final-str)))
@@ -387,7 +397,7 @@ all should rightly be part of term.el."
 (defun mistty--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-get proc 'mistty-term-buffer)))
-    (if (and (string-match "\e\\[\\??47l\\(\e8\\)?" str)
+    (if (and (string-match "\e\\[\\(\\??47\\|\\?104[79]\\)l\\(\e8\\)?" str)
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
         (let ((after-rmcup-pos (match-beginning 0)))
@@ -440,16 +450,6 @@ all should rightly be part of term.el."
           (goto-char mistty-cmd-start-marker)
           (insert (with-current-buffer mistty-term-buffer
                     (buffer-substring (+ mistty-sync-marker prompt-length) (point-max))))
-          (delete-region (point) (point-max))
-          
-          ;; When clearing the screen, commands often leave
-          ;; lots of newlines and spaces after the text. That
-          ;; doesn't look good in line mode; clean this up.
-          (goto-char (point-max))
-          (skip-chars-backward "[:space:]")
-          (skip-chars-forward " \t")
-          (when (looking-at "\n")
-            (goto-char (1+ (point))))
           (delete-region (point) (point-max))
           
           ;; recover buffer state possibly destroyed by delete-region.
@@ -781,6 +781,11 @@ END section to be valid in the term buffer."
 
 (defun mistty-post-command ()
   (setq mistty--inhibit-sync nil)
+  
+  ;; Show cursor again if the command moved the point.
+  (when (and mistty--old-point (/= (point) mistty--old-point))
+    (setq cursor-type t))
+  
   (run-at-time 0 nil #'mistty-post-command-1 mistty-work-buffer))
 
 (defun mistty-post-command-1 (buf)

@@ -721,6 +721,23 @@
    (mistty-send-and-wait-for-prompt)
    (should (equal "$ echo one\none\n$ printf '\\e[2J'\n$ echo two\ntwo" (mistty-test-content nil nil 'nopointer)))))
    
+(ert-deftest test-mistty-hide-cursor ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "printf 'o\\e[?25lk\\n'")
+   (should (equal "ok" (mistty-send-and-capture-command-output)))
+   (should (eq nil cursor-type))
+   (mistty-send-raw-string "printf 'o\\e[?25hk\\n'")
+   (should (equal "ok" (mistty-send-and-capture-command-output)))
+   (should (eq t cursor-type))))
+   
+(ert-deftest test-mistty-show-cursor-if-moved ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "printf 'o\\e[?25lk\\n'")
+   (should (equal "ok" (mistty-send-and-capture-command-output)))
+   (should (eq nil cursor-type))
+   (mistty-run-command (goto-char (1- (point))))
+   (should (eq t cursor-type))))
+   
 (defun mistty-test-goto (str)
   "Search for STR, got to its beginning and return that position."
   (mistty-test-goto-after str)

@@ -11,6 +11,8 @@
 
 (defvar mistty-test-bash-exe (executable-find "bash"))
 (defvar mistty-test-zsh-exe (executable-find "zsh"))
+(defvar mistty-test-py-exe (or (executable-find "python3")
+                               (executable-find "python")))
 
 (defconst mistty-test-prompt "$ ")
 
@@ -791,6 +793,52 @@
              "say something>> ")
             mistty--possible-prompt))))
 
+(ert-deftest test-mistty-python-just-type ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   (mistty-send-raw-string "1 + 1")
+   (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   ;; TODO: check that the prompt was identified
+   ))
+
+(ert-deftest test-mistty-python-move-and-type ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   
+   (mistty-send-raw-string "10 * 10")
+   (mistty-wait-for-output)
+   (mistty-run-command
+    (mistty-test-goto "10 * 10")
+    (goto-char (1+ (point))))
+   (mistty-run-command
+    (mistty-self-insert-command 1 ?0))
+   (should (equal "1000" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   ;; the prompt was identified and labelled
+   (mistty-previous-prompt 1)
+   (should (looking-at (regexp-quote "100 * 10")))))
+
+(ert-deftest test-mistty-python-eof ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   (mistty-send-and-wait-for-prompt (lambda () (mistty-delchar-or-maybe-eof 1)))))
+
+(ert-deftest test-mistty-python-delchar ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   (mistty-send-raw-string "11 + 1")
+   (mistty-wait-for-output)
+   (mistty-test-goto "11 + 1")
+   (mistty-run-command
+    (mistty-delchar-or-maybe-eof 1))
+   ;; deleted the first 1, the command-line is now 1 + 1
+   (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
+
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion
@@ -825,7 +873,7 @@
   (unless (accept-process-output mistty-term-proc 0 500 t)
     (error "no output")))
 
-(defun mistty-send-and-capture-command-output (&optional send-command-func narrow nopointer)
+(defun mistty-send-and-capture-command-output (&optional send-command-func narrow nopointer prompt)
   "Send the current commanhd line with SEND-COMMAND-FUNC and return its output.
 
 This function sends RET to the process, then waits for the next
@@ -834,7 +882,7 @@ everything between the two prompts, return it, and narrow the
 buffer to a new region at the beginning of the new prompt."
   (let ((first-prompt-end (point))
         output-start next-prompt-start output)
-    (setq next-prompt-start (mistty-send-and-wait-for-prompt send-command-func))
+    (setq next-prompt-start (mistty-send-and-wait-for-prompt send-command-func prompt))
     (setq output-start
           (save-excursion
             (goto-char first-prompt-end)
@@ -848,7 +896,7 @@ buffer to a new region at the beginning of the new prompt."
       (narrow-to-region next-prompt-start (point-max)))
     output))
 
-(defun mistty-send-and-wait-for-prompt (&optional send-command-func)
+(defun mistty-send-and-wait-for-prompt (&optional send-command-func prompt)
   "Send the current command line and wait for a prompt to appear.
 
 Puts the point at the end of the prompt and return the position
@@ -857,7 +905,7 @@ of the beginning of the prompt."
     (funcall (or send-command-func #'mistty-send-command))
     (while (not (save-excursion
                   (goto-char before-send)
-                  (search-forward-regexp (concat "^" (regexp-quote mistty-test-prompt)) nil 'noerror)))
+                  (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
       (unless (accept-process-output mistty-term-proc 0 500 t)
         (error "no output >>%s<<" (buffer-substring-no-properties before-send (point-max)))))
     (match-beginning 0)))

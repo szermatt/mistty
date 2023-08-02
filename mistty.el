@@ -57,6 +57,8 @@ properties, for example." )
 
 (defvar mistty-prompt-re "[#$%>.] *$")
 
+(defvar mistty-positional-keys "\t\C-w\C-t\C-k-C-y")
+
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") 'mistty-send-raw-key)
@@ -68,8 +70,8 @@ properties, for example." )
     (define-key map (kbd "C-c C-r") 'mistty-send-raw-key)
     (define-key map (kbd "C-c C-s") 'mistty-send-raw-key)
     (define-key map (kbd "C-c C-g") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-a") 'mistty-goto-pmark-and-send-raw-key)
-    (define-key map (kbd "C-c C-e") 'mistty-goto-pmark-and-send-raw-key)
+    (define-key map (kbd "C-c C-a") 'mistty-send-raw-key)
+    (define-key map (kbd "C-c C-e") 'mistty-send-raw-key)
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
     (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
     (define-key map (kbd "C-c C-j") 'mistty-switch-to-fullscreen-buffer)
@@ -94,15 +96,18 @@ properties, for example." )
     (define-key map [remap self-insert-command] 'mistty-self-insert-command )
     map))
 
-(defun mistty-send-up    () (interactive) (mistty-send-raw-string "\eOA"))
-(defun mistty-send-down  () (interactive) (mistty-send-raw-string "\eOB"))
+(defun mistty-send-up () (interactive) (mistty-send-raw-string "\eOA"))
+(defun mistty-send-down () (interactive) (mistty-send-raw-string "\eOB"))
 (defun mistty-send-right () (interactive) (mistty-send-raw-string "\eOC"))
-(defun mistty-send-left  () (interactive) (mistty-send-raw-string "\eOD"))
-(defun mistty-send-home  () (interactive) (mistty-send-raw-string "\e[1~"))
-(defun mistty-send-end   () (interactive) (mistty-send-raw-string "\e[4~"))
-(defun mistty-send-insert() (interactive) (mistty-send-raw-string "\e[2~"))
+(defun mistty-send-left () (interactive) (mistty-send-raw-string "\eOD"))
+(defun mistty-send-home () (interactive) (mistty-send-raw-string "\e[1~"))
+(defun mistty-send-end () (interactive) (mistty-send-raw-string "\e[4~"))
 (defun mistty-send-prior () (interactive) (mistty-send-raw-string "\e[5~"))
-(defun mistty-send-next  () (interactive) (mistty-send-raw-string "\e[6~"))
+(defun mistty-send-next () (interactive) (mistty-send-raw-string "\e[6~"))
+(defun mistty-send-insert ()
+  (interactive)
+  (mistty-before-positional)
+  (mistty-send-raw-string "\e[2~"))
 
 (defmacro mistty--with-live-buffer (buf &rest body)
   (declare (indent 1))
@@ -554,6 +559,7 @@ all should rightly be part of term.el."
 (defun mistty-send-tab ()
   "Send TAB to the shell."
   (interactive)
+  (mistty-before-positional)
   (setq mistty--point-follows-next-pmark t)
   (mistty-send-raw-string "\t"))
 
@@ -562,36 +568,41 @@ all should rightly be part of term.el."
   (interactive)
   (when (get-pos-property (point) 'read-only)
     (signal 'text-read-only nil))
+  (mistty-before-positional)
   (setq mistty--point-follows-next-pmark t)
   (mistty-send-raw-string "\b"))
 
-(defun mistty-self-insert-command (n)
+(defun mistty-self-insert-command (n &optional key)
   (interactive "p")
   (when (get-pos-property (point) 'read-only)
     (signal 'text-read-only nil))
-  (let ((keys (this-command-keys)))
-    (setq mistty--point-follows-next-pmark t)
-    (mistty-send-raw-string (make-string n (aref keys (1- (length keys)))))))
+  (setq mistty--point-follows-next-pmark t)
+  (mistty-before-positional)
+  (mistty-send-raw-string (make-string (or n 1 ) (or key (mistty-last-key)))))
 
-(defun mistty-send-raw-key ()
-  (interactive)
-  (let ((keys (this-command-keys)))
-    (mistty-send-raw-string (make-string 1 (aref keys (1- (length keys)))))))
+(defun mistty-send-raw-key (n)
+  (interactive "p")
+  (let ((key (mistty-last-key)))
+    (when (mistty-positional-key-p key)
+      (mistty-before-positional))
+    (mistty-send-raw-string (make-string n key))))
 
-(defun mistty-goto-pmark-and-send-raw-key ()
-  (interactive)
-  (goto-char (mistty-pmark))
+(defun mistty-last-key ()
   (let ((keys (this-command-keys)))
-    (mistty-send-raw-string (make-string 1 (aref keys (1- (length keys)))))))
+    (aref keys (1- (length keys)))))
 
 (defun mistty-delchar-or-maybe-eof (n)
   (interactive "p")
-  (if (zerop (length
-              (replace-regexp-in-string
-               "[[:space:]]+"
-               ""
-               (buffer-substring-no-properties
-                mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
+  (if (or
+       (zerop (length
+               (replace-regexp-in-string
+                "[[:space:]]+"
+                ""
+                (buffer-substring-no-properties
+                 mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
+       (progn
+         (mistty-before-positional)
+         (not (mistty-on-prompt-p))))
       (mistty-send-raw-string (make-string n ?\C-d))
     (delete-char n)))
 
@@ -833,7 +844,7 @@ END section to be valid in the term buffer."
              (>= (point) mistty-sync-marker)
              (process-live-p mistty-term-proc)
              (buffer-live-p mistty-term-buffer)
-             mistty-bracketed-paste)
+             (mistty-on-prompt-p))
     (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point)))))
 
 (defun mistty--window-size-change (&optional _win)
@@ -919,6 +930,29 @@ END section to be valid in the term buffer."
            (buffer-local-value 'mistty-fullscreen mistty-work-buffer))
       (switch-to-buffer mistty-work-buffer)
     (error "No scrollback buffer available.")))
+
+(defun mistty-positional-key-p (key)
+  (memq key mistty-positional-keys))
+
+(defun mistty-on-prompt-p ()
+  (or mistty-bracketed-paste
+      (and 
+       (> mistty-cmd-start-marker mistty-sync-marker)
+       (> (point) mistty-cmd-start-marker)
+       (< (point) (mistty--eol-pos-from mistty-cmd-start-marker)))))
+
+(defun mistty-before-positional ()
+  (let ((pmark (mistty-pmark)))
+    (unless (or (mistty-on-prompt-p) (= pmark (point)))
+      (pcase mistty--possible-prompt
+        (`(,start ,end ,content)
+         (when (and (>= (point) end)
+                    (<= (point) (mistty--eol-pos-from start))
+                    (>= pmark end)
+                    (<= pmark (mistty--eol-pos-from start))
+                    (string= content (buffer-substring-no-properties start end)))
+           (mistty--move-sync-mark end 'set-prompt)
+           (mistty-send-raw-string (mistty--move-str pmark (point)))))))))
 
 (provide 'mistty)
 

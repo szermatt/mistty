@@ -560,11 +560,16 @@ all should rightly be part of term.el."
   (let ((keys (this-command-keys)))
     (mistty-send-raw-string (make-string 1 (aref keys (1- (length keys)))))))
 
-(defun mistty-delchar-or-maybe-eof (arg)
+(defun mistty-delchar-or-maybe-eof (n)
   (interactive "p")
-  (if (zerop (length (replace-regexp-in-string "[[:blank:]]*" (buffer-substring-no-properties mistty-sync-marker (mistty--eol-pos-from mistty-sync-marker)) "")))
-      (mistty-send-raw-string (kbd "C-d"))
-    (delete-char arg)))
+  (if (zerop (length
+              (replace-regexp-in-string
+               "[[:space:]]+"
+               ""
+               (buffer-substring-no-properties
+                mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
+      (mistty-send-raw-string (make-string n ?\C-d))
+    (delete-char n)))
 
 (defun mistty--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
   (when (and is-after

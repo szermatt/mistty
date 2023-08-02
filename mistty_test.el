@@ -774,7 +774,29 @@
      (mistty-run-command
       (mistty-delchar-or-maybe-eof 1))
      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc 2))))
-   
+
+(ert-deftest test-mistty-detect-possible-prompt ()
+  (with-mistty-buffer
+   (mistty-send-raw-string
+    "printf 'say %s>> ' something; read something; echo something: $something")
+   (mistty-send-command)
+   (while (not (mistty-test-find-p "say something"))
+     (accept-process-output mistty-term-proc 0 500 t))
+   (mistty-send-raw-string "foo")
+   (mistty-wait-for-output)
+   (should (equal
+            (list
+             (mistty-test-goto "say something>> ")
+             (mistty-test-goto-after "say something>> ")
+             "say something>> ")
+            mistty--possible-prompt))))
+
+(defun mistty-test-find-p (str)
+  "Returns non-nil if STR is found in the current buffer."
+  (save-excursion
+    (goto-char (point-min))
+    (search-forward str nil 'noerror)))
+
 (defun mistty-test-goto (str)
   "Search for STR, got to its beginning and return that position."
   (mistty-test-goto-after str)

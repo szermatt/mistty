@@ -40,6 +40,7 @@ properties, for example." )
 (defvar-local mistty--inhibit-sync nil)
 (defvar-local mistty--deleted-point-max nil)
 (defvar-local mistty--point-follows-next-pmark nil)
+(defvar-local mistty--possible-prompt nil)
 
 (eval-when-compile
   ;; defined in term.el
@@ -53,6 +54,8 @@ properties, for example." )
   (let ((s "Fullscreen mode ON. C-c C-j switches between the tty and scrollback buffer."))
     (add-text-properties 0 (length s) '(mistty message) s)
     s))
+
+(defvar mistty-prompt-re "[#$%>.] *$")
 
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
@@ -301,6 +304,7 @@ properties, for example." )
      ;; normal processing
      (t (let ((bracketed-paste-turned-on nil)
               (inhibit-modification-hooks t)
+              (inhibit-read-only t)
               (old-sync-position (mistty--with-live-buffer term-buffer (marker-position mistty-sync-marker)))
               (point-on-pmark (or mistty--point-follows-next-pmark
                                   (mistty--with-live-buffer work-buffer
@@ -320,12 +324,31 @@ properties, for example." )
                 (setq default-directory (buffer-local-value 'default-directory term-buffer))
               (error nil))
             (unless mistty--inhibit-sync
-              (mistty--term-to-work)
-              (when bracketed-paste-turned-on
-                (mistty--move-sync-mark (mistty-pmark) 'set-prompt))
-              (when point-on-pmark
-                (goto-char (mistty--safe-pos (mistty-pmark)))))))))))
+              (let ((pmark-on-new-line (> (mistty-pmark) (point-max))))
+                (mistty--term-to-work)
+                (when bracketed-paste-turned-on
+                  (mistty--move-sync-mark (mistty-pmark) 'set-prompt))
+                (when pmark-on-new-line
+                  (mistty--detect-possible-prompt))
+                (when point-on-pmark
+                  (goto-char (mistty--safe-pos (mistty-pmark))))))))))))
 
+(defun mistty--detect-possible-prompt ()
+  (let* ((pmark (mistty-pmark))
+         (bol (mistty--bol-pos-from pmark)))
+    (when (and (> pmark bol)
+               (= (point-max)
+                  (save-excursion
+                    (goto-char pmark)
+                    (skip-chars-forward ":space:")
+                    (point)))
+               (string-match
+                mistty-prompt-re
+                (buffer-substring-no-properties bol pmark)))
+      (setq mistty--possible-prompt
+            `(,bol ,(+ bol (match-end 0))
+                   ,(buffer-substring-no-properties bol (+ bol (match-end 0))))))))
+ 
 (defun mistty--reset-markers ()
   (mistty--with-live-buffer mistty-work-buffer
     (goto-char (point-max))

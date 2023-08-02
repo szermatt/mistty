@@ -397,7 +397,7 @@ all should rightly be part of term.el."
 (defun mistty--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-get proc 'mistty-term-buffer)))
-    (if (and (string-match "\e\\[\\(\\??47\\|\\?104[79]\\)l\\(\e8\\)?" str)
+    (if (and (string-match "\e\\[\\(\\??47\\|\\?104[79]\\)l\\(\e8\\|\e\\[\\?1048l\\)?" str)
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
         (let ((after-rmcup-pos (match-beginning 0)))

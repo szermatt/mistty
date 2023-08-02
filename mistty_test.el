@@ -463,21 +463,32 @@
       (should (equal (concat " mistty tty " bufname) (buffer-name term-buffer)))
       (should (equal bufname (buffer-name work-buffer))))))
 
-(ert-deftest test-mistty-enter-fullscreen-alternative-code ()
+(defun misty-test-enter-fullscreen (on-seq off-seq)
   (with-mistty-buffer-selected
-    (let ((work-buffer mistty-work-buffer)
-          (proc mistty-term-proc))
+   (let ((work-buffer mistty-work-buffer)
+         (proc mistty-term-proc))
 
-      (mistty-send-raw-string "printf '\\e[?47hPress ENTER: ' && read && printf '\\e[?47lfullscreen off\n'")
-      (mistty-send-command)
-      (while (not (buffer-local-value 'mistty-fullscreen work-buffer))
-        (accept-process-output proc 0 500 t))
-      (should (eq mistty-term-buffer (window-buffer (selected-window))))
+     (mistty-send-raw-string
+      (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off\n'"
+              on-seq off-seq))
+     (mistty-send-command)
+     (while (not (buffer-local-value 'mistty-fullscreen work-buffer))
+       (accept-process-output proc 0 500 t))
+     (should (eq mistty-term-buffer (window-buffer (selected-window))))
 
-      (execute-kbd-macro (kbd "RET"))
-      (while (buffer-local-value 'mistty-fullscreen work-buffer)
-        (accept-process-output proc 0 500 t))
-      (should (eq mistty-work-buffer (window-buffer (selected-window)))))))
+     (execute-kbd-macro (kbd "RET"))
+     (while (buffer-local-value 'mistty-fullscreen work-buffer)
+       (accept-process-output proc 0 500 t))
+     (should (eq mistty-work-buffer (window-buffer (selected-window)))))))
+
+(ert-deftest test-mistty-enter-fullscreen-alternative-code ()
+  (misty-test-enter-fullscreen "[?47h" "[?47l"))
+
+(ert-deftest test-mistty-enter-fullscreen-1047 ()
+  (misty-test-enter-fullscreen "[?1047h" "[?1047l"))
+
+(ert-deftest test-mistty-enter-fullscreen-1049 ()
+  (misty-test-enter-fullscreen "[?1049h" "[?1049l"))
 
 (ert-deftest test-mistty-kill-fullscreen-buffer-kills-scrollback ()
   (with-mistty-buffer-selected

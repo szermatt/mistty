@@ -60,6 +60,7 @@ properties, for example." )
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") 'mistty-send-raw-key)
+    (define-key map (kbd "C-c C-d") 'mistty-send-raw-key)
     (define-key map (kbd "C-c C-z") 'mistty-send-raw-key)
     (define-key map (kbd "C-c C-\\") 'mistty-send-raw-key)
     (define-key map (kbd "C-c C-p") 'mistty-send-raw-key)

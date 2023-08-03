@@ -631,10 +631,10 @@ all should rightly be part of term.el."
       (when (> old-end (point-max))
         (setq mistty--deleted-point-max t)))))
 
-(defun mistty--collect-modifications ()
+(defun mistty--collect-modifications (&optional intervals)
   (let ((changes nil)
         (last-shift 0)
-        (intervals (mistty--collect-modification-intervals)))
+        (intervals (or intervals (mistty--collect-modification-intervals))))
     (while intervals
       (pcase intervals
         ;; insert in the middle, possibly replacing a section of text
@@ -705,6 +705,34 @@ all should rightly be part of term.el."
           (remove-text-properties (point-min) (point-max) '(mistty-change t)))
         
         (nreverse intervals)))))
+
+(defun misty--restrict-modification-intervals (intervals min-pos)
+    (while (pcase intervals
+             ((and `((,_ . ,_ ) (,pos2 . ,_) . ,_) (guard (<= pos2 min-pos)))
+              (setq intervals (cdr intervals))
+              t)))
+    
+    ;; intervals now points to the first relevant section, which likely
+    ;; starts before min-pos. 
+    (let ((base-shift
+           (pcase intervals
+             (`((,_ shift ,shift) . ,_) shift)
+             (`((,_ inserted) (,pos2 shift ,shift) . ,_)
+              (+ shift (- pos2 min-pos)))
+             (_ ;; other interval restrictions aren't supported
+              nil))))
+      (when (and base-shift intervals)
+        (setcar (car intervals) min-pos)
+        
+        ;; shifts must be relative to base-shift
+        (setq intervals
+              (mapcar
+               (lambda (cur)
+                 (pcase cur
+                   (`(,pos shift ,shift) `(,pos shift ,(- shift base-shift)))
+                   (_ cur)))
+               intervals))
+        (cons base-shift intervals))))
 
 (defun mistty--replay-modifications (modifications)
   (dolist (m modifications)

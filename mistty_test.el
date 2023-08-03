@@ -669,6 +669,125 @@
 
     (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--collect-modifications))))))
 
+(ert-deftest test-mistty-restrict-intervals ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (delete-region 6 9)
+    (goto-char 6)
+    (insert "new-value")
+    
+    (delete-region 18 21)
+
+    (should (equal "$ abcnew-valueghimno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+    ;;             "$ abcdefg      hijklmno<<end>>"
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((6 inserted)
+                       (15 shift -6)
+                       (18 shift -3)) intervals))
+      (let ((result (misty--restrict-modification-intervals intervals 16)))
+        (should (equal '(-6 . ((16 shift 0) (18 shift 3))) result))
+        (should (equal '((18 "" 3)) (mistty--collect-modifications (cdr result)))))))))
+
+(ert-deftest test-mistty-restrict-intervals-starts-within-insert ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (delete-region 6 9)
+    (goto-char 6)
+    (insert "new-value")
+    
+    (delete-region 18 21)
+
+    (should (equal "$ abcnew-valueghimno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+    ;;             "$ abcdef ghijklmno<<end>>"
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((6 inserted)
+                       (15 shift -6)
+                       (18 shift -3)) intervals))
+      (let ((result (misty--restrict-modification-intervals intervals 10)))
+        (should (equal '(-1 . ((10 inserted) (15 shift -5) (18 shift -2))) result))
+        (should (equal '((13 "" 3) (10 "value" 0)) (mistty--collect-modifications (cdr result)))))))))
+
+(ert-deftest test-mistty-restrict-intervals-starts-within-insert-at-end ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcdef")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (goto-char 9)
+    (insert "NEW")
+    
+    (should (equal "$ abcdefNEW" (buffer-substring-no-properties (point-min) (point-max))))
+    ;;             "$ abcdef"
+    
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((9 inserted)) intervals))
+      (should (null (misty--restrict-modification-intervals intervals 10)))))))
+
+(ert-deftest test-mistty-restrict-intervals-within-insert-then-delete-at-end ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (delete-region 6 (point-max))
+    (goto-char 6)
+    (insert "new-value")
+    
+    (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((6 inserted)
+                       (15 deleted-to-end)) intervals))
+      (should (null (misty--restrict-modification-intervals intervals 10)))))))
+
+(ert-deftest test-mistty-restrict-intervals-within-delete-at-end ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcdefghijklmno<<end>>")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (delete-region 6 (point-max))
+    (goto-char 6)
+    (insert "new-value")
+    
+    (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
+
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((6 inserted)
+                       (15 deleted-to-end)) intervals))
+      (should (null (misty--restrict-modification-intervals intervals 15)))))))
+
 (ert-deftest test-mistty-osc ()
   (with-mistty-buffer
     (let ((osc-list))

@@ -537,11 +537,11 @@ all should rightly be part of term.el."
                 (mistty--bol-pos-from pmark)))
         (= (point) pmark))))
 
-(defun mistty--bol-pos-from (pos)
+(defun mistty--bol-pos-from (pos &optional n)
   (save-excursion
     (goto-char pos)
     (let ((inhibit-field-text-motion t))
-      (line-beginning-position))))
+      (line-beginning-position n))))
 
 (defun mistty--eol-pos-from (pos)
   (save-excursion
@@ -602,7 +602,7 @@ all should rightly be part of term.el."
                  mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
        (progn
          (mistty-before-positional)
-         (not (mistty-on-prompt-p))))
+         (not (mistty-on-prompt-p (point)))))
       (mistty-send-raw-string (make-string n ?\C-d))
     (delete-char n)))
 
@@ -844,7 +844,7 @@ END section to be valid in the term buffer."
              (>= (point) mistty-sync-marker)
              (process-live-p mistty-term-proc)
              (buffer-live-p mistty-term-buffer)
-             (mistty-on-prompt-p))
+             (mistty-on-prompt-p (point)))
     (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point)))))
 
 (defun mistty--window-size-change (&optional _win)
@@ -932,27 +932,49 @@ END section to be valid in the term buffer."
     (error "No scrollback buffer available.")))
 
 (defun mistty-positional-key-p (key)
-  (memq key mistty-positional-keys))
+  (seq-contains mistty-positional-keys key))
 
-(defun mistty-on-prompt-p ()
-  (or mistty-bracketed-paste
-      (and 
-       (> mistty-cmd-start-marker mistty-sync-marker)
-       (> (point) mistty-cmd-start-marker)
-       (< (point) (mistty--eol-pos-from mistty-cmd-start-marker)))))
+(defun mistty-on-prompt-p (pos)
+  (and (> pos mistty-cmd-start-marker)
+       (or mistty-bracketed-paste
+           (and 
+            (> mistty-cmd-start-marker mistty-sync-marker)
+            (>= pos mistty-cmd-start-marker)
+            (<= pos (mistty--eol-pos-from mistty-cmd-start-marker))))))
 
 (defun mistty-before-positional ()
   (let ((pmark (mistty-pmark)))
-    (unless (or (mistty-on-prompt-p) (= pmark (point)))
-      (pcase mistty--possible-prompt
-        (`(,start ,end ,content)
-         (when (and (>= (point) end)
-                    (<= (point) (mistty--eol-pos-from start))
-                    (>= pmark end)
-                    (<= pmark (mistty--eol-pos-from start))
-                    (string= content (buffer-substring-no-properties start end)))
-           (mistty--move-sync-mark end 'set-prompt)
-           (mistty-send-raw-string (mistty--move-str pmark (point)))))))))
+    (when (and (not (= pmark (point)))
+               (not (mistty-on-prompt-p (point)))
+               (mistty--possible-prompt-p)
+               (mistty--possible-prompt-contains (point)))
+      (mistty--realize-possible-prompt)
+      (mistty-send-raw-string (mistty--move-str pmark (point))))))
+
+(defun mistty--realize-possible-prompt ()
+  (pcase mistty--possible-prompt
+    (`(,_ ,end ,_)
+     (mistty--move-sync-mark end 'set-prompt))))
+
+(defun mistty--possible-prompt-p ()
+  (pcase mistty--possible-prompt
+    (`(,start ,end ,content)
+     (let ((pmark (mistty-pmark)))
+       (and (> start mistty-cmd-start-marker)
+            (>= pmark end)
+            (<= pmark (mistty--eol-pos-from start))
+            (string= content (buffer-substring-no-properties start end)))))))
+
+(defun mistty--possible-prompt-contains (pos)
+  (pcase mistty--possible-prompt
+    (`(,start ,line-start ,_)
+     (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
+
+;; (defun mistty--possible-prompt-intersects (range-start range-end)
+;;   (pcase mistty--possible-prompt
+;;     (`(,prompt-start ,line-start ,_)
+;;      (let ((line-end (mistty--eol-pos-from prompt-start)))
+;;        (and (> range-end line-start) (<= range-start line-end))))))
 
 (provide 'mistty)
 

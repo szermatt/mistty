@@ -634,11 +634,7 @@ all should rightly be part of term.el."
 (defun mistty--collect-modifications ()
   (let ((changes nil)
         (last-shift 0)
-        (intervals (mistty--change-intervals mistty--deleted-point-max)))
-    (setq mistty--deleted-point-max nil)
-    (let ((inhibit-read-only t)
-          (inhibit-modification-hooks t))
-      (remove-text-properties mistty-cmd-start-marker (point-max) '(mistty-change t)))
+        (intervals (mistty--collect-modification-intervals)))
     (while intervals
       (pcase intervals
         ;; insert in the middle, possibly replacing a section of text
@@ -685,7 +681,7 @@ all should rightly be part of term.el."
       (setq intervals (cdr intervals)))
     changes))
 
-(defun mistty--change-intervals (&optional deleted-to-end)
+(defun mistty--collect-modification-intervals ()
   (save-excursion
     (save-restriction
       (narrow-to-region mistty-cmd-start-marker (point-max))
@@ -701,10 +697,15 @@ all should rightly be part of term.el."
                  (< (point) (point-max))))
         (when last-at-point
           (push `(,last-point . ,last-at-point) intervals))
-        (when deleted-to-end
+        (when mistty--deleted-point-max
           (push `(,(point-max) deleted-to-end) intervals))
+        (setq mistty--deleted-point-max nil)
+        (let ((inhibit-read-only t)
+              (inhibit-modification-hooks t))
+          (remove-text-properties (point-min) (point-max) '(mistty-change t)))
+        
         (nreverse intervals)))))
-
+  
 (defun mistty--replay-modification (orig-beg content old-length)
   (let* ((pmark (mistty-pmark))
          (beg orig-beg)

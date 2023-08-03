@@ -838,8 +838,7 @@ END section to be valid in the term buffer."
   (mistty--with-live-buffer buf
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
-      (let ((modifications (mistty--collect-modifications))
-            restricted modifications-end)
+      (let ((modifications (mistty--collect-modifications)))
         (cond
          ;; nothing to do
          ((null modifications))
@@ -958,7 +957,7 @@ END section to be valid in the term buffer."
     (error "No scrollback buffer available.")))
 
 (defun mistty-positional-key-p (key)
-  (seq-contains mistty-positional-keys key))
+  (seq-contains-p mistty-positional-keys key))
 
 (defun mistty-on-prompt-p (pos)
   (and (>= pos mistty-cmd-start-marker)

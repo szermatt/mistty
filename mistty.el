@@ -705,7 +705,11 @@ all should rightly be part of term.el."
           (remove-text-properties (point-min) (point-max) '(mistty-change t)))
         
         (nreverse intervals)))))
-  
+
+(defun mistty--replay-modifications (modifications)
+  (dolist (m modifications)
+    (apply #'mistty--replay-modification m)))
+
 (defun mistty--replay-modification (orig-beg content old-length)
   (let* ((pmark (mistty-pmark))
          (beg orig-beg)
@@ -834,9 +838,30 @@ END section to be valid in the term buffer."
   (mistty--with-live-buffer buf
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
-      (let ((changes (save-excursion (mistty--collect-modifications))))
-        (dolist (c changes)
-          (apply #'mistty--replay-modification c)))))
+      (let ((modifications (mistty--collect-modifications))
+            restricted modifications-end)
+        (cond
+         ;; nothing to do
+         ((null modifications))
+
+         ;; modifications are part of the current prompt; replay them
+         ((mistty-on-prompt-p (mistty-pmark))
+          (mistty--replay-modifications modifications))
+
+         ;; TODO: modifications are part of a possible prompt; realize it, keep the modifications before the
+         ;; new prompt and replay the modifications after the new prompt.
+         ;; ((and (mistty--possible-prompt-p)
+         ;;       (setq restricted (mistty--restrict-intervals intervals (nth 1 mistty--possible-prompt))))
+         ;;  (message "mistty-post-command-1: realize possble prompt %s, intervals %s, restricted %s" (nth 1 mistty--possible-prompt) intervals restricted)
+         ;;  (mistty--realize-possible-prompt)
+         ;;  (mistty--replay-all-modifications (mistty--intervals-to-modifications restricted)))
+
+         ;; TODO: Move the sync mark to the line after the last change, leaving the modifications in place.
+
+         ;; revert the modifications
+         (t
+          (message "mistty-post-command-1: revert the modifications")
+          (mistty--term-to-work))))))
 
   ;; move process mark to follow point
   (when (and mistty--old-point
@@ -936,7 +961,7 @@ END section to be valid in the term buffer."
   (seq-contains mistty-positional-keys key))
 
 (defun mistty-on-prompt-p (pos)
-  (and (> pos mistty-cmd-start-marker)
+  (and (>= pos mistty-cmd-start-marker)
        (or mistty-bracketed-paste
            (and 
             (> mistty-cmd-start-marker mistty-sync-marker)

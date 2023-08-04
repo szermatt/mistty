@@ -121,7 +121,11 @@ properties, for example." )
 (define-derived-mode mistty-mode fundamental-mode "misTTY" "Line-based TTY."
   :interactive nil
   (setq buffer-read-only nil)
-  (setq mistty-work-buffer (current-buffer)))
+  (setq mistty-work-buffer (current-buffer))
+  ;; scroll only when needed. This typically keeps the point at the
+  ;; end of the window. This seems to be more in-line with what
+  ;; commands such as more expect than the default Emacs behavior.
+  (setq scroll-conservatively 1024))
 (put 'mistty-mode 'mode-class 'special)
 
 (defun mistty--exec (program &rest args)

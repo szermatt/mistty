@@ -566,7 +566,11 @@ all should rightly be part of term.el."
 (defun mistty-send-command ()
   "Send the current command to the shell."
   (interactive)
-  (goto-char (mistty-pmark))
+  (when (and (not (mistty-on-prompt-p (point)))
+             (mistty--possible-prompt-p)
+             (mistty--possible-prompt-contains (point)))
+    (message "mark possible prompt")
+    (mistty--realize-possible-prompt))
   (setq mistty--point-follows-next-pmark t)
   (mistty-send-raw-string "\C-m"))
 

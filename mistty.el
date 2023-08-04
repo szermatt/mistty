@@ -810,7 +810,7 @@ all should rightly be part of term.el."
             (when (> end beg)
               (mistty--maybe-bracketed-str
                (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
-      (when replay-seq
+      (when (length> replay-seq 0)
         (when (= (point) end)
           (setq mistty--point-follows-next-pmark t))
         (mistty-send-raw-string replay-seq)

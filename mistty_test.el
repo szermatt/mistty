@@ -465,7 +465,7 @@
       (should (equal (concat " mistty tty " bufname) (buffer-name term-buffer)))
       (should (equal bufname (buffer-name work-buffer))))))
 
-(defun misty-test-enter-fullscreen (on-seq off-seq)
+(defun mistty-test-enter-fullscreen (on-seq off-seq)
   (with-mistty-buffer-selected
    (let ((work-buffer mistty-work-buffer)
          (proc mistty-term-proc))
@@ -484,13 +484,13 @@
      (should (eq mistty-work-buffer (window-buffer (selected-window)))))))
 
 (ert-deftest test-mistty-enter-fullscreen-alternative-code ()
-  (misty-test-enter-fullscreen "[?47h" "[?47l"))
+  (mistty-test-enter-fullscreen "[?47h" "[?47l"))
 
 (ert-deftest test-mistty-enter-fullscreen-1047 ()
-  (misty-test-enter-fullscreen "[?1047h" "[?1047l"))
+  (mistty-test-enter-fullscreen "[?1047h" "[?1047l"))
 
 (ert-deftest test-mistty-enter-fullscreen-1049 ()
-  (misty-test-enter-fullscreen "[?1049h" "[?1049l"))
+  (mistty-test-enter-fullscreen "[?1049h" "[?1049l"))
 
 (ert-deftest test-mistty-kill-fullscreen-buffer-kills-scrollback ()
   (with-mistty-buffer-selected
@@ -692,7 +692,7 @@
       (should (equal '((6 inserted)
                        (15 shift -6)
                        (18 shift -3)) intervals))
-      (let ((result (misty--restrict-modification-intervals intervals 16)))
+      (let ((result (mistty--restrict-modification-intervals intervals 16)))
         (should (equal '(-6 . ((16 shift 0) (18 shift 3))) result))
         (should (equal '((18 "" 3)) (mistty--collect-modifications (cdr result)))))))))
 
@@ -719,7 +719,7 @@
       (should (equal '((6 inserted)
                        (15 shift -6)
                        (18 shift -3)) intervals))
-      (let ((result (misty--restrict-modification-intervals intervals 10)))
+      (let ((result (mistty--restrict-modification-intervals intervals 10)))
         (should (equal '(-1 . ((10 inserted) (15 shift -5) (18 shift -2))) result))
         (should (equal '((13 "" 3) (10 "value" 0)) (mistty--collect-modifications (cdr result)))))))))
 
@@ -742,7 +742,7 @@
     
     (let ((intervals (mistty--collect-modification-intervals)))
       (should (equal '((9 inserted)) intervals))
-      (should (null (misty--restrict-modification-intervals intervals 10)))))))
+      (should (null (mistty--restrict-modification-intervals intervals 10)))))))
 
 (ert-deftest test-mistty-restrict-intervals-within-insert-then-delete-at-end ()
   (ert-with-test-buffer ()
@@ -764,7 +764,7 @@
     (let ((intervals (mistty--collect-modification-intervals)))
       (should (equal '((6 inserted)
                        (15 deleted-to-end)) intervals))
-      (should (null (misty--restrict-modification-intervals intervals 10)))))))
+      (should (null (mistty--restrict-modification-intervals intervals 10)))))))
 
 (ert-deftest test-mistty-restrict-intervals-within-delete-at-end ()
   (ert-with-test-buffer ()
@@ -786,7 +786,7 @@
     (let ((intervals (mistty--collect-modification-intervals)))
       (should (equal '((6 inserted)
                        (15 deleted-to-end)) intervals))
-      (should (null (misty--restrict-modification-intervals intervals 15)))))))
+      (should (null (mistty--restrict-modification-intervals intervals 15)))))))
 
 (ert-deftest test-mistty-osc ()
   (with-mistty-buffer
@@ -957,6 +957,104 @@
     (mistty-delchar-or-maybe-eof 1))
    ;; deleted the first 1, the command-line is now 1 + 1
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
+
+(ert-deftest test-mistty-python-edit-prompt ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   
+   (mistty-run-command
+    (insert "10 * 10"))
+   
+   (should (equal "100" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   ;; the prompt was identified and labelled
+   (mistty-previous-prompt 1)
+   (should (looking-at (regexp-quote "10 * 10")))))
+
+(ert-deftest test-mistty-python-edit-before-prompt ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   
+   (mistty-send-raw-string "1 + 1")
+   (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   (mistty-send-raw-string "3 + 3")
+   (should (equal "6" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   (mistty-send-raw-string "5 + 5")
+   (mistty-wait-for-output)
+
+   (mistty-run-command
+    (goto-char (point-min))
+    (while (search-forward "+" nil 'noerror)
+      (replace-match "*")))
+
+   ;; The last prompt became 5 * 5
+   (should (equal "25" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   ;; the text of the previous prompts was modified, too.
+   (mistty-test-goto "1 * 1")
+   (mistty-test-goto "3 * 3")))
+
+(ert-deftest test-mistty-more-edit-before-prompt ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   
+   (mistty-send-raw-string "1 + 1")
+   (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   (mistty-send-raw-string "3 + 3")
+   (should (equal "6" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   (mistty-send-raw-string "5 + 5")
+   (mistty-wait-for-output)
+
+   (mistty-run-command
+    (goto-char (point-min))
+    (while (search-forward "+" nil 'noerror)
+      (replace-match "*")))
+
+   ;; The last prompt became 5 * 5
+   (should (equal "25" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+
+   ;; the text of the previous prompts was modified, too.
+   (mistty-test-goto "1 * 1")
+   (mistty-test-goto "3 * 3")))
+
+(ert-deftest test-mistty-edit-without-prompt ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "echo hello, world")
+   (mistty-send-and-wait-for-prompt)
+   (let ((before-send (point)) after-line-10)
+     (mistty-send-raw-string "for i in {1..100} ; do echo \"line $i\"; done | more")
+     (mistty-send-command)
+     (while (not (progn
+                   (goto-char before-send)
+                   (search-forward-regexp "line 10" nil 'no-error)))
+       (while (accept-process-output mistty-term-proc 0 500 t)))
+     (setq after-line-10 (point-marker))
+     ;; wait for more's prompt
+     (while (not (progn
+                   (goto-char after-line-10)
+                   (search-forward-regexp "^[^l]" nil 'no-error)))
+       (while (accept-process-output mistty-term-proc 0 500 t)))
+
+     ;; edit from prompt to line 10
+     (mistty-run-command
+      (goto-char (point-min))
+      (while (search-forward "line" after-line-10 'noerror)
+        (replace-match "replacement"))))
+
+   ;; lines 1-10 are now called replacement
+   (mistty-test-goto "replacement 1\nreplacement 2\n")
+   (mistty-test-goto "replacement 9\nreplacement 10\nline 11\nline 12\n")
+
+   ;; quit more and go back to the normal prompt
+   (mistty-send-and-wait-for-prompt
+    (lambda () (mistty-send-raw-string "q")))))
 
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."

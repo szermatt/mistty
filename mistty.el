@@ -507,22 +507,36 @@ all should rightly be part of term.el."
     (with-current-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (- (point-max) chars-from-end)))
     (with-current-buffer mistty-work-buffer
-      (when (> mistty-cmd-start-marker mistty-sync-marker)
-        (let ((inhibit-read-only t))
-          (remove-text-properties mistty-sync-marker mistty-cmd-start-marker '(read-only t))))
-      (let* ((sync-pos (- (point-max) chars-from-end))
-             (cmd-start-pos (+ sync-pos chars-from-bol)))
-        (move-marker mistty-sync-marker sync-pos)
-        (move-marker mistty-cmd-start-marker cmd-start-pos)
-        (move-overlay mistty-sync-ov sync-pos (point-max))
-        (when (and set-prompt (> cmd-start-pos sync-pos))
-          (let ((inhibit-read-only t))
-            (add-text-properties sync-pos cmd-start-pos
-                                 '(mistty prompt
-                                         field 'mistty-prompt
-                                         rear-nonsticky t))
-            (add-text-properties sync-pos cmd-start-pos
-                                 '(read-only t front-sticky t))))))))
+      (let ((sync-pos (- (point-max) chars-from-end)))
+        (mistty--set-prompt
+         sync-pos
+         (+ sync-pos (if set-prompt chars-from-bol 0)))))))
+
+(defun mistty--move-sync-mark-with-shift (sync-pos cmd-start-pos shift)
+  (let ((diff (- sync-pos mistty-sync-marker)))
+    (with-current-buffer mistty-term-buffer
+      (move-marker mistty-sync-marker (+ mistty-sync-marker diff shift))))
+  (with-current-buffer mistty-work-buffer
+    (mistty--set-prompt sync-pos cmd-start-pos)))
+
+(defun mistty--set-prompt (sync-pos cmd-start-pos)
+  (let ((cmd-start-pos (max sync-pos cmd-start-pos))
+        (inhibit-read-only t)
+        (inhibit-modification-hooks t))
+    (when (> mistty-cmd-start-marker mistty-sync-marker)
+      (remove-text-properties mistty-sync-marker mistty-cmd-start-marker '(read-only t)))
+    (move-marker mistty-sync-marker sync-pos)
+    (move-marker mistty-cmd-start-marker cmd-start-pos)
+    (move-overlay mistty-sync-ov sync-pos (point-max))
+    (when (> cmd-start-pos sync-pos)
+      (add-text-properties sync-pos cmd-start-pos
+                           '(mistty prompt
+                                    field 'mistty-prompt
+                                    face (background-color . "cyan")
+                                    rear-nonsticky t))
+      (add-text-properties sync-pos cmd-start-pos
+                           '(read-only t front-sticky t)))))
+
 
 (defun mistty-send-raw-string (str)
   (when (and str (not (zerop (length str))))
@@ -706,33 +720,42 @@ all should rightly be part of term.el."
         
         (nreverse intervals)))))
 
-(defun misty--restrict-modification-intervals (intervals min-pos)
-    (while (pcase intervals
-             ((and `((,_ . ,_ ) (,pos2 . ,_) . ,_) (guard (<= pos2 min-pos)))
-              (setq intervals (cdr intervals))
-              t)))
-    
-    ;; intervals now points to the first relevant section, which likely
-    ;; starts before min-pos. 
-    (let ((base-shift
-           (pcase intervals
-             (`((,_ shift ,shift) . ,_) shift)
-             (`((,_ inserted) (,pos2 shift ,shift) . ,_)
-              (+ shift (- pos2 min-pos)))
-             (_ ;; other interval restrictions aren't supported
-              nil))))
-      (when (and base-shift intervals)
-        (setcar (car intervals) min-pos)
-        
-        ;; shifts must be relative to base-shift
-        (setq intervals
-              (mapcar
-               (lambda (cur)
-                 (pcase cur
-                   (`(,pos shift ,shift) `(,pos shift ,(- shift base-shift)))
-                   (_ cur)))
-               intervals))
-        (cons base-shift intervals))))
+(defun mistty--restrict-modification-intervals (intervals min-pos)
+    (if (and (caar intervals) (>= (caar intervals) min-pos))
+        (cons 0 intervals)
+      
+      ;; apply restrictions
+      (while (pcase intervals
+               ((and `((,_ . ,_ ) (,pos2 . ,_) . ,_) (guard (<= pos2 min-pos)))
+                (setq intervals (cdr intervals))
+                t)))
+      
+      ;; intervals now points to the first relevant section, which likely
+      ;; starts before min-pos. 
+      (let ((base-shift
+             (pcase intervals
+               (`((,_ shift ,shift) . ,_) shift)
+               (`((,_ inserted) (,pos2 shift ,shift) . ,_)
+                (+ shift (- pos2 min-pos)))
+               (_ ;; other interval restrictions aren't supported
+                nil))))
+        (when (and base-shift intervals)
+          (setcar (car intervals) min-pos)
+          
+          ;; shifts must be relative to base-shift
+          (setq intervals
+                (mapcar
+                 (lambda (cur)
+                   (pcase cur
+                     (`(,pos shift ,shift) `(,pos shift ,(- shift base-shift)))
+                     (_ cur)))
+                 intervals))
+          (cons base-shift intervals)))))
+
+(defun mistty--modification-intervals-end (intervals)
+  (pcase (car (last intervals))
+    (`(,pos shift ,_) pos)
+    (_ (point-max))))
 
 (defun mistty--replay-modifications (modifications)
   (dolist (m modifications)
@@ -866,29 +889,32 @@ END section to be valid in the term buffer."
   (mistty--with-live-buffer buf
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
-      (let ((modifications (mistty--collect-modifications)))
+      (let* ((intervals (mistty--collect-modification-intervals))
+             (intervals-end (mistty--modification-intervals-end intervals))
+             (modifiable-limit (mistty--bol-pos-from (point-max) -5)))
         (cond
          ;; nothing to do
-         ((null modifications))
+         ((null intervals))
 
          ;; modifications are part of the current prompt; replay them
          ((mistty-on-prompt-p (mistty-pmark))
-          (mistty--replay-modifications modifications))
+          (mistty--replay-modifications (mistty--collect-modifications intervals)))
 
-         ;; TODO: modifications are part of a possible prompt; realize it, keep the modifications before the
+         ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
-         ;; ((and (mistty--possible-prompt-p)
-         ;;       (setq restricted (mistty--restrict-intervals intervals (nth 1 mistty--possible-prompt))))
-         ;;  (message "mistty-post-command-1: realize possble prompt %s, intervals %s, restricted %s" (nth 1 mistty--possible-prompt) intervals restricted)
-         ;;  (mistty--realize-possible-prompt)
-         ;;  (mistty--replay-all-modifications (mistty--intervals-to-modifications restricted)))
+         ((and (mistty--possible-prompt-p)
+               (setq restricted (mistty--restrict-modification-intervals intervals (nth 0 mistty--possible-prompt))))
+          (mistty--realize-possible-prompt (car restricted))
+          (mistty--replay-modifications (mistty--collect-modifications (cdr restricted))))
 
-         ;; TODO: Move the sync mark to the line after the last change, leaving the modifications in place.
+         ;; leave all modifications if there's enough of an unmodified section at the end
+         ((and intervals-end (< intervals-end modifiable-limit))
+          (mistty--move-sync-mark (mistty--bol-pos-from intervals-end 2)))
 
-         ;; revert the modifications
+         ;; revert modifications
          (t
-          (message "mistty-post-command-1: revert the modifications")
-          (mistty--term-to-work))))))
+          (mistty--term-to-work))
+         ))))
 
   ;; move process mark to follow point
   (when (and mistty--old-point
@@ -1004,10 +1030,13 @@ END section to be valid in the term buffer."
       (mistty--realize-possible-prompt)
       (mistty-send-raw-string (mistty--move-str pmark (point))))))
 
-(defun mistty--realize-possible-prompt ()
+(defun mistty--realize-possible-prompt (&optional shift)
   (pcase mistty--possible-prompt
-    (`(,_ ,end ,_)
-     (mistty--move-sync-mark end 'set-prompt))))
+    (`(,start ,end ,_ )
+     (if shift
+         (mistty--move-sync-mark-with-shift start end shift)
+       (mistty--move-sync-mark end 'set-prompt)))
+    (_ (error))))
 
 (defun mistty--possible-prompt-p ()
   (pcase mistty--possible-prompt

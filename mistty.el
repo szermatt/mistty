@@ -891,7 +891,8 @@ END section to be valid in the term buffer."
                (buffer-live-p mistty-term-buffer))
       (let* ((intervals (mistty--collect-modification-intervals))
              (intervals-end (mistty--modification-intervals-end intervals))
-             (modifiable-limit (mistty--bol-pos-from (point-max) -5)))
+             (modifiable-limit (mistty--bol-pos-from (point-max) -5))
+             restricted)
         (cond
          ;; nothing to do
          ((null intervals))
@@ -1036,7 +1037,7 @@ END section to be valid in the term buffer."
      (if shift
          (mistty--move-sync-mark-with-shift start end shift)
        (mistty--move-sync-mark end 'set-prompt)))
-    (_ (error))))
+    (_ (error "no possible prompt"))))
 
 (defun mistty--possible-prompt-p ()
   (pcase mistty--possible-prompt

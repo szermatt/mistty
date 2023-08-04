@@ -485,8 +485,9 @@ all should rightly be part of term.el."
             (move-marker mistty-cmd-start-marker mistty-sync-marker)
             (setq prompt-length 0))
           (goto-char mistty-cmd-start-marker)
-          (insert (with-current-buffer mistty-term-buffer
-                    (buffer-substring (+ mistty-sync-marker prompt-length) (point-max))))
+          (insert-buffer-substring
+           mistty-term-buffer (with-current-buffer mistty-term-buffer
+                                (+ mistty-sync-marker prompt-length)))
           (delete-region (point) (point-max))
           
           ;; recover buffer state possibly destroyed by delete-region.

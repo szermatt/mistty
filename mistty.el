@@ -122,10 +122,13 @@ properties, for example." )
   :interactive nil
   (setq buffer-read-only nil)
   (setq mistty-work-buffer (current-buffer))
-  ;; scroll only when needed. This typically keeps the point at the
-  ;; end of the window. This seems to be more in-line with what
+  
+  ;; scroll down only when needed. This typically keeps the point at
+  ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
-  (setq scroll-conservatively 1024))
+  (setq scroll-conservatively 0)
+  (setq scroll-up-aggressively 0)
+  (setq scroll-down-aggressively nil))
 (put 'mistty-mode 'mode-class 'special)
 
 (defun mistty--exec (program &rest args)

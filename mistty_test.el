@@ -213,7 +213,7 @@
    (mistty-send-raw-string "read yesorno && echo answer: $yesorno\n")
    (mistty-wait-for-output)
    (should (equal mistty-bracketed-paste nil))
-   (mistty-run-command (insert "no"))
+   (mistty-send-raw-string "no")
    (should (equal "answer: no" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-bol ()
@@ -696,6 +696,70 @@
         (should (equal '(-6 . ((16 shift 0) (18 shift 3))) result))
         (should (equal '((18 "" 3)) (mistty--collect-modifications (cdr result)))))))))
 
+(ert-deftest test-mistty-restrict-intervals-before-changes ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcd<<end>>")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (goto-char 6)
+    (insert "new-value")
+    
+    (should (equal "$ abcnew-valued<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((6 inserted)
+                       (15 shift -9)) intervals))
+      (let ((result (mistty--restrict-modification-intervals intervals 4)))
+        (should (equal '( 0 . ((6 inserted)
+                               (15 shift -9))) result)))))))
+
+(ert-deftest test-mistty-restrict-intervals-exactly-before-insert ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcd<<end>>")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (delete-region 6 7)
+    (goto-char 6)
+    (insert "new-value")
+    
+    (should (equal "$ abcnew-value<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((6 inserted)
+                       (15 shift -8)) intervals))
+      (let ((result (mistty--restrict-modification-intervals intervals 6)))
+        (should (equal '( 0 . ((6 inserted)
+                               (15 shift -8))) result)))))))
+
+(ert-deftest test-mistty-restrict-intervals-exactly-before-shift ()
+  (ert-with-test-buffer ()
+    (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
+    (insert "$ ")
+    (move-overlay ov (point) (point-max-marker))
+    (setq mistty-cmd-start-marker (point))
+    
+    (insert "abcd<<end>>")
+    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+
+    (delete-region 6 7)
+    
+    (should (equal "$ abc<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
+    (let ((intervals (mistty--collect-modification-intervals)))
+      (should (equal '((6 shift 1)) intervals))
+      (let ((result (mistty--restrict-modification-intervals intervals 6)))
+        (should (equal '( 0 . ((6 shift 1))) result)))))))
+
 (ert-deftest test-mistty-restrict-intervals-starts-within-insert ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
@@ -952,8 +1016,8 @@
    (mistty-send-and-wait-for-prompt nil ">>> ")
    (mistty-send-raw-string "11 + 1")
    (mistty-wait-for-output)
-   (mistty-test-goto "11 + 1")
    (mistty-run-command
+    (mistty-test-goto "11 + 1")
     (mistty-delchar-or-maybe-eof 1))
    ;; deleted the first 1, the command-line is now 1 + 1
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))

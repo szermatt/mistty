@@ -615,9 +615,11 @@ all should rightly be part of term.el."
                 (buffer-substring-no-properties
                  mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
        (progn
-         (mistty-before-positional)
+         (mistty-before-positional 'nomove)
          (not (mistty-on-prompt-p (point)))))
-      (mistty-send-raw-string (make-string n ?\C-d))
+      (progn
+       (mistty-send-raw-string (concat (mistty--move-str (mistty-pmark) (point))
+                                       (make-string n ?\C-d))))
     (delete-char n)))
 
 (defun mistty--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
@@ -1022,14 +1024,18 @@ END section to be valid in the term buffer."
             (>= pos mistty-cmd-start-marker)
             (<= pos (mistty--eol-pos-from mistty-cmd-start-marker))))))
 
-(defun mistty-before-positional ()
+(defun mistty-before-positional (&optional nomove)
+  ;; TODO: something is wrong with this function; nomove shouldn't be
+  ;; necessary. Refactor.
   (let ((pmark (mistty-pmark)))
     (when (and (not (= pmark (point)))
                (not (mistty-on-prompt-p (point)))
                (mistty--possible-prompt-p)
                (mistty--possible-prompt-contains (point)))
       (mistty--realize-possible-prompt)
-      (mistty-send-raw-string (mistty--move-str pmark (point))))))
+      (unless nomove
+        (mistty-send-raw-string (mistty--move-str pmark (point))))
+      t)))
 
 (defun mistty--realize-possible-prompt (&optional shift)
   (pcase mistty--possible-prompt
@@ -1043,9 +1049,10 @@ END section to be valid in the term buffer."
   (pcase mistty--possible-prompt
     (`(,start ,end ,content)
      (let ((pmark (mistty-pmark)))
-       (and (> start mistty-cmd-start-marker)
+       (and (>= end mistty-cmd-start-marker)
             (>= pmark end)
-            (<= pmark (mistty--eol-pos-from start))
+            (or (> pmark (point-max))
+                    (<= pmark (mistty--bol-pos-from start 2)))
             (string= content (buffer-substring-no-properties start end)))))))
 
 (defun mistty--possible-prompt-contains (pos)

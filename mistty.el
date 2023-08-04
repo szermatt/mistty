@@ -765,8 +765,11 @@ all should rightly be part of term.el."
     (_ (point-max))))
 
 (defun mistty--replay-modifications (modifications)
-  (dolist (m modifications)
-    (apply #'mistty--replay-modification m)))
+  (when modifications
+    (dolist (m modifications)
+      (apply #'mistty--replay-modification m))
+    ;; update the work buffer in case unrelated changes were sent during mistty--send-and-wait
+    (mistty--term-to-work)))
 
 (defun mistty--replay-modification (orig-beg content old-length)
   (let* ((pmark (mistty-pmark))
@@ -812,10 +815,7 @@ all should rightly be part of term.el."
               (setq mistty--point-follows-next-pmark t))
             (mistty-send-raw-string replay-seq)
             (when (accept-process-output mistty-term-proc 1 nil t)
-              (while (accept-process-output mistty-term-proc 0 nil t))))
-        
-        ;; update the work buffer in case unrelated changes were sent during mistty--send-and-wait
-        (mistty--term-to-work)))))
+              (while (accept-process-output mistty-term-proc 0 nil t))))))))
 
 (defun mistty--send-and-wait (str)
   (when (and str (not (zerop (length str))))

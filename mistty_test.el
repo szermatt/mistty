@@ -983,8 +983,12 @@
    (mistty-send-raw-string "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
-   ;; TODO: check that the prompt was identified
-   ))
+   ;; the prompt was identified and labelled
+   (mistty-previous-prompt 1)
+   (should (looking-at (regexp-quote "1 + 1")))
+
+   (mistty-previous-prompt 1)
+   (should (looking-at (regexp-quote mistty-test-py-exe)))))
 
 (ert-deftest test-mistty-python-move-and-type ()
   (with-mistty-buffer
@@ -1021,6 +1025,15 @@
     (mistty-delchar-or-maybe-eof 1))
    ;; deleted the first 1, the command-line is now 1 + 1
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
+
+(ert-deftest test-mistty-python-beginnnig-of-line ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   (mistty-send-raw-string "1 + 1")
+   (mistty-wait-for-output)
+   (mistty-beginning-of-line)
+   (should (looking-at "1 \\+ 1"))))
 
 (ert-deftest test-mistty-python-edit-prompt ()
   (with-mistty-buffer

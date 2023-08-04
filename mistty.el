@@ -93,6 +93,7 @@ properties, for example." )
     (define-key map (kbd "TAB") 'mistty-send-tab)
     (define-key map (kbd "DEL") 'mistty-send-backspace)
     (define-key map (kbd "C-d") 'mistty-delchar-or-maybe-eof)
+    (define-key map (kbd "C-a") 'mistty-beginning-of-line)
     (define-key map [remap self-insert-command] 'mistty-self-insert-command )
     map))
 
@@ -566,11 +567,7 @@ all should rightly be part of term.el."
 (defun mistty-send-command ()
   "Send the current command to the shell."
   (interactive)
-  (when (and (not (mistty-on-prompt-p (point)))
-             (mistty--possible-prompt-p)
-             (mistty--possible-prompt-contains (point)))
-    (message "mark possible prompt")
-    (mistty--realize-possible-prompt))
+  (mistty--maybe-realize-possible-prompt)
   (setq mistty--point-follows-next-pmark t)
   (mistty-send-raw-string "\C-m"))
 
@@ -611,6 +608,7 @@ all should rightly be part of term.el."
 
 (defun mistty-delchar-or-maybe-eof (n)
   (interactive "p")
+  (mistty--maybe-realize-possible-prompt)
   (if (or
        (zerop (length
                (replace-regexp-in-string
@@ -618,13 +616,16 @@ all should rightly be part of term.el."
                 ""
                 (buffer-substring-no-properties
                  mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
-       (progn
-         (mistty-before-positional 'nomove)
-         (not (mistty-on-prompt-p (point)))))
+       (not (mistty-on-prompt-p (point))))
       (progn
-       (mistty-send-raw-string (concat (mistty--move-str (mistty-pmark) (point))
-                                       (make-string n ?\C-d))))
+        (mistty-send-raw-string (concat (mistty--move-str (mistty-pmark) (point))
+                                        (make-string n ?\C-d))))
     (delete-char n)))
+
+(defun mistty-beginning-of-line (&optional n)
+  (interactive "p")
+  (mistty--realize-possible-prompt)
+  (beginning-of-line n))
 
 (defun mistty--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
   (when (and is-after
@@ -1028,18 +1029,18 @@ END section to be valid in the term buffer."
             (>= pos mistty-cmd-start-marker)
             (<= pos (mistty--eol-pos-from mistty-cmd-start-marker))))))
 
-(defun mistty-before-positional (&optional nomove)
-  ;; TODO: something is wrong with this function; nomove shouldn't be
-  ;; necessary. Refactor.
+(defun mistty-before-positional ()
   (let ((pmark (mistty-pmark)))
     (when (and (not (= pmark (point)))
-               (not (mistty-on-prompt-p (point)))
-               (mistty--possible-prompt-p)
-               (mistty--possible-prompt-contains (point)))
-      (mistty--realize-possible-prompt)
-      (unless nomove
-        (mistty-send-raw-string (mistty--move-str pmark (point))))
-      t)))
+               (mistty--maybe-realize-possible-prompt))
+      (mistty-send-raw-string (mistty--move-str pmark (point))))))
+
+(defun mistty--maybe-realize-possible-prompt ()
+  (when (and (not (mistty-on-prompt-p (point)))
+             (mistty--possible-prompt-p)
+             (mistty--possible-prompt-contains (point)))
+    (mistty--realize-possible-prompt)
+    t))
 
 (defun mistty--realize-possible-prompt (&optional shift)
   (pcase mistty--possible-prompt

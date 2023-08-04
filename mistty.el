@@ -537,7 +537,7 @@ all should rightly be part of term.el."
       (add-text-properties sync-pos cmd-start-pos
                            '(mistty prompt
                                     field 'mistty-prompt
-                                    face (background-color . "cyan")
+                                    ;;face (background-color . "cyan")
                                     rear-nonsticky t))
       (add-text-properties sync-pos cmd-start-pos
                            '(read-only t front-sticky t)))))

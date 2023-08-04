@@ -653,7 +653,7 @@ all should rightly be part of term.el."
              (put-text-property pos next-pos 'mistty-change `(shift ,(+ old-shift shift))))
             ('() (put-text-property pos next-pos 'mistty-change `(shift ,shift))))
           (setq pos next-pos)))
-      (when (> old-end (point-max))
+      (when (and (> old-length 0) (= end (point-max)))
         (setq mistty--deleted-point-max t)))))
 
 (defun mistty--collect-modifications (&optional intervals)
@@ -769,11 +769,8 @@ all should rightly be part of term.el."
     (_ (point-max))))
 
 (defun mistty--replay-modifications (modifications)
-  (when modifications
-    (dolist (m modifications)
-      (apply #'mistty--replay-modification m))
-    ;; update the work buffer in case unrelated changes were sent during mistty--send-and-wait
-    (mistty--term-to-work)))
+  (dolist (m modifications)
+    (apply #'mistty--replay-modification m)))
 
 (defun mistty--replay-modification (orig-beg content old-length)
   (let* ((pmark (mistty-pmark))
@@ -813,13 +810,11 @@ all should rightly be part of term.el."
             (when (> end beg)
               (mistty--maybe-bracketed-str
                (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
-      (if replay-seq
-          (progn
-            (when (= (point) end)
-              (setq mistty--point-follows-next-pmark t))
-            (mistty-send-raw-string replay-seq)
-            (when (accept-process-output mistty-term-proc 1 nil t)
-              (while (accept-process-output mistty-term-proc 0 nil t))))))))
+      (when replay-seq
+        (when (= (point) end)
+          (setq mistty--point-follows-next-pmark t))
+        (mistty-send-raw-string replay-seq)
+        (accept-process-output mistty-term-proc 0 500 t)))))
 
 (defun mistty--send-and-wait (str)
   (when (and str (not (zerop (length str))))

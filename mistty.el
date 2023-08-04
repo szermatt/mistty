@@ -1052,12 +1052,6 @@ END section to be valid in the term buffer."
     (`(,start ,line-start ,_)
      (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
 
-;; (defun mistty--possible-prompt-intersects (range-start range-end)
-;;   (pcase mistty--possible-prompt
-;;     (`(,prompt-start ,line-start ,_)
-;;      (let ((line-end (mistty--eol-pos-from prompt-start)))
-;;        (and (> range-end line-start) (<= range-start line-end))))))
-
 (provide 'mistty)
 
 ;;; mistty.el ends here

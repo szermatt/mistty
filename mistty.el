@@ -125,7 +125,10 @@ properties, for example." )
   ;; scroll down only when needed. This typically keeps the point at
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
-  (setq scroll-conservatively 1024))
+  (setq scroll-conservatively 0
+        scroll-margin 0
+        scroll-down-aggressively 0.8
+        scroll-up-aggressively 0))
 (put 'mistty-mode 'mode-class 'special)
 
 (defun mistty--exec (program &rest args)

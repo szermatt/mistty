@@ -494,10 +494,10 @@ all should rightly be part of term.el."
           (setq insertion-end (point))
           
           ;; move point and buffer state back into the newly-inserted portion 
+          (mistty--restore-window-points window-points)
           (goto-char (mistty--safe-pos initial-point))
           (move-marker (mark-marker) (when initial-mark (mistty--safe-pos initial-mark)))
           (setq mark-active initial-mark-active)
-          (mistty--restore-window-points window-points)
           
           (delete-region insertion-end (point-max))
           (setq buffer-undo-list initial-undo-list))))

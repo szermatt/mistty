@@ -125,10 +125,7 @@ properties, for example." )
   ;; scroll down only when needed. This typically keeps the point at
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
-  (setq scroll-conservatively 0
-        scroll-margin 0
-        scroll-down-aggressively 0.8
-        scroll-up-aggressively 0))
+  (setq-local scroll-conservatively 1024))
 (put 'mistty-mode 'mode-class 'special)
 
 (defun mistty--exec (program &rest args)
@@ -183,7 +180,8 @@ properties, for example." )
     (add-hook 'post-command-hook #'mistty-post-command nil t)
     
     (mistty--term-to-work)
-    (when proc (goto-char (mistty-pmark)))))
+    (when proc
+      (mistty-goto-pmark))))
 
 (defun mistty--create-or-reuse-marker (m initial-pos)
   (if (not (markerp m))
@@ -344,7 +342,21 @@ properties, for example." )
               (when pmark-on-new-line
                 (mistty--detect-possible-prompt))
               (when point-on-pmark
-                (goto-char (mistty--safe-pos (mistty-pmark)))))))))))
+                (mistty-goto-pmark)))))))))
+
+(defun mistty-goto-pmark ()
+  (interactive)
+  (let ((pmark (mistty--safe-pos (mistty-pmark))))
+    (goto-char pmark)
+    (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
+      (mistty--recenter win))))
+
+(defun mistty--recenter (win)
+  (with-current-buffer (window-buffer win)
+    (when (or (eq (mistty-pmark) (window-point win))
+              (> (window-point win) (mistty--bol-pos-from (point-max) -3)))
+        (with-selected-window win
+          (recenter -1 t)))))
 
 (defun mistty--detect-possible-prompt ()
   (let* ((pmark (mistty-pmark))
@@ -472,7 +484,6 @@ all should rightly be part of term.el."
             (initial-mark (marker-position (mark-marker)))
             (initial-mark-active mark-active)
             (prompt-length (- mistty-cmd-start-marker mistty-sync-marker))
-            (window-points (mistty--save-window-points))
             insertion-end)
         (save-restriction
           (widen)
@@ -493,7 +504,6 @@ all should rightly be part of term.el."
           (setq insertion-end (point))
           
           ;; move point and buffer state back into the newly-inserted portion 
-          (mistty--restore-window-points window-points)
           (goto-char (mistty--safe-pos initial-point))
           (move-marker (mark-marker) (when initial-mark (mistty--safe-pos initial-mark)))
           (setq mark-active initial-mark-active)
@@ -952,13 +962,16 @@ END section to be valid in the term buffer."
              (mistty-on-prompt-p (point)))
     (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point)))))
 
-(defun mistty--window-size-change (&optional _win)
+(defun mistty--window-size-change (_win)
   (when (process-live-p mistty-term-proc)
     (let* ((adjust-func (or (process-get mistty-term-proc 'adjust-window-size-function)
                             window-adjust-process-window-size-function))
-           (size (funcall adjust-func mistty-term-proc (get-buffer-window-list))))
+           (size (funcall adjust-func mistty-term-proc
+                          (get-buffer-window-list mistty-work-buffer nil t))))
       (when size
-        (mistty--set-process-window-size (car size) (cdr size))))))
+        (mistty--set-process-window-size (car size) (cdr size)))))
+  (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
+    (mistty--recenter win)))
 
 (defun mistty--set-process-window-size (width height)
   (mistty--with-live-buffer mistty-term-buffer
@@ -1082,14 +1095,6 @@ END section to be valid in the term buffer."
   (pcase mistty--possible-prompt
     (`(,start ,line-start ,_)
      (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
-
-(defun mistty--save-window-points ()
-  (mapcar (lambda (win) (cons win (window-point win))) (get-buffer-window-list)))
-
-(defun mistty--restore-window-points (window-points)
-  (dolist (window-point window-points)
-    (when (window-live-p (car window-point))
-      (set-window-point (car window-point) (cdr window-point)))))
 
 (provide 'mistty)
 

@@ -38,6 +38,7 @@ properties, for example." )
 (defvar-local mistty-fullscreen nil)
 (defvar-local mistty--old-point nil)
 (defvar-local mistty--inhibit-sync nil)
+(defvar-local mistty--sync-inhibited t)
 (defvar-local mistty--deleted-point-max nil)
 (defvar-local mistty--point-follows-next-pmark nil)
 (defvar-local mistty--possible-prompt nil)
@@ -335,7 +336,8 @@ properties, for example." )
             (condition-case nil
                 (setq default-directory (buffer-local-value 'default-directory term-buffer))
               (error nil))
-            (unless mistty--inhibit-sync
+            (if mistty--inhibit-sync
+                (setq mistty--sync-inhibited t)
               (let ((pmark-on-new-line (> (mistty-pmark) (point-max))))
                 (mistty--term-to-work)
                 (when bracketed-paste-turned-on
@@ -462,6 +464,7 @@ all should rightly be part of term.el."
                          (- pos mistty-sync-marker))))
 
 (defun mistty--term-to-work ()
+  (setq mistty--sync-inhibited nil)
   (let ((inhibit-modification-hooks t)
         (inhibit-read-only t))
     (with-current-buffer mistty-work-buffer
@@ -938,7 +941,10 @@ END section to be valid in the term buffer."
              (process-live-p mistty-term-proc)
              (buffer-live-p mistty-term-buffer)
              (mistty-on-prompt-p (point)))
-    (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point)))))
+    (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point))))
+
+  (when mistty--sync-inhibited
+    (mistty--term-to-work)))
 
 (defun mistty--window-size-change (&optional _win)
   (when (process-live-p mistty-term-proc)

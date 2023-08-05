@@ -58,6 +58,11 @@ properties, for example." )
 
 (defvar mistty-positional-keys "\t\C-w\C-t\C-k-C-y")
 
+(defface mistty-debug-prompt nil
+  "Highlight recognized prompts [debug]" :group 'mistty)
+(defface mistty-debug-screen nil
+  "Highlight synchronized buffer region [debug]" :group 'mistty)
+
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") 'mistty-send-raw-key)
@@ -169,6 +174,7 @@ properties, for example." )
     (overlay-put mistty-sync-ov 'keymap mistty-prompt-map)
     (overlay-put mistty-sync-ov 'modification-hooks (list #'mistty--modification-hook))
     (overlay-put mistty-sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
+    (overlay-put mistty-sync-ov 'face 'mistty-debug-screen)
 
     (when proc
       (set-process-filter proc #'mistty-process-filter)
@@ -555,8 +561,8 @@ all should rightly be part of term.el."
     (when (> cmd-start-pos sync-pos)
       (add-text-properties sync-pos cmd-start-pos
                            '(mistty prompt
-                                    field 'mistty-prompt
-                                    ;;face (background-color . "cyan")
+                                    field mistty-prompt
+                                    face mistty-debug-prompt
                                     rear-nonsticky t))
       (add-text-properties sync-pos cmd-start-pos
                            '(read-only t front-sticky t)))))

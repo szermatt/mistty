@@ -88,6 +88,7 @@ properties, for example." )
     (define-key map (kbd "C-c <insert>") 'mistty-send-insert)
     (define-key map (kbd "C-c <prior>") 'mistty-send-prior)
     (define-key map (kbd "C-c <next>") 'mistty-send-next)
+    (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-pmark)
     map))
 
 (defvar mistty-prompt-map
@@ -655,6 +656,12 @@ all should rightly be part of term.el."
   (interactive "p")
   (mistty--maybe-realize-possible-prompt)
   (beginning-of-line n))
+
+(defun mistty-end-of-line-or-goto-pmark (&optional n)
+  (interactive "p")
+  (if (and (= 1 n) (eq last-command this-command) (/= (point) (mistty-pmark)))
+      (mistty-goto-pmark)
+    (end-of-line n)))
 
 (defun mistty--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
   (when (and is-after

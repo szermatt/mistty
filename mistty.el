@@ -653,7 +653,7 @@ all should rightly be part of term.el."
 
 (defun mistty-beginning-of-line (&optional n)
   (interactive "p")
-  (mistty--realize-possible-prompt)
+  (mistty--maybe-realize-possible-prompt)
   (beginning-of-line n))
 
 (defun mistty--modification-hook (_ov is-after orig-beg orig-end &optional old-length)

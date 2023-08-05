@@ -37,8 +37,6 @@ properties, for example." )
 (defvar-local mistty-bracketed-paste nil)
 (defvar-local mistty-fullscreen nil)
 (defvar-local mistty--old-point nil)
-(defvar-local mistty--inhibit-sync nil)
-(defvar-local mistty--sync-inhibited t)
 (defvar-local mistty--deleted-point-max nil)
 (defvar-local mistty--point-follows-next-pmark nil)
 (defvar-local mistty--possible-prompt nil)
@@ -336,16 +334,14 @@ properties, for example." )
             (condition-case nil
                 (setq default-directory (buffer-local-value 'default-directory term-buffer))
               (error nil))
-            (if mistty--inhibit-sync
-                (setq mistty--sync-inhibited t)
-              (let ((pmark-on-new-line (> (mistty-pmark) (point-max))))
-                (mistty--term-to-work)
-                (when bracketed-paste-turned-on
-                  (mistty--move-sync-mark (mistty-pmark) 'set-prompt))
-                (when pmark-on-new-line
-                  (mistty--detect-possible-prompt))
-                (when point-on-pmark
-                  (goto-char (mistty--safe-pos (mistty-pmark))))))))))))
+            (let ((pmark-on-new-line (> (mistty-pmark) (point-max))))
+              (mistty--term-to-work)
+              (when bracketed-paste-turned-on
+                (mistty--move-sync-mark (mistty-pmark) 'set-prompt))
+              (when pmark-on-new-line
+                (mistty--detect-possible-prompt))
+              (when point-on-pmark
+                (goto-char (mistty--safe-pos (mistty-pmark)))))))))))
 
 (defun mistty--detect-possible-prompt ()
   (let* ((pmark (mistty-pmark))
@@ -367,7 +363,8 @@ properties, for example." )
   (mistty--with-live-buffer mistty-work-buffer
     (goto-char (point-max))
     (skip-chars-backward "[:space:]")
-    (let ((inhibit-read-only t))
+    (let ((inhibit-read-only t)
+          (inhibit-modification-hooks t))
       (delete-region (point) (point-max))
       (insert "\n"))
     (move-marker mistty-sync-marker (point-max))
@@ -464,7 +461,6 @@ all should rightly be part of term.el."
                          (- pos mistty-sync-marker))))
 
 (defun mistty--term-to-work ()
-  (setq mistty--sync-inhibited nil)
   (let ((inhibit-modification-hooks t)
         (inhibit-read-only t))
     (with-current-buffer mistty-work-buffer
@@ -650,6 +646,10 @@ all should rightly be part of term.el."
           (end (max orig-end mistty-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
           shift pos)
+      ;; Temporarily stop accepting output while collecting modifications.
+      (when (and (process-live-p mistty-term-proc) (not (eq t (process-filter mistty-term-proc))))
+        (set-process-filter mistty-term-proc t))
+      
       ;; Mark the text that was inserted
       (put-text-property beg end 'mistty-change '(inserted))
 
@@ -666,10 +666,9 @@ all should rightly be part of term.el."
       (when (and (> old-length 0) (= end (point-max)))
         (setq mistty--deleted-point-max t)))))
 
-(defun mistty--collect-modifications (&optional intervals)
+(defun mistty--collect-modifications (intervals)
   (let ((changes nil)
-        (last-shift 0)
-        (intervals (or intervals (mistty--collect-modification-intervals))))
+        (last-shift 0))
     (while intervals
       (pcase intervals
         ;; insert in the middle, possibly replacing a section of text
@@ -779,10 +778,12 @@ all should rightly be part of term.el."
     (_ (point-max))))
 
 (defun mistty--replay-modifications (modifications)
-  (dolist (m modifications)
-    (apply #'mistty--replay-modification m)))
+  (let ((initial-point (point)))
+    (mistty--enable-process-output)
+    (dolist (m modifications)
+      (mistty--replay-modification (nth 0 m) (nth 1 m) (nth 2 m) initial-point))))
 
-(defun mistty--replay-modification (orig-beg content old-length)
+(defun mistty--replay-modification (orig-beg content old-length initial-point)
   (let* ((pmark (mistty-pmark))
          (beg orig-beg)
          (end (+ orig-beg (length content)))
@@ -821,17 +822,23 @@ all should rightly be part of term.el."
               (mistty--maybe-bracketed-str
                (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
       (when (length> replay-seq 0)
-        (when (= (point) end)
+        (when (= initial-point end)
           (setq mistty--point-follows-next-pmark t))
         (mistty-send-raw-string replay-seq)
         (accept-process-output mistty-term-proc 0 500 t)))))
 
+(defun mistty--enable-process-output ()
+  (when (and (process-live-p mistty-term-proc) (eq t (process-filter mistty-term-proc)))
+    ;; Process output was disabled while collecting
+    ;; modifications. Start accepting output again now that we're done.
+    (set-process-filter mistty-term-proc #'mistty-process-filter)
+    (while (accept-process-output mistty-term-proc 0 0 t))))
+
 (defun mistty--send-and-wait (str)
   (when (and str (not (zerop (length str))))
-    (let ((mistty--inhibit-sync t))
-      (mistty-send-raw-string str)
-      (when (accept-process-output mistty-term-proc 1 nil t) ;; TODO: tune the timeout
-        (while (accept-process-output mistty-term-proc 0 nil t))))))
+    (mistty-send-raw-string str)
+    (when (accept-process-output mistty-term-proc 0 500 t) ;; TODO: tune the timeout
+      (while (accept-process-output mistty-term-proc 0 nil t)))))
 
 (defun mistty--move-str (from to)
   (let ((diff (mistty--distance-on-term from to)))
@@ -888,12 +895,9 @@ END section to be valid in the term buffer."
       (error "No previous prompt"))))
 
 (defun mistty-pre-command ()
-  (setq mistty--old-point (point)
-        mistty--inhibit-sync t))
+  (setq mistty--old-point (point)))
 
 (defun mistty-post-command ()
-  (setq mistty--inhibit-sync nil)
-  
   ;; Show cursor again if the command moved the point.
   (when (and mistty--old-point (/= (point) mistty--old-point))
     (setq cursor-type t))
@@ -931,7 +935,9 @@ END section to be valid in the term buffer."
          ;; revert modifications
          (t
           (mistty--term-to-work))
-         ))))
+         )
+        (mistty--enable-process-output)
+        )))
 
   ;; move process mark to follow point
   (when (and mistty--old-point
@@ -941,10 +947,7 @@ END section to be valid in the term buffer."
              (process-live-p mistty-term-proc)
              (buffer-live-p mistty-term-buffer)
              (mistty-on-prompt-p (point)))
-    (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point))))
-
-  (when mistty--sync-inhibited
-    (mistty--term-to-work)))
+    (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point)))))
 
 (defun mistty--window-size-change (&optional _win)
   (when (process-live-p mistty-term-proc)

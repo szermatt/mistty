@@ -431,16 +431,15 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (while (length= (mistty-test-content) 0)
+   (while (length= (mistty-test-content nil nil 'nopointer) 0)
      (accept-process-output mistty-term-proc 0 500 t))
 
    ;; make sure that the newlines don't confuse mistty-post-command
    ;; moving the cursor.
    (dolist (count '("three" "nine" "four"))
      (let ((goal-pos))
-       (mistty-pre-command)
-       (setq goal-pos (mistty-test-goto count))
-       (mistty-post-command)
+       (mistty-run-command
+        (setq goal-pos (mistty-test-goto count)))
        (mistty-wait-for-output)
        (should (equal (mistty-pmark) goal-pos))))))
 
@@ -546,7 +545,7 @@
     ;; last. If we did the reverse and a newline was inserted in the
     ;; middle of new-value, the deletion would not apply to the right
     ;; region.
-    (should (equal '((12 "" 3) (6 "new-value" 3)) (mistty--collect-modifications))))))
+    (should (equal '((12 "" 3) (6 "new-value" 3)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
 
 (ert-deftest test-mistty-collect-modifications-delete-at-end ()
   (ert-with-test-buffer ()
@@ -563,7 +562,7 @@
     
     (should (equal "$ abc" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((6 "" -1)) (mistty--collect-modifications))))))
+    (should (equal '((6 "" -1)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-then-delete-at-end ()
   (ert-with-test-buffer ()
@@ -582,7 +581,7 @@
     
     (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((6 "new-value" -1)) (mistty--collect-modifications))))))
+    (should (equal '((6 "new-value" -1)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-skip-then-delete-at-end ()
   (ert-with-test-buffer ()
@@ -602,7 +601,7 @@
     
     (should (equal "$ abcnew-valuedefjkl" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (mistty--collect-modifications))))))
+    (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
 
 (ert-deftest test-mistty-collect-modifications-inserts ()
   (ert-with-test-buffer ()
@@ -626,7 +625,7 @@
     
     (should (equal "$ abcNEWdefNEWghiNEWjklmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (mistty--collect-modifications))))))
+    (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-at-end ()
   (ert-with-test-buffer ()
@@ -644,7 +643,7 @@
     
     (should (equal "$ abcdefNEW" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((9 "NEW" 0)) (mistty--collect-modifications))))))
+    (should (equal '((9 "NEW" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
 
 (ert-deftest test-mistty-collect-modifications-replaces ()
   (ert-with-test-buffer ()
@@ -667,7 +666,7 @@
     
     (should (equal "$ abcNEWghiNEWmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--collect-modifications))))))
+    (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
 
 (ert-deftest test-mistty-restrict-intervals ()
   (ert-with-test-buffer ()

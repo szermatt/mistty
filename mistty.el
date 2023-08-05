@@ -126,9 +126,7 @@ properties, for example." )
   ;; scroll down only when needed. This typically keeps the point at
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
-  (setq scroll-conservatively 0)
-  (setq scroll-up-aggressively 0)
-  (setq scroll-down-aggressively nil))
+  (setq scroll-conservatively 1024))
 (put 'mistty-mode 'mode-class 'special)
 
 (defun mistty--exec (program &rest args)
@@ -466,49 +464,50 @@ all should rightly be part of term.el."
 (defun mistty--term-to-work ()
   (let ((inhibit-modification-hooks t)
         (inhibit-read-only t))
-    (with-current-buffer mistty-work-buffer
-      (let ((initial-undo-list buffer-undo-list)
-            (initial-point (point))
-            (initial-mark (marker-position (mark-marker)))
-            (initial-mark-active mark-active)
-            (prompt-length (- mistty-cmd-start-marker mistty-sync-marker)))
-        (save-restriction
-          (widen)
-          (when (and (> prompt-length 0)
-                     (not (string=
-                           (with-current-buffer mistty-term-buffer
+    (save-window-excursion
+      (with-current-buffer mistty-work-buffer
+        (let ((initial-undo-list buffer-undo-list)
+              (initial-point (point))
+              (initial-mark (marker-position (mark-marker)))
+              (initial-mark-active mark-active)
+              (prompt-length (- mistty-cmd-start-marker mistty-sync-marker)))
+          (save-restriction
+            (widen)
+            (when (and (> prompt-length 0)
+                       (not (string=
+                             (with-current-buffer mistty-term-buffer
+                               (buffer-substring-no-properties
+                                mistty-sync-marker (mistty--safe-pos (+ mistty-sync-marker prompt-length))))
                              (buffer-substring-no-properties
-                              mistty-sync-marker (mistty--safe-pos (+ mistty-sync-marker prompt-length))))
-                           (buffer-substring-no-properties
-                            mistty-sync-marker mistty-cmd-start-marker))))
-            ;; the prompt was modified; reset it
-            (move-marker mistty-cmd-start-marker mistty-sync-marker)
-            (setq prompt-length 0))
-          (goto-char mistty-cmd-start-marker)
-          (insert-buffer-substring
-           mistty-term-buffer (with-current-buffer mistty-term-buffer
-                                (+ mistty-sync-marker prompt-length)))
-          (delete-region (point) (point-max))
-          
-          ;; recover buffer state possibly destroyed by delete-region.
-          (goto-char (mistty--safe-pos initial-point))
-          (move-marker (mark-marker) (when initial-mark (mistty--safe-pos initial-mark)))
-          (setq mark-active initial-mark-active)
-          (setq buffer-undo-list initial-undo-list))))
-    
-    (with-current-buffer mistty-term-buffer
-      ;; Next time, only sync the visible portion of the terminal.
-      (when (< mistty-sync-marker term-home-marker)
-        (mistty--move-sync-mark term-home-marker))
+                              mistty-sync-marker mistty-cmd-start-marker))))
+              ;; the prompt was modified; reset it
+              (move-marker mistty-cmd-start-marker mistty-sync-marker)
+              (setq prompt-length 0))
+            (goto-char mistty-cmd-start-marker)
+            (insert-buffer-substring
+             mistty-term-buffer (with-current-buffer mistty-term-buffer
+                                  (+ mistty-sync-marker prompt-length)))
+            (delete-region (point) (point-max))
+            
+            ;; recover buffer state possibly destroyed by delete-region.
+            (goto-char (mistty--safe-pos initial-point))
+            (move-marker (mark-marker) (when initial-mark (mistty--safe-pos initial-mark)))
+            (setq mark-active initial-mark-active)
+            (setq buffer-undo-list initial-undo-list))))
       
-      ;; Truncate the term buffer, since scrolling back is available on
-      ;; the work buffer anyways. This has to be done now, after syncing
-      ;; the marker, and not in term-emulate-terminal, which is why
-      ;; term-buffer-maximum-size is set to 0.
-      (save-excursion
-        (goto-char term-home-marker)
-        (forward-line -5)
-        (delete-region (point-min) (point))))))
+      (with-current-buffer mistty-term-buffer
+        ;; Next time, only sync the visible portion of the terminal.
+        (when (< mistty-sync-marker term-home-marker)
+          (mistty--move-sync-mark term-home-marker))
+        
+        ;; Truncate the term buffer, since scrolling back is available on
+        ;; the work buffer anyways. This has to be done now, after syncing
+        ;; the marker, and not in term-emulate-terminal, which is why
+        ;; term-buffer-maximum-size is set to 0.
+        (save-excursion
+          (goto-char term-home-marker)
+          (forward-line -5)
+          (delete-region (point-min) (point)))))))
 
 (defun mistty--move-sync-mark (pos &optional set-prompt)
   (let ((chars-from-bol (- pos (mistty--bol-pos-from pos)))

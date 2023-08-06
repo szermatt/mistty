@@ -813,7 +813,7 @@ all should rightly be part of term.el."
         (modifications (mistty--collect-modifications intervals))
         first lower-limit upper-limit)
     (mistty--enable-process-output)
-    
+
     (setq first (car modifications))
     (while modifications
       (let* ((m (car modifications))
@@ -826,7 +826,8 @@ all should rightly be part of term.el."
              (old-end (if (> old-length 0)
                           (+ orig-beg old-length)
                         (mistty--from-pos-of (with-current-buffer mistty-term-buffer (point-max))
-                                             mistty-term-buffer))))
+                                             mistty-term-buffer)))
+             (replay-seqs nil))
         (setq modifications (cdr modifications))
 
         (when lower-limit
@@ -834,7 +835,7 @@ all should rightly be part of term.el."
         (when upper-limit
           (setq end (min upper-limit end)
                 old-end (min upper-limit old-end)))
-        
+
         (when (> end beg)
           (mistty--send-and-wait (mistty--move-str pmark beg 'will-wait))
           (setq pmark (mistty-pmark))
@@ -850,39 +851,52 @@ all should rightly be part of term.el."
             (mistty--move-sync-mark pmark 'set-prompt))
           
           (setq beg (max beg pmark)))
-        
-        (when (and (eq m first) (> old-end beg))
-          (mistty--send-and-wait (mistty--move-str pmark old-end 'will-wait))
-          (setq pmark (mistty-pmark))
-          (when (and (> beg pmark)
-                     (> (mistty--distance-on-term beg pmark) 0))
-            ;; If we couldn't even get to beg we'll have trouble with
-            ;; the next modifications, too, as they start left of this
-            ;; one. Remember that.
-            (setq upper-limit pmark))
-          (setq old-end (max beg (min old-end pmark))))
 
-        (let ((replay-str
-               (concat
-                ;; delete
-                (when (> old-end beg)
-                  (mistty--repeat-string
-                   (mistty--distance-on-term beg old-end) "\b"))
-                ;; insert
-                (when (> end beg)
-                  (mistty--maybe-bracketed-str
-                   (substring content
-                              (max 0 (- beg orig-beg))
-                              (min (length content) (max 0 (- end orig-beg))))))
-                ;; for the last modification, move pmark back to point
-                (when (and (null modifications)
-                           (>= initial-point intervals-start)
-                           (<= initial-point intervals-end))
-                  (setq mistty--point-follows-next-pmark t)
-                  (mistty--move-str
-                   end
-                   (if lower-limit (max lower-limit initial-point)
-                     initial-point))))))
+        (when (> old-end beg)
+          (if (eq m first)
+              (progn
+                (mistty--send-and-wait
+                 (mistty--move-str pmark old-end 'will-wait))
+                (setq pmark (mistty-pmark))
+                (when (and (> beg pmark)
+                           (> (mistty--distance-on-term beg pmark) 0))
+                  ;; If we couldn't even get to beg we'll have trouble with
+                  ;; the next modifications, too, as they start left of this
+                  ;; one. Remember that.
+                  (setq upper-limit pmark))
+                (setq old-end (max beg (min old-end pmark))))
+            
+            ;; after the first modification, just optimistically go to
+            ;; old-end if upper-limit allows it.
+            (push (mistty--move-str pmark old-end) replay-seqs)))
+
+        ;; delete
+        (when (> old-end beg)
+          (push (mistty--repeat-string
+                 (mistty--distance-on-term beg old-end) "\b")
+                replay-seqs))
+        
+        ;; insert
+        (when (> end beg)
+          (push (mistty--maybe-bracketed-str
+                 (substring content
+                            (max 0 (- beg orig-beg))
+                            (min (length content) (max 0 (- end orig-beg)))))
+                replay-seqs))
+        
+        ;; for the last modification, move pmark back to point
+        (when (and (null modifications)
+                   (>= initial-point intervals-start)
+                   (<= initial-point intervals-end))
+          (setq mistty--point-follows-next-pmark t)
+          (push (mistty--move-str
+                 end
+                 (if lower-limit (max lower-limit initial-point)
+                     initial-point))
+                replay-seqs))
+
+        ;; send the content of replay-seqs
+        (let ((replay-str (mapconcat #'identity (nreverse replay-seqs) "")))
           (if (null modifications)
               (mistty-send-raw-string replay-str)
             (mistty--send-and-wait replay-str)))))))

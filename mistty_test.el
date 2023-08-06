@@ -104,6 +104,38 @@
    (should (equal "$ echo bonjour<>" (mistty-test-content)))
    (should (equal "bonjour" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest test-mistty-reconcile-replace-with-point-outside-of-change ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "echo hello, hello")
+   (mistty-wait-for-output)
+   (mistty-run-command
+    (goto-char (point-min))
+    (while (search-forward "hello" nil t)
+      (replace-match "bonjour" nil t))
+    (mistty-test-goto "echo"))
+   (mistty-wait-for-output)
+   
+   (should (equal "$ <>echo bonjour, bonjour" (mistty-test-content)))
+   (should (equal "bonjour, bonjour" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest test-mistty-reconcile-multiple-replace ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "echo boo boo, white goat")
+   (mistty-wait-for-output)
+   (mistty-run-command
+    (goto-char (point-min))
+    (while (search-forward "boo" nil t)
+      (replace-match "baa" nil t))
+    (goto-char (point-min))
+    (search-forward "white goat")
+    (replace-match "black sheep" nil t)
+    (mistty-test-goto "black"))
+   (mistty-wait-for-output)
+   
+   (should (equal "$ echo baa baa, <>black sheep" (mistty-test-content)))
+   (should (equal "baa baa, black sheep"
+                  (mistty-send-and-capture-command-output)))))
+
 (ert-deftest test-mistty-prevent-deleting-prompt ()
   (with-mistty-buffer
    (should-error (backward-delete-char))

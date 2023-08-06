@@ -798,17 +798,23 @@ all should rightly be part of term.el."
                  intervals))
           (cons base-shift intervals)))))
 
+(defun mistty--modification-intervals-start (intervals)
+  (caar intervals))
+
 (defun mistty--modification-intervals-end (intervals)
   (pcase (car (last intervals))
     (`(,pos shift ,_) pos)
     (_ (point-max))))
 
-(defun mistty--replay-modifications (modifications)
+(defun mistty--replay-modifications (intervals)
   (let ((initial-point (point))
-        (first (car modifications))
-        lower-limit upper-limit)
+        (intervals-start (mistty--modification-intervals-start intervals))
+        (intervals-end (mistty--modification-intervals-end intervals))
+        (modifications (mistty--collect-modifications intervals))
+        first lower-limit upper-limit)
     (mistty--enable-process-output)
     
+    (setq first (car modifications))
     (while modifications
       (let* ((m (car modifications))
              (orig-beg (nth 0 m))
@@ -850,26 +856,36 @@ all should rightly be part of term.el."
           (setq pmark (mistty-pmark))
           (when (and (> beg pmark)
                      (> (mistty--distance-on-term beg pmark) 0))
-            ;; If we couldn't even get to "beg" we'll have trouble
-            ;; with the next modifications, too, as they start left of
-            ;; this one.
+            ;; If we couldn't even get to beg we'll have trouble with
+            ;; the next modifications, too, as they start left of this
+            ;; one. Remember that.
             (setq upper-limit pmark))
           (setq old-end (max beg (min old-end pmark))))
 
-        (let ((replay-seq
+        (let ((replay-str
                (concat
+                ;; delete
                 (when (> old-end beg)
                   (mistty--repeat-string
                    (mistty--distance-on-term beg old-end) "\b"))
+                ;; insert
                 (when (> end beg)
                   (mistty--maybe-bracketed-str
                    (substring content
                               (max 0 (- beg orig-beg))
-                              (min (length content) (max 0 (- end orig-beg)))))))))
-          (when (length> replay-seq 0)
-            (when (= initial-point end)
-              (setq mistty--point-follows-next-pmark t))
-            (mistty--send-and-wait replay-seq)))))))
+                              (min (length content) (max 0 (- end orig-beg))))))
+                ;; for the last modification, move pmark back to point
+                (when (and (null modifications)
+                           (>= initial-point intervals-start)
+                           (<= initial-point intervals-end))
+                  (setq mistty--point-follows-next-pmark t)
+                  (mistty--move-str
+                   end
+                   (if lower-limit (max lower-limit initial-point)
+                     initial-point))))))
+          (if (null modifications)
+              (mistty-send-raw-string replay-str)
+            (mistty--send-and-wait replay-str)))))))
 
 (defun mistty--enable-process-output ()
   (when (and (process-live-p mistty-term-proc) (eq t (process-filter mistty-term-proc)))
@@ -970,18 +986,19 @@ END section to be valid in the term buffer."
              restricted)
         (cond
          ;; nothing to do
-         ((null intervals))
+         ((null intervals)
+          (mistty--maybe-pmark-to-point))
 
          ;; modifications are part of the current prompt; replay them
          ((mistty-on-prompt-p (mistty-pmark))
-          (mistty--replay-modifications (mistty--collect-modifications intervals)))
+          (mistty--replay-modifications intervals))
 
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
          ((and (mistty--possible-prompt-p)
                (setq restricted (mistty--restrict-modification-intervals intervals (nth 0 mistty--possible-prompt))))
           (mistty--realize-possible-prompt (car restricted))
-          (mistty--replay-modifications (mistty--collect-modifications (cdr restricted))))
+          (mistty--replay-modifications (cdr restricted)))
 
          ;; leave all modifications if there's enough of an unmodified section at the end
          ((and intervals-end (< intervals-end modifiable-limit))
@@ -989,12 +1006,13 @@ END section to be valid in the term buffer."
 
          ;; revert modifications
          (t
-          (mistty--term-to-work))
+          (mistty--term-to-work)
+          (mistty--maybe-pmark-to-point))
          )
         (mistty--enable-process-output)
-        )))
+        ))))
 
-  ;; move process mark to follow point
+(defun mistty--maybe-pmark-to-point ()
   (when (and mistty--old-point
              (/= (point) mistty--old-point)
              (markerp mistty-sync-marker)

@@ -71,9 +71,12 @@
   (with-mistty-buffer
    (mistty-send-raw-string "echo hello")
    (mistty-wait-for-output)
+   
    (mistty-run-command
       (mistty-test-goto "hello")
       (delete-region (point) (+ 3 (point))))
+   (mistty-wait-for-output)
+   
    (should (equal "$ echo <>lo" (mistty-test-content)))
    (should (equal "lo" (mistty-send-and-capture-command-output)))))
 
@@ -96,6 +99,8 @@
     (goto-char (point-min))
     (search-forward "hello")
     (replace-match "bonjour" nil t))
+   (mistty-wait-for-output)
+   
    (should (equal "$ echo bonjour<>" (mistty-test-content)))
    (should (equal "bonjour" (mistty-send-and-capture-command-output)))))
 
@@ -407,6 +412,7 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
+   (mistty-wait-for-output)
    (while (length= (mistty-test-content) 0)
      (accept-process-output mistty-term-proc 0 500 t))
    (should (equal "$ echo one two three\n four five six seven\n eight nine<>"
@@ -418,6 +424,8 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
+   (mistty-wait-for-output)
+   
    (while (length= (mistty-test-content) 0)
      (accept-process-output mistty-term-proc 0 500 t))
 
@@ -938,8 +946,11 @@
    (mistty-send-raw-string
     (concat "hello" mistty-left-str mistty-left-str))
    (mistty-wait-for-output)
+   
    (mistty-run-command
     (mistty-delchar-or-maybe-eof 1))
+   (mistty-wait-for-output)
+   
    (should (equal "$ hel<>o" (mistty-test-content)))))
    
 (ert-deftest test-mistty-multiple-delchar-not-eof ()
@@ -949,6 +960,7 @@
    (mistty-wait-for-output)
    (mistty-run-command
     (mistty-delchar-or-maybe-eof 2))
+   (mistty-wait-for-output)
    (should (equal "$ he<>o" (mistty-test-content)))))
    
 (ert-deftest test-mistty-eof-not-delchar ()

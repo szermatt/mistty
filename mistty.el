@@ -830,7 +830,7 @@ all should rightly be part of term.el."
                 old-end (min upper-limit old-end)))
         
         (when (> end beg)
-          (mistty--send-and-wait (mistty--move-str pmark beg))
+          (mistty--send-and-wait (mistty--move-str pmark beg 'will-wait))
           (setq pmark (mistty-pmark))
           ;; pmark is as close to beg as we can make it
 
@@ -846,7 +846,7 @@ all should rightly be part of term.el."
           (setq beg (max beg pmark)))
         
         (when (and (eq m first) (> old-end beg))
-          (mistty--send-and-wait (mistty--move-str pmark old-end))
+          (mistty--send-and-wait (mistty--move-str pmark old-end 'will-wait))
           (setq pmark (mistty-pmark))
           (when (and (> beg pmark)
                      (> (mistty--distance-on-term beg pmark) 0))
@@ -884,13 +884,24 @@ all should rightly be part of term.el."
     (when (accept-process-output mistty-term-proc 0 500 t) ;; TODO: tune the timeout
       (while (accept-process-output mistty-term-proc 0 nil t)))))
 
-(defun mistty--move-str (from to)
+(defun mistty--move-str (from to &optional will-wait)
   (let ((diff (mistty--distance-on-term from to)))
     (if (zerop diff)
         nil
-      (mistty--repeat-string
-       (abs diff)
-       (if (< diff 0) mistty-left-str mistty-right-str)))))
+      (let ((distance (abs diff))
+            (direction
+             (if (< diff 0) mistty-left-str mistty-right-str))
+            (reverse-direction
+             (if (< diff 0) mistty-right-str mistty-left-str)))
+      (concat
+       (mistty--repeat-string distance direction)
+       (if will-wait
+           ;; Send a no-op right/left pair so that if, for example, it's
+           ;; just not possible to go left anymore, the connected process
+           ;; might still send *something* back and mistty--send-and-wait
+           ;; won't have to time out.
+           (concat reverse-direction direction)
+         ""))))))
 
 (defun mistty--safe-pos (pos)
   (min (point-max) (max (point-min) pos)))

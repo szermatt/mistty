@@ -363,7 +363,8 @@ properties, for example." )
     (when (or (eq (mistty-pmark) (window-point win))
               (> (window-point win) (mistty--bol-pos-from (point-max) -3)))
         (with-selected-window win
-          (recenter -1 t)))))
+          (recenter (- (1+ (count-lines
+                            (window-point win) (point-max)))) t)))))
 
 (defun mistty--detect-possible-prompt ()
   (let* ((pmark (mistty-pmark))

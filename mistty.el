@@ -35,6 +35,7 @@ properties, for example." )
 (defvar-local mistty-cmd-start-marker nil)
 (defvar-local mistty-sync-ov nil)
 (defvar-local mistty-bracketed-paste nil)
+(defvar-local mistty--bracketed-paste-change-point nil)
 (defvar-local mistty-fullscreen nil)
 (defvar-local mistty--old-point nil)
 (defvar-local mistty--deleted-point-max nil)
@@ -321,8 +322,7 @@ properties, for example." )
         (mistty-process-filter proc (substring str rs1-after-pos))))
      
      ;; normal processing
-     (t (let ((bracketed-paste-turned-on nil)
-              (inhibit-modification-hooks t)
+     (t (let ((inhibit-modification-hooks t)
               (inhibit-read-only t)
               (old-sync-position (mistty--with-live-buffer term-buffer (marker-position mistty-sync-marker)))
               (point-on-pmark (or mistty--point-follows-next-pmark
@@ -331,7 +331,7 @@ properties, for example." )
                                         (and (= (point) (point-max))
                                              (>= (mistty-pmark) (point-max))))))))
           (setq mistty--point-follows-next-pmark nil)
-          (setq bracketed-paste-turned-on (mistty-emulate-terminal proc str))
+          (mistty-emulate-terminal proc str)
           (mistty--with-live-buffer term-buffer
             (goto-char (process-mark proc))
             (when (or (< mistty-sync-marker old-sync-position)
@@ -344,12 +344,21 @@ properties, for example." )
               (error nil))
             (let ((pmark-on-new-line (> (mistty-pmark) (point-max))))
               (mistty--term-to-work)
-              (when bracketed-paste-turned-on
-                (mistty--move-sync-mark (mistty-pmark) 'set-prompt))
+              (when (mistty--bracketed-paste-just-turned-on)
+                (mistty--move-sync-mark (mistty-pmark) 'set-prompt)
+                (setq mistty--bracketed-paste-change-point nil))
               (when pmark-on-new-line
                 (mistty--detect-possible-prompt))
               (when point-on-pmark
                 (mistty-goto-pmark)))))))))
+
+(defun mistty--bracketed-paste-just-turned-on ()
+  (when (and mistty-bracketed-paste mistty--bracketed-paste-change-point)
+    (let ((change-point mistty--bracketed-paste-change-point)
+          (term-pmark (marker-position (process-mark mistty-term-proc))))
+      (with-current-buffer mistty-term-buffer
+        (and (<= term-pmark (mistty--bol-pos-from change-point 3))
+             (> term-pmark (mistty--bol-pos-from term-pmark)))))))
 
 (defun mistty-goto-pmark ()
   (interactive)
@@ -360,8 +369,9 @@ properties, for example." )
 
 (defun mistty--recenter (win)
   (with-current-buffer (window-buffer win)
-    (when (or (eq (mistty-pmark) (window-point win))
-              (> (window-point win) (mistty--bol-pos-from (point-max) -3)))
+    (when (and mistty-term-proc
+               (or (eq (mistty-pmark) (window-point win))
+                   (> (window-point win) (mistty--bol-pos-from (point-max) -3))))
         (with-selected-window win
           (recenter (- (1+ (count-lines
                             (window-point win) (point-max)))) t)))))
@@ -404,7 +414,6 @@ properties, for example." )
 This functions intercepts some extented sequences term.el. This
 all should rightly be part of term.el."
   (cl-letf ((start 0)
-            (bracketed-paste-turned-on nil)
             ;; Using term-buffer-vertical-motion causes strange
             ;; issues; avoid it. Using mistty's window to compute
             ;; vertical motion is correct since the window dimension
@@ -426,12 +435,15 @@ all should rightly be part of term.el."
          ((equal ext "[?2004h") ; enable bracketed paste
           (term-emulate-terminal proc (substring str start seq-end))
           (mistty--with-live-buffer work-buffer
-            (setq mistty-bracketed-paste t
-                  bracketed-paste-turned-on t)))
+            (setq mistty-bracketed-paste t)
+            (setq mistty--bracketed-paste-change-point
+                  (marker-position (process-mark proc)))))
          ((equal ext "[?2004l") ; disable bracketed paste
           (term-emulate-terminal proc (substring str start seq-end))
           (mistty--with-live-buffer work-buffer
-            (setq mistty-bracketed-paste nil)))
+            (setq mistty-bracketed-paste nil)
+            (setq mistty--bracketed-paste-change-point
+                  (marker-position (process-mark proc)))))
          ((equal ext "[?25h") ; make cursor visible
           (term-emulate-terminal proc (substring str start seq-end))
           (mistty--with-live-buffer work-buffer
@@ -448,8 +460,7 @@ all should rightly be part of term.el."
           (setq start seq-end)))
     (let ((final-str (substring str start)))
       (unless (zerop (length final-str))
-        (term-emulate-terminal proc final-str)))
-    bracketed-paste-turned-on))
+        (term-emulate-terminal proc final-str)))))
 
 (defun mistty--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'mistty-work-buffer))

@@ -806,52 +806,55 @@ all should rightly be part of term.el."
 (defun mistty--replay-modifications (modifications)
   (let ((initial-point (point)))
     (mistty--enable-process-output)
-    (dolist (m modifications)
-      (mistty--replay-modification (nth 0 m) (nth 1 m) (nth 2 m) initial-point))))
+    (while modifications
+      (let* ((m (car modifications))
+             (orig-beg (nth 0 m))
+             (content (nth 1 m))
+             (old-length (nth 2 m))
+             (pmark (mistty-pmark))
+             (beg orig-beg)
+             (end (+ orig-beg (length content)))
+             (old-end (if (> old-length 0)
+                          (+ orig-beg old-length)
+                        (mistty--from-pos-of (with-current-buffer mistty-term-buffer (point-max))
+                                             mistty-term-buffer))))
+        (setq modifications (cdr modifications))
+        
+        (when (> end beg)
+          (mistty--send-and-wait (mistty--move-str pmark beg))
+          (setq pmark (mistty-pmark))
+          ;; pmark is as close to beg as we can make it
+          
+          ;; We couldn't move pmark as far back as beg. Presumably, the
+          ;; process mark points to the leftmost modifiable position of
+          ;; the command line. Update the sync marker to start sync there
+          ;; from now on and avoid getting this hook called unnecessarily.
+          ;; This is done from inside the term buffer as the modifications
+          ;; of the work buffer could interfere. TODO: What if the process
+          ;; is just not accepting any input at this time? We might move
+          ;; sync mark to far down.
+          (when (> (mistty--distance-on-term beg pmark) 0)
+            (mistty--move-sync-mark pmark 'set-prompt))
+          
+          (setq beg (max beg pmark)))
+        
+        (when (> old-end beg)
+          (mistty--send-and-wait (mistty--move-str pmark old-end))
+          (setq pmark (mistty-pmark))
+          (setq old-end (max beg (min old-end pmark))))
 
-(defun mistty--replay-modification (orig-beg content old-length initial-point)
-  (let* ((pmark (mistty-pmark))
-         (beg orig-beg)
-         (end (+ orig-beg (length content)))
-         (old-end (if (> old-length 0) (+ orig-beg old-length) (mistty--from-pos-of
-                                                                (with-current-buffer mistty-term-buffer (point-max))
-                                                                mistty-term-buffer))))
-    (when (> end beg)
-      (mistty--send-and-wait (mistty--move-str pmark beg))
-      (setq pmark (mistty-pmark))
-      ;; pmark is as close to beg as we can make it
-      
-      ;; We couldn't move pmark as far back as beg. Presumably, the
-      ;; process mark points to the leftmost modifiable position of
-      ;; the command line. Update the sync marker to start sync there
-      ;; from now on and avoid getting this hook called unnecessarily.
-      ;; This is done from inside the term buffer as the modifications
-      ;; of the work buffer could interfere. TODO: What if the process
-      ;; is just not accepting any input at this time? We might move
-      ;; sync mark to far down.
-      (when (> (mistty--distance-on-term beg pmark) 0)
-        (mistty--move-sync-mark pmark 'set-prompt))
-      
-      (setq beg (max beg pmark)))
-    
-    (when (> old-end beg)
-      (mistty--send-and-wait (mistty--move-str pmark old-end))
-      (setq pmark (mistty-pmark))
-      (setq old-end (max beg (min old-end pmark))))
-
-    (let ((replay-seq
-           (concat
-            (when (> old-end beg)
-              (mistty--repeat-string
-               (mistty--distance-on-term beg old-end) "\b"))
-            (when (> end beg)
-              (mistty--maybe-bracketed-str
-               (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
-      (when (length> replay-seq 0)
-        (when (= initial-point end)
-          (setq mistty--point-follows-next-pmark t))
-        (mistty-send-raw-string replay-seq)
-        (accept-process-output mistty-term-proc 0 500 t)))))
+        (let ((replay-seq
+               (concat
+                (when (> old-end beg)
+                  (mistty--repeat-string
+                   (mistty--distance-on-term beg old-end) "\b"))
+                (when (> end beg)
+                  (mistty--maybe-bracketed-str
+                   (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
+          (when (length> replay-seq 0)
+            (when (= initial-point end)
+              (setq mistty--point-follows-next-pmark t))
+            (mistty--send-and-wait replay-seq)))))))
 
 (defun mistty--enable-process-output ()
   (when (and (process-live-p mistty-term-proc) (eq t (process-filter mistty-term-proc)))

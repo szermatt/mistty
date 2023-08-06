@@ -804,8 +804,11 @@ all should rightly be part of term.el."
     (_ (point-max))))
 
 (defun mistty--replay-modifications (modifications)
-  (let ((initial-point (point)))
+  (let ((initial-point (point))
+        (first (car modifications))
+        lower-limit upper-limit)
     (mistty--enable-process-output)
+    
     (while modifications
       (let* ((m (car modifications))
              (orig-beg (nth 0 m))
@@ -819,28 +822,38 @@ all should rightly be part of term.el."
                         (mistty--from-pos-of (with-current-buffer mistty-term-buffer (point-max))
                                              mistty-term-buffer))))
         (setq modifications (cdr modifications))
+
+        (when lower-limit
+          (setq beg (max lower-limit beg)))
+        (when upper-limit
+          (setq end (min upper-limit end)
+                old-end (min upper-limit old-end)))
         
         (when (> end beg)
           (mistty--send-and-wait (mistty--move-str pmark beg))
           (setq pmark (mistty-pmark))
           ;; pmark is as close to beg as we can make it
-          
+
           ;; We couldn't move pmark as far back as beg. Presumably, the
           ;; process mark points to the leftmost modifiable position of
           ;; the command line. Update the sync marker to start sync there
           ;; from now on and avoid getting this hook called unnecessarily.
-          ;; This is done from inside the term buffer as the modifications
-          ;; of the work buffer could interfere. TODO: What if the process
-          ;; is just not accepting any input at this time? We might move
-          ;; sync mark to far down.
-          (when (> (mistty--distance-on-term beg pmark) 0)
+          (when (and (> pmark beg)
+                     (> (mistty--distance-on-term beg pmark) 0))
+            (setq lower-limit pmark)
             (mistty--move-sync-mark pmark 'set-prompt))
           
           (setq beg (max beg pmark)))
         
-        (when (> old-end beg)
+        (when (and (eq m first) (> old-end beg))
           (mistty--send-and-wait (mistty--move-str pmark old-end))
           (setq pmark (mistty-pmark))
+          (when (and (> beg pmark)
+                     (> (mistty--distance-on-term beg pmark) 0))
+            ;; If we couldn't even get to "beg" we'll have trouble
+            ;; with the next modifications, too, as they start left of
+            ;; this one.
+            (setq upper-limit pmark))
           (setq old-end (max beg (min old-end pmark))))
 
         (let ((replay-seq
@@ -850,7 +863,9 @@ all should rightly be part of term.el."
                    (mistty--distance-on-term beg old-end) "\b"))
                 (when (> end beg)
                   (mistty--maybe-bracketed-str
-                   (substring content (max 0 (- beg orig-beg)) (min (length content) (max 0 (- end orig-beg)))))))))
+                   (substring content
+                              (max 0 (- beg orig-beg))
+                              (min (length content) (max 0 (- end orig-beg)))))))))
           (when (length> replay-seq 0)
             (when (= initial-point end)
               (setq mistty--point-follows-next-pmark t))

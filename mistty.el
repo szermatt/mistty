@@ -613,21 +613,21 @@ all should rightly be part of term.el."
   (setq mistty--point-follows-next-pmark t)
   (mistty-send-raw-string "\C-m"))
 
-(defun mistty-send-tab ()
+(defun mistty-send-tab (&optional n)
   "Send TAB to the shell."
-  (interactive)
+  (interactive "p")
   (mistty-before-positional)
   (setq mistty--point-follows-next-pmark t)
-  (mistty-send-raw-string "\t"))
+  (mistty-send-raw-string (mistty--repeat-string (or n 1) "\t")))
 
-(defun mistty-send-backspace ()
+(defun mistty-send-backspace (&optional n)
   "Send DEL to the shell."
-  (interactive)
+  (interactive "p")
   (when (get-pos-property (point) 'read-only)
     (signal 'text-read-only nil))
   (mistty-before-positional)
   (setq mistty--point-follows-next-pmark t)
-  (mistty-send-raw-string "\b"))
+  (mistty-send-raw-string (mistty--repeat-string (or n 1) "\b")))
 
 (defun mistty-self-insert-command (n &optional key)
   (interactive "p")

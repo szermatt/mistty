@@ -1175,6 +1175,31 @@
    (mistty-send-and-wait-for-prompt
     (lambda () (mistty-send-raw-string "q")))))
 
+(ert-deftest test-mistty-and-hippie-completion ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "echo hello, hullo, hallo, hi")
+   (mistty-send-and-wait-for-prompt)
+
+   (let ((hippie-expand-try-functions-list '(try-expand-dabbrev))
+         (start (point)))
+
+     (mistty-send-raw-string "echo h")
+     (mistty-wait-for-output)
+     (should (equal "echo h<>" (mistty-test-content start)))
+     
+     (mistty-run-command
+      (setq this-command 'hippie-expand)
+      (call-interactively 'hippie-expand))
+     (mistty-wait-for-output)
+     (should (equal "echo hi<>" (mistty-test-content start)))
+
+     (mistty-run-command
+      (setq this-command 'hippie-expand)
+      (setq last-command 'hippie-expand)
+      (call-interactively 'hippie-expand))
+     (mistty-wait-for-output)
+     (should (equal "echo hallo<>" (mistty-test-content start))))))
+
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion

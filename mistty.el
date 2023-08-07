@@ -41,6 +41,8 @@ properties, for example." )
 (defvar-local mistty--deleted-point-max nil)
 (defvar-local mistty--point-follows-next-pmark nil)
 (defvar-local mistty--possible-prompt nil)
+(defvar-local mistty--detected-prompt nil)
+(defvar-local mistty--pmark-after-last-term-to-work nil)
 
 (eval-when-compile
   ;; defined in term.el
@@ -325,40 +327,34 @@ properties, for example." )
      (t (let ((inhibit-modification-hooks t)
               (inhibit-read-only t)
               (old-sync-position (mistty--with-live-buffer term-buffer (marker-position mistty-sync-marker)))
-              (old-last-non-ws (mistty--with-live-buffer term-buffer (mistty--last-non-ws)))
-              (point-on-pmark (or mistty--point-follows-next-pmark
-                                  (mistty--with-live-buffer work-buffer
-                                    (or (= (point) (mistty-pmark))
-                                        (and (= (point) (point-max))
-                                             (>= (mistty-pmark) (point-max))))))))
-          (setq mistty--point-follows-next-pmark nil)
+              (old-last-non-ws (mistty--with-live-buffer term-buffer (mistty--last-non-ws))))
           (mistty-emulate-terminal proc str)
           (mistty--with-live-buffer term-buffer
             (goto-char (process-mark proc))
             (when (or (< mistty-sync-marker old-sync-position)
                       (< (point) mistty-sync-marker))
               (mistty--reset-markers)
-              (setq point-on-pmark t))
+              (setq mistty--point-follows-next-pmark t))
             (when (> (process-mark proc) old-last-non-ws) ;; on a new line
-              (mistty--detect-possible-prompt (process-mark proc))))
+              (mistty--detect-possible-prompt (process-mark proc)))
+            (when (mistty--bracketed-paste-just-turned-on)
+              (mistty--with-live-buffer work-buffer
+                (setq mistty--detected-prompt (mistty-pmark))
+                (setq mistty--bracketed-paste-change-point nil))))
           (mistty--with-live-buffer work-buffer
             (condition-case nil
                 (setq default-directory (buffer-local-value 'default-directory term-buffer))
               (error nil))
-            (mistty--term-to-work)
-            (when (mistty--bracketed-paste-just-turned-on)
-              (mistty--move-sync-mark (mistty-pmark) 'set-prompt)
-              (setq mistty--bracketed-paste-change-point nil))
-            (when point-on-pmark
-              (mistty-goto-pmark))))))))
+            (mistty--term-to-work)))))))
 
 (defun mistty--bracketed-paste-just-turned-on ()
-  (when (and mistty-bracketed-paste mistty--bracketed-paste-change-point)
-    (let ((change-point mistty--bracketed-paste-change-point)
-          (term-pmark (marker-position (process-mark mistty-term-proc))))
-      (with-current-buffer mistty-term-buffer
-        (and (<= term-pmark (mistty--bol-pos-from change-point 3))
-             (> term-pmark (mistty--bol-pos-from term-pmark)))))))
+  (mistty--with-live-buffer mistty-work-buffer
+    (when (and mistty-bracketed-paste mistty--bracketed-paste-change-point)
+      (let ((change-point mistty--bracketed-paste-change-point)
+            (term-pmark (marker-position (process-mark mistty-term-proc))))
+        (with-current-buffer mistty-term-buffer
+          (and (<= term-pmark (mistty--bol-pos-from change-point 3))
+               (> term-pmark (mistty--bol-pos-from term-pmark))))))))
 
 (defun mistty-goto-pmark ()
   (interactive)
@@ -499,6 +495,7 @@ all should rightly be part of term.el."
 
 (defun mistty--term-to-work ()
   (let ((inhibit-modification-hooks t)
+        (old-point (point))
         properties)
     (with-current-buffer mistty-term-buffer
       (save-restriction
@@ -524,7 +521,7 @@ all should rightly be part of term.el."
                     (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)))))
             (setq buffer-undo-list initial-undo-list)))))
     
-    (with-current-buffer mistty-term-buffer
+    (mistty--with-live-buffer mistty-term-buffer
       ;; Next time, only sync the visible portion of the terminal.
       (when (< mistty-sync-marker term-home-marker)
         (mistty--move-sync-mark term-home-marker))
@@ -536,7 +533,19 @@ all should rightly be part of term.el."
       (save-excursion
         (goto-char term-home-marker)
         (forward-line -5)
-        (delete-region (point-min) (point))))))
+        (delete-region (point-min) (point))))
+    
+    (mistty--with-live-buffer mistty-work-buffer
+      (when (and mistty--detected-prompt (<= mistty--detected-prompt (point-max)))
+        (mistty--move-sync-mark mistty--detected-prompt 'set-prompt)
+        (setq mistty--detected-prompt nil))
+      (when (process-live-p mistty-term-proc)
+        (when (or mistty--point-follows-next-pmark
+                  (null mistty--pmark-after-last-term-to-work)
+                  (= old-point mistty--pmark-after-last-term-to-work))
+          (setq mistty--point-follows-next-pmark nil)
+          (mistty-goto-pmark))
+        (setq mistty--pmark-after-last-term-to-work (mistty-pmark))))))
 
 (defun mistty--save-properties (start)
   (let ((pos start) intervals)

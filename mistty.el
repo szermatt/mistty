@@ -496,39 +496,30 @@ all should rightly be part of term.el."
 
 (defun mistty--term-to-work ()
   (let ((inhibit-modification-hooks t)
-        (inhibit-read-only t))
-    (with-current-buffer mistty-work-buffer
-      (let ((initial-undo-list buffer-undo-list)
-            (initial-point (point))
-            (initial-mark (marker-position (mark-marker)))
-            (initial-mark-active mark-active)
-            (prompt-length (- mistty-cmd-start-marker mistty-sync-marker))
-            insertion-end)
-        (save-restriction
-          (widen)
-          (when (and (> prompt-length 0)
-                     (not (string=
-                           (with-current-buffer mistty-term-buffer
-                             (buffer-substring-no-properties
-                              mistty-sync-marker (mistty--safe-pos (+ mistty-sync-marker prompt-length))))
-                           (buffer-substring-no-properties
-                            mistty-sync-marker mistty-cmd-start-marker))))
-            ;; the prompt was modified; reset it
-            (move-marker mistty-cmd-start-marker mistty-sync-marker)
-            (setq prompt-length 0))
-          (goto-char mistty-cmd-start-marker)
-          (insert-buffer-substring
-           mistty-term-buffer (with-current-buffer mistty-term-buffer
-                                (+ mistty-sync-marker prompt-length)))
-          (setq insertion-end (point))
-          
-          ;; move point and buffer state back into the newly-inserted portion 
-          (goto-char (mistty--safe-pos initial-point))
-          (move-marker (mark-marker) (when initial-mark (mistty--safe-pos initial-mark)))
-          (setq mark-active initial-mark-active)
-          
-          (delete-region insertion-end (point-max))
-          (setq buffer-undo-list initial-undo-list))))
+        properties)
+    (with-current-buffer mistty-term-buffer
+      (save-restriction
+        (narrow-to-region mistty-sync-marker (point-max-marker))
+        (setq properties (mistty--save-properties mistty-sync-marker))
+        (with-current-buffer mistty-work-buffer
+          (let ((initial-undo-list buffer-undo-list))
+            (save-excursion
+              (save-restriction
+                (narrow-to-region mistty-sync-marker (point-max-marker))
+                (condition-case nil
+                    (replace-buffer-contents mistty-term-buffer)
+                  (text-read-only
+                   ;; Replace-buffer-contents attempted to modify the prompt.
+                   ;; Remove it and try again.
+                   (let ((inhibit-read-only t))
+                     (remove-text-properties (point-min) (point-max) '(read-only t))
+                     (move-marker mistty-cmd-start-marker mistty-sync-marker)
+                     (replace-buffer-contents mistty-term-buffer))))
+                (let ((inhibit-read-only t))
+                  (mistty--restore-properties properties mistty-sync-marker)
+                  (when (> mistty-cmd-start-marker mistty-sync-marker)
+                    (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)))))
+            (setq buffer-undo-list initial-undo-list)))))
     
     (with-current-buffer mistty-term-buffer
       ;; Next time, only sync the visible portion of the terminal.
@@ -543,6 +534,24 @@ all should rightly be part of term.el."
         (goto-char term-home-marker)
         (forward-line -5)
         (delete-region (point-min) (point))))))
+
+(defun mistty--save-properties (start)
+  (let ((pos start) intervals)
+    (while (< pos (point-max))
+      (let ((props (text-properties-at pos))
+            (last-pos pos))
+        (setq pos (next-property-change pos nil (point-max)))
+        (push `(,(- last-pos start) ,(- pos start) ,props)
+              intervals)))
+    
+    intervals))
+
+(defun mistty--restore-properties (intervals start)
+  (dolist (interval intervals)
+    (pcase interval
+      (`(,beg ,end ,props)
+       (set-text-properties (+ beg start) (+ end start) props))
+      (_ (error "invalid interval %s" interval)))))
 
 (defun mistty--move-sync-mark (pos &optional set-prompt)
   (let ((chars-from-bol (- pos (mistty--bol-pos-from pos)))
@@ -572,14 +581,16 @@ all should rightly be part of term.el."
     (move-marker mistty-cmd-start-marker cmd-start-pos)
     (move-overlay mistty-sync-ov sync-pos (point-max))
     (when (> cmd-start-pos sync-pos)
-      (add-text-properties sync-pos cmd-start-pos
-                           '(mistty prompt
-                                    field mistty-prompt
-                                    face mistty-debug-prompt
-                                    rear-nonsticky t))
-      (add-text-properties sync-pos cmd-start-pos
-                           '(read-only t front-sticky t)))))
+      (mistty--set-prompt-properties sync-pos cmd-start-pos))))
 
+(defun mistty--set-prompt-properties (start end)
+  (add-text-properties start end
+                       '(mistty prompt
+                                field mistty-prompt
+                                face mistty-debug-prompt
+                                rear-nonsticky t))
+  (add-text-properties start end
+                       '(read-only t front-sticky t)))
 
 (defun mistty-send-raw-string (str)
   (when (and str (not (zerop (length str))))

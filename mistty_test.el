@@ -465,14 +465,13 @@
    (should (equal (marker-position mistty-sync-marker) (point-min)))
    (should (equal (marker-position mistty-cmd-start-marker) (mistty-test-goto "echo one")))))
 
-(ert-deftest test-mistty-keep-track-pointer-on-long-prompt ()
+(ert-deftest test-mistty-keep-pointer-on-long-prompt ()
   (with-mistty-buffer
    (mistty--set-process-window-size 20 20)
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (while (length= (mistty-test-content nil nil 'nopointer) 0)
-     (accept-process-output mistty-term-proc 0 500 t))
+   (mistty-wait-for-output)
 
    ;; make sure that the newlines don't confuse mistty-post-command
    ;; moving the cursor.

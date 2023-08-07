@@ -43,6 +43,8 @@ properties, for example." )
 (defvar-local mistty--possible-prompt nil)
 (defvar-local mistty--detected-prompt nil)
 (defvar-local mistty--pmark-after-last-term-to-work nil)
+(defvar-local mistty--inhibit-term-to-work nil)
+(defvar-local mistty--inhibited-term-to-work nil)
 
 (eval-when-compile
   ;; defined in term.el
@@ -493,59 +495,70 @@ all should rightly be part of term.el."
 (defun mistty--from-work-pos (pos)
   (mistty--from-pos-of pos mistty-work-buffer))
 
-(defun mistty--term-to-work ()
-  (let ((inhibit-modification-hooks t)
-        (old-point (point))
-        properties)
-    (with-current-buffer mistty-term-buffer
-      (save-restriction
-        (narrow-to-region mistty-sync-marker (point-max-marker))
-        (setq properties (mistty--save-properties mistty-sync-marker))
-        (with-current-buffer mistty-work-buffer
-          (let ((initial-undo-list buffer-undo-list))
-            (save-excursion
-              (save-restriction
-                (narrow-to-region mistty-sync-marker (point-max-marker))
-                (condition-case nil
-                    (replace-buffer-contents mistty-term-buffer)
-                  (text-read-only
-                   ;; Replace-buffer-contents attempted to modify the prompt.
-                   ;; Remove it and try again.
-                   (let ((inhibit-read-only t))
-                     (remove-text-properties (point-min) (point-max) '(read-only t))
-                     (move-marker mistty-cmd-start-marker mistty-sync-marker)
-                     (replace-buffer-contents mistty-term-buffer))))
-                (let ((inhibit-read-only t))
-                  (mistty--restore-properties properties mistty-sync-marker)
-                  (when (> mistty-cmd-start-marker mistty-sync-marker)
-                    (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)))))
-            (setq buffer-undo-list initial-undo-list)))))
-    
-    (mistty--with-live-buffer mistty-term-buffer
-      ;; Next time, only sync the visible portion of the terminal.
-      (when (< mistty-sync-marker term-home-marker)
-        (mistty--move-sync-mark term-home-marker))
+(defun mistty--disable-term-to-work ()
+  (setq mistty--inhibit-term-to-work t))
+
+(defun mistty--enable-term-to-work ()
+  (setq mistty--inhibit-term-to-work nil)
+  (when mistty--inhibited-term-to-work
+    (mistty--term-to-work)))
+
+(defun mistty--term-to-work (&optional forced)
+  (if (and mistty--inhibit-term-to-work (not forced))
+      (setq mistty--inhibited-term-to-work t)
+    (let ((inhibit-modification-hooks t)
+          (old-point (point))
+          properties)
+      (setq mistty--inhibited-term-to-work nil)
+      (with-current-buffer mistty-term-buffer
+        (save-restriction
+          (narrow-to-region mistty-sync-marker (point-max-marker))
+          (setq properties (mistty--save-properties mistty-sync-marker))
+          (with-current-buffer mistty-work-buffer
+            (let ((initial-undo-list buffer-undo-list))
+              (save-excursion
+                (save-restriction
+                  (narrow-to-region mistty-sync-marker (point-max-marker))
+                  (condition-case nil
+                      (replace-buffer-contents mistty-term-buffer)
+                    (text-read-only
+                     ;; Replace-buffer-contents attempted to modify the prompt.
+                     ;; Remove it and try again.
+                     (let ((inhibit-read-only t))
+                       (remove-text-properties (point-min) (point-max) '(read-only t))
+                       (move-marker mistty-cmd-start-marker mistty-sync-marker)
+                       (replace-buffer-contents mistty-term-buffer))))
+                  (let ((inhibit-read-only t))
+                    (mistty--restore-properties properties mistty-sync-marker)
+                    (when (> mistty-cmd-start-marker mistty-sync-marker)
+                      (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)))))
+              (setq buffer-undo-list initial-undo-list)))))
       
-      ;; Truncate the term buffer, since scrolling back is available on
-      ;; the work buffer anyways. This has to be done now, after syncing
-      ;; the marker, and not in term-emulate-terminal, which is why
-      ;; term-buffer-maximum-size is set to 0.
-      (save-excursion
-        (goto-char term-home-marker)
-        (forward-line -5)
-        (delete-region (point-min) (point))))
-    
-    (mistty--with-live-buffer mistty-work-buffer
-      (when (and mistty--detected-prompt (<= mistty--detected-prompt (point-max)))
-        (mistty--move-sync-mark mistty--detected-prompt 'set-prompt)
-        (setq mistty--detected-prompt nil))
-      (when (process-live-p mistty-term-proc)
-        (when (or mistty--point-follows-next-pmark
-                  (null mistty--pmark-after-last-term-to-work)
-                  (= old-point mistty--pmark-after-last-term-to-work))
+      (mistty--with-live-buffer mistty-term-buffer
+        ;; Next time, only sync the visible portion of the terminal.
+        (when (< mistty-sync-marker term-home-marker)
+          (mistty--move-sync-mark term-home-marker))
+        
+        ;; Truncate the term buffer, since scrolling back is available on
+        ;; the work buffer anyways. This has to be done now, after syncing
+        ;; the marker, and not in term-emulate-terminal, which is why
+        ;; term-buffer-maximum-size is set to 0.
+        (save-excursion
+          (goto-char term-home-marker)
+          (forward-line -5)
+          (delete-region (point-min) (point))))
+      
+      (mistty--with-live-buffer mistty-work-buffer
+        (when (and mistty--detected-prompt (<= mistty--detected-prompt (point-max)))
+          (mistty--move-sync-mark mistty--detected-prompt 'set-prompt)
+          (setq mistty--detected-prompt nil))
+        (when (process-live-p mistty-term-proc)
+          (when (or mistty--point-follows-next-pmark
+                    (null mistty--pmark-after-last-term-to-work)
+                    (= old-point mistty--pmark-after-last-term-to-work))
+              (mistty-goto-pmark))
           (setq mistty--point-follows-next-pmark nil)
-          (mistty-goto-pmark))
-        (setq mistty--pmark-after-last-term-to-work (mistty-pmark))))))
+          (setq mistty--pmark-after-last-term-to-work (mistty-pmark)))))))
 
 (defun mistty--save-properties (start)
   (let ((pos start) intervals)
@@ -713,9 +726,8 @@ all should rightly be part of term.el."
           (end (max orig-end mistty-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
           shift pos)
-      ;; Temporarily stop accepting output while collecting modifications.
-      (when (and (process-live-p mistty-term-proc) (not (eq t (process-filter mistty-term-proc))))
-        (set-process-filter mistty-term-proc t))
+      ;; Temporarily stop refreshing the work buffer while collecting modifications.
+      (mistty--disable-term-to-work)
       
       ;; Mark the text that was inserted
       (put-text-property beg end 'mistty-change '(inserted))
@@ -853,8 +865,6 @@ all should rightly be part of term.el."
         (intervals-end (mistty--modification-intervals-end intervals))
         (modifications (mistty--collect-modifications intervals))
         first lower-limit upper-limit)
-    (mistty--enable-process-output)
-
     (setq first (car modifications))
     (while modifications
       (let* ((m (car modifications))
@@ -939,15 +949,20 @@ all should rightly be part of term.el."
         ;; send the content of replay-seqs
         (let ((replay-str (mapconcat #'identity (nreverse replay-seqs) "")))
           (if (null modifications)
-              (mistty-send-raw-string replay-str)
-            (mistty--send-and-wait replay-str)))))))
-
-(defun mistty--enable-process-output ()
-  (when (and (process-live-p mistty-term-proc) (eq t (process-filter mistty-term-proc)))
-    ;; Process output was disabled while collecting
-    ;; modifications. Start accepting output again now that we're done.
-    (set-process-filter mistty-term-proc #'mistty-process-filter)
-    (while (accept-process-output mistty-term-proc 0 0 t))))
+              (progn
+                ;; Wait for a response from replay-string before
+                ;; refreshing the display. This way, we won't see any
+                ;; intermediate results with the modifications
+                ;; temporarily turned off.
+                ;;
+                ;; TODO: what if there's no response from replay-str?
+                ;; Add a timeout to call term-to-work after some delay
+                ;; if no answer has come.
+                (setq mistty--inhibit-term-to-work nil
+                      mistty--inhibited-term-to-work nil)
+                (mistty-send-raw-string replay-str))
+            (mistty--send-and-wait replay-str)
+            ))))))
 
 (defun mistty--send-and-wait (str)
   (when (and str (not (zerop (length str))))
@@ -1031,7 +1046,6 @@ END section to be valid in the term buffer."
   (run-at-time 0 nil #'mistty-post-command-1 mistty-work-buffer))
 
 (defun mistty-post-command-1 (buf)
-  ;; replay modifications recorded during the command
   (mistty--with-live-buffer buf
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
@@ -1061,11 +1075,11 @@ END section to be valid in the term buffer."
 
          ;; revert modifications
          (t
-          (mistty--term-to-work)
-          (mistty--maybe-pmark-to-point))
-         )
-        (mistty--enable-process-output)
-        ))))
+          (mistty--term-to-work 'forced)
+          (mistty--maybe-pmark-to-point)))
+        
+        ;; re-enable term-to-work in all cases.
+        (mistty--enable-term-to-work)))))
 
 (defun mistty--maybe-pmark-to-point ()
   (when (and mistty--old-point

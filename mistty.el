@@ -325,6 +325,7 @@ properties, for example." )
      (t (let ((inhibit-modification-hooks t)
               (inhibit-read-only t)
               (old-sync-position (mistty--with-live-buffer term-buffer (marker-position mistty-sync-marker)))
+              (old-last-non-ws (mistty--with-live-buffer term-buffer (mistty--last-non-ws)))
               (point-on-pmark (or mistty--point-follows-next-pmark
                                   (mistty--with-live-buffer work-buffer
                                     (or (= (point) (mistty-pmark))
@@ -337,20 +338,19 @@ properties, for example." )
             (when (or (< mistty-sync-marker old-sync-position)
                       (< (point) mistty-sync-marker))
               (mistty--reset-markers)
-              (setq point-on-pmark t)))
+              (setq point-on-pmark t))
+            (when (> (process-mark proc) old-last-non-ws) ;; on a new line
+              (mistty--detect-possible-prompt (process-mark proc))))
           (mistty--with-live-buffer work-buffer
             (condition-case nil
                 (setq default-directory (buffer-local-value 'default-directory term-buffer))
               (error nil))
-            (let ((pmark-on-new-line (> (mistty-pmark) (point-max))))
-              (mistty--term-to-work)
-              (when (mistty--bracketed-paste-just-turned-on)
-                (mistty--move-sync-mark (mistty-pmark) 'set-prompt)
-                (setq mistty--bracketed-paste-change-point nil))
-              (when pmark-on-new-line
-                (mistty--detect-possible-prompt))
-              (when point-on-pmark
-                (mistty-goto-pmark)))))))))
+            (mistty--term-to-work)
+            (when (mistty--bracketed-paste-just-turned-on)
+              (mistty--move-sync-mark (mistty-pmark) 'set-prompt)
+              (setq mistty--bracketed-paste-change-point nil))
+            (when point-on-pmark
+              (mistty-goto-pmark))))))))
 
 (defun mistty--bracketed-paste-just-turned-on ()
   (when (and mistty-bracketed-paste mistty--bracketed-paste-change-point)
@@ -376,17 +376,20 @@ properties, for example." )
           (recenter (- (1+ (count-lines
                             (window-point win) (point-max)))) t)))))
 
-(defun mistty--detect-possible-prompt ()
-  (let* ((pmark (mistty-pmark))
-         (bol (mistty--bol-pos-from pmark)))
+(defun mistty--detect-possible-prompt (pmark)
+  (let* ((bol (mistty--bol-pos-from pmark)))
     (when (and (> pmark bol)
                (>= pmark (mistty--last-non-ws))
                (string-match
                 mistty-prompt-re
                 (buffer-substring-no-properties bol pmark)))
-      (setq mistty--possible-prompt
-            `(,bol ,(+ bol (match-end 0))
-                   ,(buffer-substring-no-properties bol (+ bol (match-end 0))))))))
+      (let ((end (+ bol (match-end 0)))
+            (content (buffer-substring-no-properties bol (+ bol (match-end 0)))))
+        (mistty--with-live-buffer mistty-work-buffer
+          (setq mistty--possible-prompt
+                (list (mistty--from-term-pos bol)
+                      (mistty--from-work-pos end)
+                      content)))))))
  
 (defun mistty--reset-markers ()
   (mistty--with-live-buffer mistty-work-buffer
@@ -487,6 +490,12 @@ all should rightly be part of term.el."
   "Return the local equivalent to POS defined in BUFFER-OF-POS."
   (+ mistty-sync-marker (with-current-buffer buffer-of-pos
                          (- pos mistty-sync-marker))))
+
+(defun mistty--from-term-pos (pos)
+  (mistty--from-pos-of pos mistty-term-buffer))
+
+(defun mistty--from-work-pos (pos)
+  (mistty--from-pos-of pos mistty-work-buffer))
 
 (defun mistty--term-to-work ()
   (let ((inhibit-modification-hooks t)

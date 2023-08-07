@@ -380,11 +380,7 @@ properties, for example." )
   (let* ((pmark (mistty-pmark))
          (bol (mistty--bol-pos-from pmark)))
     (when (and (> pmark bol)
-               (= (point-max)
-                  (save-excursion
-                    (goto-char pmark)
-                    (skip-chars-forward ":space:")
-                    (point)))
+               (>= pmark (mistty--last-non-ws))
                (string-match
                 mistty-prompt-re
                 (buffer-substring-no-properties bol pmark)))
@@ -394,11 +390,9 @@ properties, for example." )
  
 (defun mistty--reset-markers ()
   (mistty--with-live-buffer mistty-work-buffer
-    (goto-char (point-max))
-    (skip-chars-backward "[:space:]")
     (let ((inhibit-read-only t)
           (inhibit-modification-hooks t))
-      (delete-region (point) (point-max))
+      (delete-region (mistty--last-non-ws) (point-max))
       (insert "\n"))
     (move-marker mistty-sync-marker (point-max))
     (move-marker mistty-cmd-start-marker (point-max)))
@@ -616,6 +610,12 @@ all should rightly be part of term.el."
     (goto-char pos)
     (let ((inhibit-field-text-motion t))
       (line-end-position))))
+
+(defun mistty--last-non-ws ()
+  (save-excursion
+    (goto-char (point-max))
+    (skip-chars-backward ":space:")
+    (point)))
 
 (defun mistty-send-command ()
   "Send the current command to the shell."

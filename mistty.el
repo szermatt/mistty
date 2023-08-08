@@ -690,10 +690,12 @@ all should rightly be part of term.el."
       (mistty-before-positional))
     (mistty-send-key n key)))
 
-(defun mistty-send-key (&optional n key)
+(defun mistty-send-key (&optional n key positional)
   (interactive "p")
   (let ((n (or n 1))
         (key (or key (this-command-keys))))
+    (when (or positional (mistty-positional-key-p key))
+      (mistty-before-positional))
     (if (characterp key)
         (mistty-send-raw-string (make-string n key))
       (let ((keymap (or mistty--key-to-keyseq
@@ -1228,7 +1230,8 @@ END section to be valid in the term buffer."
     (error "No scrollback buffer available.")))
 
 (defun mistty-positional-key-p (key)
-  (seq-contains-p mistty-positional-keys key))
+  (and (characterp key)
+       (seq-contains-p mistty-positional-keys key)))
 
 (defun mistty-on-prompt-p (pos)
   (and (>= pos mistty-cmd-start-marker)

@@ -66,8 +66,11 @@ properties, for example." )
 
 (defvar mistty-positional-keys "\t\C-w\C-t\C-k-C-y")
 
-(defface mistty-fringe-face '((t (:foreground "purple")))
-  "Color of the left fringe or margin that indicates the synced region." :group 'mistty)
+(defface mistty-fringe-face '((t (:background "purple" :foreground "purple")))
+  "Color of the left fringe that indicates the synced region." :group 'mistty)
+
+(defface mistty-margin-face '((t (:foreground "purple")))
+  "Color of the left margin that indicates the synced region." :group 'mistty)
 
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
@@ -192,7 +195,7 @@ properties, for example." )
      (propertize " " 'display
                  (if (window-system)
                      '(left-fringe vertical-bar mistty-fringe-face)
-                   `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face)))))
+                   `((margin left-margin) ,(propertize "┃" 'face 'mistty-margin-face)))))
 
     (when proc
       (set-process-filter proc #'mistty-process-filter)

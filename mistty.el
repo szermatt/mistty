@@ -13,8 +13,10 @@
 ;; 
 
 (require 'term)
+(require 'seq)
 (require 'subr-x)
 (require 'text-property-search)
+(require 'term/xterm)
 
 ;;; Code:
 
@@ -45,6 +47,7 @@ properties, for example." )
 (defvar-local mistty--pmark-after-last-term-to-work nil)
 (defvar-local mistty--inhibit-term-to-work nil)
 (defvar-local mistty--inhibited-term-to-work nil)
+(defvar-local mistty--key-to-keyseq nil)
 
 (eval-when-compile
   ;; defined in term.el
@@ -70,17 +73,18 @@ properties, for example." )
 
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-c") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-d") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-z") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-\\") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-p") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-n") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-r") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-s") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-g") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-a") 'mistty-send-raw-key)
-    (define-key map (kbd "C-c C-e") 'mistty-send-raw-key)
+    (define-key map (kbd "C-c C-c") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-d") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-z") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-\\") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-r") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-s") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-g") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-a") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-e") 'mistty-send-last-key)
+    ;; TODO: C-c C-n and C-p should send C-n and C-p to the terminal
+    ;; to navigate history. Find another key binding for next and
+    ;; previous prompt.
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
     (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
     (define-key map (kbd "C-c C-j") 'mistty-switch-to-fullscreen-buffer)
@@ -679,12 +683,57 @@ all should rightly be part of term.el."
   (mistty-before-positional)
   (mistty-send-raw-string (make-string (or n 1 ) (or key (mistty-last-key)))))
 
-(defun mistty-send-raw-key (n)
+(defun mistty-send-last-key (n)
   (interactive "p")
   (let ((key (mistty-last-key)))
     (when (mistty-positional-key-p key)
       (mistty-before-positional))
-    (mistty-send-raw-string (make-string n key))))
+    (mistty-send-key n key)))
+
+(defun mistty-send-key (&optional n key)
+  (interactive "p")
+  (let ((n (or n 1))
+        (key (or key (this-command-keys))))
+    (if (characterp key)
+        (mistty-send-raw-string (make-string n key))
+      (let ((keymap (or mistty--key-to-keyseq
+                        (setq mistty--key-to-keyseq
+                              (mistty-reverse-input-decode-map
+                               xterm-function-map)))))
+        (if-let ((translated-key (lookup-key keymap key)))
+            (mistty-send-raw-string
+             (mistty--repeat-string n (concat translated-key)))
+          (error "unknown key %s" (key-description key)))))))
+
+(defun mistty--keyseqp (obj)
+  (and (vectorp obj)
+       (seq-reduce (lambda (a b) (and a (eventp b))) obj t)))
+
+(defun mistty--reverse-input-decode-map-1 (event-type binding prefix dest-keymap)
+  (let ((full-event (vconcat prefix (vector event-type))))
+    (cond
+     ((mistty--keyseqp binding)
+      (unless (lookup-key dest-keymap binding)
+        (define-key dest-keymap binding full-event)))
+     ((keymapp binding)
+      (map-keymap
+       (lambda (e b)
+         (mistty--reverse-input-decode-map-1 e b full-event dest-keymap))
+       binding))
+     ((functionp binding))
+     (t (error "unknown: %s" binding)))))
+
+(defun mistty-reverse-input-decode-map (map)
+  (let ((reverse-map (make-sparse-keymap)))
+    (map-keymap
+     (lambda (e b)
+       (mistty--reverse-input-decode-map-1 e b [] reverse-map))
+     map)
+    
+    reverse-map))
+
+
+    
 
 (defun mistty-last-key ()
   (let ((keys (this-command-keys)))

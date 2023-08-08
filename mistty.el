@@ -66,10 +66,8 @@ properties, for example." )
 
 (defvar mistty-positional-keys "\t\C-w\C-t\C-k-C-y")
 
-(defface mistty-debug-prompt nil
-  "Highlight recognized prompts [debug]" :group 'mistty)
-(defface mistty-debug-screen nil
-  "Highlight synchronized buffer region [debug]" :group 'mistty)
+(defface mistty-fringe-face '((t (:foreground "purple")))
+  "Color of the left fringe or margin that indicates the synced region." :group 'mistty)
 
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
@@ -184,7 +182,17 @@ properties, for example." )
     (overlay-put mistty-sync-ov 'keymap mistty-prompt-map)
     (overlay-put mistty-sync-ov 'modification-hooks (list #'mistty--modification-hook))
     (overlay-put mistty-sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
-    (overlay-put mistty-sync-ov 'face 'mistty-debug-screen)
+
+    ;; highlight the synced region in the fringe or margin
+    (unless (window-system)
+      (setq left-margin-width 1))
+    (overlay-put
+     mistty-sync-ov
+     'line-prefix
+     (propertize " " 'display
+                 (if (window-system)
+                     '(left-fringe vertical-bar mistty-fringe-face)
+                   `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face)))))
 
     (when proc
       (set-process-filter proc #'mistty-process-filter)
@@ -616,7 +624,6 @@ all should rightly be part of term.el."
   (add-text-properties start end
                        '(mistty prompt
                                 field mistty-prompt
-                                face mistty-debug-prompt
                                 rear-nonsticky t))
   (add-text-properties start end
                        '(read-only t front-sticky t)))

@@ -1204,6 +1204,13 @@
      (mistty-wait-for-output)
      (should (equal "echo hallo<>" (mistty-test-content start))))))
 
+(ert-deftest mistty-test-last-non-ws ()
+  (ert-with-test-buffer ()
+    (insert "This is a test\t   \r\n   \n  \t ")
+    (goto-char (point-min))
+    (should (equal (save-excursion (mistty-test-goto-after "test"))
+                   (mistty--last-non-ws)))))
+
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion

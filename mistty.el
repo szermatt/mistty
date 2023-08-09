@@ -57,6 +57,7 @@ properties, for example." )
 (defconst mistty-right-str "\eOC")
 (defconst mistty-bracketed-paste-start-str "\e[200~")
 (defconst mistty-bracketed-paste-end-str "\e[201~")
+(defconst mistty--ws "[:blank:]\n\r")
 (defconst mistty-fullscreen-mode-message
   (let ((s "Fullscreen mode ON. C-c C-j switches between the tty and scrollback buffer."))
     (add-text-properties 0 (length s) '(mistty message) s)
@@ -415,7 +416,7 @@ properties, for example." )
   (mistty--with-live-buffer mistty-term-buffer
     (save-excursion
       (goto-char term-home-marker)
-      (skip-chars-forward "[:space:]")
+      (skip-chars-forward mistty--ws)
       (move-marker mistty-sync-marker (point)))))
 
 (defun mistty-emulate-terminal (proc str)
@@ -659,7 +660,7 @@ all should rightly be part of term.el."
 (defun mistty--last-non-ws ()
   (save-excursion
     (goto-char (point-max))
-    (skip-chars-backward ":space:")
+    (skip-chars-backward mistty--ws)
     (point)))
 
 (defun mistty-send-command ()
@@ -757,7 +758,7 @@ all should rightly be part of term.el."
   (if (or
        (zerop (length
                (replace-regexp-in-string
-                "[[:space:]]+"
+                (format "[%s]+" mistty--ws)
                 ""
                 (buffer-substring-no-properties
                  mistty-cmd-start-marker (mistty--eol-pos-from (point))))))

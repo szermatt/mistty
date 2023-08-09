@@ -533,6 +533,7 @@ all should rightly be part of term.el."
   (if (and mistty--inhibit-term-to-work (not forced))
       (setq mistty--inhibited-term-to-work t)
     (let ((inhibit-modification-hooks t)
+          (inhibit-read-only t)
           (old-point (point))
           properties)
       (setq mistty--inhibited-term-to-work nil)
@@ -541,24 +542,20 @@ all should rightly be part of term.el."
           (narrow-to-region mistty-sync-marker (point-max-marker))
           (setq properties (mistty--save-properties mistty-sync-marker))
           (with-current-buffer mistty-work-buffer
-            (let ((initial-undo-list buffer-undo-list))
-              (save-excursion
-                (save-restriction
-                  (narrow-to-region mistty-sync-marker (point-max-marker))
-                  (condition-case nil
-                      (replace-buffer-contents mistty-term-buffer)
-                    (text-read-only
-                     ;; Replace-buffer-contents attempted to modify the prompt.
-                     ;; Remove it and try again.
-                     (let ((inhibit-read-only t))
-                       (remove-text-properties (point-min) (point-max) '(read-only t))
-                       (move-marker mistty-cmd-start-marker mistty-sync-marker)
-                       (replace-buffer-contents mistty-term-buffer))))
-                  (let ((inhibit-read-only t))
-                    (mistty--restore-properties properties mistty-sync-marker)
-                    (when (> mistty-cmd-start-marker mistty-sync-marker)
-                      (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)))))
-              (setq buffer-undo-list initial-undo-list)))))
+            (let ((saved-undo-list buffer-undo-list)
+                  (saved-prompt (buffer-substring-no-properties
+                                 mistty-sync-marker mistty-cmd-start-marker)))
+              (save-restriction
+                (narrow-to-region mistty-sync-marker (point-max-marker))
+                (replace-buffer-contents mistty-term-buffer)
+                (mistty--restore-properties properties mistty-sync-marker)
+                (when (> mistty-cmd-start-marker mistty-sync-marker)
+                  (if (string= saved-prompt
+                               (buffer-substring-no-properties
+                                mistty-sync-marker mistty-cmd-start-marker))
+                      (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)
+                    (move-marker mistty-cmd-start-marker mistty-sync-marker))))
+              (setq buffer-undo-list saved-undo-list)))))
       
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.

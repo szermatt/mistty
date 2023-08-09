@@ -334,8 +334,15 @@ properties, for example." )
      
      ;; reset
      ((string-match "\ec" str)
-      (let ((rs1-after-pos (match-end 0)))
-        (mistty-emulate-terminal proc (substring str 0 rs1-after-pos))
+      (let ((rs1-before-pos (match-beginning 0))
+            (rs1-after-pos (match-end 0)))
+        ;; The work buffer must be updated before sending the reset to
+        ;; the terminal, or we'll lose data. This might interfere with
+        ;; collecting and applying modifications, but then so would
+        ;; reset.
+        (let ((mistty--inhibited-term-to-work nil))
+          (mistty-process-filter proc (substring str 0 rs1-before-pos)))
+        (term-emulate-terminal proc (substring str rs1-before-pos rs1-after-pos))
         (with-current-buffer work-buffer
           (setq mistty-bracketed-paste nil)
           (mistty--reset-markers))

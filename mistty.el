@@ -446,7 +446,7 @@ all should rightly be part of term.el."
              (lambda (count)
                (vertical-motion count (or (get-buffer-window mistty-work-buffer)
                                           (selected-window))))))
-    (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\([\x08-0x0d\x20-\x7e]*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
+    (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\(.*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
       (let ((ext (match-string 1 str))
             (osc (match-string 3 str))
             (seq-start (match-beginning 0))

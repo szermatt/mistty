@@ -471,7 +471,11 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (mistty-wait-for-output)
+   (while (progn
+            (mistty-wait-for-output)
+            (not (save-excursion
+                   (goto-char (point-min))
+                   (search-forward "nine" nil 'noerror)))))
 
    ;; make sure that the newlines don't confuse mistty-post-command
    ;; moving the cursor.

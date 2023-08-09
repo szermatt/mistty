@@ -157,7 +157,8 @@ properties, for example." )
                   term-char-mode-point-at-process-mark t
                   term-buffer-maximum-size 0
                   term-height (or (floor (window-screen-lines)) 24)
-                  term-width (or (window-max-chars-per-line) 80))
+                  term-width (or (window-max-chars-per-line) 80)
+                  term-command-function #'mistty-command-function)
       (term--reset-scroll-region)
       (term-exec term-buffer (buffer-name mistty-term-buffer) program nil args)
       (term-char-mode))
@@ -1297,6 +1298,15 @@ END section to be valid in the term buffer."
   (pcase mistty--possible-prompt
     (`(,start ,line-start ,_)
      (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
+
+(defun mistty-command-function (string)
+  (if (string-match "^d\\([^:]*\\):\\([0-9]+\\):\\(.*\\)" string)
+    (let ((hostname (match-string 1 string))
+          (len (string-to-number (match-string 2 string)))
+          (rest (match-string 3 string)))
+      (when (and (string= (system-name) hostname) (> len 0) (< len (length rest)))
+        (cd (substring rest 0 len))))
+    (term-command-function string)))
 
 (provide 'mistty)
 

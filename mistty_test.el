@@ -954,6 +954,10 @@
    (mistty-send-raw-string "echo one")
    (mistty-send-and-wait-for-prompt)
    (mistty-send-raw-string "printf '\\e[2J'")
+   ;; wait-for-output makes sure the printf is displayed before
+   ;; sending it otherwise it might or might not be included into the
+   ;; final output, depending on the command sequences are buffered.
+   (mistty-wait-for-output)
    (mistty-send-and-wait-for-prompt)
    (mistty-send-raw-string "echo two")
    (mistty-send-and-wait-for-prompt)

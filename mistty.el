@@ -364,7 +364,10 @@ properties, for example." )
               (mistty--detect-possible-prompt (process-mark proc)))
             (when (mistty--bracketed-paste-just-turned-on)
               (mistty--with-live-buffer work-buffer
-                (setq mistty--detected-prompt (mistty-pmark))
+                (setq mistty--detected-prompt
+                      (cons (min (mistty--from-term-pos mistty--bracketed-paste-change-point)
+                                 (mistty-pmark))
+                            (mistty-pmark)))
                 (setq mistty--bracketed-paste-change-point nil))))
           (mistty--with-live-buffer work-buffer
             (condition-case nil
@@ -572,8 +575,10 @@ all should rightly be part of term.el."
           (delete-region (point-min) (point))))
       
       (mistty--with-live-buffer mistty-work-buffer
-        (when (and mistty--detected-prompt (<= mistty--detected-prompt (point-max)))
-          (mistty--move-sync-mark mistty--detected-prompt 'set-prompt)
+        (when (and mistty--detected-prompt
+                   (<= (cdr mistty--detected-prompt) (point-max)))
+          (mistty--move-sync-mark (car mistty--detected-prompt)
+                                  (cdr mistty--detected-prompt))
           (setq mistty--detected-prompt nil))
         (when (process-live-p mistty-term-proc)
           (when (or mistty--point-follows-next-pmark
@@ -601,16 +606,17 @@ all should rightly be part of term.el."
        (set-text-properties (+ beg start) (+ end start) props))
       (_ (error "invalid interval %s" interval)))))
 
-(defun mistty--move-sync-mark (pos &optional set-prompt)
-  (let ((chars-from-bol (- pos (mistty--bol-pos-from pos)))
-        (chars-from-end (- (point-max) (mistty--bol-pos-from pos))))
+(defun mistty--move-sync-mark (sync-pos &optional cmd-pos)
+  (let* ((sync-pos (mistty--bol-pos-from sync-pos))
+         (chars-from-end (- (point-max) sync-pos))
+         (prompt-length (if (and cmd-pos (> cmd-pos sync-pos))
+                            (- cmd-pos sync-pos)
+                          0)))
     (with-current-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (- (point-max) chars-from-end)))
     (with-current-buffer mistty-work-buffer
-      (let ((sync-pos (- (point-max) chars-from-end)))
-        (mistty--set-prompt
-         sync-pos
-         (+ sync-pos (if set-prompt chars-from-bol 0)))))))
+      (let ((work-sync-pos (- (point-max) chars-from-end)))
+        (mistty--set-prompt work-sync-pos (+ work-sync-pos prompt-length))))))
 
 (defun mistty--move-sync-mark-with-shift (sync-pos cmd-start-pos shift)
   (let ((diff (- sync-pos mistty-sync-marker)))
@@ -968,7 +974,7 @@ all should rightly be part of term.el."
           (when (and (> pmark beg)
                      (> (mistty--distance-on-term beg pmark) 0))
             (setq lower-limit pmark)
-            (mistty--move-sync-mark pmark 'set-prompt))
+            (mistty--move-sync-mark (mistty--bol-pos-from pmark) pmark))
           
           (setq beg (max beg pmark)))
 
@@ -1277,7 +1283,7 @@ END section to be valid in the term buffer."
     (`(,start ,end ,_ )
      (if shift
          (mistty--move-sync-mark-with-shift start end shift)
-       (mistty--move-sync-mark end 'set-prompt)))
+       (mistty--move-sync-mark start end)))
     (_ (error "no possible prompt"))))
 
 (defun mistty--possible-prompt-p ()

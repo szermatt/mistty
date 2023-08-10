@@ -483,7 +483,7 @@ all should rightly be part of term.el."
          ((equal ext "[?2004h") ; enable bracketed paste
           (term-emulate-terminal proc (substring str start seq-end))
           (mistty-register-text-properties
-           'mistty-bracketed-paste `(mistty prompt mistty-id ,(mistty--next-id)))
+           'mistty-bracketed-paste `(mistty-prompt-id ,(mistty--next-id)))
           (mistty--with-live-buffer work-buffer
             (setq mistty-bracketed-paste t)
             (setq mistty--bracketed-paste-change-point

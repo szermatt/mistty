@@ -298,73 +298,82 @@
 
 (ert-deftest test-mistty-next-prompt ()
   (with-mistty-buffer
-   (let (one two three current)
-     (setq one (point))
-     (mistty-run-command
-      (insert "echo one"))
-     (mistty-send-and-wait-for-prompt)
-     (setq two (point))
-     (mistty-run-command
-      (insert "echo two"))
-     (mistty-send-and-wait-for-prompt)
-     (setq three (point))
-     (mistty-run-command
-      (insert "echo three"))
-     (mistty-send-and-wait-for-prompt)
-     (setq current (point))
-     (mistty-run-command
-      (insert "echo current"))
-
-     (goto-char (point-min))
-     (mistty-next-prompt 1)
-     (should (equal one (point)))
-
-     (mistty-next-prompt 1)
-     (should (equal two (point)))
-
-     (mistty-next-prompt 1)
-     (should (equal three (point)))
-
-     (mistty-next-prompt 1)
-     (should (equal current (point)))
-
-     (should-error (mistty-next-prompt 1))
-
-     (goto-char (point-min))
-     (mistty-next-prompt 2)
-     (should (equal two (point)))
-     
-     (mistty-next-prompt 2)
-     (should (equal current (point))))))
+   (mistty-run-command
+    (insert "echo one"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo two"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo three"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo current"))
+   
+   (goto-char (point-min))
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ <>echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ echo one\none\n$ <>echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ echo one\none\n$ echo two\ntwo\n$ <>echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ <>echo current"
+           (mistty-test-content)))
+   
+   (should-error (mistty-next-prompt 1))
+   
+   (goto-char (point-min))
+   (mistty-next-prompt 2)
+   (should
+    (equal "$ echo one\none\n$ <>echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (mistty-next-prompt 2)
+   (should
+    (equal "$ echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ <>echo current"
+           (mistty-test-content)))))
 
 (ert-deftest test-mistty-previous-prompt ()
   (with-mistty-buffer
-   (let (one three current)
-     (setq one (point))
-     (mistty-run-command
-      (insert "echo one"))
-     (mistty-send-and-wait-for-prompt)
-     (mistty-run-command
-      (insert "echo two"))
-     (mistty-send-and-wait-for-prompt)
-     (setq three (point))
-     (mistty-run-command
-      (insert "echo three"))
-     (mistty-send-and-wait-for-prompt)
-     (setq current (point))
-     (mistty-run-command
-      (insert "echo current"))
-
-     (mistty-previous-prompt 1)
-     (should (equal current (point)))
-     
-     (mistty-previous-prompt 1)
-     (should (equal three (point)))
-
-     (mistty-previous-prompt 2)
-     (should (equal one (point)))
-
-     (should-error (mistty-previous-prompt 1)))))
+   (mistty-run-command
+    (insert "echo one"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo two"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo three"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo current"))
+   
+   (mistty-previous-prompt 1)
+   (should
+    (equal "$ echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ <>echo current"
+           (mistty-test-content)))
+   
+   (mistty-previous-prompt 1)
+   (should
+    (equal "$ echo one\none\n$ echo two\ntwo\n$ <>echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (mistty-previous-prompt 2)
+   (should
+    (equal "$ <>echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (should-error (mistty-previous-prompt 1))))
 
 (ert-deftest test-mistty-dirtrack ()
   (with-mistty-buffer

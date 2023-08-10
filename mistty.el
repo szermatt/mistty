@@ -49,6 +49,8 @@ properties, for example." )
 (defvar-local mistty--inhibit-term-to-work nil)
 (defvar-local mistty--inhibited-term-to-work nil)
 (defvar-local mistty--key-to-keyseq nil)
+(defvar-local mistty--term-properties-to-add-alist nil)
+(defvar mistty--last-id 0)
 
 (eval-when-compile
   ;; defined in term.el
@@ -161,8 +163,31 @@ properties, for example." )
                   term-width (or (window-max-chars-per-line) 80))
       (term--reset-scroll-region)
       (term-exec term-buffer (buffer-name mistty-term-buffer) program nil args)
-      (term-char-mode))
+      (term-char-mode)
+      (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
     term-buffer))
+
+(defun mistty--after-change-on-term (beg end _old-length)
+  (when (and mistty--term-properties-to-add-alist (> end beg))
+    (when-let ((props (apply #'append
+                       (mapcar #'cdr mistty--term-properties-to-add-alist))))
+      (add-text-properties beg end props))))
+
+(defun mistty-register-text-properties (id props)
+  (mistty--with-live-buffer mistty-term-buffer
+    (if-let ((cell (assq id mistty--term-properties-to-add-alist)))
+        (setcdr cell props)
+      (push (cons id props) mistty--term-properties-to-add-alist))))
+
+(defun mistty-unregister-text-properties (id)
+  (mistty--with-live-buffer mistty-term-buffer
+    (when-let ((cell (assq id mistty--term-properties-to-add-alist)))
+      (setq mistty--term-properties-to-add-alist 
+          (delq cell
+                mistty--term-properties-to-add-alist)))))
+
+(defun mistty--next-id ()
+  (setq mistty--last-id (1+ mistty--last-id)))
 
 (defun mistty--attach (term-buffer)
   (let ((work-buffer (current-buffer))
@@ -431,11 +456,12 @@ properties, for example." )
       (move-marker mistty-sync-marker (point)))))
 
 (defun mistty-emulate-terminal (proc str)
-  "Handle special terminal codes, then call `term-emlate-terminal'.
+  "Handle special terminal codes, then call `term-emulate-terminal'.
 
 This functions intercepts some extented sequences term.el. This
 all should rightly be part of term.el."
-  (cl-letf ((start 0)
+  (cl-letf ((inhibit-modification-hooks nil)
+            (start 0)
             ;; Using term-buffer-vertical-motion causes strange
             ;; issues; avoid it. Using mistty's window to compute
             ;; vertical motion is correct since the window dimension
@@ -456,12 +482,15 @@ all should rightly be part of term.el."
         (cond
          ((equal ext "[?2004h") ; enable bracketed paste
           (term-emulate-terminal proc (substring str start seq-end))
+          (mistty-register-text-properties
+           'mistty-bracketed-paste `(mistty prompt mistty-id ,(mistty--next-id)))
           (mistty--with-live-buffer work-buffer
             (setq mistty-bracketed-paste t)
             (setq mistty--bracketed-paste-change-point
                   (marker-position (process-mark proc)))))
          ((equal ext "[?2004l") ; disable bracketed paste
           (term-emulate-terminal proc (substring str start seq-end))
+          (mistty-unregister-text-properties 'mistty-bracketed-paste)
           (mistty--with-live-buffer work-buffer
             (setq mistty-bracketed-paste nil)
             (setq mistty--bracketed-paste-change-point

@@ -583,11 +583,12 @@ all should rightly be part of term.el."
                                 pos 'mistty-prompt-id nil mistty-sync-marker)))
                    pos)))
             (when (and prompt-beg
-                       (> prompt-beg mistty-sync-marker)
+                       (or (> prompt-beg mistty-sync-marker)
+                           (and (= prompt-beg mistty-sync-marker)
+                                (= mistty-sync-marker mistty-cmd-start-marker)))
                        (< prompt-beg (mistty-pmark)))
               (mistty--move-sync-mark prompt-beg
                                       (mistty-pmark))))))
-      
       
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.

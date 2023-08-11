@@ -559,20 +559,13 @@ all should rightly be part of term.el."
           (narrow-to-region mistty-sync-marker (point-max-marker))
           (setq properties (mistty--save-properties mistty-sync-marker))
           (with-current-buffer mistty-work-buffer
-            (let ((saved-undo-list buffer-undo-list)
-                  (saved-prompt (mistty--safe-bufstring
-                                 mistty-sync-marker mistty-cmd-start-marker)))
-              (save-restriction
-                (narrow-to-region mistty-sync-marker (point-max-marker))
-                (replace-buffer-contents mistty-term-buffer)
-                (mistty--restore-properties properties mistty-sync-marker)
-                (when (> mistty-cmd-start-marker mistty-sync-marker)
-                  (if (string= saved-prompt
-                               (mistty--safe-bufstring
-                                mistty-sync-marker mistty-cmd-start-marker))
-                      (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)
-                    (move-marker mistty-cmd-start-marker mistty-sync-marker))))
-              (setq buffer-undo-list saved-undo-list)))))
+            (save-restriction
+              (narrow-to-region mistty-sync-marker (point-max-marker))
+              (replace-buffer-contents mistty-term-buffer)
+              (mistty--restore-properties properties mistty-sync-marker)
+              (when (> mistty-cmd-start-marker mistty-sync-marker)
+                (mistty--set-prompt-properties
+                 mistty-sync-marker mistty-cmd-start-marker))))))
 
       ;; detect prompt from bracketed-past region and use that to
       ;; restrict the sync region.

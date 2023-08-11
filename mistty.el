@@ -414,9 +414,9 @@ properties, for example." )
                (>= pmark (mistty--last-non-ws))
                (string-match
                 mistty-prompt-re
-                (buffer-substring-no-properties bol pmark)))
+                (mistty--safe-bufstring bol pmark)))
       (let ((end (+ bol (match-end 0)))
-            (content (buffer-substring-no-properties bol (+ bol (match-end 0)))))
+            (content (mistty--safe-bufstring bol (+ bol (match-end 0)))))
         (mistty--with-live-buffer mistty-work-buffer
           (setq mistty--possible-prompt
                 (list (mistty--from-term-pos bol)
@@ -551,7 +551,7 @@ all should rightly be part of term.el."
           (setq properties (mistty--save-properties mistty-sync-marker))
           (with-current-buffer mistty-work-buffer
             (let ((saved-undo-list buffer-undo-list)
-                  (saved-prompt (buffer-substring-no-properties
+                  (saved-prompt (mistty--safe-bufstring
                                  mistty-sync-marker mistty-cmd-start-marker)))
               (save-restriction
                 (narrow-to-region mistty-sync-marker (point-max-marker))
@@ -559,7 +559,7 @@ all should rightly be part of term.el."
                 (mistty--restore-properties properties mistty-sync-marker)
                 (when (> mistty-cmd-start-marker mistty-sync-marker)
                   (if (string= saved-prompt
-                               (buffer-substring-no-properties
+                               (mistty--safe-bufstring
                                 mistty-sync-marker mistty-cmd-start-marker))
                       (mistty--set-prompt-properties mistty-sync-marker mistty-cmd-start-marker)
                     (move-marker mistty-cmd-start-marker mistty-sync-marker))))
@@ -788,7 +788,7 @@ all should rightly be part of term.el."
                (replace-regexp-in-string
                 (format "[%s]+" mistty--ws)
                 ""
-                (buffer-substring-no-properties
+                (mistty--safe-bufstring
                  mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
        (not (mistty-on-prompt-p (point))))
       (progn
@@ -843,7 +843,7 @@ all should rightly be part of term.el."
         ;; insert in the middle, possibly replacing a section of text
         (`((,start inserted) (,end shift ,end-shift) . ,_)
          (push (list (+ start last-shift)
-                     (buffer-substring-no-properties start end)
+                     (mistty--safe-bufstring start end)
                      (- (+ end end-shift) (+ start last-shift)))
                changes)
          ;; processed 2 entries this loop, instead of just 1
@@ -852,7 +852,7 @@ all should rightly be part of term.el."
         ;; insert at end, delete everything after
         (`((,start inserted) (,end deleted-to-end))
          (push (list (+ start last-shift)
-                     (buffer-substring-no-properties start end)
+                     (mistty--safe-bufstring start end)
                      -1)
                changes)
          ;; processed 2 entries this loop, instead of just 1
@@ -861,7 +861,7 @@ all should rightly be part of term.el."
         ;; insert at end
         (`((,start inserted))
          (push (list (+ start last-shift)
-                     (buffer-substring-no-properties start (point-max))
+                     (mistty--safe-bufstring start (point-max))
                      0)
                changes))
 
@@ -1309,7 +1309,7 @@ END section to be valid in the term buffer."
             (>= pmark end)
             (or (> pmark (point-max))
                     (<= pmark (mistty--bol-pos-from start 2)))
-            (string= content (buffer-substring-no-properties start end)))))))
+            (string= content (mistty--safe-bufstring start end)))))))
 
 (defun mistty--possible-prompt-contains (pos)
   (pcase mistty--possible-prompt
@@ -1323,6 +1323,13 @@ END section to be valid in the term buffer."
       (when (and (string= hostname (system-name))
                  (file-directory-p path))
         (cd path)))))
+
+(defun mistty--safe-bufstring (start end)
+  (let ((start (max (point-min) (min (point-max) start)))
+        (end (max (point-min) (min (point-max) end))))
+    (if (> end start)
+        (buffer-substring-no-properties start end)
+      "")))
 
 (provide 'mistty)
 

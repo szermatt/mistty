@@ -138,11 +138,14 @@
 
 (ert-deftest test-mistty-prevent-deleting-prompt ()
   (with-mistty-buffer
+   (widen)
    (should-error (backward-delete-char))
-   (should-error (delete-region (point-min) (point-max)))))
+   (should-error (delete-region (point-min) (point-max)))
+   ))
 
 (ert-deftest test-mistty-prevent-deleting-prompt-zsh ()
   (with-mistty-buffer-zsh
+   (widen)
    (should-error (backward-delete-char))
    (should-error (delete-region (point-min) (point-max)))))
 
@@ -344,6 +347,75 @@
     (equal "$ echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ <>echo current"
            (mistty-test-content)))))
 
+(ert-deftest test-mistty-next-prompt-zsh ()
+  (widen)
+  (with-mistty-buffer-zsh
+   (mistty-run-command
+    (insert "echo one"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo two"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo three"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo current"))
+   
+   (goto-char (point-min))
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ <>echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ echo one\none\n$ <>echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))))
+   
+
+(ert-deftest test-mistty-next-empty-prompt ()
+  (with-mistty-buffer
+   (mistty-send-and-wait-for-prompt)
+   (mistty-send-and-wait-for-prompt)
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo current"))
+   
+   (goto-char (point-min))
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ <>\n$\n$\n$ echo current"
+           (mistty-test-content nil nil nil 'keep-empty)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$\n$ <>\n$\n$ echo current"
+           (mistty-test-content nil nil nil 'keep-empty)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$\n$\n$ <>\n$ echo current"
+           (mistty-test-content nil nil nil 'keep-empty)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$\n$\n$\n$ <>echo current"
+           (mistty-test-content nil nil nil 'keep-empty)))
+   
+   (should-error (mistty-next-prompt 1))
+   
+   (goto-char (point-min))
+   (mistty-next-prompt 2)
+   (should
+    (equal "$\n$ <>\n$\n$ echo current"
+           (mistty-test-content nil nil nil 'keep-empty)))
+
+   (mistty-next-prompt 2)
+   (should
+    (equal "$\n$\n$\n$ <>echo current"
+           (mistty-test-content nil nil nil 'keep-empty)))))
+
 (ert-deftest test-mistty-previous-prompt ()
   (with-mistty-buffer
    (mistty-run-command
@@ -408,7 +480,9 @@
    (execute-kbd-macro (kbd "DEL"))
    (mistty-wait-for-output)
    (should (equal "(reverse-i-search)`ec': echo s<>econd" (mistty-test-content)))
-   (execute-kbd-macro (kbd "RET"))
+   (execute-kbd-macro (kbd "<left>"))
+   (mistty-wait-for-output)
+   (should (equal "$ echo <>second" (mistty-test-content)))
    (should (equal "second" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-distance-on-term ()
@@ -1099,14 +1173,15 @@
    (mistty-send-raw-string mistty-test-py-exe)
    (mistty-send-and-wait-for-prompt nil ">>> ")
    
-   (mistty-run-command
-    (insert "10 * 10"))
-   
-   (should (equal "100" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
-
-   ;; the prompt was identified and labelled
-   (mistty-previous-prompt 1)
-   (should (looking-at (regexp-quote "10 * 10")))))
+   (let ((start (- (point) 4)))
+     (mistty-run-command
+      (insert "10 * 10"))
+     
+     (should (equal "100" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+     
+     ;; the prompt was identified and labelled
+     (mistty-previous-prompt 1)
+     (should (equal ">>> <>10 * 10\n100\n>>>" (mistty-test-content start))))))
 
 (ert-deftest test-mistty-python-edit-before-prompt ()
   (with-mistty-buffer
@@ -1292,10 +1367,10 @@ of the beginning of the prompt."
                   (goto-char before-send)
                   (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
       (unless (accept-process-output mistty-term-proc 0 500 t)
-        (error "no output >>%s<<" (buffer-substring-no-properties before-send (point-max)))))
+        (error "no output")))
     (match-beginning 0)))
 
-(defun mistty-test-content  (&optional start end nopointer)
+(defun mistty-test-content  (&optional start end nopointer keep-empty)
   (interactive)
   (let* ((start (or start (point-min)))
          (end (or end (point-max)))
@@ -1304,7 +1379,8 @@ of the beginning of the prompt."
          (length (- end start)))
     (when (and (not nopointer) (>= p 0) (<= p length))
       (setq output (concat (substring output 0 p) "<>" (substring output p))))
-    (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output))
+    (unless keep-empty
+      (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output)))
     (setq output (replace-regexp-in-string "[ \t\n]*$" "" output))
     output))
 

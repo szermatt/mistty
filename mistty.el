@@ -464,8 +464,13 @@ all should rightly be part of term.el."
         (cond
          ((equal ext "[?2004h") ; enable bracketed paste
           (term-emulate-terminal proc (substring str start seq-end))
-          (mistty-register-text-properties
-           'mistty-bracketed-paste `(mistty-prompt-id ,(mistty--next-id)))
+          (mistty--with-live-buffer term-buffer
+            (let ((props `(mistty-prompt-id ,(mistty--next-id))))
+              ;; zsh enables bracketed paste only after having printed
+              ;; the prompt.
+              (unless (eq ?\n (char-before (point)))
+                (add-text-properties (mistty--bol-pos-from (point)) (point) props))
+              (mistty-register-text-properties 'mistty-bracketed-paste props)))
           (mistty--with-live-buffer work-buffer
             (setq mistty-bracketed-paste t)))
          ((equal ext "[?2004l") ; disable bracketed paste
@@ -568,16 +573,24 @@ all should rightly be part of term.el."
       ;; detect prompt from bracketed-past region and use that to
       ;; restrict the sync region.
       (mistty--with-live-buffer mistty-work-buffer
-        (let ((match (save-excursion
-                       (save-restriction
-                         (narrow-to-region mistty-sync-marker (point-max))
-                         (goto-char (point-max))
-                         (text-property-search-backward 'mistty-prompt-id)))))
-          (when (and match
-                     (> (prop-match-beginning match) mistty-sync-marker)
-                     (< (prop-match-beginning match) (mistty-pmark)))
-            (mistty--move-sync-mark (prop-match-beginning match)
-                                    (mistty-pmark)))))
+        (when (process-live-p mistty-term-proc)
+          (let ((prompt-beg
+                 (let ((pos (mistty-pmark)))
+                   (unless (and (> pos (point-min))
+                                (get-text-property (1- pos) 'mistty-prompt-id))
+                     (setq pos (previous-single-property-change
+                                pos 'mistty-prompt-id nil mistty-sync-marker)))
+                   (when (and (> pos (point-min))
+                              (get-text-property (1- pos) 'mistty-prompt-id))
+                     (setq pos (previous-single-property-change
+                                pos 'mistty-prompt-id nil mistty-sync-marker)))
+                   pos)))
+            (when (and prompt-beg
+                       (> prompt-beg mistty-sync-marker)
+                       (< prompt-beg (mistty-pmark)))
+              (mistty--move-sync-mark prompt-beg
+                                      (mistty-pmark))))))
+      
       
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.
@@ -658,7 +671,9 @@ all should rightly be part of term.el."
                                 field mistty-prompt
                                 rear-nonsticky t))
   (add-text-properties start end
-                       '(read-only t front-sticky t)))
+                       '(read-only t front-sticky t))
+  (unless (get-text-property start 'mistty-prompt-id)
+    (add-text-properties start end `(mistty-prompt-id ,(mistty--next-id)))))
 
 (defun mistty-send-raw-string (str)
   (when (and str (not (zerop (length str))))
@@ -1113,17 +1128,38 @@ END section to be valid in the term buffer."
 
 (defun mistty-next-prompt (n)
   (interactive "p")
-  (let (found)
+  (let ((pos (point))
+        found)
+    ;; skip current prompt
+    (when (and (eq 'prompt (get-text-property pos 'mistty))
+               (not (get-text-property pos 'field)))
+      (setq pos (next-single-property-change pos 'mistty-prompt-id nil (point-max))))
+    ;; go to next prompt(s)
     (dotimes (_ n)
-      (if (setq found (text-property-any (point) (point-max) 'mistty 'prompt))
-          (goto-char (or (next-single-property-change found 'mistty) (point-max)))
+      (if (and (setq found (text-property-any pos (point-max) 'mistty 'prompt))
+               (setq pos (next-single-property-change found 'mistty-prompt-id nil (point-max))))
+          (if (get-text-property found 'field)
+              (goto-char (next-single-property-change found 'field nil pos))
+            (goto-char found))
+        
         (error "No next prompt")))))
 
 (defun mistty-previous-prompt (n)
   (interactive "p")
-  (dotimes (_ n)
-    (unless (text-property-search-backward 'mistty 'prompt)
-      (error "No previous prompt"))))
+  (let ((not-current nil))
+    (when (eq 'mistty-prompt
+              (or (get-text-property (point) 'field)
+                  (get-text-property (1- (point)) 'field)))
+      (setq not-current t)
+      (goto-char (1- (point))))
+    (dotimes (_ n)
+      (let ((match (text-property-search-backward 'mistty-prompt-id nil nil not-current)))
+        (unless match
+          (error "No previous prompt"))
+        (goto-char (prop-match-beginning match)))
+      (when (get-text-property (point) 'field)
+        (goto-char (next-single-property-change (point) 'field)))
+      (setq not-current t))))
 
 (defun mistty-pre-command ()
   (setq mistty--old-point (point)))

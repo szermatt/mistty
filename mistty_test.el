@@ -1094,36 +1094,6 @@
    (mistty-run-command (goto-char (1- (point))))
    (should (eq t cursor-type))))
 
-(ert-deftest test-mistty-delchar-not-eof ()
-  (with-mistty-buffer
-   (mistty-send-raw-string
-    (concat "hello" mistty-left-str mistty-left-str))
-   (mistty-wait-for-output)
-   
-   (mistty-run-command
-    (mistty-delchar-or-maybe-eof 1))
-   (mistty-wait-for-output)
-   
-   (should (equal "$ hel<>o" (mistty-test-content)))))
-   
-(ert-deftest test-mistty-multiple-delchar-not-eof ()
-  (with-mistty-buffer
-   (mistty-send-raw-string
-    (concat "hello" mistty-left-str mistty-left-str mistty-left-str))
-   (mistty-wait-for-output)
-   (mistty-run-command
-    (mistty-delchar-or-maybe-eof 2))
-   (mistty-wait-for-output)
-   (should (equal "$ he<>o" (mistty-test-content)))))
-   
-(ert-deftest test-mistty-eof-not-delchar ()
-  (with-mistty-buffer
-   (let ((term-buffer mistty-term-buffer)
-         (proc mistty-term-proc))
-     (mistty-run-command
-      (mistty-delchar-or-maybe-eof 1))
-     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc 2))))
-
 (ert-deftest test-mistty-detect-possible-prompt ()
   (with-mistty-buffer
    (mistty-send-raw-string

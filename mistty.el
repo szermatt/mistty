@@ -255,15 +255,12 @@ When the user makes changes on or before such a line that looks
 like a prompt, MisTTY attempts to send these changes to the
 terminal, which might or might not work.")
 
-(defvar mistty-positional-keys "\t\C-w\C-t\C-k-C-y"
-  "Set of keys that are defined as 'positional' by MisTTY'.
+(defvar mistty-positional-keys "\t\C-d\C-w\C-t\C-k\C-y"
+  "Set of control characters that are defined as positional.
 
-These should be keys that traditionally have an effect that
-modifies what is displayed on the terminal in a way that depends
-on where the cursor is on the terminal.
-
-MisTTY will attempt to move the terminal cursor to the current
-point before sending such keys to the terminal.")
+This is the set of control characters for which
+`mistty-positional-p' returns true. See the documentation of that
+function for the definition of a positional character.")
 
 (defface mistty-fringe-face '((t (:background "purple" :foreground "purple")))
   "Color of the left fringe that indicates the synced region.
@@ -312,11 +309,12 @@ This map is active whenever the current buffer is in MisTTY mode.")
 (defvar mistty-prompt-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") 'mistty-send-command)
-    (define-key map [S-return] 'newline)
-    (define-key map (kbd "TAB") 'mistty-send-tab)
-    (define-key map (kbd "DEL") 'mistty-send-backspace)
-    (define-key map (kbd "C-d") 'mistty-delchar-or-maybe-eof)
+    (define-key map (kbd "S-<return>") 'newline)
+    (define-key map (kbd "TAB") 'mistty-send-key)
+    (define-key map (kbd "DEL") 'mistty-send-key)
+    (define-key map (kbd "C-d") 'mistty-send-key)
     (define-key map (kbd "C-a") 'mistty-beginning-of-line)
+    (define-key map (kbd "C-e") 'mistty-send-key)
     (define-key map [remap self-insert-command] 'mistty-self-insert-command )
     map)
   "Keymap active on the part of `mistty-mode' synced with the terminal.
@@ -913,45 +911,76 @@ all should rightly be part of term.el."
   (setq mistty--point-follows-next-pmark t)
   (mistty-send-raw-string "\C-m"))
 
-(defun mistty-send-tab (&optional n)
-  "Send TAB to the shell."
-  (interactive "p")
-  (mistty-before-positional)
-  (setq mistty--point-follows-next-pmark t)
-  (mistty-send-raw-string (mistty--repeat-string (or n 1) "\t")))
+(defun mistty-self-insert-command (n &optional c)
+  "Send the character that was typed to the terminal.
 
-(defun mistty-send-backspace (&optional n)
-  "Send DEL to the shell."
-  (interactive "p")
-  (when (get-pos-property (point) 'read-only)
-    (signal 'text-read-only nil))
-  (mistty-before-positional)
-  (setq mistty--point-follows-next-pmark t)
-  (mistty-send-raw-string (mistty--repeat-string (or n 1) "\b")))
+This command sends N times the character that was typed to
+whatever process is currently reading from the terminal, or C if
+it is given.
 
-(defun mistty-self-insert-command (n &optional key)
-  (interactive "p")
-  (when (get-pos-property (point) 'read-only)
-    (signal 'text-read-only nil))
-  (setq mistty--point-follows-next-pmark t)
-  (mistty-before-positional)
-  (mistty-send-raw-string (make-string (or n 1 ) (or key (mistty-last-key)))))
-
-(defun mistty-send-last-key (n)
-  (interactive "p")
-  (let ((key (mistty-last-key)))
-    (when (mistty-positional-key-p key)
-      (mistty-before-positional))
-    (mistty-send-key n key)))
-
-(defun mistty-send-key (&optional n key positional)
+The process decides what to do with the character."
   (interactive "p")
   (let ((n (or n 1))
-        (key (or key (this-command-keys))))
-    (when (or positional (mistty-positional-key-p key))
+        (c (or c (let ((keys (this-command-keys)))
+                   (aref keys (1- (length keys)))))))
+    (when (get-pos-property (point) 'read-only)
+      (signal 'text-read-only nil))
+    (setq mistty--point-follows-next-pmark t)
+    (mistty-before-positional)
+    (mistty-send-raw-string (make-string n c))))
+
+(defun mistty-send-last-key (n)
+  "Send the last key that was typed to the terminal.
+
+This command extracts element of `this-command-key`, translates
+it and sends it to the terminal.
+
+This is a convenient variant to `mistty-send-key' which allows
+burying key binding to send to the terminal inside of the C-c
+keymap, leaving that key binding available to Emacs."
+  (interactive "p")
+  (mistty-send-key
+   n (key-description
+      (seq-subseq (this-command-keys-vector) -1))))
+
+(defun mistty-positional-p (key)
+  "Return true if KEY is a positional key.
+
+A key is defined as positional if it traditionally have an effect
+that modifies what is displayed on the terminal in a way that
+depends on where the cursor is on the terminal. See also
+`mistty-positional-keys' for the set of control keys that are
+defined as positional.
+
+MisTTY will attempt to move the terminal cursor to the current
+point before sending such keys to the terminal.
+
+Non-control characters are always positional, since they're
+normally just inserted.
+
+KEY must be a string or vector such as the ones returned by 'kbd'."
+  (and (length= key 1)
+       (characterp (aref key 0))
+       (or 
+        (seq-contains-p mistty-positional-keys (aref key 0))
+        (not (string= "Cc"
+                      (get-char-code-property (aref key 0)
+                                              'general-category))))))
+              
+(defun mistty-send-key (&optional n key positional)
+  "Send the current key sequence to the terminal.
+
+This command sends N times the current key sequence, or KEY if it
+is specified, directly to the terminal. If the key sequence is
+positional or if POSITIONAL evaluates to true, MisTTY attempts to
+move the terminal's cursor to the current point."
+  (interactive "p")
+  (let ((n (or n 1))
+        (key (if key (kbd key) (this-command-keys-vector))))
+    (when (or positional (mistty-positional-p key))
       (mistty-before-positional))
-    (if (characterp key)
-        (mistty-send-raw-string (make-string n key))
+    (if (and (length= key 1) (characterp (elt key 0)))
+        (mistty-send-raw-string (make-string n (elt key 0)))
       (let ((keymap (or mistty--key-to-keyseq
                         (setq mistty--key-to-keyseq
                               (mistty-reverse-input-decode-map
@@ -961,23 +990,18 @@ all should rightly be part of term.el."
              (mistty--repeat-string n (concat translated-key)))
           (error "unknown key %s" (key-description key)))))))
 
-(defun mistty--keyseqp (obj)
-  (and (vectorp obj)
-       (seq-reduce (lambda (a b) (and a (eventp b))) obj t)))
-
 (defun mistty--reverse-input-decode-map-1 (event-type binding prefix dest-keymap)
   (let ((full-event (vconcat prefix (vector event-type))))
     (cond
-     ((mistty--keyseqp binding)
-      (unless (lookup-key dest-keymap binding)
-        (define-key dest-keymap binding full-event)))
      ((keymapp binding)
       (map-keymap
        (lambda (e b)
          (mistty--reverse-input-decode-map-1 e b full-event dest-keymap))
        binding))
      ((functionp binding))
-     (t (error "unknown: %s" binding)))))
+     ((sequencep binding) ; a key seq
+      (unless (lookup-key dest-keymap binding)
+        (define-key dest-keymap binding full-event))))))
 
 (defun mistty-reverse-input-decode-map (map)
   (let ((reverse-map (make-sparse-keymap)))
@@ -987,29 +1011,6 @@ all should rightly be part of term.el."
      map)
     
     reverse-map))
-
-
-    
-
-(defun mistty-last-key ()
-  (let ((keys (this-command-keys)))
-    (aref keys (1- (length keys)))))
-
-(defun mistty-delchar-or-maybe-eof (n)
-  (interactive "p")
-  (mistty--maybe-realize-possible-prompt)
-  (if (or
-       (zerop (length
-               (replace-regexp-in-string
-                (format "[%s]+" mistty--ws)
-                ""
-                (mistty--safe-bufstring
-                 mistty-cmd-start-marker (mistty--eol-pos-from (point))))))
-       (not (mistty-on-prompt-p (point))))
-      (progn
-        (mistty-send-raw-string (concat (mistty--move-str (mistty-pmark) (point))
-                                        (make-string n ?\C-d))))
-    (delete-char n)))
 
 (defun mistty-beginning-of-line (&optional n)
   (interactive "p")
@@ -1509,10 +1510,6 @@ END section to be valid in the term buffer."
            (buffer-local-value 'mistty-fullscreen mistty-work-buffer))
       (switch-to-buffer mistty-work-buffer)
     (error "No scrollback buffer available.")))
-
-(defun mistty-positional-key-p (key)
-  (and (characterp key)
-       (seq-contains-p mistty-positional-keys key)))
 
 (defun mistty-on-prompt-p (pos)
   (and (>= pos mistty-cmd-start-marker)

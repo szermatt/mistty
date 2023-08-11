@@ -669,14 +669,15 @@ all should rightly be part of term.el."
       (mistty--set-prompt-properties sync-pos cmd-start-pos))))
 
 (defun mistty--set-prompt-properties (start end)
-  (add-text-properties start end
-                       '(mistty prompt
-                                field mistty-prompt
-                                rear-nonsticky t))
-  (add-text-properties start end
-                       '(read-only t front-sticky t))
-  (unless (get-text-property start 'mistty-prompt-id)
-    (add-text-properties start end `(mistty-prompt-id ,(mistty--next-id)))))
+  (add-text-properties
+   start end
+   (append
+    '(mistty prompt
+             field mistty-prompt
+             read-only t
+             rear-nonsticky t)
+    (unless (get-text-property start 'mistty-prompt-id)
+      `(mistty-prompt-id ,(mistty--next-id))))))
 
 (defun mistty-send-raw-string (str)
   (when (and str (not (zerop (length str))))

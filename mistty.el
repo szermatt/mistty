@@ -639,11 +639,10 @@ all should rightly be part of term.el."
       (_ (error "invalid interval %s" interval)))))
 
 (defun mistty--move-sync-mark (sync-pos &optional cmd-pos)
-  (let* ((sync-pos (mistty--bol-pos-from sync-pos))
-         (chars-from-end (- (point-max) sync-pos))
-         (prompt-length (if (and cmd-pos (> cmd-pos sync-pos))
-                            (- cmd-pos sync-pos)
-                          0)))
+  (let ((chars-from-end (- (point-max) sync-pos))
+        (prompt-length (if (and cmd-pos (> cmd-pos sync-pos))
+                           (- cmd-pos sync-pos)
+                         0)))
     (with-current-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (- (point-max) chars-from-end)))
     (with-current-buffer mistty-work-buffer

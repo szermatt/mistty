@@ -1300,6 +1300,40 @@
     (should (equal (save-excursion (mistty-test-goto-after "test"))
                    (mistty--last-non-ws)))))
 
+(ert-deftest mistty-test-positional ()
+  (let ((mistty-positional-keys "\t\C-k\C-w"))
+    (should (mistty-positional-p (kbd "TAB")))
+    (should (mistty-positional-p (kbd "C-k")))
+    (should (mistty-positional-p (kbd "C-w")))
+    (should (not (mistty-positional-p (kbd "C-a"))))
+    (should (not (mistty-positional-p (kbd "C-e"))))
+    (should (mistty-positional-p (kbd "a")))
+    (should (mistty-positional-p (kbd "α")))
+    (should (not (mistty-positional-p (kbd "C-x C-c"))))
+    (should (not (mistty-positional-p (kbd "M-g"))))))
+
+(ert-deftest mistty-self-insert-command ()
+  (with-mistty-buffer
+    (mistty-run-command
+     (mistty-self-insert-command 1 ?e))
+    (mistty-run-command
+     (mistty-self-insert-command 1 ?c))
+    (mistty-run-command
+     (mistty-self-insert-command 1 ?h))
+    (mistty-run-command
+     (mistty-self-insert-command 1 ?o))
+    (mistty-run-command
+     (mistty-self-insert-command 1 ? ))
+    (mistty-run-command
+     (mistty-self-insert-command 3 ?a))
+
+    (should (equal "aaa" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-self-insert-command-interactive ()
+  (with-mistty-buffer-selected
+   (execute-kbd-macro (kbd "e c h o SPC C-u 3 a"))
+   (should (equal "aaa" (mistty-send-and-capture-command-output)))))
+
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion

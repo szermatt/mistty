@@ -321,8 +321,10 @@ properties, for example." )
           (while (accept-process-output proc 0 0 t))
           (term-sentinel proc msg)
           (with-current-buffer work-buffer
-            (mistty--term-to-work)
-            (mistty--detach))
+            (save-restriction
+              (widen)
+              (mistty--term-to-work)
+              (mistty--detach)))
           (kill-buffer term-buffer)))
     ;; detached term buffer
     (term-sentinel proc msg)))
@@ -378,19 +380,21 @@ properties, for example." )
               (old-sync-position (mistty--with-live-buffer term-buffer (marker-position mistty-sync-marker)))
               (old-last-non-ws (mistty--with-live-buffer term-buffer (mistty--last-non-ws))))
           (mistty-emulate-terminal proc str)
-          (mistty--with-live-buffer term-buffer
-            (goto-char (process-mark proc))
-            (when (or (< mistty-sync-marker old-sync-position)
-                      (< (point) mistty-sync-marker))
-              (mistty--reset-markers)
-              (setq mistty--point-follows-next-pmark t))
-            (when (> (process-mark proc) old-last-non-ws) ;; on a new line
-              (mistty--detect-possible-prompt (process-mark proc))))
           (mistty--with-live-buffer work-buffer
-            (condition-case nil
-                (setq default-directory (buffer-local-value 'default-directory term-buffer))
-              (error nil))
-            (mistty--term-to-work)))))))
+            (save-restriction
+              (widen)
+              (mistty--with-live-buffer term-buffer
+                (goto-char (process-mark proc))
+                (when (or (< mistty-sync-marker old-sync-position)
+                          (< (point) mistty-sync-marker))
+                  (mistty--reset-markers)
+                  (setq mistty--point-follows-next-pmark t))
+                (when (> (process-mark proc) old-last-non-ws) ;; on a new line
+                  (mistty--detect-possible-prompt (process-mark proc))))
+              (condition-case nil
+                  (setq default-directory (buffer-local-value 'default-directory term-buffer))
+                (error nil))
+              (mistty--term-to-work))))))))
 
 (defun mistty-goto-pmark ()
   (interactive)
@@ -1173,6 +1177,8 @@ END section to be valid in the term buffer."
 
 (defun mistty-post-command-1 (buf)
   (mistty--with-live-buffer buf
+    (save-restriction
+      (widen)
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
       (let* ((intervals (mistty--collect-modification-intervals))
@@ -1205,7 +1211,7 @@ END section to be valid in the term buffer."
           (mistty--maybe-pmark-to-point)))
         
         ;; re-enable term-to-work in all cases.
-        (mistty--enable-term-to-work)))))
+        (mistty--enable-term-to-work))))))
 
 (defun mistty--maybe-pmark-to-point ()
   (when (and mistty--old-point
@@ -1260,6 +1266,8 @@ END section to be valid in the term buffer."
 
 (defun mistty--leave-fullscreen (proc terminal-sequence)
   (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
+    (save-restriction
+      (widen)
     (setq mistty-fullscreen nil)
 
     (mistty--attach (process-buffer proc))
@@ -1274,7 +1282,7 @@ END section to be valid in the term buffer."
       (font-lock-mode -1))
 
     (when (length> terminal-sequence 0)
-      (funcall (process-filter proc) proc terminal-sequence))))
+      (funcall (process-filter proc) proc terminal-sequence)))))
 
 (defun mistty--replace-buffer-everywhere (oldbuf newbuf)
   (walk-windows

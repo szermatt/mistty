@@ -138,14 +138,12 @@
 
 (ert-deftest test-mistty-prevent-deleting-prompt ()
   (with-mistty-buffer
-   (widen)
    (should-error (backward-delete-char))
    (should-error (delete-region (point-min) (point-max)))
    ))
 
 (ert-deftest test-mistty-prevent-deleting-prompt-zsh ()
   (with-mistty-buffer-zsh
-   (widen)
    (should-error (backward-delete-char))
    (should-error (delete-region (point-min) (point-max)))))
 
@@ -348,7 +346,6 @@
            (mistty-test-content)))))
 
 (ert-deftest test-mistty-next-prompt-zsh ()
-  (widen)
   (with-mistty-buffer-zsh
    (mistty-run-command
     (insert "echo one"))

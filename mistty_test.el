@@ -11,6 +11,7 @@
 
 (defvar mistty-test-bash-exe (executable-find "bash"))
 (defvar mistty-test-zsh-exe (executable-find "zsh"))
+(defvar mistty-test-fish-exe (executable-find "fish"))
 (defvar mistty-test-py-exe (or (executable-find "python3")
                                (executable-find "python")))
 
@@ -24,6 +25,11 @@
 (defmacro with-mistty-buffer-zsh (&rest body)
   `(ert-with-test-buffer ()
      (mistty-test-setup 'zsh)
+     ,@body))
+
+(defmacro with-mistty-buffer-fish (&rest body)
+  `(ert-with-test-buffer ()
+     (mistty-test-setup 'fish)
      ,@body))
 
 (defmacro with-mistty-buffer-selected (&rest body)
@@ -46,7 +52,12 @@
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-simple-command-zsh ()
-  (with-mistty-buffer
+  (with-mistty-buffer-zsh
+   (mistty-send-raw-string "echo hello\n")
+   (should (equal "hello" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest test-mistty-simple-command-fish ()
+  (with-mistty-buffer-fish
    (mistty-send-raw-string "echo hello\n")
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
@@ -370,6 +381,30 @@
     (equal "$ echo one\none\n$ <>echo two\ntwo\n$ echo three\nthree\n$ echo current"
            (mistty-test-content)))))
    
+(ert-deftest test-mistty-next-prompt-fish ()
+  (with-mistty-buffer-fish
+   (mistty-run-command
+    (insert "echo one"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo two"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo three"))
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo current"))
+
+   (goto-char (point-min))
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ <>echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))
+   
+   (mistty-next-prompt 1)
+   (should
+    (equal "$ echo one\none\n$ <>echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content)))))
 
 (ert-deftest test-mistty-next-empty-prompt ()
   (with-mistty-buffer
@@ -1314,10 +1349,17 @@
 (defun mistty-test-setup (shell)
   (cond
    ((eq shell 'bash)
-    (mistty--exec mistty-test-bash-exe "--noprofile" "--norc" "-i"))
+    (mistty--exec mistty-test-bash-exe "--noprofile" "--norc" "-i")
+    (mistty-test-set-ps1))
    ((eq shell 'zsh)
-    (mistty--exec mistty-test-zsh-exe "-i" "--no-rcs"))
-   (t (error "Unsupported shell %s" shell)))
+    (mistty--exec mistty-test-zsh-exe "-i" "--no-rcs")
+    (mistty-test-set-ps1))
+   ((eq shell 'fish)
+    (mistty--exec mistty-test-fish-exe "-i" "-N" "-C" "function fish_prompt; printf '$ '; end")
+    (mistty-send-and-wait-for-prompt (lambda ()())))
+   (t (error "Unsupported shell %s" shell))))
+
+(defun mistty-test-set-ps1 ()
   (while (eq (point-min) (point-max))
     (accept-process-output mistty-term-proc 0 100 t))
   (mistty-send-raw-string (concat "PS1='" mistty-test-prompt "'"))
@@ -1327,7 +1369,7 @@
 (defun mistty-wait-for-output ()
   "Wait for process output, which should be short and immediate."
   (unless (accept-process-output mistty-term-proc 0 500 t)
-    (error "no output")))
+    (error "no output (wait-for-output)")))
 
 (defun mistty-send-and-capture-command-output (&optional send-command-func narrow nopointer prompt)
   "Send the current commanhd line with SEND-COMMAND-FUNC and return its output.
@@ -1363,7 +1405,7 @@ of the beginning of the prompt."
                   (goto-char before-send)
                   (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
       (unless (accept-process-output mistty-term-proc 0 500 t)
-        (error "no output")))
+        (error "no output (wait-for-prompt)")))
     (match-beginning 0)))
 
 (defun mistty-test-content  (&optional start end nopointer keep-empty)

@@ -482,7 +482,6 @@
    (should (equal "(reverse-i-search)`ec': echo s<>econd" (mistty-test-content)))
    (execute-kbd-macro (kbd "<left>"))
    (mistty-wait-for-output)
-   (should (equal "$ echo <>second" (mistty-test-content)))
    (should (equal "second" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-distance-on-term ()

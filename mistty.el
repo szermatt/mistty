@@ -26,53 +26,256 @@
 
 This hook is run on the term-mode buffer. It is passed the
 content of OSC sequence - everything between OSC (ESC ]) and
-ST (ESC \\ or \\a) and may chooose to handle them.
+ST (ESC \\ or \\a) and may chooose to handle or ignore them.
 
-The hook is allowed to modify the term-mode buffer to add text
-properties, for example." )
+The current buffer is set to the term-mode buffer. The hook is
+allowed to modify it, to add text properties, for example. In
+such case, consider using `mistty-register-text-properties'.")
 
-(defvar-local mistty-work-buffer nil)
-(defvar-local mistty-term-buffer nil)
-(defvar-local mistty-term-proc nil)
-(defvar-local mistty-sync-marker nil)
-(defvar-local mistty-cmd-start-marker nil)
-(defvar-local mistty-sync-ov nil)
-(defvar-local mistty-bracketed-paste nil)
-(defvar-local mistty-fullscreen nil)
-(defvar-local mistty--old-point nil)
-(defvar-local mistty--deleted-point-max nil)
-(defvar-local mistty--point-follows-next-pmark nil)
-(defvar-local mistty--possible-prompt nil)
-(defvar-local mistty--pmark-after-last-term-to-work nil)
-(defvar-local mistty--inhibit-term-to-work nil)
-(defvar-local mistty--inhibited-term-to-work nil)
-(defvar-local mistty--key-to-keyseq nil)
-(defvar-local mistty--term-properties-to-add-alist nil)
-(defvar mistty--last-id 0)
+(defvar-local mistty-work-buffer nil
+  "The main `mistty-mode' buffer.
+
+This buffer keeps a modifiable history of all commands at the top
+and a view of the terminal modified by the current command at the
+bottom.
+
+In normal mode, this is the buffer that's displayed to the user.
+In fullscreen mode, this buffer is kept as historical scrollback
+buffer that can be independently switched to with
+`mistty-switch-to-scrollback-buffer'.
+
+While there is normally a terminal buffer, available as
+`mistty-term-buffer' as well as a process, available as
+`mistty-term-proc' either or both of these might be nil, such as
+after the process died.
+
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty-term-buffer nil
+  "Secondary `term-mode' buffer.
+
+This buffer contains the current screen state, as drawn by the
+different commands. In normal mode, changes made in this buffer
+are normally copied to `mistty-work-buffer'. In fullscreen mode,
+this is the buffer that's displayed to the user. In normal mode,
+this buffer is hidden.
+
+While there is normally a work buffer, available as
+`mistty-work-buffer' as well as a process, available as
+`mistty-term-proc` either or both of these might be nil in some
+cases.
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty-term-proc nil
+  "The process that controls the terminal, usually a shell.
+
+This process is associated to `mistty-term-buffer' and is set up
+to output first to that buffer.
+
+The process property `mistty-work-buffer' links the work buffer
+and, for consistency, the process property `mistty-term-buffer'
+links to the term buffer.
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty-sync-marker nil
+  "A marker that links `mistty-term-buffer' to `mistty-work-buffer'.
+
+The region of the terminal that's copied to the work buffer
+starts at `mistty-sync-marker' and ends at `(point-max)' on both
+buffers. The two markers must always be kept in sync and updated
+at the same time.
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty-cmd-start-marker nil
+  "Mark the end of the prompt; the beginning of the command line.
+
+The region [`mistty-sync-marker', `mistty-cmd-start-marker']
+marks the prompt of the command line, if one was detected. If no
+prompt was detected, this marker points to the same position as
+`mistty-sync-marker'.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty-sync-ov nil
+  "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
+
+This overlay covers the region of the work buffer that's
+currently kept in sync with the terminal. MisTTY tries to send
+any modifications made to this region to the terminal for
+processing. Such modification might be rejected and eventually
+undone, accepted or accepted with modifications.
+
+The special keymap `mistty-prompt-map' is active when the pointer
+is on this overlay.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty-bracketed-paste nil
+  "Whether bracketed paste is enabled in the terminal.
+
+This variable evaluates to true when bracketed paste is turned on
+by the command that controls, to false otherwise.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty-fullscreen nil
+  "Whether MisTTY is in full-screen mode.
+
+When MisTTY is in full-screen mode, this variable evaluates to
+true, the `term-mode' buffer is the buffer shown to the user,
+while the `mistty-mode' buffer is kept aside, detached from the
+process.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--old-point nil
+  "The position of the point captured in `pre-command-hook'.
+
+It is used in the `post-command-hook'.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--deleted-point-max nil
+  "True if the end of work buffer was truncated.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--point-follows-next-pmark nil
+  "True if the point should be moved to the pmark.
+
+This variable tells `mistty--term-to-work' that it should move
+the point to the pmark next time it copies the state of the
+terminal to the work buffer.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--possible-prompt nil
+  "Region of the work buffer identified as possible prompt.
+
+This variable is either `nil' or a list that contains:
+ - the start of the prompt, a position in the work buffer
+ - the end of the prompt
+ - the content of the prompt
+
+While start and end points to positions in the work buffer, such
+position might not contain any data yet - if they haven't been
+copied from the terminal, or might contain data - if they have
+since been modified.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--pmark-after-last-term-to-work nil
+  "The position of the pmark at the end of `mistty--term-to-work'.
+
+This variable is meant for `mistty--term-to-work' to detect
+whether the pmark has moved since its last call. It's not meant
+to be modified or accessed by other functions.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--inhibit-term-to-work nil
+  "When true, prevent `mistty--term-to-work' from copying data.
+
+When this variable is true, `mistty--term-to-work' does nothing
+unless it is forced; it just sets
+`mistty--inhibited-term-to-work'. This is useful to temporarily
+prevent changes to the terminal to be reflected to the work
+buffer and shown to the user.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--inhibited-term-to-work nil
+  "If true, the work buffer is known to be out-of-date.
+
+This variable is set by `mistty--term-to-work' when copying data
+from the terminal to the work buffer is disabled. It signals that
+`mistty--term-to-work' should be called after setting
+`mistty--term-to-work' to true again.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--term-properties-to-add-alist nil
+  "An alist of id to text properties to add to the term buffer.
+
+This variable associates arbitrary symbols to property lists. It
+is set by `mistty-register-text-properties' and read whenever
+text is written to the terminal.
+
+This variable is available in the work buffer.")
+
+(defvar mistty--key-to-keyseq nil
+  "A cache for a keymap from Emacs key to terminal sequences.
+
+This is only meant to be accessed or set by `mistty-send-key'.
+
+This variable is available in the work buffer.")
+
+(defvar mistty--last-id 0
+  "The last ID generated by `mistty--next-id'.
+
+This variable is used to generate a new number every time
+`mistty-next-id' is called. It is not meant to be accessed or
+changed outside of this function.")
 
 (eval-when-compile
   ;; defined in term.el
   (defvar term-home-marker))
  
-(defconst mistty-left-str "\eOD")
-(defconst mistty-right-str "\eOC")
-(defconst mistty-bracketed-paste-start-str "\e[200~")
-(defconst mistty-bracketed-paste-end-str "\e[201~")
-(defconst mistty--ws "[:blank:]\n\r")
-(defconst mistty-fullscreen-mode-message
-  (let ((s "Fullscreen mode ON. C-c C-j switches between the tty and scrollback buffer."))
-    (add-text-properties 0 (length s) '(mistty message) s)
-    s))
+(defconst mistty-left-str "\eOD"
+  "Sequence to send to the process when the left arrow is pressed.")
 
-(defvar mistty-prompt-re "[#$%>.] *$")
+(defconst mistty-right-str "\eOC"
+  "Sequence to send to the process when the rightarrow is pressed.")
 
-(defvar mistty-positional-keys "\t\C-w\C-t\C-k-C-y")
+(defconst mistty-bracketed-paste-start-str "\e[200~"
+  "Sequence sent to the terminal to enable bracketed paste.")
+
+(defconst mistty-bracketed-paste-end-str "\e[201~"
+  "Sequence sent to the terminal to disable bracketed paste.")
+
+(defconst mistty--ws "[:blank:]\n\r"
+  "A character class that matches spaces and newlines, for MisTTY.")
+
+(defvar mistty-prompt-re "[#$%>.] *$"
+  "Regexp used to identify prompts.
+
+Strings that might be prompts are evaluated against this regexp,
+without any command. This regexp should match something that
+looks like a prompt.
+
+When the user makes changes on or before such a line that looks
+like a prompt, MisTTY attempts to send these changes to the
+terminal, which might or might not work.")
+
+(defvar mistty-positional-keys "\t\C-w\C-t\C-k-C-y"
+  "Set of keys that are defined as 'positional' by MisTTY'.
+
+These should be keys that traditionally have an effect that
+modifies what is displayed on the terminal in a way that depends
+on where the cursor is on the terminal.
+
+MisTTY will attempt to move the terminal cursor to the current
+point before sending such keys to the terminal.")
 
 (defface mistty-fringe-face '((t (:background "purple" :foreground "purple")))
-  "Color of the left fringe that indicates the synced region." :group 'mistty)
+  "Color of the left fringe that indicates the synced region.
+
+This is useful for debugging, when the display is a terminal."
+  :group 'mistty)
 
 (defface mistty-margin-face '((t (:foreground "purple")))
-  "Color of the left margin that indicates the synced region." :group 'mistty)
+  "Color of the left margin that indicates the synced region.
+
+This is useful for debugging, when the display is a window system."
+  :group 'mistty)
 
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
@@ -101,7 +304,10 @@ properties, for example." )
     (define-key map (kbd "C-c <prior>") 'mistty-send-prior)
     (define-key map (kbd "C-c <next>") 'mistty-send-next)
     (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-pmark)
-    map))
+    map)
+  "Keymap of `mistty-mode'.
+
+This map is active whenever the current buffer is in MisTTY mode.")
 
 (defvar mistty-prompt-map
   (let ((map (make-sparse-keymap)))
@@ -112,7 +318,16 @@ properties, for example." )
     (define-key map (kbd "C-d") 'mistty-delchar-or-maybe-eof)
     (define-key map (kbd "C-a") 'mistty-beginning-of-line)
     (define-key map [remap self-insert-command] 'mistty-self-insert-command )
-    map))
+    map)
+  "Keymap active on the part of `mistty-mode' synced with the terminal.
+
+This map is active only on the portion of a MisTTY mode buffer
+that is kept in sync with the terminal. Modifications made on
+this portion of the buffer are copied to the terminal, when
+possible.
+
+It is used to send most key strokes and some keys directly to the
+terminal.")
 
 (defun mistty-send-up () (interactive) (mistty-send-raw-string "\eOA"))
 (defun mistty-send-down () (interactive) (mistty-send-raw-string "\eOB"))
@@ -1238,10 +1453,13 @@ END section to be valid in the term buffer."
     (mistty--detach 'keep-sync-markers)
     (setq mistty-fullscreen t)
 
-    (save-excursion
-      (goto-char (point-max))
-      (insert mistty-fullscreen-mode-message))
-    
+    (let ((msg
+           "Fullscreen mode ON. C-c C-j switches between the tty and scrollback buffer."))
+      (save-excursion
+        (goto-char (point-max))
+        (insert msg)
+      (message msg)))
+      
     (let ((bufname (buffer-name)))
       (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
       (with-current-buffer mistty-term-buffer
@@ -1250,7 +1468,6 @@ END section to be valid in the term buffer."
         (turn-on-font-lock)))
     (mistty--replace-buffer-everywhere mistty-work-buffer mistty-term-buffer)
 
-    (message mistty-fullscreen-mode-message)
 
     (set-process-filter proc #'mistty--fs-process-filter)
     (set-process-sentinel proc #'mistty--fs-process-sentinel)

@@ -321,8 +321,37 @@ that is kept in sync with the terminal. Modifications made on
 this portion of the buffer are copied to the terminal, when
 possible.
 
+Consider adding key bindings into `mistty-mode-map' instead so
+they're always available; this is more straightforward.
+
+If you add key bindings into this map, you might also want to
+have access to the same bindings on fullscreen mode, so consider
+adding bindings to `mistty-fullscreen-map' as well.
+
 It is used to send most key strokes and some keys directly to the
 terminal.")
+
+(defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
+  "Keymap that sends everything to the terminal using `mistty-send-last-key'.
+
+By default, it is bound to C-q in `mistty-prompt-map'.")
+
+(defvar mistty-fullscreen-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map term-raw-map)
+    
+    (define-key map (kbd "C-q") mistty-send-last-key-map)
+    
+    ;; switching the term buffer to line mode would cause issues.
+    (define-key map [remap term-line-mode] #'mistty-switch-to-scrollback-buffer )
+    map)
+  "Keymap active while in fullscreen mode.
+
+While in fullscreen mode, the buffer is a `term-mode' with its
+own keymaps (`term-mod-map' and `term-raw-map')
+
+This map is applied in addition to these as a way of making key
+mapping somewhat consistent between fullscreen and normal mode.")
 
 (defvar mistty-term-key-map
   (let ((map (make-sparse-keymap)))
@@ -1744,7 +1773,7 @@ END section to be valid in the term buffer."
     (let ((bufname (buffer-name)))
       (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
       (with-current-buffer mistty-term-buffer
-        (local-set-key [remap term-line-mode] #'mistty-switch-to-scrollback-buffer)
+        (use-local-map mistty-fullscreen-map)
         (rename-buffer bufname)
         (turn-on-font-lock)))
     (mistty--replace-buffer-everywhere mistty-work-buffer mistty-term-buffer)
@@ -1771,6 +1800,7 @@ END section to be valid in the term buffer."
 
     (mistty--replace-buffer-everywhere mistty-term-buffer mistty-work-buffer)
     (with-current-buffer mistty-term-buffer
+      (term-char-mode) ;; in case this was modified
       (font-lock-mode -1))
 
     (when (length> terminal-sequence 0)

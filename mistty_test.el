@@ -613,13 +613,16 @@
       (should (eq mistty-term-buffer (window-buffer (selected-window))))
       (should (equal (concat bufname " scrollback") (buffer-name work-buffer)))
       (should (equal bufname (buffer-name term-buffer)))
+      (with-current-buffer term-buffer
+        (should (eq mistty-fullscreen-map (current-local-map))))
       
       (execute-kbd-macro (kbd ": q ! RET"))
       (while (buffer-local-value 'mistty-fullscreen work-buffer)
         (accept-process-output proc 0 500 t))
       (should (eq mistty-work-buffer (window-buffer (selected-window))))
       (should (equal (concat " mistty tty " bufname) (buffer-name term-buffer)))
-      (should (equal bufname (buffer-name work-buffer))))))
+      (should (equal bufname (buffer-name work-buffer)))
+      )))
 
 (defun mistty-test-enter-fullscreen (on-seq off-seq)
   (with-mistty-buffer-selected

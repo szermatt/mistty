@@ -1341,6 +1341,12 @@
    (execute-kbd-macro (kbd "C-c C-w"))
    (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-C-q ()
+  (with-mistty-buffer-selected
+   (mistty-send-raw-string "echo abc def")
+   (execute-kbd-macro (kbd "C-q C-w"))
+   (should (equal "abc" (mistty-send-and-capture-command-output)))))
+
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion

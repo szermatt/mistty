@@ -276,45 +276,49 @@ This is useful for debugging, when the display is a window system."
 
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-c") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-d") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-z") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-\\") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-r") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-s") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-g") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-a") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-e") 'mistty-send-last-key)
-    ;; TODO: C-c C-n and C-p should send C-n and C-p to the terminal
-    ;; to navigate history. Find another key binding for next and
-    ;; previous prompt.
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
     (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
     (define-key map (kbd "C-c C-j") 'mistty-switch-to-fullscreen-buffer)
-    (define-key map (kbd "C-c <up>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <down>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <left>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <right>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <home>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <end>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <insert>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <prior>") 'mistty-send-last-key)
-    (define-key map (kbd "C-c <next>") 'mistty-send-last-key)
     (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-pmark)
+    
+    ;; mistty-send-last-key makes here some globally useful keys
+    ;; available in mistty-mode buffers. More specific keys can be
+    ;; input using C-q while mistty-prompt-map is active.
+    (define-key map (kbd "C-c C-c") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-z") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-\\") 'mistty-send-last-key)
+    (define-key map (kbd "C-c C-g") 'mistty-send-last-key)
     map)
   "Keymap of `mistty-mode'.
 
 This map is active whenever the current buffer is in MisTTY mode.")
 
+(defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
+  "Keymap that sends everything to the terminal using `mistty-send-last-key'.
+
+By default, it is bound to C-q in `mistty-prompt-map'.")
+
 (defvar mistty-prompt-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") 'mistty-send-command)
-    (define-key map (kbd "S-<return>") 'newline)
     (define-key map (kbd "TAB") 'mistty-send-key)
     (define-key map (kbd "DEL") 'mistty-send-key)
     (define-key map (kbd "C-d") 'mistty-send-key)
     (define-key map (kbd "C-a") 'mistty-beginning-of-line)
     (define-key map (kbd "C-e") 'mistty-send-key)
+
+    ;; While in a shell, when bracketed paste is on, this allows
+    ;; sending a newline that won't submit the current command. This
+    ;; is handy for editing multi-line commands in bash.
+    (define-key map (kbd "S-<return>") 'newline)
+
+    ;; While on the prompt, "quoted-char" turns into "send the next
+    ;; key directly to the terminal".
+    (define-key map (kbd "C-q") mistty-send-last-key-map)
+
+    ;; Don't bother capturing single key-stroke modifications and
+    ;; replaying them; just send them to the terminal. This works even
+    ;; when the terminal doesn't accept editing.
     (define-key map [remap self-insert-command] 'mistty-send-key )
     map)
   "Keymap active on the part of `mistty-mode' synced with the terminal.

@@ -1135,7 +1135,7 @@
     (mistty-test-goto "10 * 10")
     (goto-char (1+ (point))))
    (mistty-run-command
-    (mistty-self-insert-command 1 ?0))
+    (mistty-send-key 1 "0"))
    (should (equal "1000" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
    ;; the prompt was identified and labelled
@@ -1312,27 +1312,34 @@
     (should (not (mistty-positional-p (kbd "C-x C-c"))))
     (should (not (mistty-positional-p (kbd "M-g"))))))
 
-(ert-deftest mistty-self-insert-command ()
+(ert-deftest mistty-test-send-key ()
   (with-mistty-buffer
     (mistty-run-command
-     (mistty-self-insert-command 1 ?e))
+     (mistty-send-key 1 "e"))
     (mistty-run-command
-     (mistty-self-insert-command 1 ?c))
+     (mistty-send-key 1 "c"))
     (mistty-run-command
-     (mistty-self-insert-command 1 ?h))
+     (mistty-send-key 1 "h"))
     (mistty-run-command
-     (mistty-self-insert-command 1 ?o))
+     (mistty-send-key 1 "o"))
     (mistty-run-command
-     (mistty-self-insert-command 1 ? ))
+     (mistty-send-key 1 " "))
     (mistty-run-command
-     (mistty-self-insert-command 3 ?a))
+     (mistty-send-key 3 "a"))
 
     (should (equal "aaa" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest mistty-self-insert-command-interactive ()
+(ert-deftest mistty-test-send-key-interactive ()
   (with-mistty-buffer-selected
    (execute-kbd-macro (kbd "e c h o SPC C-u 3 a"))
    (should (equal "aaa" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-send-last-key ()
+  (with-mistty-buffer-selected
+   (local-set-key (kbd "C-c C-w") 'mistty-send-last-key)
+   (mistty-send-raw-string "echo abc def")
+   (execute-kbd-macro (kbd "C-c C-w"))
+   (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."

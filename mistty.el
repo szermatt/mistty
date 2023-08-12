@@ -315,7 +315,7 @@ This map is active whenever the current buffer is in MisTTY mode.")
     (define-key map (kbd "C-d") 'mistty-send-key)
     (define-key map (kbd "C-a") 'mistty-beginning-of-line)
     (define-key map (kbd "C-e") 'mistty-send-key)
-    (define-key map [remap self-insert-command] 'mistty-self-insert-command )
+    (define-key map [remap self-insert-command] 'mistty-send-key )
     map)
   "Keymap active on the part of `mistty-mode' synced with the terminal.
 
@@ -911,24 +911,6 @@ all should rightly be part of term.el."
   (setq mistty--point-follows-next-pmark t)
   (mistty-send-raw-string "\C-m"))
 
-(defun mistty-self-insert-command (n &optional c)
-  "Send the character that was typed to the terminal.
-
-This command sends N times the character that was typed to
-whatever process is currently reading from the terminal, or C if
-it is given.
-
-The process decides what to do with the character."
-  (interactive "p")
-  (let ((n (or n 1))
-        (c (or c (let ((keys (this-command-keys)))
-                   (aref keys (1- (length keys)))))))
-    (when (get-pos-property (point) 'read-only)
-      (signal 'text-read-only nil))
-    (setq mistty--point-follows-next-pmark t)
-    (mistty-before-positional)
-    (mistty-send-raw-string (make-string n c))))
-
 (defun mistty-send-last-key (n)
   "Send the last key that was typed to the terminal.
 
@@ -940,8 +922,7 @@ burying key binding to send to the terminal inside of the C-c
 keymap, leaving that key binding available to Emacs."
   (interactive "p")
   (mistty-send-key
-   n (key-description
-      (seq-subseq (this-command-keys-vector) -1))))
+   n (seq-subseq (this-command-keys-vector) -1)))
 
 (defun mistty-positional-p (key)
   "Return true if KEY is a positional key.
@@ -973,12 +954,17 @@ KEY must be a string or vector such as the ones returned by 'kbd'."
 This command sends N times the current key sequence, or KEY if it
 is specified, directly to the terminal. If the key sequence is
 positional or if POSITIONAL evaluates to true, MisTTY attempts to
-move the terminal's cursor to the current point."
+move the terminal's cursor to the current point.
+
+KEY must be a string or vector as would be returned by `kbd'."
   (interactive "p")
   (let ((n (or n 1))
-        (key (if key (kbd key) (this-command-keys-vector))))
+        (key (or key (this-command-keys-vector))))
     (when (or positional (mistty-positional-p key))
-      (mistty-before-positional))
+      (when (get-pos-property (point) 'read-only)
+        (signal 'text-read-only nil))
+      (mistty-before-positional)
+      (setq mistty--point-follows-next-pmark t))
     (if (and (length= key 1) (characterp (elt key 0)))
         (mistty-send-raw-string (make-string n (elt key 0)))
       (let ((keymap (or mistty--key-to-keyseq

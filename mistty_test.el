@@ -1334,6 +1334,38 @@
    (execute-kbd-macro (kbd "e c h o SPC C-u 3 a"))
    (should (equal "aaa" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-send-key-from-term-buffer ()
+  (with-mistty-buffer
+   (with-current-buffer mistty-term-buffer
+     (mistty-send-key 1 "e")
+     (mistty-send-key 1 "c")
+     (mistty-send-key 1 "h")
+     (mistty-send-key 1 "o")
+     (mistty-send-key 1 " ")
+     (mistty-send-key 1 "o")
+     (mistty-send-key 1 "k"))
+   (mistty-wait-for-output)
+   (should (equal "ok" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-send-last-key-from-term-buffer ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "echo ok nok")
+   (mistty-wait-for-output)
+   (with-current-buffer mistty-term-buffer
+     (with-selected-window (display-buffer (current-buffer))
+       (local-set-key (kbd "C-c C-w") #'mistty-send-last-key)
+       (execute-kbd-macro (kbd "C-c C-w"))))
+   (mistty-wait-for-output)
+   (should (equal "ok" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-raw-string-from-term-buffer ()
+  (with-mistty-buffer
+   (with-current-buffer mistty-term-buffer
+     (mistty-send-raw-string "echo ok"))
+
+    (should (equal "ok" (mistty-send-and-capture-command-output)))))
+
+
 (ert-deftest mistty-test-send-last-key ()
   (with-mistty-buffer-selected
    (local-set-key (kbd "C-c C-w") 'mistty-send-last-key)

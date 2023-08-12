@@ -1197,6 +1197,9 @@ all should rightly be part of term.el."
       `(mistty-prompt-id ,(mistty--next-id))))))
 
 (defun mistty-send-raw-string (str)
+  "Send STR to the terminal, unprocessed.
+
+This command is available in fullscreen mode."
   (when (and str (not (zerop (length str))))
     (with-current-buffer mistty-term-buffer
       (term-send-raw-string str))))
@@ -1242,7 +1245,9 @@ it and sends it to the terminal.
 
 This is a convenient variant to `mistty-send-key' which allows
 burying key binding to send to the terminal inside of the C-c
-keymap, leaving that key binding available to Emacs."
+keymap, leaving that key binding available to Emacs.
+
+This command is available in fullscreen mode."
   (interactive "p")
   (mistty-send-key
    n (seq-subseq (this-command-keys-vector) -1)))
@@ -1279,15 +1284,19 @@ is specified, directly to the terminal. If the key sequence is
 positional or if POSITIONAL evaluates to true, MisTTY attempts to
 move the terminal's cursor to the current point.
 
-KEY must be a string or vector as would be returned by `kbd'."
+KEY must be a string or vector as would be returned by `kbd'.
+
+This command is available in fullscreen mode."
   (interactive "p")
   (let ((n (or n 1))
         (key (or key (this-command-keys-vector))))
-    (when (or positional (mistty-positional-p key))
-      (when (get-pos-property (point) 'read-only)
-        (signal 'text-read-only nil))
-      (mistty-before-positional)
-      (setq mistty--point-follows-next-pmark t))
+    (mistty--with-live-buffer mistty-work-buffer
+      (when (and (not mistty-fullscreen)
+                 (or positional (mistty-positional-p key)))
+        (when (get-pos-property (point) 'read-only)
+          (signal 'text-read-only nil))
+        (mistty-before-positional)
+        (setq mistty--point-follows-next-pmark t)))
     (if (and (length= key 1) (characterp (elt key 0)))
         (mistty-send-raw-string (make-string n (elt key 0)))
       (if-let ((translated-key (lookup-key mistty-term-key-map key)))

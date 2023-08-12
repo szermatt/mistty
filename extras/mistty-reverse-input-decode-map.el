@@ -59,8 +59,17 @@ of keys from a different terminal than xterm."
       (unless (eq 'exists (lookup-key exists-map binding))
         (define-key exists-map binding 'exists)
         (insert (format
-                "    (define-key map (kbd %S) %S)\n"
+                "    (define-key map (kbd %S) \"%s\")\n"
                 (key-description binding)
-                (seq-mapcat 'text-char-description full-event 'string))))))))
+                (seq-mapcat #'mistty--char-string full-event 'string))))))))
+
+(defun mistty--char-string (c)
+  (cond
+   ((= c ?\e) "\\e")
+   ((= c ?\t) "\\t")
+   ((= c ?\a) "\\a")
+   ((= c ?\d) "\\d")
+   ((and (>= c ?\ ) (<= c 126) (make-string 1 c)))
+   (t (format "\\x%2.2x" c))))
 
 (provide 'mistty-reverse-map)

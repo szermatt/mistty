@@ -221,7 +221,7 @@
     (goto-char (+ (point-min) 5)))
    (mistty-wait-for-output)
    (should (equal "$ ech<> world" (mistty-test-content)))
-   (mistty-send-tab)
+   (mistty-send-key 1 "\t")
    (mistty-wait-for-output)
    (should (equal "$ echo<> world" (mistty-test-content)))))
 
@@ -1146,7 +1146,7 @@
   (with-mistty-buffer
    (mistty-send-raw-string mistty-test-py-exe)
    (mistty-send-and-wait-for-prompt nil ">>> ")
-   (mistty-send-and-wait-for-prompt (lambda () (mistty-delchar-or-maybe-eof 1)))))
+   (mistty-send-and-wait-for-prompt (lambda () (mistty-send-key 1 "\C-d")))))
 
 (ert-deftest test-mistty-python-delchar ()
   (with-mistty-buffer
@@ -1156,7 +1156,7 @@
    (mistty-wait-for-output)
    (mistty-run-command
     (mistty-test-goto "11 + 1")
-    (mistty-delchar-or-maybe-eof 1))
+    (mistty-send-key 1 "\C-d"))
    ;; deleted the first 1, the command-line is now 1 + 1
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
 

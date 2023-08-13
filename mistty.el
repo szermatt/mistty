@@ -1251,12 +1251,9 @@ END section to be valid in the term buffer."
 (defun mistty--maybe-cursor-to-point ()
   (when (and mistty--old-point
              (/= (point) mistty--old-point)
-             (markerp mistty-sync-marker)
-             (>= (point) mistty-sync-marker)
-             (process-live-p mistty-term-proc)
-             (buffer-live-p mistty-term-buffer)
              (mistty-on-prompt-p (point)))
-    (mistty-send-raw-string (mistty--move-str (mistty-cursor) (point)))))
+    (mistty-send-raw-string
+     (mistty--move-str (mistty-cursor) (point)))))
 
 (defun mistty--window-size-change (_win)
   (when (process-live-p mistty-term-proc)

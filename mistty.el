@@ -1103,15 +1103,15 @@ This command is available in fullscreen mode."
               ;; way, we won't see any intermediate results with the
               ;; modifications temporarily turned off. A timeout makes
               ;; sure the screen is eventually refreshed in all cases.
-              (setq mistty--inhibit-term-to-work nil
-                    mistty--inhibited-term-to-work nil
-                    mistty--term-to-work-timer
+              (setq mistty--inhibit-term-to-work nil)
+              (setq mistty--inhibited-term-to-work nil)
+              (setq mistty--term-to-work-timer 
                     (run-with-timer
                      0.5 nil
-                     (let ((buf mistty-work-buffer))
-                       (lambda ()
-                         (mistty--with-live-buffer buf
-                           (mistty--term-to-work))))))
+                     (lambda (buf)
+                       (mistty--with-live-buffer buf
+                         (mistty--term-to-work)))
+                     mistty-work-buffer))
               (mistty-send-raw-string replay-str))))))))
 
 (defun mistty--send-and-wait (str)

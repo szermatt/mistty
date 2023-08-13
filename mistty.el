@@ -15,9 +15,7 @@
 (require 'term)
 (require 'seq)
 (require 'subr-x)
-(require 'text-property-search)
-(require 'term/xterm)
-(require 'url-util)
+(require 'url-util) ;; url-unhex for osc7
 
 ;;; Code:
 

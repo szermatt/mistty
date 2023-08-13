@@ -317,6 +317,14 @@ mapping somewhat consistent between fullscreen and normal mode.")
   (setq-local scroll-conservatively 1024))
 (put 'mistty-mode 'mode-class 'special)
 
+(defsubst mistty--require-work-buffer ()
+  "Asserts that the current buffer is the work buffer."
+  (unless (eq mistty-work-buffer (current-buffer)) (error "work-buffer required")))
+
+(defsubst mistty--require-term-buffer ()
+  "Asserts that the current buffer is the term buffer."
+  (unless (eq mistty-term-buffer (current-buffer)) (error "term-buffer required")))
+
 (defun mistty--exec (program &rest args)
   (mistty-mode)
   (mistty--attach
@@ -493,8 +501,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
      ((string-match "\e\\[\\(\\??47\\|\\?104[79]\\)h" str)
       (let ((smcup-pos (match-beginning 0)))
         (mistty-process-filter proc (substring str 0 smcup-pos))
-        (with-current-buffer work-buffer
-          (mistty--enter-fullscreen proc (substring str smcup-pos)))))
+        (mistty--enter-fullscreen proc (substring str smcup-pos))))
      
      ;; reset
      ((string-match "\ec" str)
@@ -507,32 +514,28 @@ mapping somewhat consistent between fullscreen and normal mode.")
         (let ((mistty--inhibited-term-to-work nil))
           (mistty-process-filter proc (substring str 0 rs1-before-pos)))
         (term-emulate-terminal proc (substring str rs1-before-pos rs1-after-pos))
-        (with-current-buffer work-buffer
-          (setq mistty-bracketed-paste nil)
-          (mistty--reset-markers))
+        (mistty--with-live-buffer work-buffer
+          (setq mistty-bracketed-paste nil))
+        (mistty--reset-markers)
         (mistty-process-filter proc (substring str rs1-after-pos))))
      
      ;; normal processing
-     (t (let ((inhibit-modification-hooks t)
-              (inhibit-read-only t)
-              (old-sync-position (mistty--with-live-buffer term-buffer (marker-position mistty-sync-marker)))
-              (old-last-non-ws (mistty--with-live-buffer term-buffer (mistty--last-non-ws))))
+     (t
+      (mistty--with-live-buffer term-buffer
+        (let ((old-sync-position (marker-position mistty-sync-marker))
+              (old-last-non-ws (mistty--last-non-ws)))
           (mistty-emulate-terminal proc str work-buffer)
-          (mistty--with-live-buffer work-buffer
-            (save-restriction
-              (widen)
-              (mistty--with-live-buffer term-buffer
-                (goto-char (process-mark proc))
-                (when (or (< mistty-sync-marker old-sync-position)
-                          (< (point) mistty-sync-marker))
-                  (mistty--reset-markers)
-                  (setq mistty-goto-cursor-next-time t))
-                (when (> (process-mark proc) old-last-non-ws) ;; on a new line
-                  (mistty--detect-possible-prompt (process-mark proc))))
-              (condition-case nil
-                  (setq default-directory (buffer-local-value 'default-directory term-buffer))
-                (error nil))
-              (mistty--term-to-work))))))))
+          (goto-char (process-mark proc))
+          (when (or (< mistty-sync-marker old-sync-position)
+                    (< (point) mistty-sync-marker))
+            (mistty--reset-markers))
+          (when (> (point) old-last-non-ws) ;; on a new line
+            (mistty--detect-possible-prompt (point)))))
+      (mistty--with-live-buffer work-buffer
+        (condition-case nil
+            (setq default-directory (buffer-local-value 'default-directory term-buffer))
+          (error nil))
+        (mistty--term-to-work))))))
 
 (defun mistty-goto-cursor ()
   (interactive)
@@ -551,6 +554,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
                             (window-point win) (point-max)))) t)))))
 
 (defun mistty--detect-possible-prompt (cursor)
+  (mistty--require-term-buffer)
   (let* ((bol (mistty--bol-pos-from cursor)))
     (when (and (> cursor bol)
                (>= cursor (mistty--last-non-ws))
@@ -562,7 +566,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
         (mistty--with-live-buffer mistty-work-buffer
           (setq mistty--possible-prompt
                 (list (mistty--from-term-pos bol)
-                      (mistty--from-work-pos end)
+                      (mistty--from-term-pos end)
                       content)))))))
  
 (defun mistty--reset-markers ()
@@ -587,8 +591,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
              (buffer-live-p term-buffer))
         (let ((after-rmcup-pos (match-beginning 0)))
           (mistty-emulate-terminal proc (substring str 0 after-rmcup-pos) work-buffer)
-          (with-current-buffer work-buffer
-            (mistty--leave-fullscreen proc (substring str after-rmcup-pos))))
+          (mistty--leave-fullscreen proc (substring str after-rmcup-pos)))
       ;; normal processing
       (mistty-emulate-terminal proc str work-buffer))))
 
@@ -615,6 +618,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
     (mistty--term-to-work)))
 
 (defun mistty--term-to-work (&optional forced)
+  (mistty--require-work-buffer)
   (if (and mistty--inhibit-term-to-work (not forced))
       (setq mistty--inhibited-term-to-work t)
     (let ((inhibit-modification-hooks t)
@@ -1284,7 +1288,6 @@ END section to be valid in the term buffer."
 
     (mistty--replace-buffer-everywhere mistty-term-buffer mistty-work-buffer)
     (with-current-buffer mistty-term-buffer
-      (term-char-mode) ;; in case this was modified
       (font-lock-mode -1))
 
     (when (length> terminal-sequence 0)

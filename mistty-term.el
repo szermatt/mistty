@@ -366,7 +366,8 @@ This variable is available in the work buffer.")
 
 This functions intercepts some extented sequences term.el. This
 all should rightly be part of term.el."
-  (cl-letf ((inhibit-modification-hooks nil)
+  (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
+            (inhibit-read-only t) ;; allow modifications in char mode
             (start 0)
             ;; Using term-buffer-vertical-motion causes strange
             ;; issues; avoid it. Using mistty's window to compute
@@ -410,8 +411,7 @@ all should rightly be part of term.el."
               (setq cursor-type nil)))
            (osc
             (term-emulate-terminal proc (substring str start seq-start))
-            (let ((inhibit-read-only t))
-              (run-hook-with-args 'mistty-osc-hook osc))))
+            (run-hook-with-args 'mistty-osc-hook osc)))
           (setq start seq-end)))
       (let ((final-str (substring str start)))
         (unless (zerop (length final-str))

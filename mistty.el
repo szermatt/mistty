@@ -15,11 +15,12 @@
 (require 'term)
 (require 'seq)
 (require 'subr-x)
-(require 'url-util) ;; url-unhex for osc7
 
 (require 'mistty-util)
 
 ;;; Code:
+
+(autoload 'mistty-osc7 "mistty-osc7")
 
 (defvar mistty-osc-hook (list #'mistty-osc7)
   "Hook run when unknown OSC sequences have been received.
@@ -1834,14 +1835,6 @@ END section to be valid in the term buffer."
   (pcase mistty--possible-prompt
     (`(,start ,line-start ,_)
      (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
-
-(defun mistty-osc7 (osc-seq)
-  (when (string-match "7;file://\\([^/]*\\)\\(/.*\\)" osc-seq)
-    (let ((hostname (url-unhex-string (match-string 1 osc-seq)))
-          (path (url-unhex-string (match-string 2 osc-seq))))
-      (when (and (string= hostname (system-name))
-                 (file-directory-p path))
-        (cd path)))))
 
 (provide 'mistty)
 

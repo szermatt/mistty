@@ -424,6 +424,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
   (sort (delq nil (mapcar #'mistty--buffer-p (buffer-list)))
         (lambda (a b) (string< (buffer-name a) (buffer-name b)))))
 
+;;;###autoload
 (defun mistty ()
   (interactive)
   (let ((existing (mistty--buffers)))
@@ -442,6 +443,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
         (switch-to-buffer (car existing-tail))
       (error "no next mistty buffer"))))
 
+;;;###autoload
 (defun mistty-create ()
   (interactive)
   (with-current-buffer (generate-new-buffer "*mistty*")

@@ -1,6 +1,7 @@
 (require 'seq)
 (require 'help-fns)
 
+;;;###autoload
 (defun mistty-reverse-input-decode-map (map)
   "Generate elisp code for `mistty-term-key-map' given a MAP.
 

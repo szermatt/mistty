@@ -1382,6 +1382,22 @@
    (execute-kbd-macro (kbd "C-q C-w"))
    (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest misty-revert-modification-after-prompt ()
+  (with-mistty-buffer-zsh
+   (dotimes (i 3)
+     (mistty-send-raw-string (format "function toto%d { echo %d; };" i i)))
+   (mistty-send-and-wait-for-prompt)
+   (narrow-to-region (mistty--bol-pos-from (point)) (point-max))
+   (mistty-send-raw-string "toto\t")
+   (while (not (search-forward-regexp "^toto" nil 'noerror))
+     (mistty-wait-for-output))
+   (mistty-run-command
+    (insert "foobar"))
+   (should (equal "$ toto<>\ntoto0  toto1  toto2" (mistty-test-content)))))
+
+;; TODO: find a way of testing non-empty modifications that are
+;; ignored and require the timer to be reverted.
+
 (defun mistty-test-find-p (str)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion

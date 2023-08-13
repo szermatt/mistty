@@ -1005,7 +1005,7 @@ This command is available in fullscreen mode."
              (cursor (mistty-cursor))
              (beg orig-beg)
              (end (+ orig-beg (length content)))
-             (old-end (if (> old-length 0)
+             (old-end (if (>= old-length 0)
                           (+ orig-beg old-length)
                         (mistty--from-pos-of (with-current-buffer mistty-term-buffer (point-max))
                                              mistty-term-buffer)))
@@ -1031,8 +1031,8 @@ This command is available in fullscreen mode."
                      (> (mistty--distance-on-term beg cursor) 0))
             (setq lower-limit cursor)
             (mistty--move-sync-mark (mistty--bol-pos-from cursor) cursor))
-          
-          (setq beg (max beg cursor)))
+
+          (setq beg cursor))
 
         (when (> old-end beg)
           (if (eq m first)
@@ -1059,7 +1059,7 @@ This command is available in fullscreen mode."
                 replay-seqs))
         
         ;; insert
-        (when (> end beg)
+        (when (and (> end beg) (>= beg orig-beg))
           (push (mistty--maybe-bracketed-str
                  (substring content
                             (max 0 (- beg orig-beg))
@@ -1079,21 +1079,25 @@ This command is available in fullscreen mode."
 
         ;; send the content of replay-seqs
         (let ((replay-str (mapconcat #'identity (nreverse replay-seqs) "")))
-          (if (null modifications)
-              (progn
-                ;; Wait for a response from replay-string before
-                ;; refreshing the display. This way, we won't see any
-                ;; intermediate results with the modifications
-                ;; temporarily turned off.
-                ;;
-                ;; TODO: what if there's no response from replay-str?
-                ;; Add a timeout to call term-to-work after some delay
-                ;; if no answer has come.
-                (setq mistty--inhibit-term-to-work nil
-                      mistty--inhibited-term-to-work nil)
-                (mistty-send-raw-string replay-str))
-            (mistty--send-and-wait replay-str)
-            ))))))
+          (when (length> replay-str 0)
+            (if modifications ; not the last modification
+                (mistty--send-and-wait replay-str)
+              
+              ;; For the last modification, wait for a response from
+              ;; replay-string before refreshing the display. This
+              ;; way, we won't see any intermediate results with the
+              ;; modifications temporarily turned off. A timeout makes
+              ;; sure the screen is eventually refreshed in all cases.
+              (setq mistty--inhibit-term-to-work nil
+                    mistty--inhibited-term-to-work nil
+                    mistty--term-to-work-timer
+                    (run-with-timer
+                     0.5 nil
+                     (let ((buf mistty-work-buffer))
+                       (lambda ()
+                         (mistty--with-live-buffer buf
+                           (mistty--term-to-work))))))
+              (mistty-send-raw-string replay-str))))))))
 
 (defun mistty--send-and-wait (str)
   (when (and str (not (zerop (length str))))

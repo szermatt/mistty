@@ -657,6 +657,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
                                 pos 'mistty-prompt-id nil mistty-sync-marker)))
                    pos)))
             (when (and prompt-beg
+                       (get-text-property prompt-beg 'mistty-prompt-id)
                        (or (> prompt-beg mistty-sync-marker)
                            (and (= prompt-beg mistty-sync-marker)
                                 (= mistty-sync-marker mistty-cmd-start-marker)))

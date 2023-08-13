@@ -670,22 +670,9 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
 
 (defun mistty--exec (program &rest args)
   (mistty-mode)
-  (mistty--attach (mistty--create-term program args)))
-
-(defun mistty--create-term (program args)
-  (let ((term-buffer (generate-new-buffer (concat " mistty tty " (buffer-name)) 'inhibit-buffer-hooks)))
-    (with-current-buffer term-buffer
-      (term-mode)
-      (setq-local term-char-mode-buffer-read-only t
-                  term-char-mode-point-at-process-mark t
-                  term-buffer-maximum-size 0
-                  term-height (or (floor (window-screen-lines)) 24)
-                  term-width (or (window-max-chars-per-line) 80))
-      (term--reset-scroll-region)
-      (term-exec term-buffer (buffer-name mistty-term-buffer) program nil args)
-      (term-char-mode)
-      (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
-    term-buffer))
+  (mistty--attach
+   (mistty--create-term
+    (concat " mistty tty " (buffer-name)) program args)))
 
 (defun mistty--attach (term-buffer)
   (let ((work-buffer (current-buffer))

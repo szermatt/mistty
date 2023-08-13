@@ -21,19 +21,6 @@
 
 ;;; Code:
 
-(autoload 'mistty-osc7 "mistty-osc7")
-
-(defvar mistty-osc-hook (list #'mistty-osc7)
-  "Hook run when unknown OSC sequences have been received.
-
-This hook is run on the term-mode buffer. It is passed the
-content of OSC sequence - everything between OSC (ESC ]) and
-ST (ESC \\ or \\a) and may chooose to handle or ignore them.
-
-The current buffer is set to the term-mode buffer. The hook is
-allowed to modify it, to add text properties, for example. In
-such case, consider using `mistty-register-text-properties'.")
-
 (defvar-local mistty-work-buffer nil
   "The main `mistty-mode' buffer.
 

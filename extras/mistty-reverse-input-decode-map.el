@@ -37,31 +37,33 @@ of keys from a different terminal than xterm."
     (switch-to-buffer (current-buffer))
     (goto-char (point-min))
     (insert "(let ((map (make-sparse-keymap)))\n")
-    (let ((start (point)))
+    (let ((start (point))
+          (exists-table (make-hash-table :test #'equal)))
       (map-keymap
        (lambda (e b)
-         (mistty--reverse-input-decode-map-1 e b [] (make-sparse-keymap)))
+         (mistty--reverse-input-decode-map-1 e b [] exists-table))
        map)
       (sort-lines nil start (point)))
     (insert "\n    map)\n")
     (goto-char (point-min))))
 
-(defun mistty--reverse-input-decode-map-1 (event-type binding prefix exists-map)
+(defun mistty--reverse-input-decode-map-1 (event-type binding prefix exists-table)
   (let ((full-event (vconcat prefix (vector event-type))))
     (cond
      ((keymapp binding)
       (map-keymap
        (lambda (e b)
-         (mistty--reverse-input-decode-map-1 e b full-event exists-map))
+         (mistty--reverse-input-decode-map-1 e b full-event exists-table))
        binding))
      ((functionp binding))
      ((sequencep binding) ; a key seq
-      (unless (eq 'exists (lookup-key exists-map binding))
-        (define-key exists-map binding 'exists)
-        (insert (format
-                "    (define-key map (kbd %S) \"%s\")\n"
-                (key-description binding)
-                (seq-mapcat #'mistty--char-string full-event 'string))))))))
+      (let ((key (key-description binding)))
+        (unless (gethash key exists-table)
+          (puthash key t exists-table)
+          (insert (format
+                   "    (define-key map (kbd %S) \"%s\")\n"
+                   key
+                   (seq-mapcat #'mistty--char-string full-event 'string)))))))))
 
 (defun mistty--char-string (c)
   (cond

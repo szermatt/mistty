@@ -215,7 +215,7 @@
    (mistty-send-raw-string "ech world")
    (mistty-wait-for-output)
    ;; Move the point before doing completion, to make sure that
-   ;; mistty-send-if-at-prompt moves the pmark to the right position
+   ;; mistty-send-if-at-prompt moves the cursor to the right position
    ;; before sending TAB.
    (mistty-run-command
     (goto-char (+ (point-min) 5)))
@@ -598,7 +598,7 @@
        (mistty-run-command
         (setq goal-pos (mistty-test-goto count)))
        (mistty-wait-for-output)
-       (should (equal (mistty-pmark) goal-pos))))))
+       (should (equal (mistty-cursor) goal-pos))))))
 
 (ert-deftest test-mistty-enter-fullscreen ()
   (with-mistty-buffer-selected

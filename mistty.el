@@ -148,11 +148,11 @@ This variable is available in the work buffer.")
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--point-follows-next-pmark nil
-  "True if the point should be moved to the pmark.
+(defvar-local mistty-goto-cursor-next-time nil
+  "True if the point should be moved to the cursor.
 
 This variable tells `mistty--term-to-work' that it should move
-the point to the pmark next time it copies the state of the
+the point to the cursor next time it copies the state of the
 terminal to the work buffer.
 
 This variable is available in the work buffer.")
@@ -172,11 +172,11 @@ since been modified.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--pmark-after-last-term-to-work nil
-  "The position of the pmark at the end of `mistty--term-to-work'.
+(defvar-local mistty--cursor-after-last-term-to-work nil
+  "The position of the cursor at the end of `mistty--term-to-work'.
 
 This variable is meant for `mistty--term-to-work' to detect
-whether the pmark has moved since its last call. It's not meant
+whether the cursor has moved since its last call. It's not meant
 to be modified or accessed by other functions.
 
 This variable is available in the work buffer.")
@@ -272,7 +272,7 @@ This is useful for debugging, when the display is a window system."
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
     (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
     (define-key map (kbd "C-c C-j") 'mistty-switch-to-fullscreen-buffer)
-    (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-pmark)
+    (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-cursor)
     
     ;; mistty-send-last-key makes here some globally useful keys
     ;; available in mistty-mode buffers. More specific keys can be
@@ -785,7 +785,7 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
     
     (mistty--term-to-work)
     (when proc
-      (mistty-goto-pmark))))
+      (mistty-goto-cursor))))
 
 (defun mistty--create-or-reuse-marker (m initial-pos)
   (if (not (markerp m))
@@ -940,7 +940,7 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
                 (when (or (< mistty-sync-marker old-sync-position)
                           (< (point) mistty-sync-marker))
                   (mistty--reset-markers)
-                  (setq mistty--point-follows-next-pmark t))
+                  (setq mistty-goto-cursor-next-time t))
                 (when (> (process-mark proc) old-last-non-ws) ;; on a new line
                   (mistty--detect-possible-prompt (process-mark proc))))
               (condition-case nil
@@ -948,29 +948,29 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
                 (error nil))
               (mistty--term-to-work))))))))
 
-(defun mistty-goto-pmark ()
+(defun mistty-goto-cursor ()
   (interactive)
-  (let ((pmark (mistty--safe-pos (mistty-pmark))))
-    (goto-char pmark)
+  (let ((cursor (mistty--safe-pos (mistty-cursor))))
+    (goto-char cursor)
     (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
       (mistty--recenter win))))
 
 (defun mistty--recenter (win)
   (with-current-buffer (window-buffer win)
     (when (and mistty-term-proc
-               (or (eq (mistty-pmark) (window-point win))
+               (or (eq (mistty-cursor) (window-point win))
                    (> (window-point win) (mistty--bol-pos-from (point-max) -3))))
         (with-selected-window win
           (recenter (- (1+ (count-lines
                             (window-point win) (point-max)))) t)))))
 
-(defun mistty--detect-possible-prompt (pmark)
-  (let* ((bol (mistty--bol-pos-from pmark)))
-    (when (and (> pmark bol)
-               (>= pmark (mistty--last-non-ws))
+(defun mistty--detect-possible-prompt (cursor)
+  (let* ((bol (mistty--bol-pos-from cursor)))
+    (when (and (> cursor bol)
+               (>= cursor (mistty--last-non-ws))
                (string-match
                 mistty-prompt-re
-                (mistty--safe-bufstring bol pmark)))
+                (mistty--safe-bufstring bol cursor)))
       (let ((end (+ bol (match-end 0)))
             (content (mistty--safe-bufstring bol (+ bol (match-end 0)))))
         (mistty--with-live-buffer mistty-work-buffer
@@ -1076,7 +1076,7 @@ all should rightly be part of term.el."
                 mistty-left-str
                 mistty-right-str)))))
 
-(defun mistty-pmark ()
+(defun mistty-cursor ()
   (mistty--from-pos-of (process-mark mistty-term-proc) mistty-term-buffer))
 
 (defun mistty--from-pos-of (pos buffer-of-pos)
@@ -1124,7 +1124,7 @@ all should rightly be part of term.el."
       (mistty--with-live-buffer mistty-work-buffer
         (when (process-live-p mistty-term-proc)
           (let ((prompt-beg
-                 (let ((pos (mistty-pmark)))
+                 (let ((pos (mistty-cursor)))
                    (unless (and (> pos (point-min))
                                 (get-text-property (1- pos) 'mistty-prompt-id))
                      (setq pos (previous-single-property-change
@@ -1138,9 +1138,9 @@ all should rightly be part of term.el."
                        (or (> prompt-beg mistty-sync-marker)
                            (and (= prompt-beg mistty-sync-marker)
                                 (= mistty-sync-marker mistty-cmd-start-marker)))
-                       (< prompt-beg (mistty-pmark)))
+                       (< prompt-beg (mistty-cursor)))
               (mistty--move-sync-mark prompt-beg
-                                      (mistty-pmark))))))
+                                      (mistty-cursor))))))
       
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.
@@ -1156,15 +1156,15 @@ all should rightly be part of term.el."
           (forward-line -5)
           (delete-region (point-min) (point))))
 
-      ;; Move the point to the pmark, if necessary.
+      ;; Move the point to the cursor, if necessary.
       (mistty--with-live-buffer mistty-work-buffer
         (when (process-live-p mistty-term-proc)
-          (when (or mistty--point-follows-next-pmark
-                    (null mistty--pmark-after-last-term-to-work)
-                    (= old-point mistty--pmark-after-last-term-to-work))
-              (mistty-goto-pmark))
-          (setq mistty--point-follows-next-pmark nil)
-          (setq mistty--pmark-after-last-term-to-work (mistty-pmark)))))))
+          (when (or mistty-goto-cursor-next-time
+                    (null mistty--cursor-after-last-term-to-work)
+                    (= old-point mistty--cursor-after-last-term-to-work))
+              (mistty-goto-cursor))
+          (setq mistty-goto-cursor-next-time nil)
+          (setq mistty--cursor-after-last-term-to-work (mistty-cursor)))))))
 
 (defun mistty--save-properties (start)
   (let ((pos start) intervals)
@@ -1234,12 +1234,12 @@ This command is available in fullscreen mode."
       (term-send-raw-string str))))
 
 (defun mistty--at-prompt-1 (&optional inexact)
-  (let ((pmark (mistty-pmark)))
+  (let ((cursor (mistty-cursor)))
     (if inexact
-        (or (>= (point) pmark)
+        (or (>= (point) cursor)
             (>= (mistty--bol-pos-from (point))
-                (mistty--bol-pos-from pmark)))
-        (= (point) pmark))))
+                (mistty--bol-pos-from cursor)))
+        (= (point) cursor))))
 
 (defun mistty--bol-pos-from (pos &optional n)
   (save-excursion
@@ -1263,7 +1263,7 @@ This command is available in fullscreen mode."
   "Send the current command to the shell."
   (interactive)
   (mistty--maybe-realize-possible-prompt)
-  (setq mistty--point-follows-next-pmark t)
+  (setq mistty-goto-cursor-next-time t)
   (mistty-send-raw-string "\C-m"))
 
 (defun mistty-send-last-key (n)
@@ -1321,7 +1321,7 @@ This command is available in fullscreen mode."
         (key (or key (this-command-keys-vector))))
     (mistty--with-live-buffer mistty-work-buffer
       (when (not mistty-fullscreen)
-        (setq mistty--point-follows-next-pmark t)
+        (setq mistty-goto-cursor-next-time t)
         (when (or positional (mistty-positional-p key))
           (when (get-pos-property (point) 'read-only)
             (signal 'text-read-only nil))
@@ -1339,10 +1339,10 @@ This command is available in fullscreen mode."
   (mistty--maybe-realize-possible-prompt)
   (beginning-of-line n))
 
-(defun mistty-end-of-line-or-goto-pmark (&optional n)
+(defun mistty-end-of-line-or-goto-cursor (&optional n)
   (interactive "p")
-  (if (and (= 1 n) (eq last-command this-command) (/= (point) (mistty-pmark)))
-      (mistty-goto-pmark)
+  (if (and (= 1 n) (eq last-command this-command) (/= (point) (mistty-cursor)))
+      (mistty-goto-cursor)
     (end-of-line n)))
 
 (defun mistty--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
@@ -1499,7 +1499,7 @@ This command is available in fullscreen mode."
              (orig-beg (nth 0 m))
              (content (nth 1 m))
              (old-length (nth 2 m))
-             (pmark (mistty-pmark))
+             (cursor (mistty-cursor))
              (beg orig-beg)
              (end (+ orig-beg (length content)))
              (old-end (if (> old-length 0)
@@ -1516,38 +1516,38 @@ This command is available in fullscreen mode."
                 old-end (min upper-limit old-end)))
 
         (when (> end beg)
-          (mistty--send-and-wait (mistty--move-str pmark beg 'will-wait))
-          (setq pmark (mistty-pmark))
-          ;; pmark is as close to beg as we can make it
+          (mistty--send-and-wait (mistty--move-str cursor beg 'will-wait))
+          (setq cursor (mistty-cursor))
+          ;; cursor is as close to beg as we can make it
 
-          ;; We couldn't move pmark as far back as beg. Presumably, the
+          ;; We couldn't move cursor as far back as beg. Presumably, the
           ;; process mark points to the leftmost modifiable position of
           ;; the command line. Update the sync marker to start sync there
           ;; from now on and avoid getting this hook called unnecessarily.
-          (when (and (> pmark beg)
-                     (> (mistty--distance-on-term beg pmark) 0))
-            (setq lower-limit pmark)
-            (mistty--move-sync-mark (mistty--bol-pos-from pmark) pmark))
+          (when (and (> cursor beg)
+                     (> (mistty--distance-on-term beg cursor) 0))
+            (setq lower-limit cursor)
+            (mistty--move-sync-mark (mistty--bol-pos-from cursor) cursor))
           
-          (setq beg (max beg pmark)))
+          (setq beg (max beg cursor)))
 
         (when (> old-end beg)
           (if (eq m first)
               (progn
                 (mistty--send-and-wait
-                 (mistty--move-str pmark old-end 'will-wait))
-                (setq pmark (mistty-pmark))
-                (when (and (> beg pmark)
-                           (> (mistty--distance-on-term beg pmark) 0))
+                 (mistty--move-str cursor old-end 'will-wait))
+                (setq cursor (mistty-cursor))
+                (when (and (> beg cursor)
+                           (> (mistty--distance-on-term beg cursor) 0))
                   ;; If we couldn't even get to beg we'll have trouble with
                   ;; the next modifications, too, as they start left of this
                   ;; one. Remember that.
-                  (setq upper-limit pmark))
-                (setq old-end (max beg (min old-end pmark))))
+                  (setq upper-limit cursor))
+                (setq old-end (max beg (min old-end cursor))))
             
             ;; after the first modification, just optimistically go to
             ;; old-end if upper-limit allows it.
-            (push (mistty--move-str pmark old-end) replay-seqs)))
+            (push (mistty--move-str cursor old-end) replay-seqs)))
 
         ;; delete
         (when (> old-end beg)
@@ -1563,11 +1563,11 @@ This command is available in fullscreen mode."
                             (min (length content) (max 0 (- end orig-beg)))))
                 replay-seqs))
         
-        ;; for the last modification, move pmark back to point
+        ;; for the last modification, move cursor back to point
         (when (and (null modifications)
                    (>= initial-point intervals-start)
                    (<= initial-point intervals-end))
-          (setq mistty--point-follows-next-pmark t)
+          (setq mistty-goto-cursor-next-time t)
           (push (mistty--move-str
                  end
                  (if lower-limit (max lower-limit initial-point)
@@ -1707,10 +1707,10 @@ END section to be valid in the term buffer."
         (cond
          ;; nothing to do
          ((null intervals)
-          (mistty--maybe-pmark-to-point))
+          (mistty--maybe-cursor-to-point))
 
          ;; modifications are part of the current prompt; replay them
-         ((mistty-on-prompt-p (mistty-pmark))
+         ((mistty-on-prompt-p (mistty-cursor))
           (mistty--replay-modifications intervals))
 
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
@@ -1727,12 +1727,12 @@ END section to be valid in the term buffer."
          ;; revert modifications
          (t
           (mistty--term-to-work 'forced)
-          (mistty--maybe-pmark-to-point)))
+          (mistty--maybe-cursor-to-point)))
         
         ;; re-enable term-to-work in all cases.
         (mistty--enable-term-to-work))))))
 
-(defun mistty--maybe-pmark-to-point ()
+(defun mistty--maybe-cursor-to-point ()
   (when (and mistty--old-point
              (/= (point) mistty--old-point)
              (markerp mistty-sync-marker)
@@ -1740,7 +1740,7 @@ END section to be valid in the term buffer."
              (process-live-p mistty-term-proc)
              (buffer-live-p mistty-term-buffer)
              (mistty-on-prompt-p (point)))
-    (mistty-send-raw-string (mistty--move-str (mistty-pmark) (point)))))
+    (mistty-send-raw-string (mistty--move-str (mistty-cursor) (point)))))
 
 (defun mistty--window-size-change (_win)
   (when (process-live-p mistty-term-proc)
@@ -1843,10 +1843,10 @@ END section to be valid in the term buffer."
             (<= pos (mistty--eol-pos-from mistty-cmd-start-marker))))))
 
 (defun mistty-before-positional ()
-  (let ((pmark (mistty-pmark)))
-    (when (and (not (= pmark (point)))
+  (let ((cursor (mistty-cursor)))
+    (when (and (not (= cursor (point)))
                (mistty--maybe-realize-possible-prompt))
-      (mistty-send-raw-string (mistty--move-str pmark (point))))))
+      (mistty-send-raw-string (mistty--move-str cursor (point))))))
 
 (defun mistty--maybe-realize-possible-prompt ()
   (when (and (not (mistty-on-prompt-p (point)))
@@ -1866,11 +1866,11 @@ END section to be valid in the term buffer."
 (defun mistty--possible-prompt-p ()
   (pcase mistty--possible-prompt
     (`(,start ,end ,content)
-     (let ((pmark (mistty-pmark)))
+     (let ((cursor (mistty-cursor)))
        (and (>= end mistty-cmd-start-marker)
-            (>= pmark end)
-            (or (> pmark (point-max))
-                    (<= pmark (mistty--bol-pos-from start 2)))
+            (>= cursor end)
+            (or (> cursor (point-max))
+                    (<= cursor (mistty--bol-pos-from start 2)))
             (string= content (mistty--safe-bufstring start end)))))))
 
 (defun mistty--possible-prompt-contains (pos)

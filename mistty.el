@@ -662,13 +662,12 @@ mapping somewhat consistent between fullscreen and normal mode.")
                            (and (= prompt-beg mistty-sync-marker)
                                 (= mistty-sync-marker mistty-cmd-start-marker)))
                        (< prompt-beg (mistty-cursor)))
-              (mistty--move-sync-mark prompt-beg
-                                      (mistty-cursor))))))
+              (mistty--set-sync-mark-from-end prompt-beg (mistty-cursor))))))
       
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.
         (when (< mistty-sync-marker term-home-marker)
-          (mistty--move-sync-mark term-home-marker))
+          (mistty--set-sync-mark-from-end term-home-marker))
         
         ;; Truncate the term buffer, since scrolling back is available on
         ;; the work buffer anyways. This has to be done now, after syncing
@@ -707,7 +706,16 @@ mapping somewhat consistent between fullscreen and normal mode.")
        (set-text-properties (+ beg start) (+ end start) props))
       (_ (error "invalid interval %s" interval)))))
 
-(defun mistty--move-sync-mark (sync-pos &optional cmd-pos)
+(defun mistty--set-sync-mark-from-end (sync-pos &optional cmd-pos)
+  "Set the sync marker to SYNC-POS, assuming buffer ends are the same.
+
+This function sets the `mistty-sync-marker' SYNC-POS and optionally
+`mistty-cmd-start-marker' to CMD-POS.
+
+For this to work, the term and work buffer starting with SYNC-POS
+must have the same content, which is only true when SYNC-POS is
+bigger than `mistty-sync-marker' and `mistty--term-to-work' was
+called recently enough."
   (let ((chars-from-end (- (point-max) sync-pos))
         (prompt-length (if (and cmd-pos (> cmd-pos sync-pos))
                            (- cmd-pos sync-pos)
@@ -719,6 +727,15 @@ mapping somewhat consistent between fullscreen and normal mode.")
         (mistty--set-prompt work-sync-pos (+ work-sync-pos prompt-length))))))
 
 (defun mistty--move-sync-mark-with-shift (sync-pos cmd-start-pos shift)
+  "Move the sync marker on the work buffer to SYNC-POS
+
+This function moves the sync marker to SYNC-POS on the work
+buffer, the command-line start marker to CMD-START-POS. If
+there's no prompt, the two positions are the same.
+
+SHIFT specifies the current difference between the sync marker on
+the work buffer and the term buffer. The shift value comes
+from `mistty--modification-hook' tracking the changes."
   (let ((diff (- sync-pos mistty-sync-marker)))
     (with-current-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (+ mistty-sync-marker diff shift))))
@@ -1026,13 +1043,10 @@ This command is available in fullscreen mode."
 
           ;; We couldn't move cursor as far back as beg. Presumably, the
           ;; process mark points to the leftmost modifiable position of
-          ;; the command line. Update the sync marker to start sync there
-          ;; from now on and avoid getting this hook called unnecessarily.
+          ;; the command line. 
           (when (and (> cursor beg)
                      (> (mistty--distance-on-term beg cursor) 0))
-            (setq lower-limit cursor)
-            (mistty--move-sync-mark (mistty--bol-pos-from cursor) cursor))
-
+            (setq lower-limit cursor))
           (setq beg cursor))
 
         (when (> old-end beg)
@@ -1211,13 +1225,18 @@ END section to be valid in the term buffer."
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
          ((and (mistty--possible-prompt-p)
-               (setq restricted (mistty--restrict-modification-intervals intervals (nth 0 mistty--possible-prompt))))
+               (setq restricted (mistty--restrict-modification-intervals
+                                 intervals (nth 0 mistty--possible-prompt))))
           (mistty--realize-possible-prompt (car restricted))
           (mistty--replay-modifications (cdr restricted)))
 
-         ;; leave all modifications if there's enough of an unmodified section at the end
-         ((and intervals-end (< intervals-end modifiable-limit))
-          (mistty--move-sync-mark (mistty--bol-pos-from intervals-end 2)))
+         ;; leave all modifications if there's enough of an unmodified
+         ;; section at the end. moving the sync mark is only possible
+         ;; as long as the term and work buffers haven't diverged.
+         ((and intervals-end
+               (< intervals-end modifiable-limit)
+               (not mistty--inhibited-term-to-work))
+          (mistty--set-sync-mark-from-end (mistty--bol-pos-from intervals-end 3)))
 
          ;; revert modifications
          (t
@@ -1356,7 +1375,7 @@ END section to be valid in the term buffer."
     (`(,start ,end ,_ )
      (if shift
          (mistty--move-sync-mark-with-shift start end shift)
-       (mistty--move-sync-mark start end)))
+       (mistty--set-sync-mark-from-end start end)))
     (_ (error "no possible prompt"))))
 
 (defun mistty--possible-prompt-p ()

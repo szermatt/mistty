@@ -4,6 +4,12 @@
 
 (require 'mistty-util)
 
+(defconst mistty-left-str "\eOD"
+  "Sequence to send to the process when the left arrow is pressed.")
+
+(defconst mistty-right-str "\eOC"
+  "Sequence to send to the process when the rightarrow is pressed.")
+
 (defvar-local mistty-bracketed-paste nil
   "Whether bracketed paste is enabled in the terminal.
 
@@ -114,5 +120,17 @@ all should rightly be part of term.el."
     (when-let ((props (apply #'append
                        (mapcar #'cdr mistty--term-properties-to-add-alist))))
       (add-text-properties beg end props))))
- 
+
+
+(defun mistty--maybe-bracketed-str (str)
+  (let ((str (string-replace "\t" (make-string tab-width ? ) str)))
+    (cond
+     ((not mistty-bracketed-paste) str)
+     ((not (string-match "[[:cntrl:]]" str)) str)
+     (t (concat "\e[200~"
+                str
+                "\e[201~"
+                mistty-left-str
+                mistty-right-str)))))
+
 (provide 'mistty-term)

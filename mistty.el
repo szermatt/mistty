@@ -200,18 +200,6 @@ This variable is available in the work buffer.")
   ;; defined in term.el
   (defvar term-home-marker))
  
-(defconst mistty-left-str "\eOD"
-  "Sequence to send to the process when the left arrow is pressed.")
-
-(defconst mistty-right-str "\eOC"
-  "Sequence to send to the process when the rightarrow is pressed.")
-
-(defconst mistty-bracketed-paste-start-str "\e[200~"
-  "Sequence sent to the terminal to enable bracketed paste.")
-
-(defconst mistty-bracketed-paste-end-str "\e[201~"
-  "Sequence sent to the terminal to disable bracketed paste.")
-
 (defconst mistty--ws "[:blank:]\n\r"
   "A character class that matches spaces and newlines, for MisTTY.")
 
@@ -940,17 +928,6 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
             (mistty--leave-fullscreen proc (substring str after-rmcup-pos))))
       ;; normal processing
       (mistty-emulate-terminal proc str work-buffer))))
-
-(defun mistty--maybe-bracketed-str (str)
-  (let ((str (string-replace "\t" (make-string tab-width ? ) str)))
-    (cond
-     ((not mistty-bracketed-paste) str)
-     ((not (string-match "[[:cntrl:]]" str)) str)
-     (t (concat mistty-bracketed-paste-start-str
-                str
-                mistty-bracketed-paste-end-str
-                mistty-left-str
-                mistty-right-str)))))
 
 (defun mistty-cursor ()
   (mistty--from-pos-of (process-mark mistty-term-proc) mistty-term-buffer))

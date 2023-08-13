@@ -16,6 +16,7 @@
 (require 'seq)
 (require 'subr-x)
 
+(require 'mistty-term)
 (require 'mistty-util)
 
 ;;; Code:
@@ -119,14 +120,6 @@ is on this overlay.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty-bracketed-paste nil
-  "Whether bracketed paste is enabled in the terminal.
-
-This variable evaluates to true when bracketed paste is turned on
-by the command that controls, to false otherwise.
-
-This variable is available in the work buffer.")
-
 (defvar-local mistty-fullscreen nil
   "Whether MisTTY is in full-screen mode.
 
@@ -200,15 +193,6 @@ This variable is set by `mistty--term-to-work' when copying data
 from the terminal to the work buffer is disabled. It signals that
 `mistty--term-to-work' should be called after setting
 `mistty--term-to-work' to true again.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--term-properties-to-add-alist nil
-  "An alist of id to text properties to add to the term buffer.
-
-This variable associates arbitrary symbols to property lists. It
-is set by `mistty-register-text-properties' and read whenever
-text is written to the terminal.
 
 This variable is available in the work buffer.")
 
@@ -703,25 +687,6 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
     term-buffer))
 
-(defun mistty--after-change-on-term (beg end _old-length)
-  (when (and mistty--term-properties-to-add-alist (> end beg))
-    (when-let ((props (apply #'append
-                       (mapcar #'cdr mistty--term-properties-to-add-alist))))
-      (add-text-properties beg end props))))
-
-(defun mistty-register-text-properties (id props)
-  (mistty--with-live-buffer mistty-term-buffer
-    (if-let ((cell (assq id mistty--term-properties-to-add-alist)))
-        (setcdr cell props)
-      (push (cons id props) mistty--term-properties-to-add-alist))))
-
-(defun mistty-unregister-text-properties (id)
-  (mistty--with-live-buffer mistty-term-buffer
-    (when-let ((cell (assq id mistty--term-properties-to-add-alist)))
-      (setq mistty--term-properties-to-add-alist 
-          (delq cell
-                mistty--term-properties-to-add-alist)))))
-
 (defun mistty--attach (term-buffer)
   (let ((work-buffer (current-buffer))
         (proc (get-buffer-process term-buffer)))
@@ -914,7 +879,7 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
               (inhibit-read-only t)
               (old-sync-position (mistty--with-live-buffer term-buffer (marker-position mistty-sync-marker)))
               (old-last-non-ws (mistty--with-live-buffer term-buffer (mistty--last-non-ws))))
-          (mistty-emulate-terminal proc str)
+          (mistty-emulate-terminal proc str work-buffer)
           (mistty--with-live-buffer work-buffer
             (save-restriction
               (widen)
@@ -976,65 +941,6 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
       (skip-chars-forward mistty--ws)
       (move-marker mistty-sync-marker (point)))))
 
-(defun mistty-emulate-terminal (proc str)
-  "Handle special terminal codes, then call `term-emulate-terminal'.
-
-This functions intercepts some extented sequences term.el. This
-all should rightly be part of term.el."
-  (cl-letf ((inhibit-modification-hooks nil)
-            (start 0)
-            ;; Using term-buffer-vertical-motion causes strange
-            ;; issues; avoid it. Using mistty's window to compute
-            ;; vertical motion is correct since the window dimension
-            ;; are kept in sync with the terminal size. Falling back
-            ;; to using the selected window, on the other hand, is
-            ;; questionable.
-            ((symbol-function 'term-buffer-vertical-motion)
-             (lambda (count)
-               (vertical-motion count (or (get-buffer-window mistty-work-buffer)
-                                          (selected-window))))))
-    (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\(.*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
-      (let ((ext (match-string 1 str))
-            (osc (match-string 3 str))
-            (seq-start (match-beginning 0))
-            (seq-end (match-end 0))
-            (term-buffer (process-get proc 'mistty-term-buffer))
-            (work-buffer (process-get proc 'mistty-work-buffer)))
-        (cond
-         ((equal ext "[?2004h") ; enable bracketed paste
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty--with-live-buffer term-buffer
-            (let ((props `(mistty-prompt-id ,(mistty--next-id))))
-              ;; zsh enables bracketed paste only after having printed
-              ;; the prompt.
-              (unless (eq ?\n (char-before (point)))
-                (add-text-properties (mistty--bol-pos-from (point)) (point) props))
-              (mistty-register-text-properties 'mistty-bracketed-paste props)))
-          (mistty--with-live-buffer work-buffer
-            (setq mistty-bracketed-paste t)))
-         ((equal ext "[?2004l") ; disable bracketed paste
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty-unregister-text-properties 'mistty-bracketed-paste)
-          (mistty--with-live-buffer work-buffer
-            (setq mistty-bracketed-paste nil)))
-         ((equal ext "[?25h") ; make cursor visible
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty--with-live-buffer work-buffer
-            (setq cursor-type t)))
-         ((equal ext "[?25l") ; make cursor invisible
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty--with-live-buffer work-buffer
-            (setq cursor-type nil)))
-         (osc
-          (term-emulate-terminal proc (substring str start seq-start))
-          (mistty--with-live-buffer term-buffer
-            (let ((inhibit-read-only t))
-              (run-hook-with-args 'mistty-osc-hook osc)))))
-          (setq start seq-end)))
-    (let ((final-str (substring str start)))
-      (unless (zerop (length final-str))
-        (term-emulate-terminal proc final-str)))))
-
 (defun mistty--fs-process-filter (proc str)
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-get proc 'mistty-term-buffer)))
@@ -1042,11 +948,11 @@ all should rightly be part of term.el."
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
         (let ((after-rmcup-pos (match-beginning 0)))
-          (mistty-emulate-terminal proc (substring str 0 after-rmcup-pos))
+          (mistty-emulate-terminal proc (substring str 0 after-rmcup-pos) work-buffer)
           (with-current-buffer work-buffer
             (mistty--leave-fullscreen proc (substring str after-rmcup-pos))))
       ;; normal processing
-      (mistty-emulate-terminal proc str))))
+      (mistty-emulate-terminal proc str work-buffer))))
 
 (defun mistty--maybe-bracketed-str (str)
   (let ((str (string-replace "\t" (make-string tab-width ? ) str)))

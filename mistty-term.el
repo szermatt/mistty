@@ -386,47 +386,44 @@ all should rightly be part of term.el."
              (lambda (count)
                (vertical-motion count (or (get-buffer-window work-buffer)
                                           (selected-window))))))
-    (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\(.*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
-      (let ((ext (match-string 1 str))
-            (osc (match-string 3 str))
-            (seq-start (match-beginning 0))
-            (seq-end (match-end 0))
-            (term-buffer (process-buffer proc)))
-        (cond
-         ((equal ext "[?2004h") ; enable bracketed paste
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty--with-live-buffer term-buffer
+    (mistty--with-live-buffer (process-buffer proc)
+      (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\(.*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
+        (let ((ext (match-string 1 str))
+              (osc (match-string 3 str))
+              (seq-start (match-beginning 0))
+              (seq-end (match-end 0)))
+          (cond
+           ((equal ext "[?2004h") ; enable bracketed paste
+            (term-emulate-terminal proc (substring str start seq-end))
             (let ((props `(mistty-prompt-id ,(mistty--next-id))))
               ;; zsh enables bracketed paste only after having printed
               ;; the prompt.
               (unless (eq ?\n (char-before (point)))
                 (add-text-properties (mistty--bol-pos-from (point)) (point) props))
-              (mistty-register-text-properties 'mistty-bracketed-paste props)))
-          (mistty--with-live-buffer work-buffer
-            (setq mistty-bracketed-paste t)))
-         ((equal ext "[?2004l") ; disable bracketed paste
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty--with-live-buffer term-buffer
-            (mistty-unregister-text-properties 'mistty-bracketed-paste))
-          (mistty--with-live-buffer work-buffer
-            (setq mistty-bracketed-paste nil)))
-         ((equal ext "[?25h") ; make cursor visible
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty--with-live-buffer work-buffer
-            (setq cursor-type t)))
-         ((equal ext "[?25l") ; make cursor invisible
-          (term-emulate-terminal proc (substring str start seq-end))
-          (mistty--with-live-buffer work-buffer
-            (setq cursor-type nil)))
-         (osc
-          (term-emulate-terminal proc (substring str start seq-start))
-          (mistty--with-live-buffer term-buffer
+              (mistty-register-text-properties 'mistty-bracketed-paste props))
+            (mistty--with-live-buffer work-buffer
+              (setq mistty-bracketed-paste t)))
+           ((equal ext "[?2004l") ; disable bracketed paste
+            (term-emulate-terminal proc (substring str start seq-end))
+            (mistty-unregister-text-properties 'mistty-bracketed-paste)
+            (mistty--with-live-buffer work-buffer
+              (setq mistty-bracketed-paste nil)))
+           ((equal ext "[?25h") ; make cursor visible
+            (term-emulate-terminal proc (substring str start seq-end))
+            (mistty--with-live-buffer work-buffer
+              (setq cursor-type t)))
+           ((equal ext "[?25l") ; make cursor invisible
+            (term-emulate-terminal proc (substring str start seq-end))
+            (mistty--with-live-buffer work-buffer
+              (setq cursor-type nil)))
+           (osc
+            (term-emulate-terminal proc (substring str start seq-start))
             (let ((inhibit-read-only t))
-              (run-hook-with-args 'mistty-osc-hook osc)))))
+              (run-hook-with-args 'mistty-osc-hook osc))))
           (setq start seq-end)))
-    (let ((final-str (substring str start)))
-      (unless (zerop (length final-str))
-        (term-emulate-terminal proc final-str)))))
+      (let ((final-str (substring str start)))
+        (unless (zerop (length final-str))
+          (term-emulate-terminal proc final-str))))))
 
 (defun mistty-register-text-properties (id props)
   (unless (eq 'term-mode major-mode) (error "requires a term-mode buffer"))

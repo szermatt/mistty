@@ -1013,7 +1013,8 @@
 
 (ert-deftest test-mistty-osc ()
   (with-mistty-buffer
-    (let ((osc-list))
+    (let ((mistty-osc-hook nil)
+          (osc-list))
       (with-current-buffer mistty-term-buffer
         (add-hook 'mistty-osc-hook
                   (lambda (seq)
@@ -1025,12 +1026,12 @@
 
 (ert-deftest test-mistty-osc-standard-end ()
   (with-mistty-buffer
-    (let ((osc-list))
+    (let ((mistty-osc-hook nil)
+          (osc-list))
       (with-current-buffer mistty-term-buffer
         (add-hook 'mistty-osc-hook
                   (lambda (seq)
-                    (push seq osc-list))
-                  nil t))
+                    (push seq osc-list))))
       (mistty-send-raw-string "printf '\\e]8;;http://www.example.com\\e\\\\Some OSC\\e]8;;\\e\\\\!\\n'")
       (should (equal "Some OSC!" (mistty-send-and-capture-command-output)))
       (should (equal '("8;;http://www.example.com" "8;;") (nreverse osc-list))))))
@@ -1055,6 +1056,38 @@
                    (mistty-filter-intervals
                     (object-intervals (current-buffer))
                     '(mistty-test)))))))
+
+(ert-deftest mistty-test-split-osc-sequence ()
+  (with-mistty-buffer
+   (let ((mistty-osc-hook nil)
+         osc-list)
+     (add-hook 'mistty-osc-hook
+                  (lambda (seq)
+                    (push seq osc-list)))
+     (mistty-emulate-terminal
+      mistty-term-proc "foo\e]999;he" mistty-work-buffer)
+     (mistty-emulate-terminal
+      mistty-term-proc "llo, w" mistty-work-buffer)
+     (mistty-emulate-terminal
+      mistty-term-proc "orld\abar" mistty-work-buffer)
+     (mistty--term-to-work)
+     (should (equal "$ foobar<>" (mistty-test-content)))
+     (should (equal '("999;hello, world") osc-list)))))
+
+(ert-deftest mistty-test-decode-osc ()
+  (with-mistty-buffer
+   (let ((mistty-osc-hook nil)
+         osc-list)
+     (add-hook 'mistty-osc-hook
+                  (lambda (seq)
+                    (push seq osc-list)))
+     (mistty-emulate-terminal
+      mistty-term-proc
+      "foo\e]999;\xce\xb1\xce\xb2\xce\xb3\abar"
+      mistty-work-buffer)
+     (mistty--term-to-work)
+     (should (equal "$ foobar<>" (mistty-test-content)))
+     (should (equal '("999;αβγ") osc-list)))))
 
 (ert-deftest test-mistty-reset ()
   (with-mistty-buffer

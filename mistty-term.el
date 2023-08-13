@@ -361,6 +361,11 @@ text is written to the terminal.
 
 This variable is available in the work buffer.")
 
+(defvar-local mistty--undecoded-bytes nil
+  "Bytes leftover in the last call to `mistty-emulate-terminal'.
+
+They'll be processed once more data is passed to the next call.")
+
 (defun mistty-emulate-terminal (proc str work-buffer)
   "Handle special terminal codes, then call `term-emulate-terminal'.
 
@@ -380,9 +385,13 @@ all should rightly be part of term.el."
                (vertical-motion count (or (get-buffer-window work-buffer)
                                           (selected-window))))))
     (mistty--with-live-buffer (process-buffer proc)
-      (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\(.*?\\)\\(\e\\\\\\|\a\\)\\)" str start)
+      (when mistty--undecoded-bytes
+        (setq str (concat mistty--undecoded-bytes str))
+        (setq mistty--undecoded-bytes nil))
+      (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\(.*?\\)\\(\e\\\\\\|\a\\|\\'\\)\\)" str start)
         (let ((ext (match-string 1 str))
               (osc (match-string 3 str))
+              (osc-terminator (match-string 4 str))
               (seq-start (match-beginning 0))
               (seq-end (match-end 0)))
           (cond
@@ -411,10 +420,15 @@ all should rightly be part of term.el."
               (setq cursor-type nil)))
            (osc
             (term-emulate-terminal proc (substring str start seq-start))
-            (run-hook-with-args 'mistty-osc-hook osc)))
+            (if (length= osc-terminator 0)
+                ;; sequence is not finished; save it for later
+                (setq mistty--undecoded-bytes (substring str seq-start))
+              (run-hook-with-args
+               'mistty-osc-hook
+               (decode-coding-string osc locale-coding-system t)))))
           (setq start seq-end)))
       (let ((final-str (substring str start)))
-        (unless (zerop (length final-str))
+        (unless (length= final-str 0)
           (term-emulate-terminal proc final-str))))))
 
 (defun mistty-register-text-properties (id props)

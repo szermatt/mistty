@@ -532,7 +532,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
               (old-last-non-ws (mistty--last-non-ws)))
           (mistty-emulate-terminal proc str work-buffer)
           (goto-char (process-mark proc))
-          (when (or (< mistty-sync-marker old-sync-position)
+          (when (or (/= mistty-sync-marker old-sync-position)
                     (< (point) mistty-sync-marker))
             (mistty--reset-markers))
           (when (> (point) old-last-non-ws) ;; on a new line

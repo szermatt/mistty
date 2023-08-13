@@ -183,6 +183,12 @@ from the terminal to the work buffer is disabled. It signals that
 
 This variable is available in the work buffer.")
 
+(defvar-local mistty--term-to-work-timer nil
+  "A timer for calling term-to-work after some delay.
+
+This is used to cover the case where modifications that should
+cause changes are just ignored by the command.")
+
 (eval-when-compile
   ;; defined in term.el
   (defvar term-home-marker))
@@ -609,14 +615,6 @@ mapping somewhat consistent between fullscreen and normal mode.")
 (defun mistty--from-work-pos (pos)
   (mistty--from-pos-of pos mistty-work-buffer))
 
-(defun mistty--disable-term-to-work ()
-  (setq mistty--inhibit-term-to-work t))
-
-(defun mistty--enable-term-to-work ()
-  (setq mistty--inhibit-term-to-work nil)
-  (when mistty--inhibited-term-to-work
-    (mistty--term-to-work)))
-
 (defun mistty--term-to-work (&optional forced)
   (mistty--require-work-buffer)
   (if (and mistty--inhibit-term-to-work (not forced))
@@ -626,6 +624,10 @@ mapping somewhat consistent between fullscreen and normal mode.")
           (old-point (point))
           properties)
       (setq mistty--inhibited-term-to-work nil)
+      (when (timerp mistty--term-to-work-timer)
+        (cancel-timer mistty--term-to-work-timer)
+        (setq mistty--term-to-work-timer nil))
+      
       (with-current-buffer mistty-term-buffer
         (save-restriction
           (narrow-to-region mistty-sync-marker (point-max-marker))
@@ -856,7 +858,7 @@ This command is available in fullscreen mode."
           (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
           shift pos)
       ;; Temporarily stop refreshing the work buffer while collecting modifications.
-      (mistty--disable-term-to-work)
+      (setq mistty--inhibit-term-to-work t)
       
       ;; Mark the text that was inserted
       (put-text-property beg end 'mistty-change '(inserted))
@@ -1217,8 +1219,10 @@ END section to be valid in the term buffer."
           (mistty--term-to-work 'forced)
           (mistty--maybe-cursor-to-point)))
         
-        ;; re-enable term-to-work in all cases.
-        (mistty--enable-term-to-work))))))
+        ;; re-enable term-to-work in all cases, refresh if necessary.
+        (setq mistty--inhibit-term-to-work nil)
+        (when mistty--inhibited-term-to-work
+          (mistty--term-to-work)))))))
 
 (defun mistty--maybe-cursor-to-point ()
   (when (and mistty--old-point

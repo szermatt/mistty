@@ -1382,7 +1382,7 @@
    (execute-kbd-macro (kbd "C-q C-w"))
    (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest misty-revert-modification-after-prompt ()
+(ert-deftest mistty-revert-modification-after-prompt ()
   (with-mistty-buffer-zsh
    (dotimes (i 3)
      (mistty-send-raw-string (format "function toto%d { echo %d; };" i i)))

@@ -218,15 +218,23 @@ This is the set of control characters for which
 function for the definition of a positional character.")
 
 (defface mistty-fringe-face '((t (:background "purple" :foreground "purple")))
-  "Color of the left fringe that indicates the synced region.
+  "Color of the left fringe that indicates the synced region (debug).
 
-This is useful for debugging, when the display is a terminal."
+This is used when the display is a terminal."
   :group 'mistty)
 
 (defface mistty-margin-face '((t (:foreground "purple")))
-  "Color of the left margin that indicates the synced region.
+  "Color of the left margin that indicates the synced region (debug).
 
-This is useful for debugging, when the display is a window system."
+This is used when the display is a window system."
+  :group 'mistty)
+
+(defface mistty-log-time-face '((t (:italic t)))
+  "Face applied to the time portion of `mistty-start-log' (debug)."
+  :group 'mistty)
+
+(defface mistty-log-message-face nil
+  "Face applied to the message portion of `mistty-start-log' (debug)."
   :group 'mistty)
 
 (defvar mistty-mode-map
@@ -1457,7 +1465,8 @@ Must be called from a MisTTY work or term buffer."
                        'string))
                   arg))
               args)))
-        (insert (apply #'format str args))
+        (insert (propertize (format "%3.3f " (float-time)) 'face 'mistty-log-time-face))
+        (insert (propertize (apply #'format str args) 'face 'mistty-log-message-face))
         (insert "\n")))))
 
 (provide 'mistty)

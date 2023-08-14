@@ -1406,27 +1406,59 @@ END section to be valid in the term buffer."
     (`(,start ,line-start ,_)
      (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
 
-(defun mistty--log (str args)
-  "Logging function, normally called from `mistty-log."
-  (with-current-buffer (get-buffer-create (format "%s debug log" (buffer-name)))
-    (goto-char (point-max))
-    (let ((args
-           (mapcar
-            (lambda (arg)
-              (if (stringp arg)
-                  (progn
-                    (setq arg (decode-coding-string arg locale-coding-system t))
-                    (seq-mapcat
-                     (lambda (elt)
-                       (if (and (characterp elt) (< elt 128))
-                           (text-char-description elt)
-                         (make-string 1 elt)))
-                     arg
-                     'string))
-                arg))
-            args)))
-      (insert (apply #'format str args))
-      (insert "\n"))))
+(defun mistty-log-start ()
+  "Enable logging for the current mistty buffer."
+  (interactive)
+  (unless mistty-work-buffer
+    (error "Not a MisTTY buffer."))
+  (with-current-buffer mistty-work-buffer
+    (setq mistty-log-enabled t))
+  (mistty--log "Log enabled" nil 'display))
+
+(defun mistty-log-stop ()
+  "Enable logging for the current mistty buffer."
+  (interactive)
+  (unless mistty-work-buffer
+    (error "Not a MisTTY buffer."))
+  (with-current-buffer mistty-work-buffer
+    (unless mistty-log-enabled
+      (error "Log disabled."))
+    (setq mistty-log-enabled nil)))
+
+(defun mistty--log (str args &optional display)
+  "Logging function, normally called from `mistty-log.
+
+Must be called from a MisTTY work or term buffer."
+  (let ((work-buffer mistty-work-buffer))
+    (unless work-buffer
+      (error "Not a MisTTY buffer"))
+    (with-current-buffer
+        (get-buffer-create
+         (format "%s debug log" (buffer-name work-buffer)))
+      (setq mistty-work-buffer work-buffer)
+      (when (and
+             display
+             (not (eq (current-buffer)
+                      (window-buffer (selected-window)))))
+        (switch-to-buffer-other-window (current-buffer)))
+      (goto-char (point-max))
+      (let ((args
+             (mapcar
+              (lambda (arg)
+                (if (stringp arg)
+                    (progn
+                      (setq arg (decode-coding-string arg locale-coding-system t))
+                      (seq-mapcat
+                       (lambda (elt)
+                         (if (and (characterp elt) (< elt 128))
+                             (text-char-description elt)
+                           (make-string 1 elt)))
+                       arg
+                       'string))
+                  arg))
+              args)))
+        (insert (apply #'format str args))
+        (insert "\n")))))
 
 (provide 'mistty)
 

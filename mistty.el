@@ -189,6 +189,9 @@ This variable is available in the work buffer.")
 This is used to cover the case where modifications that should
 cause changes are just ignored by the command.")
 
+(defvar-local mistty-log-enabled nil
+  "If true, log all input and output into a debug log buffer.")
+
 (eval-when-compile
   ;; defined in term.el
   (defvar term-home-marker))
@@ -330,6 +333,16 @@ mapping somewhat consistent between fullscreen and normal mode.")
 (defsubst mistty--require-term-buffer ()
   "Asserts that the current buffer is the term buffer."
   (unless (eq mistty-term-buffer (current-buffer)) (error "term-buffer required")))
+
+(defsubst mistty-log (str &rest args)
+  "Format STR with ARGS and add them to the debug log buffer, when enabled.
+
+String arguments are formatted and decoded to UTF-8, so terminal
+communication can safely be sent out.
+
+This does nothing unless `mistty-log-enabled' evaluates to true."
+  (when mistty-log-enabled
+    (mistty--log str args)))
 
 (defun mistty--exec (program &rest args)
   (mistty-mode)
@@ -496,6 +509,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
      (t (term-sentinel proc msg)))))
 
 (defun mistty-process-filter (proc str)
+  (mistty-log "RECV[%s]" str)
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-get proc 'mistty-term-buffer)))
     (cond
@@ -662,6 +676,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
                            (and (= prompt-beg mistty-sync-marker)
                                 (= mistty-sync-marker mistty-cmd-start-marker)))
                        (< prompt-beg (mistty-cursor)))
+              (mistty-log "Detected prompt: [%s-%s]" prompt-beg (mistty-cursor))
               (mistty--set-sync-mark-from-end prompt-beg (mistty-cursor))))))
       
       (mistty--with-live-buffer mistty-term-buffer
@@ -769,6 +784,7 @@ from `mistty--modification-hook' tracking the changes."
   "Send STR to the terminal, unprocessed.
 
 This command is available in fullscreen mode."
+  (mistty-log "SEND[%s]" str)
   (when (and str (not (zerop (length str))))
     (with-current-buffer mistty-term-buffer
       (term-send-raw-string str))))
@@ -1389,6 +1405,28 @@ END section to be valid in the term buffer."
   (pcase mistty--possible-prompt
     (`(,start ,line-start ,_)
      (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
+
+(defun mistty--log (str args)
+  "Logging function, normally called from `mistty-log."
+  (with-current-buffer (get-buffer-create (format "%s debug log" (buffer-name)))
+    (goto-char (point-max))
+    (let ((args
+           (mapcar
+            (lambda (arg)
+              (if (stringp arg)
+                  (progn
+                    (setq arg (decode-coding-string arg locale-coding-system t))
+                    (seq-mapcat
+                     (lambda (elt)
+                       (if (and (characterp elt) (< elt 128))
+                           (text-char-description elt)
+                         (make-string 1 elt)))
+                     arg
+                     'string))
+                arg))
+            args)))
+      (insert (apply #'format str args))
+      (insert "\n"))))
 
 (provide 'mistty)
 

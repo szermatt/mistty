@@ -267,8 +267,8 @@ By default, it is bound to C-q in `mistty-prompt-map'.")
     (define-key map (kbd "TAB") 'mistty-send-key)
     (define-key map (kbd "DEL") 'mistty-send-key)
     (define-key map (kbd "C-d") 'mistty-send-key)
-    (define-key map (kbd "C-a") 'mistty-beginning-of-line)
-    (define-key map (kbd "C-e") 'mistty-send-key)
+    (define-key map (kbd "C-a") 'mistty-send-beginning-of-line)
+    (define-key map (kbd "C-e") 'mistty-send-end-of-line)
 
     ;; While in a shell, when bracketed paste is on, this allows
     ;; sending a newline that won't submit the current command. This
@@ -769,8 +769,6 @@ from `mistty--modification-hook' tracking the changes."
   (let ((cmd-start-pos (max sync-pos cmd-start-pos))
         (inhibit-read-only t)
         (inhibit-modification-hooks t))
-    (when (> mistty-cmd-start-marker mistty-sync-marker)
-      (remove-text-properties mistty-sync-marker mistty-cmd-start-marker '(read-only t)))
     (move-marker mistty-sync-marker sync-pos)
     (move-marker mistty-cmd-start-marker cmd-start-pos)
     (move-overlay mistty-sync-ov sync-pos (point-max))
@@ -783,7 +781,6 @@ from `mistty--modification-hook' tracking the changes."
    (append
     '(mistty prompt
              field mistty-prompt
-             read-only t
              rear-nonsticky t)
     (unless (get-text-property start 'mistty-prompt-id)
       `(mistty-prompt-id ,(mistty--next-id))))))
@@ -874,15 +871,28 @@ This command is available in fullscreen mode."
       (when (not mistty-fullscreen)
         (setq mistty-goto-cursor-next-time t)
         (when (or positional (mistty-positional-p key))
-          (when (get-pos-property (point) 'read-only)
-            (signal 'text-read-only nil))
           (mistty-before-positional))))
     (mistty-send-raw-string (mistty-translate-key key n))))
 
-(defun mistty-beginning-of-line (&optional n)
+(defun mistty-send-beginning-of-line (&optional n)
+  "Send C-a (usually beginnning-of-line) to the terminal.
+
+Possibly detect a prompt on the current line."
+  (interactive "p")
+  ;; While C-a is not, strictly-speaking, a positional, it's a good
+  ;; sign that we're on a pointer.
+  (mistty--maybe-realize-possible-prompt)
+  (setq mistty-goto-cursor-next-time t)
+  (mistty-send-key n "\C-a"))
+
+(defun mistty-send-end-of-line (&optional n)
+  "Send C-e (usually end-of-line) to the terminal.
+
+Possibly detect a prompt on the current line."
   (interactive "p")
   (mistty--maybe-realize-possible-prompt)
-  (beginning-of-line n))
+  (setq mistty-goto-cursor-next-time t)
+  (mistty-send-key n "\C-e"))
 
 (defun mistty-end-of-line-or-goto-cursor (&optional n)
   (interactive "p")

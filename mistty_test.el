@@ -147,17 +147,6 @@
    (should (equal "baa baa, black sheep"
                   (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-prevent-deleting-prompt ()
-  (with-mistty-buffer
-   (should-error (backward-delete-char))
-   (should-error (delete-region (point-min) (point-max)))
-   ))
-
-(ert-deftest test-mistty-prevent-deleting-prompt-zsh ()
-  (with-mistty-buffer-zsh
-   (should-error (backward-delete-char))
-   (should-error (delete-region (point-min) (point-max)))))
-
 (ert-deftest test-mistty-change-before-prompt ()
   (with-mistty-buffer
    (let (beg end)
@@ -1202,8 +1191,10 @@
    (mistty-send-and-wait-for-prompt nil ">>> ")
    (mistty-send-raw-string "1 + 1")
    (mistty-wait-for-output)
-   (mistty-beginning-of-line)
-   (should (looking-at "1 \\+ 1"))))
+   (mistty-send-beginning-of-line)
+   (mistty-wait-for-output)
+   (should (equal ">>> <>1 + 1"
+                  (mistty-test-content (mistty--bol-pos-from (point)))))))
 
 (ert-deftest test-mistty-python-edit-prompt ()
   (with-mistty-buffer

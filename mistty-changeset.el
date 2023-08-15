@@ -11,18 +11,33 @@
                (:constructor mistty--make-changeset)
                (:conc-name mistty--changeset-)
                (:copier nil))
+  ;; beginning of the changed region in the work buffer.
+  beg
+  ;; end of the changed region in the work buffer.
+  end
+  
   collected
+  ;; if t, the change has been applied; such a change should
+  ;; be removed from mistty--changesets
   applied)
 
-(defun mistty--activate-changeset ()
-  "Create a new active changeset or reuse an existing one.
+(defun mistty--activate-changeset (beg end)
+  "Create a new active changeset for the region BEG-END or reuse one.
 
 Returns the changeset."
-  (let ((changeset (mistty--active-changeset)))
-    (unless changeset
-      (setq changeset (mistty--make-changeset))
-      (push changeset mistty--changesets))
-    changeset))
+  (let ((cs (mistty--active-changeset)))
+    (if cs
+        (progn
+          (setf (mistty--changeset-beg cs)
+                (max (point-min)
+                     (min (mistty--changeset-beg cs) beg)))
+          (setf (mistty--changeset-end cs)
+                (min (point-max)
+                     (max (mistty--changeset-end cs) end))))
+              
+      (setq cs (mistty--make-changeset :beg beg :end end))
+      (push cs mistty--changesets))
+    cs))
 
 (defun mistty--active-changeset ()
   "Return the active changeset or nil.

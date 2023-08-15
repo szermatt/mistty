@@ -931,7 +931,7 @@ Possibly detect a prompt on the current line."
           (end (max orig-end mistty-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
           shift pos)
-      (mistty--activate-changeset)
+      (mistty--activate-changeset beg end)
       
       ;; Temporarily stop refreshing the work buffer while collecting modifications.
       (setq mistty--inhibit-term-to-work t)
@@ -1066,9 +1066,9 @@ Possibly detect a prompt on the current line."
     (`(,pos shift ,_) pos)
     (_ (point-max))))
 
-(iter-defun mistty--replay-modifications (changeset intervals)
-  (let ((intervals-start (mistty--modification-intervals-start intervals))
-        (intervals-end (mistty--modification-intervals-end intervals))
+(iter-defun mistty--replay-modifications (cs intervals)
+  (let ((intervals-start (mistty--changeset-beg cs))
+        (intervals-end (mistty--changeset-end cs))
         (modifications (mistty--collect-modifications intervals))
         first lower-limit upper-limit)
     (setq first (car modifications))
@@ -1155,8 +1155,8 @@ Possibly detect a prompt on the current line."
             (iter-yield replay-str)))))
     
     ;; Re-enable term-to-work.
-    (setf (mistty--changeset-applied changeset) t)
-    (setq mistty--changesets (delq changeset mistty--changesets))
+    (setf (mistty--changeset-applied cs) t)
+    (setq mistty--changesets (delq cs mistty--changesets))
     (unless mistty--changesets
       (setq mistty--inhibit-term-to-work nil)
       (when mistty--inhibited-term-to-work
@@ -1267,22 +1267,22 @@ END section to be valid in the term buffer."
       (widen)
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
-      (let* ((changeset (mistty--active-changeset))
+      (let* ((cs (mistty--active-changeset))
              (intervals (mistty--collect-modification-intervals))
-             (intervals-end (mistty--modification-intervals-end intervals))
+             (intervals-end (if cs (mistty--changeset-end cs)))
              (modifiable-limit (mistty--bol-pos-from (point-max) -5))
              restricted
              gen)
-        (when changeset
-          (setf (mistty--changeset-collected changeset) t))
+        (when cs
+          (setf (mistty--changeset-collected cs) t))
         (cond
          ;; nothing to do
          ((null intervals))
 
          ;; modifications are part of the current prompt; replay them
          ((mistty-on-prompt-p (mistty-cursor))
-          (setq gen (mistty--replay-modifications changeset intervals))
-          (setq changeset nil))
+          (setq gen (mistty--replay-modifications cs intervals))
+          (setq cs nil))
 
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
@@ -1290,8 +1290,8 @@ END section to be valid in the term buffer."
                (setq restricted (mistty--restrict-modification-intervals
                                  intervals (nth 0 mistty--possible-prompt))))
           (mistty--realize-possible-prompt (car restricted))
-          (setq gen (mistty--replay-modifications changeset (cdr restricted)))
-          (setq changeset nil))
+          (setq gen (mistty--replay-modifications cs (cdr restricted)))
+          (setq cs nil))
 
          ;; leave all modifications if there's enough of an unmodified
          ;; section at the end. moving the sync mark is only possible
@@ -1304,8 +1304,8 @@ END section to be valid in the term buffer."
          (t ;; revert modifications
           ))
         
-        (when changeset ; abandon this changeset, since it hasn't been picked up
-          (setq mistty--changesets (delq changeset mistty--changesets))
+        (when cs ; abandon this changeset, since it hasn't been picked up
+          (setq mistty--changesets (delq cs mistty--changesets))
           (unless mistty--changesets
             (setq mistty--inhibit-term-to-work nil)
             (when mistty--inhibited-term-to-work

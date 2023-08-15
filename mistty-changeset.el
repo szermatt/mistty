@@ -4,6 +4,8 @@
 (eval-when-compile
   (require 'cl-lib))
 
+(require 'mistty-util)
+
 (defvar-local mistty--changesets nil
   "Set of active changes.")
 
@@ -118,5 +120,55 @@ The active changeset is the first changeset on
                      (_ cur)))
                  intervals))
           (cons base-shift intervals)))))
+
+(defun mistty--changeset-modifications (cs)
+  (let ((intervals (mistty--changeset-collect cs))
+        (changes nil)
+        (last-shift 0))
+    (while intervals
+      (pcase intervals
+        ;; insert in the middle, possibly replacing a section of text
+        (`((,start inserted) (,end shift ,end-shift) . ,_)
+         (push (list (+ start last-shift)
+                     (mistty--safe-bufstring start end)
+                     (- (+ end end-shift) (+ start last-shift)))
+               changes)
+         ;; processed 2 entries this loop, instead of just 1
+         (setq intervals (cdr intervals)))
+
+        ;; insert at end, delete everything after
+        (`((,start inserted) (,end deleted-to-end))
+         (push (list (+ start last-shift)
+                     (mistty--safe-bufstring start end)
+                     -1)
+               changes)
+         ;; processed 2 entries this loop, instead of just 1
+         (setq intervals (cdr intervals)))
+
+        ;; insert at end
+        (`((,start inserted))
+         (push (list (+ start last-shift)
+                     (mistty--safe-bufstring start (point-max))
+                     0)
+               changes))
+
+        ;; delete a section of original text
+        ((and `((,pos shift ,shift) . ,_)
+              (guard (> shift last-shift)))
+         (push (list (+ pos last-shift)
+                     ""
+                     (- shift last-shift))
+               changes))
+
+        ;; delete to the end of the original text
+        (`((,pos deleted-to-end))
+         (push (list (+ pos last-shift) "" -1)
+               changes)))
+      
+      ;; prepare for next loop
+      (pcase (car intervals)
+        (`(,_ shift ,shift) (setq last-shift shift)))
+      (setq intervals (cdr intervals)))
+    changes))
 
 (provide 'mistty-changeset)

@@ -682,7 +682,7 @@
     ;; last. If we did the reverse and a newline was inserted in the
     ;; middle of new-value, the deletion would not apply to the right
     ;; region.
-    (should (equal '((12 "" 3) (6 "new-value" 3)) (mistty--collect-modifications (mistty--changeset-collect (mistty--active-changeset))))))))
+    (should (equal '((12 "" 3) (6 "new-value" 3)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
 (ert-deftest test-mistty-collect-modifications-delete-at-end ()
   (ert-with-test-buffer ()
@@ -699,7 +699,7 @@
     
     (should (equal "$ abc" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((6 "" -1)) (mistty--collect-modifications (mistty--changeset-collect (mistty--active-changeset))))))))
+    (should (equal '((6 "" -1)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-then-delete-at-end ()
   (ert-with-test-buffer ()
@@ -718,7 +718,7 @@
     
     (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((6 "new-value" -1)) (mistty--collect-modifications (mistty--changeset-collect (mistty--active-changeset))))))))
+    (should (equal '((6 "new-value" -1)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-skip-then-delete-at-end ()
   (ert-with-test-buffer ()
@@ -738,7 +738,7 @@
     
     (should (equal "$ abcnew-valuedefjkl" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (mistty--collect-modifications (mistty--changeset-collect (mistty--active-changeset))))))))
+    (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
 (ert-deftest test-mistty-collect-modifications-inserts ()
   (ert-with-test-buffer ()
@@ -762,7 +762,7 @@
     
     (should (equal "$ abcNEWdefNEWghiNEWjklmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (mistty--collect-modifications (mistty--changeset-collect (mistty--active-changeset))))))))
+    (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-at-end ()
   (ert-with-test-buffer ()
@@ -780,7 +780,7 @@
     
     (should (equal "$ abcdefNEW" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((9 "NEW" 0)) (mistty--collect-modifications (mistty--changeset-collect (mistty--active-changeset))))))))
+    (should (equal '((9 "NEW" 0)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
 (ert-deftest test-mistty-collect-modifications-replaces ()
   (ert-with-test-buffer ()
@@ -803,7 +803,7 @@
     
     (should (equal "$ abcNEWghiNEWmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--collect-modifications (mistty--changeset-collect (mistty--active-changeset))))))))
+    (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
 (ert-deftest test-mistty-restrict-intervals ()
   (ert-with-test-buffer ()
@@ -830,8 +830,7 @@
                        (18 shift -3)) (mistty--changeset-collect cs)))
       (should (equal -6 (mistty--changeset-restrict cs 16)))
       (should (equal '((16 shift 0) (18 shift 3)) (mistty--changeset-intervals cs)))
-      (should (equal '((18 "" 3)) (mistty--collect-modifications
-                                   (mistty--changeset-intervals cs))))))))
+      (should (equal '((18 "" 3)) (mistty--changeset-modifications cs)))))))
 
 (ert-deftest test-mistty-restrict-intervals-before-changes ()
   (ert-with-test-buffer ()
@@ -917,7 +916,7 @@
       (should (equal '((6 inserted) (15 shift -6) (18 shift -3)) (mistty--changeset-collect cs)))
       (should (equal -1 (mistty--changeset-restrict cs 10)))
       (should (equal '((10 inserted) (15 shift -5) (18 shift -2)) (mistty--changeset-intervals cs)))
-      (should (equal '((13 "" 3) (10 "value" 0)) (mistty--collect-modifications (mistty--changeset-intervals cs))))))))
+      (should (equal '((13 "" 3) (10 "value" 0)) (mistty--changeset-modifications cs)))))))
 
 (ert-deftest test-mistty-restrict-intervals-starts-within-insert-at-end ()
   (ert-with-test-buffer ()

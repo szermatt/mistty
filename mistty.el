@@ -19,6 +19,7 @@
 (eval-when-compile
   (require 'cl-lib))
 
+(require 'mistty-changeset)
 (require 'mistty-term)
 (require 'mistty-util)
 
@@ -202,15 +203,6 @@ Each step of the generator generates a string that must be sent
 to the terminal.")
 
 (defvar-local mistty--replay-next-timer nil)
-
-(defvar-local mistty--changesets nil)
-
-(cl-defstruct (changesset (:constructor mistty--make-changeset)
-                          (:conc-name mistty--changeset-)
-                          (:copier nil))
-  collected
-  applied
-  )
 
 (eval-when-compile
   ;; defined in term.el
@@ -938,15 +930,8 @@ Possibly detect a prompt on the current line."
           (beg (max orig-beg mistty-cmd-start-marker))
           (end (max orig-end mistty-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
-          changeset
           shift pos)
-      (if (or (not mistty--changesets)
-              (mistty--changeset-collected (car mistty--changesets)))
-          (progn ; collect these modifications into a new changeset
-            (setq changeset (mistty--make-changeset))
-            (push changeset mistty--changesets))
-        ;; extend existing changeset
-        (setq changeset (car mistty--changesets)))
+      (mistty--activate-changeset)
       
       ;; Temporarily stop refreshing the work buffer while collecting modifications.
       (setq mistty--inhibit-term-to-work t)
@@ -1282,7 +1267,7 @@ END section to be valid in the term buffer."
       (widen)
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
-      (let* ((changeset (car mistty--changesets))
+      (let* ((changeset (mistty--active-changeset))
              (intervals (mistty--collect-modification-intervals))
              (intervals-end (mistty--modification-intervals-end intervals))
              (modifiable-limit (mistty--bol-pos-from (point-max) -5))

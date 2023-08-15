@@ -29,21 +29,13 @@
 (defsubst mistty--changeset-collected (cs)
   (mistty--changeset-intervals cs))
 
-(defun mistty--activate-changeset (beg end)
-  "Create a new active changeset for the region BEG-END or reuse one.
+(defun mistty--activate-changeset ()
+  "Create a new active changeset.
 
 Returns the changeset."
   (let ((cs (mistty--active-changeset)))
-    (if cs
-        (progn
-          (setf (mistty--changeset-beg cs)
-                (max (point-min)
-                     (min (mistty--changeset-beg cs) beg)))
-          (setf (mistty--changeset-end cs)
-                (min (point-max)
-                     (max (mistty--changeset-end cs) end))))
-              
-      (setq cs (mistty--make-changeset :beg beg :end end))
+    (unless cs
+      (setq cs (mistty--make-changeset))
       (push cs mistty--changesets))
     cs))
 
@@ -57,6 +49,40 @@ The active changeset is the first changeset on
         (and head
              (not (mistty--changeset-collected head)))
       head)))
+
+(defun mistty--changeset-mark-region (cs beg end old-end)
+  "Store insertion and deletion for CS into buffer properties.
+
+Creates and activate a changeset as necessary.
+
+BEG to END reports a newly inserted string, BEG to OLD-END a
+recently deleted string."
+  (setf (mistty--changeset-beg cs)
+        (max (point-min)
+             (if (mistty--changeset-beg cs)
+                 (min (mistty--changeset-beg cs) beg)
+               beg)))
+  (setf (mistty--changeset-end cs)
+        (min (point-max)
+             (if (mistty--changeset-end cs)
+                 (max (mistty--changeset-end cs) end)
+               end)))
+  
+  ;; Mark the text that was inserted
+  (put-text-property beg end 'mistty-change '(inserted))
+  
+  ;; Update the shift value of everything that comes after.
+  (let ((shift (- old-end end))
+        (pos end))
+    (while (< pos (point-max))
+      (let ((next-pos (next-single-property-change pos 'mistty-change (current-buffer) (point-max))))
+        (pcase (get-text-property pos 'mistty-change)
+          (`(shift ,old-shift)
+           (put-text-property pos next-pos 'mistty-change `(shift ,(+ old-shift shift))))
+          ('() (put-text-property pos next-pos 'mistty-change `(shift ,shift))))
+        (setq pos next-pos)))
+    (when (and (> old-end beg) (= end (point-max)))
+      (setf (mistty--changeset-deleted-point-max cs) t))))
 
 (defun mistty--changeset-collect (cs)
   (unless (mistty--changeset-intervals cs)

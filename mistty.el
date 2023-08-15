@@ -924,28 +924,14 @@ Possibly detect a prompt on the current line."
     (let ((inhibit-read-only t)
           (beg (max orig-beg mistty-cmd-start-marker))
           (end (max orig-end mistty-cmd-start-marker))
-          (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
-          cs shift pos)
-      (setq cs (mistty--activate-changeset beg end))
+          (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker)))
       
-      ;; Temporarily stop refreshing the work buffer while collecting modifications.
+      ;; Temporarily stop refreshing the work buffer while collecting
+      ;; modifications.
       (setq mistty--inhibit-term-to-work t)
-      
-      ;; Mark the text that was inserted
-      (put-text-property beg end 'mistty-change '(inserted))
 
-      ;; Update the shift value of everything that comes after.
-      (setq shift (- old-end end))
-      (setq pos end)
-      (while (< pos (point-max))
-        (let ((next-pos (next-single-property-change pos 'mistty-change (current-buffer) (point-max))))
-          (pcase (get-text-property pos 'mistty-change)
-            (`(shift ,old-shift)
-             (put-text-property pos next-pos 'mistty-change `(shift ,(+ old-shift shift))))
-            ('() (put-text-property pos next-pos 'mistty-change `(shift ,shift))))
-          (setq pos next-pos)))
-      (when (and (> old-length 0) (= end (point-max)))
-        (setf (mistty--changeset-deleted-point-max cs) t)))))
+      (mistty--changeset-mark-region
+       (mistty--activate-changeset) beg end old-end))))
 
 (iter-defun mistty--replay-modifications (cs)
   (let ((intervals-start (mistty--changeset-beg cs))

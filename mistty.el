@@ -999,7 +999,7 @@ Possibly detect a prompt on the current line."
 (defun mistty--collect-modification-intervals (cs)
   (save-excursion
     (save-restriction
-      (narrow-to-region (or mistty-sync-marker (point-min)) (point-max))
+      (narrow-to-region (mistty--changeset-beg cs) (point-max))
       (let ((last-point (point-min))
             intervals last-at-point )
         (goto-char last-point)

@@ -550,7 +550,7 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
         ;; the terminal, or we'll lose data. This might interfere with
         ;; collecting and applying modifications, but then so would
         ;; reset.
-        (let ((mistty--need-refresh nil))
+        (let ((mistty--inhibit-refresh nil))
           (mistty-process-filter proc (substring str 0 rs1-before-pos)))
         (term-emulate-terminal proc (substring str rs1-before-pos rs1-after-pos))
         (mistty--with-live-buffer work-buffer

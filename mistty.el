@@ -996,30 +996,6 @@ Possibly detect a prompt on the current line."
       (setq intervals (cdr intervals)))
     changes))
 
-(defun mistty--collect-modification-intervals (cs)
-  (save-excursion
-    (save-restriction
-      (narrow-to-region (mistty--changeset-beg cs) (point-max))
-      (let ((last-point (point-min))
-            intervals last-at-point )
-        (goto-char last-point)
-        (while (let ((at-point (get-text-property (point) 'mistty-change)))
-                 (when last-at-point
-                   (push `(,last-point . ,last-at-point) intervals))
-                 (setq last-at-point at-point)
-                 (setq last-point (point))
-                 (goto-char (next-single-property-change (point) 'mistty-change (current-buffer) (point-max)))
-                 (< (point) (point-max))))
-        (when last-at-point
-          (push `(,last-point . ,last-at-point) intervals))
-        (when (mistty--changeset-deleted-point-max cs)
-          (push `(,(point-max) deleted-to-end) intervals))
-        (let ((inhibit-read-only t)
-              (inhibit-modification-hooks t))
-          (remove-text-properties (point-min) (point-max) '(mistty-change t)))
-        
-        (nreverse intervals)))))
-
 (defun mistty--restrict-modification-intervals (intervals min-pos)
     (if (and (caar intervals) (>= (caar intervals) min-pos))
         (cons 0 intervals)
@@ -1262,13 +1238,11 @@ END section to be valid in the term buffer."
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
       (let* ((cs (mistty--active-changeset))
-             (intervals (if cs (mistty--collect-modification-intervals cs)))
+             (intervals (if cs (mistty--changeset-collect cs)))
              (intervals-end (if cs (mistty--changeset-end cs)))
              (modifiable-limit (mistty--bol-pos-from (point-max) -5))
              restricted
              gen)
-        (when cs
-          (setf (mistty--changeset-collected cs) t))
         (cond
          ;; nothing to do
          ((null intervals))

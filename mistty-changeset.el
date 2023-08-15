@@ -17,11 +17,15 @@
   end
   ;; True if the end of work buffer was truncated.
   deleted-point-max
-  
-  collected
+
+  intervals
+
   ;; if t, the change has been applied; such a change should
   ;; be removed from mistty--changesets
   applied)
+
+(defsubst mistty--changeset-collected (cs)
+  (mistty--changeset-intervals cs))
 
 (defun mistty--activate-changeset (beg end)
   "Create a new active changeset for the region BEG-END or reuse one.
@@ -51,5 +55,30 @@ The active changeset is the first changeset on
         (and head
              (not (mistty--changeset-collected head)))
       head)))
+
+(defun mistty--changeset-collect (cs)
+  (unless (mistty--changeset-intervals cs)
+    (save-excursion
+      (save-restriction
+        (narrow-to-region (mistty--changeset-beg cs) (point-max))
+        (let ((last-point (point-min))
+              intervals last-at-point )
+          (goto-char last-point)
+          (while (let ((at-point (get-text-property (point) 'mistty-change)))
+                   (when last-at-point
+                     (push `(,last-point . ,last-at-point) intervals))
+                   (setq last-at-point at-point)
+                   (setq last-point (point))
+                   (goto-char (next-single-property-change (point) 'mistty-change (current-buffer) (point-max)))
+                   (< (point) (point-max))))
+          (when last-at-point
+            (push `(,last-point . ,last-at-point) intervals))
+          (when (mistty--changeset-deleted-point-max cs)
+            (push `(,(point-max) deleted-to-end) intervals))
+          (let ((inhibit-read-only t)
+                (inhibit-modification-hooks t))
+            (remove-text-properties (point-min) (point-max) '(mistty-change t)))
+          (setf (mistty--changeset-intervals cs) (nreverse intervals))))))
+  (mistty--changeset-intervals cs))
 
 (provide 'mistty-changeset)

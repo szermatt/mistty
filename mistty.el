@@ -1058,12 +1058,6 @@ Possibly detect a prompt on the current line."
     (iter-end-of-sequence
      (setq mistty--replay-generator nil))))
 
-(defun mistty--send-and-wait (str)
-  (when (and str (not (zerop (length str))))
-    (mistty-send-raw-string str)
-    (when (accept-process-output mistty-term-proc 0 500 t) ;; TODO: tune the timeout
-      (while (accept-process-output mistty-term-proc 0 nil t)))))
-
 (defun mistty--move-str (from to &optional will-wait)
   (let ((diff (mistty--distance-on-term from to)))
     (if (zerop diff)

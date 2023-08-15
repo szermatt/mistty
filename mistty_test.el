@@ -5,6 +5,8 @@
 (require 'ert)
 (require 'ert-x)
 
+(require 'mistty-changeset)
+
 (eval-when-compile
    ;; defined in term
   (defvar term-width))
@@ -822,13 +824,14 @@
 
     (should (equal "$ abcnew-valueghimno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
     ;;             "$ abcdefg      hijklmno<<end>>"
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
+    (let ((cs (mistty--active-changeset)))
       (should (equal '((6 inserted)
                        (15 shift -6)
-                       (18 shift -3)) intervals))
-      (let ((result (mistty--restrict-modification-intervals intervals 16)))
-        (should (equal '(-6 . ((16 shift 0) (18 shift 3))) result))
-        (should (equal '((18 "" 3)) (mistty--collect-modifications (cdr result)))))))))
+                       (18 shift -3)) (mistty--changeset-collect cs)))
+      (should (equal -6 (mistty--changeset-restrict cs 16)))
+      (should (equal '((16 shift 0) (18 shift 3)) (mistty--changeset-intervals cs)))
+      (should (equal '((18 "" 3)) (mistty--collect-modifications
+                                   (mistty--changeset-intervals cs))))))))
 
 (ert-deftest test-mistty-restrict-intervals-before-changes ()
   (ert-with-test-buffer ()
@@ -845,12 +848,10 @@
     (insert "new-value")
     
     (should (equal "$ abcnew-valued<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
-      (should (equal '((6 inserted)
-                       (15 shift -9)) intervals))
-      (let ((result (mistty--restrict-modification-intervals intervals 4)))
-        (should (equal '( 0 . ((6 inserted)
-                               (15 shift -9))) result)))))))
+    (let ((cs (mistty--active-changeset)))
+      (should (equal '((6 inserted) (15 shift -9)) (mistty--changeset-collect cs)))
+      (should (equal 0 (mistty--changeset-restrict cs 4)))
+      (should (equal '((6 inserted) (15 shift -9)) (mistty--changeset-intervals cs)))))))
 
 (ert-deftest test-mistty-restrict-intervals-exactly-before-insert ()
   (ert-with-test-buffer ()
@@ -868,12 +869,11 @@
     (insert "new-value")
     
     (should (equal "$ abcnew-value<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
+    (let ((cs (mistty--active-changeset)))
       (should (equal '((6 inserted)
-                       (15 shift -8)) intervals))
-      (let ((result (mistty--restrict-modification-intervals intervals 6)))
-        (should (equal '( 0 . ((6 inserted)
-                               (15 shift -8))) result)))))))
+                       (15 shift -8)) (mistty--changeset-collect cs)))
+      (should (equal 0 (mistty--changeset-restrict cs 6)))
+      (should (equal '((6 inserted) (15 shift -8)) (mistty--changeset-intervals cs)))))))
 
 (ert-deftest test-mistty-restrict-intervals-exactly-before-shift ()
   (ert-with-test-buffer ()
@@ -889,10 +889,10 @@
     (delete-region 6 7)
     
     (should (equal "$ abc<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
-      (should (equal '((6 shift 1)) intervals))
-      (let ((result (mistty--restrict-modification-intervals intervals 6)))
-        (should (equal '( 0 . ((6 shift 1))) result)))))))
+    (let ((cs (mistty--active-changeset)))
+      (should (equal '((6 shift 1)) (mistty--changeset-collect cs)))
+      (should (equal 0 (mistty--changeset-restrict cs 6)))
+      (should (equal '((6 shift 1)) (mistty--changeset-intervals cs)))))))
 
 (ert-deftest test-mistty-restrict-intervals-starts-within-insert ()
   (ert-with-test-buffer ()
@@ -913,13 +913,11 @@
 
     (should (equal "$ abcnew-valueghimno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
     ;;             "$ abcdef ghijklmno<<end>>"
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
-      (should (equal '((6 inserted)
-                       (15 shift -6)
-                       (18 shift -3)) intervals))
-      (let ((result (mistty--restrict-modification-intervals intervals 10)))
-        (should (equal '(-1 . ((10 inserted) (15 shift -5) (18 shift -2))) result))
-        (should (equal '((13 "" 3) (10 "value" 0)) (mistty--collect-modifications (cdr result)))))))))
+    (let ((cs (mistty--active-changeset)))
+      (should (equal '((6 inserted) (15 shift -6) (18 shift -3)) (mistty--changeset-collect cs)))
+      (should (equal -1 (mistty--changeset-restrict cs 10)))
+      (should (equal '((10 inserted) (15 shift -5) (18 shift -2)) (mistty--changeset-intervals cs)))
+      (should (equal '((13 "" 3) (10 "value" 0)) (mistty--collect-modifications (mistty--changeset-intervals cs))))))))
 
 (ert-deftest test-mistty-restrict-intervals-starts-within-insert-at-end ()
   (ert-with-test-buffer ()
@@ -937,32 +935,30 @@
     
     (should (equal "$ abcdefNEW" (buffer-substring-no-properties (point-min) (point-max))))
     ;;             "$ abcdef"
-    
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
-      (should (equal '((9 inserted)) intervals))
-      (should (null (mistty--restrict-modification-intervals intervals 10)))))))
+    (let ((cs (mistty--active-changeset)))
+      (should (equal '((9 inserted)) (mistty--changeset-collect cs)))
+      (should (equal nil (mistty--changeset-restrict cs 10)))))))
 
 (ert-deftest test-mistty-restrict-intervals-within-insert-then-delete-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
-    (insert "$ ")
-    (move-overlay ov (point) (point-max-marker))
-    (setq mistty-cmd-start-marker (point))
-    
-    (insert "abcdefghijklmno<<end>>")
-    (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-    (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
-
-    (delete-region 6 (point-max))
-    (goto-char 6)
-    (insert "new-value")
-    
-    (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
-
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
-      (should (equal '((6 inserted)
-                       (15 deleted-to-end)) intervals))
-      (should (null (mistty--restrict-modification-intervals intervals 10)))))))
+      (insert "$ ")
+      (move-overlay ov (point) (point-max-marker))
+      (setq mistty-cmd-start-marker (point))
+      
+      (insert "abcdefghijklmno<<end>>")
+      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
+      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      
+      (delete-region 6 (point-max))
+      (goto-char 6)
+      (insert "new-value")
+      
+      (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
+      
+      (let ((cs (mistty--active-changeset)))
+        (should (equal '((6 inserted) (15 deleted-to-end)) (mistty--changeset-collect cs)))
+        (should (equal nil (mistty--changeset-restrict cs 10)))))))
 
 (ert-deftest test-mistty-restrict-intervals-within-delete-at-end ()
   (ert-with-test-buffer ()
@@ -981,10 +977,9 @@
     
     (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (let ((intervals (mistty--changeset-collect (mistty--active-changeset))))
-      (should (equal '((6 inserted)
-                       (15 deleted-to-end)) intervals))
-      (should (null (mistty--restrict-modification-intervals intervals 15)))))))
+    (let ((cs (mistty--active-changeset)))
+      (should (equal '((6 inserted) (15 deleted-to-end)) (mistty--changeset-collect cs)))
+      (should (equal nil (mistty--changeset-restrict cs 15)))))))
 
 (ert-deftest test-mistty-osc ()
   (with-mistty-buffer

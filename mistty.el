@@ -996,50 +996,11 @@ Possibly detect a prompt on the current line."
       (setq intervals (cdr intervals)))
     changes))
 
-(defun mistty--restrict-modification-intervals (intervals min-pos)
-    (if (and (caar intervals) (>= (caar intervals) min-pos))
-        (cons 0 intervals)
-      
-      ;; apply restrictions
-      (while (pcase intervals
-               ((and `((,_ . ,_ ) (,pos2 . ,_) . ,_) (guard (<= pos2 min-pos)))
-                (setq intervals (cdr intervals))
-                t)))
-      
-      ;; intervals now points to the first relevant section, which likely
-      ;; starts before min-pos. 
-      (let ((base-shift
-             (pcase intervals
-               (`((,_ shift ,shift) . ,_) shift)
-               (`((,_ inserted) (,pos2 shift ,shift) . ,_)
-                (+ shift (- pos2 min-pos)))
-               (_ ;; other interval restrictions aren't supported
-                nil))))
-        (when (and base-shift intervals)
-          (setcar (car intervals) min-pos)
-          
-          ;; shifts must be relative to base-shift
-          (setq intervals
-                (mapcar
-                 (lambda (cur)
-                   (pcase cur
-                     (`(,pos shift ,shift) `(,pos shift ,(- shift base-shift)))
-                     (_ cur)))
-                 intervals))
-          (cons base-shift intervals)))))
-
-(defun mistty--modification-intervals-start (intervals)
-  (caar intervals))
-
-(defun mistty--modification-intervals-end (intervals)
-  (pcase (car (last intervals))
-    (`(,pos shift ,_) pos)
-    (_ (point-max))))
-
-(iter-defun mistty--replay-modifications (cs intervals)
+(iter-defun mistty--replay-modifications (cs)
   (let ((intervals-start (mistty--changeset-beg cs))
         (intervals-end (mistty--changeset-end cs))
-        (modifications (mistty--collect-modifications intervals))
+        (modifications (mistty--collect-modifications
+                        (mistty--changeset-collect cs)))
         first lower-limit upper-limit)
     (setq first (car modifications))
     (while modifications
@@ -1241,7 +1202,7 @@ END section to be valid in the term buffer."
              (intervals (if cs (mistty--changeset-collect cs)))
              (intervals-end (if cs (mistty--changeset-end cs)))
              (modifiable-limit (mistty--bol-pos-from (point-max) -5))
-             restricted
+             shift
              gen)
         (cond
          ;; nothing to do
@@ -1249,16 +1210,16 @@ END section to be valid in the term buffer."
 
          ;; modifications are part of the current prompt; replay them
          ((mistty-on-prompt-p (mistty-cursor))
-          (setq gen (mistty--replay-modifications cs intervals))
+          (setq gen (mistty--replay-modifications cs))
           (setq cs nil))
 
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
          ((and (mistty--possible-prompt-p)
-               (setq restricted (mistty--restrict-modification-intervals
-                                 intervals (nth 0 mistty--possible-prompt))))
-          (mistty--realize-possible-prompt (car restricted))
-          (setq gen (mistty--replay-modifications cs (cdr restricted)))
+               (setq shift (mistty--changeset-restrict cs 
+                                 (nth 0 mistty--possible-prompt))))
+          (mistty--realize-possible-prompt shift)
+          (setq gen (mistty--replay-modifications cs))
           (setq cs nil))
 
          ;; leave all modifications if there's enough of an unmodified

@@ -81,4 +81,42 @@ The active changeset is the first changeset on
           (setf (mistty--changeset-intervals cs) (nreverse intervals))))))
   (mistty--changeset-intervals cs))
 
+(defun mistty--changeset-restrict (cs min-pos)
+  (when-let ((shift-and-intervals (mistty--restrict-modification-intervals
+                                   (mistty--changeset-collect cs) min-pos)))
+    (setf (mistty--changeset-intervals cs) (cdr shift-and-intervals))
+    (car shift-and-intervals)))
+
+(defun mistty--restrict-modification-intervals (intervals min-pos)
+    (if (and (caar intervals) (>= (caar intervals) min-pos))
+        (cons 0 intervals)
+      
+      ;; apply restrictions
+      (while (pcase intervals
+               ((and `((,_ . ,_ ) (,pos2 . ,_) . ,_) (guard (<= pos2 min-pos)))
+                (setq intervals (cdr intervals))
+                t)))
+      
+      ;; intervals now points to the first relevant section, which likely
+      ;; starts before min-pos. 
+      (let ((base-shift
+             (pcase intervals
+               (`((,_ shift ,shift) . ,_) shift)
+               (`((,_ inserted) (,pos2 shift ,shift) . ,_)
+                (+ shift (- pos2 min-pos)))
+               (_ ;; other interval restrictions aren't supported
+                nil))))
+        (when (and base-shift intervals)
+          (setcar (car intervals) min-pos)
+          
+          ;; shifts must be relative to base-shift
+          (setq intervals
+                (mapcar
+                 (lambda (cur)
+                   (pcase cur
+                     (`(,pos shift ,shift) `(,pos shift ,(- shift base-shift)))
+                     (_ cur)))
+                 intervals))
+          (cons base-shift intervals)))))
+
 (provide 'mistty-changeset)

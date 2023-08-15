@@ -99,6 +99,10 @@ recently deleted string."
       (setf (mistty--changeset-deleted-point-max cs) t))))
 
 (defun mistty--changeset-collect (cs)
+  "Extract data stored into text properties and returns it.
+
+The second time this is called, this just returns
+`mistty--changeset-intervals'."
   (unless (mistty--changeset-intervals cs)
     (save-excursion
       (save-restriction

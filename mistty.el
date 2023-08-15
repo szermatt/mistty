@@ -1180,7 +1180,9 @@ Possibly detect a prompt on the current line."
 (defun mistty--replay-next ()
   (condition-case nil
       (let (seq)
-        (while (null (setq seq (iter-next mistty--replay-generator))))
+        (while (or
+                (null (setq seq (iter-next mistty--replay-generator)))
+                (length= seq 0)))
         (mistty-send-raw-string seq))
     (iter-end-of-sequence
      (setq mistty--replay-generator nil))))

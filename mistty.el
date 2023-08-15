@@ -166,13 +166,13 @@ This variable is available in the work buffer.")
 
 When this variable is true, `mistty--term-to-work' does nothing
 unless it is forced; it just sets
-`mistty--inhibited-term-to-work'. This is useful to temporarily
+`mistty--need-term-to-work'. This is useful to temporarily
 prevent changes to the terminal to be reflected to the work
 buffer and shown to the user.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--inhibited-term-to-work nil
+(defvar-local mistty--need-term-to-work nil
   "If true, the work buffer is known to be out-of-date.
 
 This variable is set by `mistty--term-to-work' when copying data
@@ -546,7 +546,7 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
         ;; the terminal, or we'll lose data. This might interfere with
         ;; collecting and applying modifications, but then so would
         ;; reset.
-        (let ((mistty--inhibited-term-to-work nil))
+        (let ((mistty--need-term-to-work nil))
           (mistty-process-filter proc (substring str 0 rs1-before-pos)))
         (term-emulate-terminal proc (substring str rs1-before-pos rs1-after-pos))
         (mistty--with-live-buffer work-buffer
@@ -657,12 +657,12 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
 (defun mistty--term-to-work ()
   (mistty--require-work-buffer)
   (if mistty--inhibit-term-to-work
-      (setq mistty--inhibited-term-to-work t)
+      (setq mistty--need-term-to-work t)
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (old-point (point))
           properties)
-      (setq mistty--inhibited-term-to-work nil)
+      (setq mistty--need-term-to-work nil)
       (when (timerp mistty--term-to-work-timer)
         (cancel-timer mistty--term-to-work-timer)
         (setq mistty--term-to-work-timer nil))
@@ -1023,11 +1023,15 @@ Possibly detect a prompt on the current line."
     
     ;; Re-enable term-to-work.
     (setf (mistty--changeset-applied cs) t)
-    (setq mistty--changesets (delq cs mistty--changesets))
-    (unless mistty--changesets
+    (mistty--release-changeset cs)
+    (mistty--refresh-after-changeset)))
+
+(defun mistty--refresh-after-changeset ()
+  "Refresh the work buffer again if there are not more changesets."
+  (unless mistty--changesets
       (setq mistty--inhibit-term-to-work nil)
-      (when mistty--inhibited-term-to-work
-        (mistty--term-to-work)))))
+      (when mistty--need-term-to-work
+        (mistty--term-to-work))))
 
 (defun mistty--replay-next ()
   (condition-case nil
@@ -1135,46 +1139,48 @@ END section to be valid in the term buffer."
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
       (let* ((cs (mistty--active-changeset))
-             (intervals (if cs (mistty--changeset-collect cs)))
-             (intervals-end (if cs (mistty--changeset-end cs)))
-             (modifiable-limit (mistty--bol-pos-from (point-max) -5))
-             shift
-             gen)
+             shift gen)
         (cond
          ;; nothing to do
-         ((null intervals))
+         ((not (mistty--changeset-p cs)))
 
          ;; modifications are part of the current prompt; replay them
          ((mistty-on-prompt-p (mistty-cursor))
           (setq gen (mistty--replay-modifications cs))
+          ;; ownership transferred to gen
           (setq cs nil))
 
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
          ((and (mistty--possible-prompt-p)
-               (setq shift (mistty--changeset-restrict cs 
-                                 (nth 0 mistty--possible-prompt))))
+               (setq shift (mistty--changeset-restrict
+                            cs (nth 0 mistty--possible-prompt))))
           (mistty--realize-possible-prompt shift)
           (setq gen (mistty--replay-modifications cs))
+          ;; ownership transferred to gen
           (setq cs nil))
 
          ;; leave all modifications if there's enough of an unmodified
          ;; section at the end. moving the sync mark is only possible
          ;; as long as the term and work buffers haven't diverged.
-         ((and intervals-end
-               (< intervals-end modifiable-limit)
-               (not mistty--inhibited-term-to-work))
-          (mistty--set-sync-mark-from-end (mistty--bol-pos-from intervals-end 3)))
+         ((and (< (mistty--changeset-end cs)
+                  ;; modifiable limit
+                  (mistty--bol-pos-from (point-max) -5))
+               (not mistty--need-term-to-work))
+          (mistty--set-sync-mark-from-end
+           (mistty--bol-pos-from (mistty--changeset-end cs) 3)))
 
-         (t ;; revert modifications
-          ))
+         (t ;; revert everything
+          
+          ;; The following forces a call to term-to-work, in time,
+          ;; even if the process sent nothing new.
+          (setq mistty--need-term-to-work t)))
         
-        (when cs ; abandon this changeset, since it hasn't been picked up
-          (setq mistty--changesets (delq cs mistty--changesets))
-          (unless mistty--changesets
-            (setq mistty--inhibit-term-to-work nil)
-            (when mistty--inhibited-term-to-work
-              (mistty--term-to-work))))
+        (when (mistty--changeset-p cs)
+          ;; abandon this changeset, since it hasn't been picked up
+          ;; for replay.
+          (mistty--release-changeset cs)
+          (mistty--refresh-after-changeset))
 
         (cond
          ((and mistty--replay-generator gen)

@@ -48,6 +48,11 @@ Returns the changeset."
       (push cs mistty--changesets))
     cs))
 
+(defun mistty--release-changeset (cs)
+  (when (and (mistty--changeset-beg cs) (not (mistty--changeset-collected cs)))
+    (remove-text-properties (mistty--changeset-beg cs) (point-max) '(mistty-change t)))
+  (setq mistty--changesets (delq cs mistty--changesets)))
+
 (defun mistty--active-changeset ()
   "Return the active changeset or nil.
 
@@ -124,7 +129,7 @@ recently deleted string."
 The function returns the difference between the work buffer and
 term buffer at MIN-POS (shift), or nil if a restriction isn't
 possible after MIN-POS."
-  (let ((intervals (mistty--changeset-intervals cs)))
+  (let ((intervals (mistty--changeset-collect cs)))
     (if (and (caar intervals) (>= (caar intervals) min-pos))
         0 ;; shift is 0, intervals don't change.
       

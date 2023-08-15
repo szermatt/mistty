@@ -15,6 +15,9 @@
 (require 'term)
 (require 'seq)
 (require 'subr-x)
+(require 'generator)
+(eval-when-compile
+  (require 'cl-lib))
 
 (require 'mistty-term)
 (require 'mistty-util)
@@ -163,7 +166,7 @@ to be modified or accessed by other functions.
 This variable is available in the work buffer.")
 
 (defvar-local mistty--inhibit-term-to-work nil
-  "When true, prevent `mistty--term-to-work' from copying data.
+  "When non-nil, prevent `mistty--term-to-work' from copying data.
 
 When this variable is true, `mistty--term-to-work' does nothing
 unless it is forced; it just sets
@@ -191,6 +194,23 @@ cause changes are just ignored by the command.")
 
 (defvar-local mistty-log-enabled nil
   "If true, log all input and output into a debug log buffer.")
+
+(defvar-local mistty--replay-generator nil
+  "A generator that's currently replaying changes.
+
+Each step of the generator generates a string that must be sent
+to the terminal.")
+
+(defvar-local mistty--replay-next-timer nil)
+
+(defvar-local mistty--changesets nil)
+
+(cl-defstruct (changesset (:constructor mistty--make-changeset)
+                          (:conc-name mistty--changeset-)
+                          (:copier nil))
+  collected
+  applied
+  )
 
 (eval-when-compile
   ;; defined in term.el
@@ -563,7 +583,17 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
         (condition-case nil
             (setq default-directory (buffer-local-value 'default-directory term-buffer))
           (error nil))
-        (mistty--term-to-work))))))
+
+        (mistty--term-to-work)
+        (when (and mistty--replay-generator (not (timerp mistty--replay-next-timer)))
+          (setq mistty--replay-next-timer
+                (run-with-idle-timer 0.1 nil #'mistty--replay-next-timer-handler
+                                     mistty-work-buffer))))))))
+
+(defun mistty--replay-next-timer-handler (buf)
+  (mistty--with-live-buffer buf
+    (setq mistty--replay-next-timer nil)
+    (mistty--replay-next)))
 
 (defun mistty-goto-cursor ()
   (interactive)
@@ -637,9 +667,9 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
 (defun mistty--from-work-pos (pos)
   (mistty--from-pos-of pos mistty-work-buffer))
 
-(defun mistty--term-to-work (&optional forced)
+(defun mistty--term-to-work ()
   (mistty--require-work-buffer)
-  (if (and mistty--inhibit-term-to-work (not forced))
+  (if mistty--inhibit-term-to-work
       (setq mistty--inhibited-term-to-work t)
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
@@ -908,7 +938,16 @@ Possibly detect a prompt on the current line."
           (beg (max orig-beg mistty-cmd-start-marker))
           (end (max orig-end mistty-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
+          changeset
           shift pos)
+      (if (or (not mistty--changesets)
+              (mistty--changeset-collected (car mistty--changesets)))
+          (progn ; collect these modifications into a new changeset
+            (setq changeset (mistty--make-changeset))
+            (push changeset mistty--changesets))
+        ;; extend existing changeset
+        (setq changeset (car mistty--changesets)))
+      
       ;; Temporarily stop refreshing the work buffer while collecting modifications.
       (setq mistty--inhibit-term-to-work t)
       
@@ -1042,9 +1081,8 @@ Possibly detect a prompt on the current line."
     (`(,pos shift ,_) pos)
     (_ (point-max))))
 
-(defun mistty--replay-modifications (intervals)
-  (let ((initial-point (point))
-        (intervals-start (mistty--modification-intervals-start intervals))
+(iter-defun mistty--replay-modifications (changeset intervals)
+  (let ((intervals-start (mistty--modification-intervals-start intervals))
         (intervals-end (mistty--modification-intervals-end intervals))
         (modifications (mistty--collect-modifications intervals))
         first lower-limit upper-limit)
@@ -1071,7 +1109,7 @@ Possibly detect a prompt on the current line."
                 old-end (min upper-limit old-end)))
 
         (when (> end beg)
-          (mistty--send-and-wait (mistty--move-str cursor beg 'will-wait))
+          (iter-yield (mistty--move-str cursor beg 'will-wait))
           (setq cursor (mistty-cursor))
           ;; cursor is as close to beg as we can make it
 
@@ -1086,7 +1124,7 @@ Possibly detect a prompt on the current line."
         (when (> old-end beg)
           (if (eq m first)
               (progn
-                (mistty--send-and-wait
+                (iter-yield
                  (mistty--move-str cursor old-end 'will-wait))
                 (setq cursor (mistty-cursor))
                 (when (and (> beg cursor)
@@ -1117,36 +1155,35 @@ Possibly detect a prompt on the current line."
         
         ;; for the last modification, move cursor back to point
         (when (and (null modifications)
-                   (>= initial-point intervals-start)
-                   (<= initial-point intervals-end))
+                   (>= (point) intervals-start)
+                   (<= (point) intervals-end))
           (setq mistty-goto-cursor-next-time t)
           (push (mistty--move-str
                  end
-                 (if lower-limit (max lower-limit initial-point)
-                     initial-point))
+                 (if lower-limit (max lower-limit (point))
+                     (point)))
                 replay-seqs))
 
         ;; send the content of replay-seqs
         (let ((replay-str (mapconcat #'identity (nreverse replay-seqs) "")))
           (when (length> replay-str 0)
-            (if modifications ; not the last modification
-                (mistty--send-and-wait replay-str)
-              
-              ;; For the last modification, wait for a response from
-              ;; replay-string before refreshing the display. This
-              ;; way, we won't see any intermediate results with the
-              ;; modifications temporarily turned off. A timeout makes
-              ;; sure the screen is eventually refreshed in all cases.
-              (setq mistty--inhibit-term-to-work nil)
-              (setq mistty--inhibited-term-to-work nil)
-              (setq mistty--term-to-work-timer 
-                    (run-with-timer
-                     0.5 nil
-                     (lambda (buf)
-                       (mistty--with-live-buffer buf
-                         (mistty--term-to-work)))
-                     mistty-work-buffer))
-              (mistty-send-raw-string replay-str))))))))
+            (iter-yield replay-str)))))
+    
+    ;; Re-enable term-to-work.
+    (setf (mistty--changeset-applied changeset) t)
+    (setq mistty--changesets (delq changeset mistty--changesets))
+    (unless mistty--changesets
+      (setq mistty--inhibit-term-to-work nil)
+      (when mistty--inhibited-term-to-work
+        (mistty--term-to-work)))))
+
+(defun mistty--replay-next ()
+  (condition-case nil
+      (let (seq)
+        (while (null (setq seq (iter-next mistty--replay-generator))))
+        (mistty-send-raw-string seq))
+    (iter-end-of-sequence
+     (setq mistty--replay-generator nil))))
 
 (defun mistty--send-and-wait (str)
   (when (and str (not (zerop (length str))))
@@ -1234,8 +1271,8 @@ END section to be valid in the term buffer."
   ;; Show cursor again if the command moved the point.
   (when (and mistty--old-point (/= (point) mistty--old-point))
     (setq cursor-type t))
-  
-  (run-at-time 0 nil #'mistty-post-command-1 mistty-work-buffer))
+
+  (run-with-idle-timer 0 nil #'mistty-post-command-1 mistty-work-buffer))
 
 (defun mistty-post-command-1 (buf)
   (mistty--with-live-buffer buf
@@ -1243,18 +1280,22 @@ END section to be valid in the term buffer."
       (widen)
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
-      (let* ((intervals (mistty--collect-modification-intervals))
+      (let* ((changeset (car mistty--changesets))
+             (intervals (mistty--collect-modification-intervals))
              (intervals-end (mistty--modification-intervals-end intervals))
              (modifiable-limit (mistty--bol-pos-from (point-max) -5))
-             restricted)
+             restricted
+             gen)
+        (when changeset
+          (setf (mistty--changeset-collected changeset) t))
         (cond
          ;; nothing to do
-         ((null intervals)
-          (mistty--maybe-cursor-to-point))
+         ((null intervals))
 
          ;; modifications are part of the current prompt; replay them
          ((mistty-on-prompt-p (mistty-cursor))
-          (mistty--replay-modifications intervals))
+          (setq gen (mistty--replay-modifications changeset intervals))
+          (setq changeset nil))
 
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
@@ -1262,7 +1303,8 @@ END section to be valid in the term buffer."
                (setq restricted (mistty--restrict-modification-intervals
                                  intervals (nth 0 mistty--possible-prompt))))
           (mistty--realize-possible-prompt (car restricted))
-          (mistty--replay-modifications (cdr restricted)))
+          (setq gen (mistty--replay-modifications changeset (cdr restricted)))
+          (setq changeset nil))
 
          ;; leave all modifications if there's enough of an unmodified
          ;; section at the end. moving the sync mark is only possible
@@ -1272,22 +1314,38 @@ END section to be valid in the term buffer."
                (not mistty--inhibited-term-to-work))
           (mistty--set-sync-mark-from-end (mistty--bol-pos-from intervals-end 3)))
 
-         ;; revert modifications
-         (t
-          (mistty--term-to-work 'forced)
-          (mistty--maybe-cursor-to-point)))
+         (t ;; revert modifications
+          ))
         
-        ;; re-enable term-to-work in all cases, refresh if necessary.
-        (setq mistty--inhibit-term-to-work nil)
-        (when mistty--inhibited-term-to-work
-          (mistty--term-to-work)))))))
+        (when changeset ; abandon this changeset, since it hasn't been picked up
+          (setq mistty--changesets (delq changeset mistty--changesets))
+          (unless mistty--changesets
+            (setq mistty--inhibit-term-to-work nil)
+            (when mistty--inhibited-term-to-work
+              (mistty--term-to-work))))
+
+        (cond
+         ((and mistty--replay-generator gen)
+          (setq mistty--replay-generator (mistty--chain mistty--replay-generator gen)))
+         ((or gen (setq gen (mistty--maybe-cursor-to-point)))
+          (setq mistty--replay-generator gen)
+          (mistty--replay-next))))))))
+
+(iter-defun mistty--chain (iter1 iter2)
+  (iter-do (value iter1)
+    (iter-yield value))
+  (iter-do (value iter2)
+    (iter-yield value)))
 
 (defun mistty--maybe-cursor-to-point ()
   (when (and mistty--old-point
              (/= (point) mistty--old-point)
              (mistty-on-prompt-p (point)))
-    (mistty-send-raw-string
-     (mistty--move-str (mistty-cursor) (point)))))
+    (funcall
+     (iter-lambda ()
+       (iter-yield
+        (mistty--move-str (mistty-cursor) (point)))
+       ))))
 
 (defun mistty--window-size-change (_win)
   (when (process-live-p mistty-term-proc)
@@ -1446,6 +1504,8 @@ END section to be valid in the term buffer."
 (defun mistty--log (str args &optional display)
   "Logging function, normally called from `mistty-log.
 
+Returns the log buffer.
+
 Must be called from a MisTTY work or term buffer."
   (let ((work-buffer mistty-work-buffer))
     (unless work-buffer
@@ -1477,7 +1537,8 @@ Must be called from a MisTTY work or term buffer."
               args)))
         (insert (propertize (format "%3.3f " (float-time)) 'face 'mistty-log-time-face))
         (insert (propertize (apply #'format str args) 'face 'mistty-log-message-face))
-        (insert "\n")))))
+        (insert "\n")))
+    (current-buffer)))
 
 (provide 'mistty)
 

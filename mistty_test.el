@@ -42,9 +42,7 @@
   `(progn
      (mistty-pre-command)
      (progn ,@body)
-     (let ((timer (mistty-post-command)))
-       (while (memq timer timer-list)
-         (timer-event-handler timer)))))
+     (mistty-test-after-command)))
 
 (ert-deftest test-mistty-simple-command ()
   (with-mistty-buffer
@@ -86,7 +84,6 @@
    (mistty-run-command
       (mistty-test-goto "hello")
       (delete-region (point) (+ 3 (point))))
-   (mistty-wait-for-output)
    
    (should (equal "$ echo <>lo" (mistty-test-content)))
    (should (equal "lo" (mistty-send-and-capture-command-output)))))
@@ -110,7 +107,6 @@
     (goto-char (point-min))
     (search-forward "hello")
     (replace-match "bonjour" nil t))
-   (mistty-wait-for-output)
    
    (should (equal "$ echo bonjour<>" (mistty-test-content)))
    (should (equal "bonjour" (mistty-send-and-capture-command-output)))))
@@ -124,7 +120,6 @@
     (while (search-forward "hello" nil t)
       (replace-match "bonjour" nil t))
     (mistty-test-goto "echo"))
-   (mistty-wait-for-output)
    
    (should (equal "$ <>echo bonjour, bonjour" (mistty-test-content)))
    (should (equal "bonjour, bonjour" (mistty-send-and-capture-command-output)))))
@@ -141,7 +136,6 @@
     (search-forward "white goat")
     (replace-match "black sheep" nil t)
     (mistty-test-goto "black"))
-   (mistty-wait-for-output)
    
    (should (equal "$ echo baa baa, <>black sheep" (mistty-test-content)))
    (should (equal "baa baa, black sheep"
@@ -208,7 +202,6 @@
    ;; before sending TAB.
    (mistty-run-command
     (goto-char (+ (point-min) 5)))
-   (mistty-wait-for-output)
    (should (equal "$ ech<> world" (mistty-test-content)))
    (mistty-send-key 1 "\t")
    (mistty-wait-for-output)
@@ -547,7 +540,7 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (mistty-wait-for-output)
+
    (while (length= (mistty-test-content) 0)
      (accept-process-output mistty-term-proc 0 500 t))
    (should (equal "$ echo one two three\n four five six seven\n eight nine<>"
@@ -559,7 +552,6 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (mistty-wait-for-output)
    
    (while (length= (mistty-test-content) 0)
      (accept-process-output mistty-term-proc 0 500 t))
@@ -574,11 +566,6 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (while (progn
-            (mistty-wait-for-output)
-            (not (save-excursion
-                   (goto-char (point-min))
-                   (search-forward "nine" nil 'noerror)))))
 
    ;; make sure that the newlines don't confuse mistty-post-command
    ;; moving the cursor.
@@ -586,7 +573,6 @@
      (let ((goal-pos))
        (mistty-run-command
         (setq goal-pos (mistty-test-goto count)))
-       (mistty-wait-for-output)
        (should (equal (mistty-cursor) goal-pos))))))
 
 (ert-deftest test-mistty-enter-fullscreen ()
@@ -1310,14 +1296,12 @@
      (mistty-run-command
       (setq this-command 'hippie-expand)
       (call-interactively 'hippie-expand))
-     (mistty-wait-for-output)
      (should (equal "echo hi<>" (mistty-test-content start)))
 
      (mistty-run-command
       (setq this-command 'hippie-expand)
       (setq last-command 'hippie-expand)
       (call-interactively 'hippie-expand))
-     (mistty-wait-for-output)
      (should (equal "echo hallo<>" (mistty-test-content start))))))
 
 (ert-deftest mistty-test-last-non-ws ()
@@ -1458,8 +1442,16 @@
   (mistty-wait-for-output)
   (narrow-to-region (mistty-send-and-wait-for-prompt) (point-max)))
 
+(defun mistty-test-after-command ()
+  (mistty-post-command)
+  (ert-run-idle-timers)
+  (while mistty--replay-generator
+    (while (accept-process-output mistty-term-proc 0 100 t))
+    (ert-run-idle-timers)))
+
 (defun mistty-wait-for-output ()
   "Wait for process output, which should be short and immediate."
+  (ert-run-idle-timers)
   (unless (accept-process-output mistty-term-proc 0 500 t)
     (error "no output (wait-for-output)")))
 
@@ -1496,9 +1488,10 @@ of the beginning of the prompt."
     (while (not (save-excursion
                   (goto-char before-send)
                   (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
+      (ert-run-idle-timers)
       (unless (accept-process-output mistty-term-proc 0 500 t)
-        (error "no output (wait-for-prompt)")))
-    (match-beginning 0)))
+          (error "no output (wait-for-prompt)"))))
+    (match-beginning 0))
 
 (defun mistty-test-content  (&optional start end nopointer keep-empty)
   (interactive)

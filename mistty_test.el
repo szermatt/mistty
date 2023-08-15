@@ -680,7 +680,7 @@
     ;; last. If we did the reverse and a newline was inserted in the
     ;; middle of new-value, the deletion would not apply to the right
     ;; region.
-    (should (equal '((12 "" 3) (6 "new-value" 3)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
+    (should (equal '((12 "" 3) (6 "new-value" 3)) (mistty--collect-modifications (mistty--collect-modification-intervals (mistty--active-changeset))))))))
 
 (ert-deftest test-mistty-collect-modifications-delete-at-end ()
   (ert-with-test-buffer ()
@@ -697,7 +697,7 @@
     
     (should (equal "$ abc" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((6 "" -1)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
+    (should (equal '((6 "" -1)) (mistty--collect-modifications (mistty--collect-modification-intervals (mistty--active-changeset))))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-then-delete-at-end ()
   (ert-with-test-buffer ()
@@ -716,7 +716,7 @@
     
     (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((6 "new-value" -1)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
+    (should (equal '((6 "new-value" -1)) (mistty--collect-modifications (mistty--collect-modification-intervals (mistty--active-changeset))))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-skip-then-delete-at-end ()
   (ert-with-test-buffer ()
@@ -736,7 +736,7 @@
     
     (should (equal "$ abcnew-valuedefjkl" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
+    (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals (mistty--active-changeset))))))))
 
 (ert-deftest test-mistty-collect-modifications-inserts ()
   (ert-with-test-buffer ()
@@ -760,7 +760,7 @@
     
     (should (equal "$ abcNEWdefNEWghiNEWjklmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
+    (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals (mistty--active-changeset))))))))
 
 (ert-deftest test-mistty-collect-modifications-insert-at-end ()
   (ert-with-test-buffer ()
@@ -778,7 +778,7 @@
     
     (should (equal "$ abcdefNEW" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((9 "NEW" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
+    (should (equal '((9 "NEW" 0)) (mistty--collect-modifications (mistty--collect-modification-intervals (mistty--active-changeset))))))))
 
 (ert-deftest test-mistty-collect-modifications-replaces ()
   (ert-with-test-buffer ()
@@ -801,7 +801,7 @@
     
     (should (equal "$ abcNEWghiNEWmno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--collect-modifications (mistty--collect-modification-intervals)))))))
+    (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--collect-modifications (mistty--collect-modification-intervals (mistty--active-changeset))))))))
 
 (ert-deftest test-mistty-restrict-intervals ()
   (ert-with-test-buffer ()
@@ -822,7 +822,7 @@
 
     (should (equal "$ abcnew-valueghimno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
     ;;             "$ abcdefg      hijklmno<<end>>"
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((6 inserted)
                        (15 shift -6)
                        (18 shift -3)) intervals))
@@ -845,7 +845,7 @@
     (insert "new-value")
     
     (should (equal "$ abcnew-valued<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((6 inserted)
                        (15 shift -9)) intervals))
       (let ((result (mistty--restrict-modification-intervals intervals 4)))
@@ -868,7 +868,7 @@
     (insert "new-value")
     
     (should (equal "$ abcnew-value<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((6 inserted)
                        (15 shift -8)) intervals))
       (let ((result (mistty--restrict-modification-intervals intervals 6)))
@@ -889,7 +889,7 @@
     (delete-region 6 7)
     
     (should (equal "$ abc<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((6 shift 1)) intervals))
       (let ((result (mistty--restrict-modification-intervals intervals 6)))
         (should (equal '( 0 . ((6 shift 1))) result)))))))
@@ -913,7 +913,7 @@
 
     (should (equal "$ abcnew-valueghimno<<end>>" (buffer-substring-no-properties (point-min) (point-max))))
     ;;             "$ abcdef ghijklmno<<end>>"
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((6 inserted)
                        (15 shift -6)
                        (18 shift -3)) intervals))
@@ -938,7 +938,7 @@
     (should (equal "$ abcdefNEW" (buffer-substring-no-properties (point-min) (point-max))))
     ;;             "$ abcdef"
     
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((9 inserted)) intervals))
       (should (null (mistty--restrict-modification-intervals intervals 10)))))))
 
@@ -959,7 +959,7 @@
     
     (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((6 inserted)
                        (15 deleted-to-end)) intervals))
       (should (null (mistty--restrict-modification-intervals intervals 10)))))))
@@ -981,7 +981,7 @@
     
     (should (equal "$ abcnew-value" (buffer-substring-no-properties (point-min) (point-max))))
 
-    (let ((intervals (mistty--collect-modification-intervals)))
+    (let ((intervals (mistty--collect-modification-intervals (mistty--active-changeset))))
       (should (equal '((6 inserted)
                        (15 deleted-to-end)) intervals))
       (should (null (mistty--restrict-modification-intervals intervals 15)))))))

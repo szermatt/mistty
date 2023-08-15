@@ -128,11 +128,6 @@ It is used in the `post-command-hook'.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--deleted-point-max nil
-  "True if the end of work buffer was truncated.
-
-This variable is available in the work buffer.")
-
 (defvar-local mistty-goto-cursor-next-time nil
   "True if the point should be moved to the cursor.
 
@@ -930,8 +925,8 @@ Possibly detect a prompt on the current line."
           (beg (max orig-beg mistty-cmd-start-marker))
           (end (max orig-end mistty-cmd-start-marker))
           (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
-          shift pos)
-      (mistty--activate-changeset beg end)
+          cs shift pos)
+      (setq cs (mistty--activate-changeset beg end))
       
       ;; Temporarily stop refreshing the work buffer while collecting modifications.
       (setq mistty--inhibit-term-to-work t)
@@ -950,7 +945,7 @@ Possibly detect a prompt on the current line."
             ('() (put-text-property pos next-pos 'mistty-change `(shift ,shift))))
           (setq pos next-pos)))
       (when (and (> old-length 0) (= end (point-max)))
-        (setq mistty--deleted-point-max t)))))
+        (setf (mistty--changeset-deleted-point-max cs) t)))))
 
 (defun mistty--collect-modifications (intervals)
   (let ((changes nil)
@@ -1001,10 +996,10 @@ Possibly detect a prompt on the current line."
       (setq intervals (cdr intervals)))
     changes))
 
-(defun mistty--collect-modification-intervals ()
+(defun mistty--collect-modification-intervals (cs)
   (save-excursion
     (save-restriction
-      (narrow-to-region mistty-cmd-start-marker (point-max))
+      (narrow-to-region (or mistty-sync-marker (point-min)) (point-max))
       (let ((last-point (point-min))
             intervals last-at-point )
         (goto-char last-point)
@@ -1017,9 +1012,8 @@ Possibly detect a prompt on the current line."
                  (< (point) (point-max))))
         (when last-at-point
           (push `(,last-point . ,last-at-point) intervals))
-        (when mistty--deleted-point-max
+        (when (mistty--changeset-deleted-point-max cs)
           (push `(,(point-max) deleted-to-end) intervals))
-        (setq mistty--deleted-point-max nil)
         (let ((inhibit-read-only t)
               (inhibit-modification-hooks t))
           (remove-text-properties (point-min) (point-max) '(mistty-change t)))
@@ -1268,7 +1262,7 @@ END section to be valid in the term buffer."
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
       (let* ((cs (mistty--active-changeset))
-             (intervals (mistty--collect-modification-intervals))
+             (intervals (if cs (mistty--collect-modification-intervals cs)))
              (intervals-end (if cs (mistty--changeset-end cs)))
              (modifiable-limit (mistty--bol-pos-from (point-max) -5))
              restricted

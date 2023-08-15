@@ -15,6 +15,8 @@
   beg
   ;; end of the changed region in the work buffer.
   end
+  ;; True if the end of work buffer was truncated.
+  deleted-point-max
   
   collected
   ;; if t, the change has been applied; such a change should

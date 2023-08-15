@@ -7,7 +7,10 @@
 (require 'mistty-util)
 
 (defvar-local mistty--changesets nil
-  "Set of active changes.")
+  "Set of active changes, of type mistty--changeset.
+
+The first change is the most recent one, which might be active.
+Use `mistty--active-changeset' to access it.")
 
 (cl-defstruct (mistty--changeset
                (:constructor mistty--make-changeset)
@@ -20,6 +23,9 @@
   ;; True if the end of work buffer was truncated.
   deleted-point-max
 
+  ;; Modification intervals collected from the buffer. As long as this
+  ;; is nil, details about the modifications are stored in the buffer,
+  ;; as text properties.
   intervals
 
   ;; if t, the change has been applied; such a change should
@@ -27,6 +33,9 @@
   applied)
 
 (defsubst mistty--changeset-collected (cs)
+  "Evaluate to a true value if changeset intervals exist.
+
+Calling `mistty-changeset-collect' guarantees this to be true."
   (mistty--changeset-intervals cs))
 
 (defun mistty--activate-changeset ()
@@ -110,14 +119,14 @@ recently deleted string."
   (mistty--changeset-intervals cs))
 
 (defun mistty--changeset-restrict (cs min-pos)
-  (when-let ((shift-and-intervals (mistty--restrict-modification-intervals
-                                   (mistty--changeset-collect cs) min-pos)))
-    (setf (mistty--changeset-intervals cs) (cdr shift-and-intervals))
-    (car shift-and-intervals)))
+  "Restrict the changes in changeset CS to the range [MIN-POS, (point-max)].
 
-(defun mistty--restrict-modification-intervals (intervals min-pos)
+The function returns the difference between the work buffer and
+term buffer at MIN-POS (shift), or nil if a restriction isn't
+possible after MIN-POS."
+  (let ((intervals (mistty--changeset-intervals cs)))
     (if (and (caar intervals) (>= (caar intervals) min-pos))
-        (cons 0 intervals)
+        0 ;; shift is 0, intervals don't change.
       
       ;; apply restrictions
       (while (pcase intervals
@@ -145,9 +154,16 @@ recently deleted string."
                      (`(,pos shift ,shift) `(,pos shift ,(- shift base-shift)))
                      (_ cur)))
                  intervals))
-          (cons base-shift intervals)))))
+          (setf (mistty--changeset-intervals cs) intervals)
+          base-shift)))))
 
 (defun mistty--changeset-modifications (cs)
+  "Returns modifications to re-apply for changeset CS.
+
+Returns a list of (beg content old-length), with beg the
+beginning position, content text that's inserted at beg and
+old-length the length of text deleted from beg. old-length might
+be -1 to mean 'delete everything from pos to the end of the buffer'."
   (let ((intervals (mistty--changeset-collect cs))
         (changes nil)
         (last-shift 0))

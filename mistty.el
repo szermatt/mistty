@@ -131,7 +131,7 @@ This variable is available in the work buffer.")
 (defvar-local mistty-goto-cursor-next-time nil
   "True if the point should be moved to the cursor.
 
-This variable tells `mistty--term-to-work' that it should move
+This variable tells `mistty--refresh' that it should move
 the point to the cursor next time it copies the state of the
 terminal to the work buffer.
 
@@ -152,38 +152,38 @@ since been modified.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--cursor-after-last-term-to-work nil
-  "The position of the cursor at the end of `mistty--term-to-work'.
+(defvar-local mistty--cursor-after-last-refresh nil
+  "The position of the cursor at the end of `mistty--refresh'.
 
-This variable is meant for `mistty--term-to-work' to detect
+This variable is meant for `mistty--refresh' to detect
 whether the cursor has moved since its last call. It's not meant
 to be modified or accessed by other functions.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--inhibit-term-to-work nil
-  "When non-nil, prevent `mistty--term-to-work' from copying data.
+(defvar-local mistty--inhibit-refresh nil
+  "When non-nil, prevent `mistty--refresh' from copying data.
 
-When this variable is true, `mistty--term-to-work' does nothing
+When this variable is true, `mistty--refresh' does nothing
 unless it is forced; it just sets
-`mistty--need-term-to-work'. This is useful to temporarily
+`mistty--need-refresh'. This is useful to temporarily
 prevent changes to the terminal to be reflected to the work
 buffer and shown to the user.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--need-term-to-work nil
+(defvar-local mistty--need-refresh nil
   "If true, the work buffer is known to be out-of-date.
 
-This variable is set by `mistty--term-to-work' when copying data
+This variable is set by `mistty--refresh' when copying data
 from the terminal to the work buffer is disabled. It signals that
-`mistty--term-to-work' should be called after setting
-`mistty--term-to-work' to true again.
+`mistty--refresh' should be called after setting
+`mistty--refresh' to true again.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--term-to-work-timer nil
-  "A timer for calling term-to-work after some delay.
+(defvar-local mistty--refresh-timer nil
+  "A timer for calling refresh after some delay.
 
 This is used to cover the case where modifications that should
 cause changes are just ignored by the command.")
@@ -409,7 +409,7 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
     (add-hook 'pre-command-hook #'mistty-pre-command nil t)
     (add-hook 'post-command-hook #'mistty-post-command nil t)
     
-    (mistty--term-to-work)
+    (mistty--refresh)
     (when proc
       (mistty-goto-cursor))))
 
@@ -503,7 +503,7 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
           (with-current-buffer work-buffer
             (save-restriction
               (widen)
-              (mistty--term-to-work)
+              (mistty--refresh)
               (mistty--detach)))
           (kill-buffer term-buffer)))
     ;; detached term buffer
@@ -546,7 +546,7 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
         ;; the terminal, or we'll lose data. This might interfere with
         ;; collecting and applying modifications, but then so would
         ;; reset.
-        (let ((mistty--need-term-to-work nil))
+        (let ((mistty--need-refresh nil))
           (mistty-process-filter proc (substring str 0 rs1-before-pos)))
         (term-emulate-terminal proc (substring str rs1-before-pos rs1-after-pos))
         (mistty--with-live-buffer work-buffer
@@ -571,7 +571,7 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
             (setq default-directory (buffer-local-value 'default-directory term-buffer))
           (error nil))
 
-        (mistty--term-to-work)
+        (mistty--refresh)
         (when (and mistty--replay-generator (not (timerp mistty--replay-next-timer)))
           (setq mistty--replay-next-timer
                 (run-with-idle-timer 0.1 nil #'mistty--replay-next-timer-handler
@@ -654,18 +654,29 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
 (defun mistty--from-work-pos (pos)
   (mistty--from-pos-of pos mistty-work-buffer))
 
-(defun mistty--term-to-work ()
+(defun mistty--refresh ()
+  "Copy the end of the term buffer to the work buffer.
+
+Refreshing means copying the region
+[mistty-sync-marker,(point-max)] from the term buffer to the work
+buffer, overwriting whatever that region of the work buffer
+contains.
+
+If refreshing is disabled, with `mistty--inhibit-refresh', this
+function just sets `mistty--need-refresh' and returns.
+
+Also updates prompt and point."
   (mistty--require-work-buffer)
-  (if mistty--inhibit-term-to-work
-      (setq mistty--need-term-to-work t)
+  (if mistty--inhibit-refresh
+      (setq mistty--need-refresh t)
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (old-point (point))
           properties)
-      (setq mistty--need-term-to-work nil)
-      (when (timerp mistty--term-to-work-timer)
-        (cancel-timer mistty--term-to-work-timer)
-        (setq mistty--term-to-work-timer nil))
+      (setq mistty--need-refresh nil)
+      (when (timerp mistty--refresh-timer)
+        (cancel-timer mistty--refresh-timer)
+        (setq mistty--refresh-timer nil))
       
       (with-current-buffer mistty-term-buffer
         (save-restriction
@@ -722,11 +733,11 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
       (mistty--with-live-buffer mistty-work-buffer
         (when (process-live-p mistty-term-proc)
           (when (or mistty-goto-cursor-next-time
-                    (null mistty--cursor-after-last-term-to-work)
-                    (= old-point mistty--cursor-after-last-term-to-work))
+                    (null mistty--cursor-after-last-refresh)
+                    (= old-point mistty--cursor-after-last-refresh))
               (mistty-goto-cursor))
           (setq mistty-goto-cursor-next-time nil)
-          (setq mistty--cursor-after-last-term-to-work (mistty-cursor)))))))
+          (setq mistty--cursor-after-last-refresh (mistty-cursor)))))))
 
 (defun mistty--save-properties (start)
   (let ((pos start) intervals)
@@ -754,7 +765,7 @@ This function sets the `mistty-sync-marker' SYNC-POS and optionally
 
 For this to work, the term and work buffer starting with SYNC-POS
 must have the same content, which is only true when SYNC-POS is
-bigger than `mistty-sync-marker' and `mistty--term-to-work' was
+bigger than `mistty-sync-marker' and `mistty--refresh' was
 called recently enough."
   (let ((chars-from-end (- (point-max) sync-pos))
         (prompt-length (if (and cmd-pos (> cmd-pos sync-pos))
@@ -928,7 +939,7 @@ Possibly detect a prompt on the current line."
       
       ;; Temporarily stop refreshing the work buffer while collecting
       ;; modifications.
-      (setq mistty--inhibit-term-to-work t)
+      (setq mistty--inhibit-refresh t)
 
       (mistty--changeset-mark-region
        (mistty--activate-changeset) beg end old-end))))
@@ -1021,7 +1032,7 @@ Possibly detect a prompt on the current line."
           (when (length> replay-str 0)
             (iter-yield replay-str)))))
     
-    ;; Re-enable term-to-work.
+    ;; Re-enable refresh.
     (setf (mistty--changeset-applied cs) t)
     (mistty--release-changeset cs)
     (mistty--refresh-after-changeset)))
@@ -1029,9 +1040,9 @@ Possibly detect a prompt on the current line."
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."
   (unless mistty--changesets
-      (setq mistty--inhibit-term-to-work nil)
-      (when mistty--need-term-to-work
-        (mistty--term-to-work))))
+      (setq mistty--inhibit-refresh nil)
+      (when mistty--need-refresh
+        (mistty--refresh))))
 
 (defun mistty--replay-next ()
   (condition-case nil
@@ -1166,15 +1177,15 @@ END section to be valid in the term buffer."
          ((and (< (mistty--changeset-end cs)
                   ;; modifiable limit
                   (mistty--bol-pos-from (point-max) -5))
-               (not mistty--need-term-to-work))
+               (not mistty--need-refresh))
           (mistty--set-sync-mark-from-end
            (mistty--bol-pos-from (mistty--changeset-end cs) 3)))
 
          (t ;; revert everything
           
-          ;; The following forces a call to term-to-work, in time,
+          ;; The following forces a call to refresh, in time,
           ;; even if the process sent nothing new.
-          (setq mistty--need-term-to-work t)))
+          (setq mistty--need-refresh t)))
         
         (when (mistty--changeset-p cs)
           ;; abandon this changeset, since it hasn't been picked up

@@ -197,7 +197,11 @@ cause changes are just ignored by the command.")
 Each step of the generator generates a string that must be sent
 to the terminal.")
 
-(defvar-local mistty--replay-next-timer nil)
+(defvar-local mistty--replay-next-timer nil
+  "Idle timer that calls `mistty--replay-next'.
+
+This is scheduled to run after the process filter has updated the
+term buffer.")
 
 (eval-when-compile
   ;; defined in term.el

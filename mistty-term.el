@@ -444,15 +444,15 @@ all should rightly be part of term.el."
           (delq cell
                 mistty--term-properties-to-add-alist))))
 
-(defun mistty--create-term (name program args)
+(defun mistty--create-term (name program args width height)
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
       (term-mode)
       (setq-local term-char-mode-buffer-read-only t
                   term-char-mode-point-at-process-mark t
                   term-buffer-maximum-size 0
-                  term-height (or (floor (window-screen-lines)) 24)
-                  term-width (or (window-max-chars-per-line) 80))
+                  term-height height
+                  term-width width)
       (term--reset-scroll-region)
       (term-exec term-buffer (buffer-name term-buffer) program nil args)
       (term-char-mode)

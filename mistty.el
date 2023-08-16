@@ -369,7 +369,11 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
   (mistty-mode)
   (mistty--attach
    (mistty--create-term
-    (concat " mistty tty " (buffer-name)) program args)))
+    (concat " mistty tty " (buffer-name)) program args
+    ;; width
+    (- (window-max-chars-per-line) left-margin-width)
+    ;; height
+    (floor (window-screen-lines)))))
 
 (defun mistty--attach (term-buffer)
   (let ((work-buffer (current-buffer))
@@ -1296,7 +1300,7 @@ Does nothing if GEN is nil."
            (size (funcall adjust-func mistty-term-proc
                           (get-buffer-window-list mistty-work-buffer nil t))))
       (when size
-        (mistty--set-process-window-size (car size) (cdr size)))))
+        (mistty--set-process-window-size (car size) (- (cdr size) left-margin-width)))))
   (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
     (mistty--recenter win)))
 

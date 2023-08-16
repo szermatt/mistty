@@ -170,9 +170,9 @@ possible after MIN-POS."
   "Returns modifications to re-apply for changeset CS.
 
 Returns a list of (beg content old-length), with beg the
-beginning position, content text that's inserted at beg and
+beginning position, content text that\'s inserted at beg and
 old-length the length of text deleted from beg. old-length might
-be -1 to mean 'delete everything from pos to the end of the buffer'."
+be -1 to mean delete everything from pos to the end of the buffer."
   (let ((intervals (mistty--changeset-collect cs))
         (changes nil)
         (last-shift 0))

@@ -481,7 +481,7 @@ all should rightly be part of term.el."
   "Generate string to sent to the terminal for KEY.
 
 This function translates an Emacs key sequence, as returned by
-'kbd', into a string that can be written to the terminal to
+`kbd', into a string that can be written to the terminal to
 express that that key has been pressed in a way that commands
 will hopefully understand.
 

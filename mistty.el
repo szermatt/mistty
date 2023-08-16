@@ -939,14 +939,14 @@ Possibly detect a prompt on the current line."
     (let ((inhibit-read-only t)
           (beg (max orig-beg mistty-cmd-start-marker))
           (end (max orig-end mistty-cmd-start-marker))
-          (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker)))
+          (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
+          (cs (mistty--activate-changeset)))
       
       ;; Temporarily stop refreshing the work buffer while collecting
       ;; modifications.
       (setq mistty--inhibit-refresh t)
 
-      (mistty--changeset-mark-region
-       (mistty--activate-changeset) beg end old-end))))
+      (mistty--changeset-mark-region cs beg end old-end))))
 
 (iter-defun mistty--queue (cs)
   (let ((intervals-start (mistty--changeset-beg cs))
@@ -1033,8 +1033,12 @@ Possibly detect a prompt on the current line."
 
         ;; send the content of replay-seqs
         (let ((replay-str (mapconcat #'identity (nreverse replay-seqs) "")))
-          (when (length> replay-str 0)
-            (iter-yield replay-str)))))
+          (if (length> replay-str 0)
+              (iter-yield replay-str)))))
+
+    ;; force refresh, even if nothing was sent, if only to revert what
+    ;; couldn't be replayed.
+    (setq mistty--need-refresh t)
     
     ;; Re-enable refresh.
     (setf (mistty--changeset-applied cs) t)
@@ -1044,9 +1048,9 @@ Possibly detect a prompt on the current line."
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."
   (unless mistty--changesets
-      (setq mistty--inhibit-refresh nil)
-      (when mistty--need-refresh
-        (mistty--refresh))))
+    (setq mistty--inhibit-refresh nil)
+    (when mistty--need-refresh
+      (mistty--refresh))))
 
 (defun mistty--dequeue (&optional value)
   "Send the next string from the queue to the terminal.
@@ -1067,15 +1071,20 @@ If VALUE is set, send that value to the first call to `iter-next'."
      (setq mistty--queue nil))))
 
 (defun mistty--dequeue-with-timer ()
-  "Call `mistty--dequeue' on an idle timer.
+  "Call `mistty--dequeue' on a timer.
 
-Does nothing if a call is already scheduled."
+Restart the timer if a dequeue is already scheduled. The idea is
+to accumulate updates that arrive at the same time from the
+process, waiting for it to pause."
   (mistty--cancel-dequeue-timeout)
-  (when (and mistty--queue (not (timerp mistty--dequeue-timer)))
-          (setq mistty--dequeue-timer
-                (run-with-idle-timer
-                 0.1 nil #'mistty--dequeue-timer-handler
-                 mistty-work-buffer))))
+  (when (timerp mistty--dequeue-timer)
+    (cancel-timer mistty--dequeue-timer)
+    (setq mistty--dequeue-timer nil))
+  (when mistty--queue
+    (setq mistty--dequeue-timer
+          (run-with-timer
+           0.1 nil #'mistty--dequeue-timer-handler
+           mistty-work-buffer))))
 
 (defun mistty--cancel-dequeue-timeout ()
   (when (timerp mistty--queue-timeout-timer)

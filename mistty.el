@@ -1082,7 +1082,11 @@ Does nothing if a call is already scheduled."
 
 (defun mistty--dequeue-timeout-handler (buf)
   (mistty--with-live-buffer buf
-    (when mistty--queue-timeout-timer
+    (when (and mistty--queue-timeout-timer
+               ;; last chance, in case some scheduling kerfuffle meant
+               ;; process output ended up buffered.
+               (not (and (process-live-p mistty-term-proc)
+                         (accept-process-output mistty-term-proc 0 nil t))))
       (setq mistty--queue-timeout-timer nil)
       (mistty-log "TIMEOUT")
       (mistty--dequeue 'timeout))))

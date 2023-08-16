@@ -234,16 +234,10 @@ This is the set of control characters for which
 `mistty-positional-p' returns true. See the documentation of that
 function for the definition of a positional character.")
 
-(defface mistty-fringe-face '((t (:background "purple" :foreground "purple")))
-  "Color of the left fringe that indicates the synced region (debug).
+(defface mistty-fringe-face '((t (:foreground "purple")))
+  "Color of the left fringe or margin that indicates the synced region (debug).
 
 This is used when the display is a terminal."
-  :group 'mistty)
-
-(defface mistty-margin-face '((t (:foreground "purple")))
-  "Color of the left margin that indicates the synced region (debug).
-
-This is used when the display is a window system."
   :group 'mistty)
 
 (defface mistty-log-time-face '((t (:italic t)))
@@ -400,15 +394,18 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
     (overlay-put mistty-sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
 
     ;; highlight the synced region in the fringe or margin
-    (unless (window-system)
+    (if (window-system)
+        (unless (fringe-bitmap-p 'mistty-bar)
+          (define-fringe-bitmap
+            'mistty-bar (make-vector 40 7) nil 3 'center))
       (setq left-margin-width 1))
     (overlay-put
      mistty-sync-ov
      'line-prefix
      (propertize " " 'display
                  (if (window-system)
-                     '(left-fringe vertical-bar mistty-fringe-face)
-                   `((margin left-margin) ,(propertize "┃" 'face 'mistty-margin-face)))))
+                     '(left-fringe mistty-bar mistty-fringe-face)
+                   `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face)))))
 
     (when proc
       (set-process-filter proc #'mistty-process-filter)

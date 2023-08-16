@@ -4,6 +4,7 @@
 (require 'term)
 (require 'ert)
 (require 'ert-x)
+(require 'generator)
 
 (require 'mistty-changeset)
 
@@ -1384,7 +1385,7 @@
    (execute-kbd-macro (kbd "C-q C-w"))
    (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest mistty-revert-modification-after-prompt ()
+(ert-deftest mistty-test-revert-modification-after-prompt ()
   (with-mistty-buffer-zsh
    (dotimes (i 3)
      (mistty-send-raw-string (format "function toto%d { echo %d; };" i i)))
@@ -1396,6 +1397,26 @@
    (mistty-run-command
     (insert "foobar"))
    (should (equal "$ toto<>\ntoto0  toto1  toto2" (mistty-test-content)))))
+
+(ert-deftest mistty-test-dequeue-timeout ()
+  (with-mistty-buffer-zsh
+   (let* ((answers nil)
+          (lambda (iter-lambda ()
+                   ;; zsh doesn't answer anything when the left arrow is sent, but
+                   ;; the cursor cannot go left, like here, at the beginning of a
+                   ;; prompt.
+                   (push (iter-yield mistty-left-str) answers)
+                   ;; sending empty sequences is a no-op, not a timeout
+                   (push (iter-yield nil) answers)
+                   (push (iter-yield "") answers)
+                   ;; this is actually displayed
+                   (push (iter-yield "done") answers))))
+     (mistty--enqueue (funcall lambda))
+     (while (length< answers 4)
+       (ert-run-idle-timers)
+       (accept-process-output mistty-term-proc 0 100 t))
+     (should (equal '(timeout nil nil nil) (nreverse answers)))
+     (should (equal "$ done<>" (mistty-test-content))))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.

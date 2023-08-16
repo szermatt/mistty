@@ -16,6 +16,8 @@
 (require 'seq)
 (require 'subr-x)
 (require 'generator)
+(require 'text-property-search)
+(require 'fringe)
 (eval-when-compile
   (require 'cl-lib))
 

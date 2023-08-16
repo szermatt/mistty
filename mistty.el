@@ -948,7 +948,7 @@ Possibly detect a prompt on the current line."
       (mistty--changeset-mark-region
        (mistty--activate-changeset) beg end old-end))))
 
-(iter-defun mistty--replay-modifications (cs)
+(iter-defun mistty--replay-generator (cs)
   (let ((intervals-start (mistty--changeset-beg cs))
         (intervals-end (mistty--changeset-end cs))
         (modifications (mistty--changeset-modifications cs))
@@ -1136,28 +1136,28 @@ END section to be valid in the term buffer."
 
 (defun mistty-post-command ()
   ;; Show cursor again if the command moved the point.
-  (when (and mistty--old-point (/= (point) mistty--old-point))
-    (setq cursor-type t))
+  (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
+    (when point-moved 
+      (setq cursor-type t))
+    
+    (run-with-idle-timer 0 nil #'mistty-post-command-1
+                         mistty-work-buffer point-moved)))
 
-  (run-with-idle-timer 0 nil #'mistty-post-command-1 mistty-work-buffer))
-
-(defun mistty-post-command-1 (buf)
+(defun mistty-post-command-1 (buf point-moved)
   (mistty--with-live-buffer buf
     (save-restriction
       (widen)
     (when (and (process-live-p mistty-term-proc)
                (buffer-live-p mistty-term-buffer))
       (let* ((cs (mistty--active-changeset))
-             shift gen)
+             shift replay)
         (cond
          ;; nothing to do
          ((not (mistty--changeset-p cs)))
 
          ;; modifications are part of the current prompt; replay them
          ((mistty-on-prompt-p (mistty-cursor))
-          (setq gen (mistty--replay-modifications cs))
-          ;; ownership transferred to gen
-          (setq cs nil))
+          (setq replay t))
 
          ;; modifications are part of a possible prompt; realize it, keep the modifications before the
          ;; new prompt and replay the modifications after the new prompt.
@@ -1165,9 +1165,7 @@ END section to be valid in the term buffer."
                (setq shift (mistty--changeset-restrict
                             cs (nth 0 mistty--possible-prompt))))
           (mistty--realize-possible-prompt shift)
-          (setq gen (mistty--replay-modifications cs))
-          ;; ownership transferred to gen
-          (setq cs nil))
+          (setq replay t))
 
          ;; leave all modifications if there's enough of an unmodified
          ;; section at the end. moving the sync mark is only possible
@@ -1181,38 +1179,45 @@ END section to be valid in the term buffer."
 
          (t ;; revert everything
           
-          ;; The following forces a call to refresh, in time,
-          ;; even if the process sent nothing new.
+          ;; The following forces a call to refresh, in time, even if
+          ;; the process sent nothing new.
           (setq mistty--need-refresh t)))
+
+        (when replay
+          (mistty--enqueue (mistty--replay-generator cs)))
         
-        (when (mistty--changeset-p cs)
-          ;; abandon this changeset, since it hasn't been picked up
-          ;; for replay.
+        ;; Abandon changesets that haven't been picked up for replay.
+        (when (and (not replay) (mistty--changeset-p cs))
           (mistty--release-changeset cs)
           (mistty--refresh-after-changeset))
+        
+        (when (and (not replay) point-moved)
+          (mistty--enqueue (mistty--cursor-to-point-generator))))))))
 
-        (cond
-         ((and mistty--replay-generator gen)
-          (setq mistty--replay-generator (mistty--chain mistty--replay-generator gen)))
-         ((or gen (setq gen (mistty--maybe-cursor-to-point)))
-          (setq mistty--replay-generator gen)
-          (mistty--replay-next))))))))
+(iter-defun mistty--cursor-to-point-generator ()
+  (when (mistty-on-prompt-p (point))
+    (iter-yield (mistty--move-str (mistty-cursor) (point)))))
 
-(iter-defun mistty--chain (iter1 iter2)
+(defun mistty--enqueue-str (str)
+  (when (and str (length> str 0))
+    (mistty--enqueue (mistty--iter-single str))))
+
+(defun mistty--enqueue (gen)
+  (cond
+   ((and mistty--replay-generator gen)
+    (setq mistty--replay-generator (mistty--iter-chain mistty--replay-generator gen)))
+   (gen
+    (setq mistty--replay-generator gen)
+    (mistty--replay-next))))
+
+(iter-defun mistty--iter-single (elt)
+  (iter-yield elt))
+
+(iter-defun mistty--iter-chain (iter1 iter2)
   (iter-do (value iter1)
     (iter-yield value))
   (iter-do (value iter2)
     (iter-yield value)))
-
-(defun mistty--maybe-cursor-to-point ()
-  (when (and mistty--old-point
-             (/= (point) mistty--old-point)
-             (mistty-on-prompt-p (point)))
-    (funcall
-     (iter-lambda ()
-       (iter-yield
-        (mistty--move-str (mistty-cursor) (point)))
-       ))))
 
 (defun mistty--window-size-change (_win)
   (when (process-live-p mistty-term-proc)

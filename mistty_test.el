@@ -1439,7 +1439,7 @@
 (defun mistty-test-after-command ()
   (mistty-post-command)
   (ert-run-idle-timers)
-  (while mistty--replay-generator
+  (while mistty--queue
     (while (accept-process-output mistty-term-proc 0 100 t))
     (ert-run-idle-timers)))
 

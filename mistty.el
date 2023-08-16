@@ -688,7 +688,10 @@ Also updates prompt and point."
               (mistty--restore-properties properties mistty-sync-marker)
               (when (> mistty-cmd-start-marker mistty-sync-marker)
                 (mistty--set-prompt-properties
-                 mistty-sync-marker mistty-cmd-start-marker))))))
+                 mistty-sync-marker mistty-cmd-start-marker)))
+            (when (< old-point mistty-sync-marker)
+              ;; restore point, possibly moved by narrow-to-region.
+              (goto-char old-point)))))
 
       ;; detect prompt from bracketed-past region and use that to
       ;; restrict the sync region.

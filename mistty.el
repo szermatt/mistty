@@ -684,7 +684,7 @@ Also updates prompt and point."
           (with-current-buffer mistty-work-buffer
             (save-restriction
               (narrow-to-region mistty-sync-marker (point-max-marker))
-              (replace-buffer-contents mistty-term-buffer)
+              (replace-buffer-contents mistty-term-buffer 0.2)
               (mistty--restore-properties properties mistty-sync-marker)
               (when (> mistty-cmd-start-marker mistty-sync-marker)
                 (mistty--set-prompt-properties

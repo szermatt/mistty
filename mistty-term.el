@@ -461,6 +461,7 @@ all should rightly be part of term.el."
                   term-width width)
       (term--reset-scroll-region)
       (term-exec term-buffer (buffer-name term-buffer) program nil args)
+      (set-process-window-size (get-buffer-process term-buffer) height width)
       (setq-local term-raw-map local-map)
       (term-char-mode)
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))

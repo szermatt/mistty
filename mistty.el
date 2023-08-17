@@ -344,7 +344,13 @@ mapping somewhat consistent between fullscreen and normal mode.")
   ;; scroll down only when needed. This typically keeps the point at
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
-  (setq-local scroll-conservatively 1024))
+  (setq-local scroll-conservatively 1024)
+
+  (if (window-system)
+      (unless (fringe-bitmap-p 'mistty-bar)
+        (define-fringe-bitmap
+          'mistty-bar (make-vector 40 7) nil 3 'center))
+    (setq left-margin-width 1)))
 (put 'mistty-mode 'mode-class 'special)
 
 (defsubst mistty--require-work-buffer ()
@@ -402,11 +408,6 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
     (overlay-put mistty-sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
 
     ;; highlight the synced region in the fringe or margin
-    (if (window-system)
-        (unless (fringe-bitmap-p 'mistty-bar)
-          (define-fringe-bitmap
-            'mistty-bar (make-vector 40 7) nil 3 'center))
-      (setq left-margin-width 1))
     (overlay-put
      mistty-sync-ov
      'line-prefix

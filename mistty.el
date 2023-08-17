@@ -580,9 +580,8 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
           (when (> (point) old-last-non-ws) ;; on a new line
             (mistty--detect-possible-prompt (point)))))
       (mistty--with-live-buffer work-buffer
-        (condition-case nil
-            (setq default-directory (buffer-local-value 'default-directory term-buffer))
-          (error nil))
+        (ignore-errors
+          (cd (buffer-local-value 'default-directory term-buffer)))
 
         (mistty--refresh)
         (mistty--dequeue-with-timer))))))

@@ -537,7 +537,6 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
      (t (term-sentinel proc msg)))))
 
 (defun mistty-process-filter (proc str)
-  (mistty-log "RECV[%s]" str)
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-get proc 'mistty-term-buffer)))
     (cond
@@ -559,9 +558,13 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
         ;; the terminal, or we'll lose data. This might interfere with
         ;; collecting and applying modifications, but then so would
         ;; reset.
-        (let ((mistty--inhibit-refresh nil))
-          (mistty-process-filter proc (substring str 0 rs1-before-pos)))
-        (term-emulate-terminal proc (substring str rs1-before-pos rs1-after-pos))
+        (mistty--with-live-buffer term-buffer
+          (mistty--process-terminal-seq proc (substring str 0 rs1-before-pos)))
+        (mistty--with-live-buffer work-buffer
+          (let ((mistty--inhibit-refresh nil))
+            (mistty--refresh)))
+        (mistty--with-live-buffer term-buffer
+          (mistty--process-terminal-seq proc (substring str rs1-before-pos rs1-after-pos)))
         (mistty--with-live-buffer work-buffer
           (setq mistty-bracketed-paste nil))
         (mistty--reset-markers)
@@ -569,22 +572,28 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
      
      ;; normal processing
      (t
+      (mistty-log "RECV[%s]" str)
       (mistty--with-live-buffer term-buffer
-        (let ((old-sync-position (marker-position mistty-sync-marker))
-              (old-last-non-ws (mistty--last-non-ws)))
-          (mistty-emulate-terminal proc str work-buffer)
-          (goto-char (process-mark proc))
-          (when (or (/= mistty-sync-marker old-sync-position)
-                    (< (point) mistty-sync-marker))
-            (mistty--reset-markers))
-          (when (> (point) old-last-non-ws) ;; on a new line
-            (mistty--detect-possible-prompt (point)))))
+        (mistty--process-terminal-seq proc str))
       (mistty--with-live-buffer work-buffer
         (ignore-errors
-          (cd (buffer-local-value 'default-directory term-buffer)))
+            (cd (buffer-local-value 'default-directory term-buffer)))
+        (mistty--cancel-dequeue-timeout)
+        (unless (accept-process-output proc 0 0 t)
+          (mistty--refresh)
+          (mistty--dequeue-with-timer)))))))
 
-        (mistty--refresh)
-        (mistty--dequeue-with-timer))))))
+(defun mistty--process-terminal-seq (proc str)
+  (mistty--require-term-buffer)
+  (let ((old-sync-position (marker-position mistty-sync-marker))
+        (old-last-non-ws (mistty--last-non-ws)))
+    (mistty-emulate-terminal proc str mistty-work-buffer)
+    (goto-char (process-mark proc))
+    (when (or (/= mistty-sync-marker old-sync-position)
+              (< (point) mistty-sync-marker))
+      (mistty--reset-markers))
+    (when (> (point) old-last-non-ws) ;; on a new line
+      (mistty--detect-possible-prompt (point)))))
 
 (defun mistty-goto-cursor ()
   (interactive)
@@ -681,7 +690,8 @@ Also updates prompt and point."
       (when (timerp mistty--refresh-timer)
         (cancel-timer mistty--refresh-timer)
         (setq mistty--refresh-timer nil))
-      
+
+      (mistty-log "refresh")
       (with-current-buffer mistty-term-buffer
         (save-restriction
           (narrow-to-region mistty-sync-marker (point-max-marker))
@@ -1060,6 +1070,7 @@ Possibly detect a prompt on the current line."
 
 If VALUE is set, send that value to the first call to `iter-next'."
   (mistty--cancel-dequeue-timeout)
+  (mistty-log "dequeue")
   (condition-case nil
       (let (seq)
         (setq seq (iter-next mistty--queue value))

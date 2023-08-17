@@ -1500,13 +1500,17 @@ Puts the point at the end of the prompt and return the position
 of the beginning of the prompt."
   (let ((before-send (point)))
     (funcall (or send-command-func #'mistty-send-command))
-    (while (not (save-excursion
-                  (goto-char before-send)
-                  (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
+    (while (not (mistty-has-prompt-after before-send prompt))
       (ert-run-idle-timers)
-      (unless (accept-process-output mistty-term-proc 0 500 t)
+      (when (and (not (accept-process-output mistty-term-proc 0 500 t))
+                 (not (mistty-has-prompt-after before-send prompt)))
           (error "no output (wait-for-prompt)"))))
     (match-beginning 0))
+
+(defun mistty-has-prompt-after (before-send prompt)
+  (save-excursion
+    (goto-char before-send)
+    (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
 
 (defun mistty-test-content  (&optional start end nopointer keep-empty)
   (interactive)

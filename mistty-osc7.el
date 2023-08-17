@@ -8,7 +8,12 @@
           (path (url-unhex-string (match-string 2 osc-seq))))
       (when (and (string= hostname (system-name))
                  (file-directory-p path))
-        (cd path)))))
+        (setq
+         path (decode-coding-string
+               path (or file-name-coding-system
+                        default-file-name-coding-system) 'nocopy))
+        (ignore-errors
+          (cd path))))))
 
 
 (provide 'mistty-osc7)

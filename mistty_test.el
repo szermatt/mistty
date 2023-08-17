@@ -293,6 +293,34 @@
             (point) (save-excursion
                       (mistty-test-goto "echo two"))))))
 
+(ert-deftest test-mistty-eol ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "echo hello")
+   (mistty-wait-for-output)
+   (should (equal "$ echo hello<>" (mistty-test-content)))
+
+   (mistty-run-command
+    (mistty-send-beginning-of-line))
+   (mistty-wait-for-output)
+   
+   (should (equal "$ <>echo hello" (mistty-test-content)))
+   
+   (mistty-run-command
+    (mistty-send-end-of-line))
+   (mistty-wait-for-output)
+   
+   (should (equal "$ echo hello<>" (mistty-test-content)))))
+
+(ert-deftest test-mistty-eol-empty-prompt ()
+  (with-mistty-buffer
+   (goto-char (point-min))
+   (mistty-run-command
+    (mistty-send-end-of-line))
+   
+   (should
+    (equal "$ <>"
+           (mistty-test-content nil nil nil 'keep-empty)))))
+
 (ert-deftest test-mistty-next-prompt ()
   (with-mistty-buffer
    (mistty-run-command

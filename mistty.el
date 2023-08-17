@@ -936,6 +936,7 @@ Possibly detect a prompt on the current line."
 Possibly detect a prompt on the current line."
   (interactive "p")
   (mistty--maybe-realize-possible-prompt)
+  (mistty-goto-cursor)
   (setq mistty-goto-cursor-next-time t)
   (mistty-send-key n "\C-e"))
 

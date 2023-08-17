@@ -1385,9 +1385,10 @@ Does nothing if GEN is nil."
     (error "No scrollback buffer available.")))
 
 (defun mistty-on-prompt-p (pos)
-  (and (>= pos mistty-cmd-start-marker)
+  (and (>= pos mistty-sync-marker)
        (or mistty-bracketed-paste
-           (and 
+           (and
+            (>= pos mistty-cmd-start-marker)
             (> mistty-cmd-start-marker mistty-sync-marker)
             (>= pos mistty-cmd-start-marker)
             (<= pos (mistty--eol-pos-from mistty-cmd-start-marker))))))

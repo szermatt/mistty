@@ -388,7 +388,13 @@ all should rightly be part of term.el."
       (when mistty--undecoded-bytes
         (setq str (concat mistty--undecoded-bytes str))
         (setq mistty--undecoded-bytes nil))
-      (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\(.*?\\)\\(\e\\\\\\|\a\\|\\'\\)\\)" str start)
+      ;; Note on OSC content: ECMA 48 8.3.89 only allows 0x08-0x0d
+      ;; 0x20-7e. That would disallow all non-US-ASCII characters,
+      ;; often used in file names, which would then need to be
+      ;; encoded. This would be inconvenient and error-prone, so we
+      ;; disallow the US-ASCII characters disallowed by ECMA 48 and
+      ;; allow all non-US-ASCII chars (usually multibyte UTF-8).
+      (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\([^\x00-\x07\x0e-\x1f\x7f]*\\)\\(\e\\\\\\|\a\\|\\'\\)\\)" str start)
         (let ((ext (match-string 1 str))
               (osc (match-string 3 str))
               (osc-terminator (match-string 4 str))

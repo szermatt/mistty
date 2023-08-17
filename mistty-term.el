@@ -450,7 +450,7 @@ all should rightly be part of term.el."
           (delq cell
                 mistty--term-properties-to-add-alist))))
 
-(defun mistty--create-term (name program args width height)
+(defun mistty--create-term (name program args local-map width height)
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
       (term-mode)
@@ -461,6 +461,7 @@ all should rightly be part of term.el."
                   term-width width)
       (term--reset-scroll-region)
       (term-exec term-buffer (buffer-name term-buffer) program nil args)
+      (setq-local term-raw-map local-map)
       (term-char-mode)
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
     term-buffer))

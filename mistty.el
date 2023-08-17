@@ -370,6 +370,8 @@ This does nothing unless `mistty-log-enabled' evaluates to true."
   (mistty--attach
    (mistty--create-term
     (concat " mistty tty " (buffer-name)) program args
+    ;; local-map
+    mistty-fullscreen-map
     ;; width
     (- (window-max-chars-per-line) left-margin-width)
     ;; height
@@ -1335,7 +1337,6 @@ Does nothing if GEN is nil."
     (let ((bufname (buffer-name)))
       (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
       (with-current-buffer mistty-term-buffer
-        (use-local-map mistty-fullscreen-map)
         (rename-buffer bufname)
         (turn-on-font-lock)))
     (mistty--replace-buffer-everywhere mistty-work-buffer mistty-term-buffer)

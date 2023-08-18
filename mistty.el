@@ -24,6 +24,7 @@
 (require 'mistty-changeset)
 (require 'mistty-term)
 (require 'mistty-util)
+(require 'mistty-log)
 
 ;;; Code:
 
@@ -190,9 +191,6 @@ This variable is available in the work buffer.")
 This is used to cover the case where modifications that should
 cause changes are just ignored by the command.")
 
-(defvar-local mistty-log-enabled nil
-  "If true, log all input and output into a debug log buffer.")
-
 (defvar-local mistty--queue nil
   "A generator of strings to send to the terminal.
 
@@ -240,14 +238,6 @@ function for the definition of a positional character.")
   "Color of the left fringe or margin that indicates the synced region (debug).
 
 This is used when the display is a terminal."
-  :group 'mistty)
-
-(defface mistty-log-time-face '((t (:italic t)))
-  "Face applied to the time portion of `mistty-start-log' (debug)."
-  :group 'mistty)
-
-(defface mistty-log-message-face nil
-  "Face applied to the message portion of `mistty-start-log' (debug)."
   :group 'mistty)
 
 (defvar mistty-mode-map
@@ -360,16 +350,6 @@ mapping somewhat consistent between fullscreen and normal mode.")
 (defsubst mistty--require-term-buffer ()
   "Asserts that the current buffer is the term buffer."
   (unless (eq mistty-term-buffer (current-buffer)) (error "term-buffer required")))
-
-(defsubst mistty-log (str &rest args)
-  "Format STR with ARGS and add them to the debug log buffer, when enabled.
-
-String arguments are formatted and decoded to UTF-8, so terminal
-communication can safely be sent out.
-
-This does nothing unless `mistty-log-enabled' evaluates to true."
-  (when mistty-log-enabled
-    (mistty--log str args)))
 
 (defun mistty--exec (program &rest args)
   (mistty-mode)
@@ -1441,64 +1421,6 @@ Does nothing if GEN is nil."
   (pcase mistty--possible-prompt
     (`(,start ,line-start ,_)
      (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
-
-(defun mistty-log-start ()
-  "Enable logging for the current mistty buffer."
-  (interactive)
-  (unless mistty-work-buffer
-    (error "Not a MisTTY buffer."))
-  (with-current-buffer mistty-work-buffer
-    (setq mistty-log-enabled t))
-  (mistty--log "Log enabled" nil 'display))
-
-(defun mistty-log-stop ()
-  "Enable logging for the current mistty buffer."
-  (interactive)
-  (unless mistty-work-buffer
-    (error "Not a MisTTY buffer."))
-  (with-current-buffer mistty-work-buffer
-    (unless mistty-log-enabled
-      (error "Log disabled."))
-    (setq mistty-log-enabled nil)))
-
-(defun mistty--log (str args &optional display)
-  "Logging function, normally called from `mistty-log.
-
-Returns the log buffer.
-
-Must be called from a MisTTY work or term buffer."
-  (let ((work-buffer mistty-work-buffer))
-    (unless work-buffer
-      (error "Not a MisTTY buffer"))
-    (with-current-buffer
-        (get-buffer-create
-         (format "%s debug log" (buffer-name work-buffer)))
-      (setq mistty-work-buffer work-buffer)
-      (when (and
-             display
-             (not (eq (current-buffer)
-                      (window-buffer (selected-window)))))
-        (switch-to-buffer-other-window (current-buffer)))
-      (goto-char (point-max))
-      (let ((args
-             (mapcar
-              (lambda (arg)
-                (if (stringp arg)
-                    (progn
-                      (setq arg (decode-coding-string arg locale-coding-system t))
-                      (seq-mapcat
-                       (lambda (elt)
-                         (if (and (characterp elt) (< elt 128))
-                             (text-char-description elt)
-                           (make-string 1 elt)))
-                       arg
-                       'string))
-                  arg))
-              args)))
-        (insert (propertize (format "%3.3f " (float-time)) 'face 'mistty-log-time-face))
-        (insert (propertize (apply #'format str args) 'face 'mistty-log-message-face))
-        (insert "\n")))
-    (current-buffer)))
 
 (provide 'mistty)
 

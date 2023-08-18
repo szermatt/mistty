@@ -1,5 +1,8 @@
 ;;; mistty-log.el --- Logging infrastructure for mistty.el. -*- lexical-binding: t -*-
 
+(eval-when-compile
+  (require 'cl-lib))
+
 (defvar mistty-log-buffer nil
   "Buffer when log messages are directed, might not be live.")
 
@@ -8,10 +11,34 @@
 
 Calling `mistty-log' is a no-op unless this is set.")
 
+(defvar mistty-backlog-size 0
+  "Log entries to track when logging is disabled.
+
+As many as `mistty-backlog-size' entries will be backfilled
+by `mistty-start-log' when logging is enabled.
+
+Setting this value allows turning on logging once something wrong
+has happened.")
+
+(defvar-local mistty--backlog nil
+  "If non-nil, a mistty--backlog struct of `mistty--log' arguments.")
+
 (defvar-local mistty--log-start-time nil
   "Base for logged times.
 
 This is also the time the log buffer was created.")
+
+(cl-defstruct (mistty--backlog
+               (:constructor mistty--make-backlog
+                             (size &aux (idx 0) (array (make-vector size nil))))
+               (:conc-name mistty--backlog-)
+               (:copier nil))
+  ;; number of slots in array
+  size
+  ;; index of the first element in array
+  idx
+  ;; the array containing argument list for mistty-log
+  array)
 
 (defface mistty-log-header-face '((t (:italic t)))
   "Face applied to the headers in `mistty-log' buffer."
@@ -29,7 +56,7 @@ communication can safely be sent out.
 
 This does nothing unless logging is enabled for the current
 buffer. It is usually enabled by calling mistty-start-log."
-  (when mistty-log-enabled
+  (when (or mistty-log-enabled (> mistty-backlog-size 0))
     (mistty--log str args)))
 
 (defun mistty-start-log ()
@@ -37,10 +64,15 @@ buffer. It is usually enabled by calling mistty-start-log."
 
 If logging is already enabled, just show the buffer."
   (interactive)
-  (if (and mistty-log-enabled mistty-log-buffer)
+  (if (and mistty-log-enabled (buffer-live-p mistty-log-buffer))
       (switch-to-buffer-other-window mistty-log-buffer)
     (setq mistty-log-enabled t)
-    (mistty-log "Log enabled for %s" (buffer-name))
+    (mistty--backlog-foreach
+     mistty--backlog
+     (lambda (args)
+       (apply #'mistty--log args)))
+    (setq mistty--backlog nil)
+    (mistty--log "Log enabled" nil)
     (switch-to-buffer-other-window mistty-log-buffer)))
 
 (defun mistty-stop-log ()
@@ -61,31 +93,41 @@ If logging is already enabled, just show the buffer."
   (when (buffer-live-p mistty-log-buffer)
     (kill-buffer mistty-log-buffer)))
 
-(defun mistty--log (str args)
+(defun mistty--log (str args &optional event-time)
   "Logging function, normally called from `mistty-log'.
 
 Calling this function creates `mistty-log-buffer' if it doesn't
 exit already."
-  (with-current-buffer
-      (or (and (buffer-live-p mistty-log-buffer) mistty-log-buffer)
-          (setq mistty-log-buffer
-                (get-buffer-create "*mistty-log*")))
-    (setq-local window-point-insertion-type t)
-    (unless mistty--log-start-time
-      (setq mistty--log-start-time (float-time)))
-    (let ((args (mapcar #'mistty--format-log-arg args)))
-      (goto-char (point-max))
-      (insert-before-markers
-       (propertize
-        (format "[%s] %3.3f "
-                (buffer-name)
-                (- (float-time) mistty--log-start-time))
-        'face 'mistty-log-header-face))
-      (insert-before-markers
-       (propertize
-        (apply #'format str args)
-        'face 'mistty-log-message-face))
-      (insert-before-markers "\n"))))
+  (let ((event-time (or event-time (float-time)))
+        (calling-buffer (current-buffer)))
+    (if (and (not mistty-log-enabled) (> mistty-backlog-size 0))
+        ;; not enabled; add to backlog
+        (mistty--backlog-add
+         (or mistty--backlog
+             (setq mistty--backlog (mistty--make-backlog mistty-backlog-size)))
+         (list str args event-time))
+      
+      ;; enabled; log
+      (with-current-buffer
+          (or (and (buffer-live-p mistty-log-buffer) mistty-log-buffer)
+              (setq mistty-log-buffer
+                    (progn
+                      (get-buffer-create "*mistty-log*"))))
+        (setq-local window-point-insertion-type t)
+        (goto-char (point-max))
+        (insert-before-markers
+         (propertize
+          (format "[%s] %3.3f "
+                  (buffer-name calling-buffer)
+                  (- event-time
+                     (or mistty--log-start-time
+                         (setq mistty--log-start-time event-time))))
+          'face 'mistty-log-header-face))
+        (insert-before-markers
+         (propertize
+          (apply #'format str (mapcar #'mistty--format-log-arg args))
+          'face 'mistty-log-message-face))
+        (insert-before-markers "\n")))))
 
 (defun mistty--format-log-arg (arg)
   "Escape special characters in ARG if it is a string.
@@ -101,6 +143,32 @@ Return ARG unmodified if it's not a string."
              (make-string 1 elt)))
          arg
          'string))
-    arg))  
+    arg))
+
+(defun mistty--backlog-add (backlog elt)
+  (aset (mistty--backlog-array backlog)
+        (mistty--backlog-idx backlog)
+        elt)
+  (cl-incf (mistty--backlog-idx backlog))
+  (when (>= (mistty--backlog-idx backlog)
+            (mistty--backlog-size backlog))
+    (setf (mistty--backlog-idx backlog) 0)))
+
+(defun mistty--backlog-foreach (backlog func)
+  (when backlog
+    (let ((arr (mistty--backlog-array backlog))
+          (size (mistty--backlog-size backlog))
+          (idx (mistty--backlog-idx backlog))
+          (i (mistty--backlog-idx backlog)))
+      (while (< i size)
+        (when-let ((elt (aref arr i)))
+          (funcall func elt))
+        (setq i (1+ i)))
+      (setq i 0)
+      (while (< i idx)
+        (when-let ((elt (aref arr i)))
+          (funcall func elt))
+        (setq i (1+ i))))))
+
 
 (provide 'mistty-log)

@@ -340,7 +340,14 @@ mapping somewhat consistent between fullscreen and normal mode.")
       (unless (fringe-bitmap-p 'mistty-bar)
         (define-fringe-bitmap
           'mistty-bar (make-vector 40 7) nil 3 'center))
-    (setq left-margin-width 1)))
+    
+    ;; on a terminal, set margin width, and call set-window-buffer to make
+    ;; sure it has taken effect.
+    (setq left-margin-width 1)
+    (let ((buf (current-buffer)))
+      (dolist (win (get-buffer-window-list buf))
+        (set-window-buffer win buf)))))
+
 (put 'mistty-mode 'mode-class 'special)
 
 (defsubst mistty--require-work-buffer ()

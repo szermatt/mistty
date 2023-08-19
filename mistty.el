@@ -25,6 +25,7 @@
 (require 'mistty-term)
 (require 'mistty-util)
 (require 'mistty-log)
+(require 'mistty-queue)
 
 ;;; Code:
 
@@ -190,24 +191,6 @@ This variable is available in the work buffer.")
 
 This is used to cover the case where modifications that should
 cause changes are just ignored by the command.")
-
-(defvar-local mistty--queue nil
-  "A generator of strings to send to the terminal.
-
-See `mistty--enqueue' for details.")
-
-(defvar-local mistty--queue-timeout-timer nil
-  "A timer called when the process takes too long to answer.
-
-If no response is received from the process after that long,
-consider that nothing will ever come and continue. Any pending
-`iter-yield' calls returns \\='timeout.")
-
-(defvar-local mistty--dequeue-timer nil
-  "Idle timer that calls `mistty--dequeue'.
-
-This is scheduled to run after the process filter has updated the
-term buffer.")
 
 (eval-when-compile
   ;; defined in term.el
@@ -571,7 +554,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
         (mistty--cancel-dequeue-timeout)
         (unless (accept-process-output proc 0 0 t)
           (mistty--refresh)
-          (mistty--dequeue-with-timer)))))))
+          (mistty--dequeue-with-timer proc)))))))
 
 (defun mistty--process-terminal-seq (proc str)
   (mistty--require-term-buffer)
@@ -824,10 +807,7 @@ from `mistty--modification-hook' tracking the changes."
   "Send STR to the terminal, unprocessed.
 
 This command is available in fullscreen mode."
-  (mistty-log "SEND[%s]" str)
-  (when (and str (not (zerop (length str))))
-    (with-current-buffer mistty-term-buffer
-      (term-send-raw-string str))))
+  (mistty--send-string mistty-term-proc str))
 
 (defun mistty--at-prompt-1 (&optional inexact)
   (let ((cursor (mistty-cursor)))
@@ -952,7 +932,7 @@ Possibly detect a prompt on the current line."
 
       (mistty--changeset-mark-region cs beg end old-end))))
 
-(iter-defun mistty--queue (cs)
+(iter-defun mistty--replay-generator (cs)
   (let ((intervals-start (mistty--changeset-beg cs))
         (intervals-end (mistty--changeset-end cs))
         (modifications (mistty--changeset-modifications cs))
@@ -1055,64 +1035,6 @@ Possibly detect a prompt on the current line."
     (setq mistty--inhibit-refresh nil)
     (when mistty--need-refresh
       (mistty--refresh))))
-
-(defun mistty--dequeue (&optional value)
-  "Send the next string from the queue to the terminal.
-
-If VALUE is set, send that value to the first call to `iter-next'."
-  (mistty--cancel-dequeue-timeout)
-  (mistty-log "dequeue")
-  (condition-case nil
-      (let (seq)
-        (setq seq (iter-next mistty--queue value))
-        (while (or (null seq) (length= seq 0))
-          (setq seq (iter-next mistty--queue)))
-        (setq mistty--queue-timeout-timer
-              (run-with-timer
-               0.5 nil #'mistty--dequeue-timeout-handler
-               (current-buffer)))
-        (mistty-send-raw-string seq))
-    (iter-end-of-sequence
-     (setq mistty--queue nil))))
-
-(defun mistty--dequeue-with-timer ()
-  "Call `mistty--dequeue' on a timer.
-
-Restart the timer if a dequeue is already scheduled. The idea is
-to accumulate updates that arrive at the same time from the
-process, waiting for it to pause."
-  (mistty--cancel-dequeue-timeout)
-  (when (timerp mistty--dequeue-timer)
-    (cancel-timer mistty--dequeue-timer)
-    (setq mistty--dequeue-timer nil))
-  (when mistty--queue
-    (setq mistty--dequeue-timer
-          (run-with-timer
-           0.1 nil #'mistty--dequeue-timer-handler
-           mistty-work-buffer))))
-
-(defun mistty--cancel-dequeue-timeout ()
-  (when (timerp mistty--queue-timeout-timer)
-    (cancel-timer mistty--queue-timeout-timer)
-    (setq mistty--queue-timeout-timer nil)))
-
-(defun mistty--dequeue-timeout-handler (buf)
-  (mistty--with-live-buffer buf
-    (when (and mistty--queue-timeout-timer
-               ;; last chance, in case some scheduling kerfuffle meant
-               ;; process output ended up buffered.
-               (not (and (process-live-p mistty-term-proc)
-                         (accept-process-output mistty-term-proc 0 nil t))))
-      (setq mistty--queue-timeout-timer nil)
-      (mistty-log "TIMEOUT")
-      (mistty--dequeue 'timeout))))
-
-(defun mistty--dequeue-timer-handler (buf)
-  "Idle timer callback that calls `mistty--dequeue'."
-  (mistty--with-live-buffer buf
-    (setq mistty--dequeue-timer nil)
-    (mistty--dequeue)))
-
 (defun mistty--move-str (from to &optional will-wait)
   (let ((diff (mistty--distance-on-term from to)))
     (if (zerop diff)
@@ -1239,7 +1161,7 @@ END section to be valid in the term buffer."
           (setq mistty--need-refresh t)))
 
         (when replay
-          (mistty--enqueue (mistty--queue cs)))
+          (mistty--enqueue mistty-term-proc (mistty--replay-generator cs)))
         
         ;; Abandon changesets that haven't been picked up for replay.
         (when (and (not replay) (mistty--changeset-p cs))
@@ -1247,53 +1169,11 @@ END section to be valid in the term buffer."
           (mistty--refresh-after-changeset))
         
         (when (and (not replay) point-moved)
-          (mistty--enqueue (mistty--cursor-to-point-generator))))))))
+          (mistty--enqueue mistty-term-proc (mistty--cursor-to-point-generator))))))))
 
 (iter-defun mistty--cursor-to-point-generator ()
   (when (mistty-on-prompt-p (point))
     (iter-yield (mistty--move-str (mistty-cursor) (point)))))
-
-(defun mistty--enqueue-str (str)
-  "Enqueue sending STR to the terminal.
-
-Does nothing is STR is nil or empty."
-  (when (and str (length> str 0))
-    (mistty--enqueue (mistty--iter-single str))))
-
-(defun mistty--enqueue (gen)
-  "Add GEN to the queue.
-
-The given generator should yield strings to send to the process.
-`iter-yield' calls return once some response has been received
-from the process or after too long has passed without response.
-In the latter case, `iter-yield' returns \\='timeout.
-
-If the queue is empty, this function also kicks things off by
-sending the first string generated by GEN to the process.
-
-If the queue is not empty, GEN is appended to the current
-generator, to be executed afterwards.
-
-Does nothing if GEN is nil."
-  (cond
-   ((and mistty--queue gen)
-    (setq mistty--queue (mistty--iter-chain mistty--queue gen)))
-   (gen
-    ;; This is the first generator; kick things off.
-    (setq mistty--queue gen)
-    (mistty--dequeue))))
-
-(iter-defun mistty--iter-single (elt)
-  "Returns a generator that returns ELT and ends."
-  (iter-yield elt))
-
-(iter-defun mistty--iter-chain (iter1 iter2)
-  "Returns a generator that first calls ITER1, then ITER2."
-  (iter-do (value iter1)
-    (iter-yield value))
-  (iter-do (value iter2)
-    (iter-yield value)))
-
 (defun mistty--window-size-change (_win)
   (when (process-live-p mistty-term-proc)
     (let* ((adjust-func (or (process-get mistty-term-proc 'adjust-window-size-function)

@@ -7,6 +7,7 @@
 (require 'generator)
 
 (require 'mistty-changeset)
+(require 'mistty-queue)
 
 (eval-when-compile
    ;; defined in term
@@ -1439,7 +1440,7 @@
                    (push (iter-yield "") answers)
                    ;; this is actually displayed
                    (push (iter-yield "done") answers))))
-     (mistty--enqueue (funcall lambda))
+     (mistty--enqueue mistty-term-proc (funcall lambda))
      (while (length< answers 4)
        (ert-run-idle-timers)
        (accept-process-output mistty-term-proc 0 100 t))

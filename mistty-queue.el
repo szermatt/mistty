@@ -20,12 +20,12 @@
   ;; A generator that yields strings to send to the terminal or nil.
   iter
   
+  ;; Timer used by mistty--dequeue-with-timer.
+  timer
+  
   ;; Timer called if the process doesn't not answer after a certain
   ;; time.
-  timeout-timer
-
-  ;; Timer used by mistty--dequeue-with-timer.
-  dequeue-timer
+  timeout
 )
 
 (defsubst mistty--queue-empty-p (queue)
@@ -36,80 +36,6 @@
   (when (and str (length> str 0) (process-live-p proc))
     (mistty-log "SEND[%s]" str)
     (process-send-string proc str)))
-
-(defun mistty--dequeue (queue &optional value)
-  "Send the next string from the queue to the terminal.
-
-If VALUE is set, send that value to the first call to `iter-next'."
-  (cl-assert (mistty--queue-p queue))
-  (mistty--cancel-dequeue-timeout queue)
-  (unless (mistty--queue-empty-p queue)
-    (condition-case nil
-        (let ((proc (mistty--queue-proc queue))
-              seq)
-          (setq seq (iter-next (mistty--queue-iter queue) value))
-          (while (or (null seq) (length= seq 0))
-            (setq seq (iter-next (mistty--queue-iter queue))))
-          (setf (mistty--queue-timeout-timer queue)
-                (run-with-timer
-                 0.5 nil #'mistty--dequeue-timeout-handler
-                 (current-buffer) queue))
-          (mistty--send-string proc seq))
-    (iter-end-of-sequence
-     (setf (mistty--queue-iter queue) nil)))))
-
-(defun mistty--dequeue-with-timer (queue)
-  "Call `mistty--dequeue' on a timer.
-
-Restart the timer if a dequeue is already scheduled. The idea is
-to accumulate updates that arrive at the same time from the
-process, waiting for it to pause."
-  (cl-assert (mistty--queue-p queue))
-  (mistty--cancel-dequeue-timeout queue)
-  (mistty--cancel-dequeue-timer queue)
-  (unless (mistty--queue-empty-p queue)
-    (setf (mistty--queue-dequeue-timer queue)
-          (run-with-timer
-           0.1 nil #'mistty--queue-dequeue-timer-handler
-           (current-buffer) queue))))
-
-(defun mistty--cancel-queue (queue)
-  (setf (mistty--queue-proc queue) nil)
-  (mistty--cancel-dequeue-timeout queue)
-  (mistty--cancel-dequeue-timer queue))
-
-(defun mistty--cancel-dequeue-timeout (queue)
-  (cl-assert (mistty--queue-p queue))
-  (when (timerp (mistty--queue-timeout-timer queue))
-    (cancel-timer (mistty--queue-timeout-timer queue))
-    (setf (mistty--queue-timeout-timer queue) nil)))
-
-(defun mistty--cancel-dequeue-timer (queue)
-  (cl-assert (mistty--queue-p queue))
-  (when (timerp (mistty--queue-dequeue-timer queue))
-    (cancel-timer (mistty--queue-dequeue-timer queue))
-    (setf (mistty--queue-dequeue-timer queue) nil)))
-
-(defun mistty--dequeue-timeout-handler (buf queue)
-  (cl-assert (mistty--queue-p queue))
-  (mistty--with-live-buffer buf
-    (let ((proc (mistty--queue-proc queue)))
-      (when (and (mistty--queue-timeout-timer queue)
-                 ;; last chance, in case some scheduling kerfuffle meant
-                 ;; process output ended up buffered.
-                 (not (and (process-live-p proc)
-                           (accept-process-output proc 0 nil t))))
-        (setf (mistty--queue-timeout-timer queue) nil)
-        (mistty-log "TIMEOUT")
-        (mistty--dequeue queue 'timeout)))))
-
-(defun mistty--queue-dequeue-timer-handler (buf queue)
-  "Idle timer callback that calls `mistty--dequeue'."
-  (cl-assert (mistty--queue-p queue))
-  (mistty--with-live-buffer buf
-    (setf (mistty--queue-dequeue-timer queue) nil)
-    (mistty--dequeue queue)))
-
 
 (defun mistty--enqueue-str (queue str)
   "Enqueue sending STR to the terminal.
@@ -141,6 +67,80 @@ Does nothing if GEN is nil."
           (mistty--dequeue queue))
       (setf (mistty--queue-iter queue)
             (mistty--iter-chain (mistty--queue-iter queue) gen)))))
+
+(defun mistty--dequeue (queue &optional value)
+  "Send the next string from the queue to the terminal.
+
+If VALUE is set, send that value to the first call to `iter-next'."
+  (cl-assert (mistty--queue-p queue))
+  (mistty--cancel-timeout queue)
+  (unless (mistty--queue-empty-p queue)
+    (condition-case nil
+        (let ((proc (mistty--queue-proc queue))
+              seq)
+          (setq seq (iter-next (mistty--queue-iter queue) value))
+          (while (or (null seq) (length= seq 0))
+            (setq seq (iter-next (mistty--queue-iter queue))))
+          (setf (mistty--queue-timeout queue)
+                (run-with-timer
+                 0.5 nil #'mistty--timeout-handler
+                 (current-buffer) queue))
+          (mistty--send-string proc seq))
+    (iter-end-of-sequence
+     (setf (mistty--queue-iter queue) nil)))))
+
+(defun mistty--dequeue-with-timer (queue)
+  "Call `mistty--dequeue' on a timer.
+
+Restart the timer if a dequeue is already scheduled. The idea is
+to accumulate updates that arrive at the same time from the
+process, waiting for it to pause."
+  (cl-assert (mistty--queue-p queue))
+  (mistty--cancel-timeout queue)
+  (mistty--cancel-timer queue)
+  (unless (mistty--queue-empty-p queue)
+    (setf (mistty--queue-timer queue)
+          (run-with-timer
+           0.1 nil #'mistty--queue-timer-handler
+           (current-buffer) queue))))
+
+(defun mistty--cancel-queue (queue)
+  "Clear QUEUE and cancel all pending timers."
+  (setf (mistty--queue-proc queue) nil)
+  (mistty--cancel-timeout queue)
+  (mistty--cancel-timer queue))
+
+(defun mistty--cancel-timeout (queue)
+  (cl-assert (mistty--queue-p queue))
+  (when (timerp (mistty--queue-timeout queue))
+    (cancel-timer (mistty--queue-timeout queue))
+    (setf (mistty--queue-timeout queue) nil)))
+
+(defun mistty--cancel-timer (queue)
+  (cl-assert (mistty--queue-p queue))
+  (when (timerp (mistty--queue-timer queue))
+    (cancel-timer (mistty--queue-timer queue))
+    (setf (mistty--queue-timer queue) nil)))
+
+(defun mistty--timeout-handler (buf queue)
+  (cl-assert (mistty--queue-p queue))
+  (mistty--with-live-buffer buf
+    (let ((proc (mistty--queue-proc queue)))
+      (when (and (mistty--queue-timeout queue)
+                 ;; last chance, in case some scheduling kerfuffle meant
+                 ;; process output ended up buffered.
+                 (not (and (process-live-p proc)
+                           (accept-process-output proc 0 nil t))))
+        (setf (mistty--queue-timeout queue) nil)
+        (mistty-log "TIMEOUT")
+        (mistty--dequeue queue 'timeout)))))
+
+(defun mistty--queue-timer-handler (buf queue)
+  "Idle timer callback that calls `mistty--dequeue'."
+  (cl-assert (mistty--queue-p queue))
+  (mistty--with-live-buffer buf
+    (setf (mistty--queue-timer queue) nil)
+    (mistty--dequeue queue)))
 
 (iter-defun mistty--iter-single (elt)
   "Returns a generator that returns ELT and ends."

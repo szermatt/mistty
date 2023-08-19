@@ -1427,7 +1427,7 @@
     (insert "foobar"))
    (should (equal "$ toto<>\ntoto0  toto1  toto2" (mistty-test-content)))))
 
-(ert-deftest mistty-test-dequeue-timeout ()
+(ert-deftest mistty-test-timeout ()
   (with-mistty-buffer-zsh
    (let* ((answers nil)
           (lambda (iter-lambda ()

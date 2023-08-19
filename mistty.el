@@ -120,6 +120,9 @@ is on this overlay.
 
 This variable is available in the work buffer.")
 
+(defvar-local mistty-prompt-ov nil
+  "An overlay that covers the current detected prompt, if any.")
+
 (defvar-local mistty-fullscreen nil
   "Whether MisTTY is in full-screen mode.
 
@@ -226,6 +229,10 @@ function for the definition of a positional character.")
   "Color of the left fringe or margin that indicates the synced region (debug).
 
 This is used when the display is a terminal."
+  :group 'mistty)
+
+(defface mistty-prompt-face '((t (:underline (:color "purple" :position 0))))
+  "Face that highlights the current, detected prompt (debug)."
   :group 'mistty)
 
 (defvar mistty-mode-map
@@ -371,6 +378,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
     (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker (point-max)))
     (setq mistty-cmd-start-marker (copy-marker mistty-sync-marker))
     (setq mistty-sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
+    (setq mistty-prompt-ov (make-overlay mistty-sync-marker mistty-cmd-start-marker))
     (setq mistty--queue (mistty--make-queue proc))
 
     (with-current-buffer term-buffer
@@ -391,6 +399,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
                  (if (window-system)
                      '(left-fringe mistty-bar mistty-fringe-face)
                    `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face)))))
+    (overlay-put mistty-prompt-ov 'face 'mistty-prompt-face)
 
     (when proc
       (set-process-filter proc #'mistty-process-filter)
@@ -799,6 +808,9 @@ from `mistty--modification-hook' tracking the changes."
     (move-marker mistty-sync-marker sync-pos)
     (move-marker mistty-cmd-start-marker cmd-start-pos)
     (move-overlay mistty-sync-ov sync-pos (point-max))
+    (move-overlay mistty-prompt-ov
+                  (max sync-pos (mistty--bol-pos-from mistty-cmd-start-marker))
+                  mistty-cmd-start-marker)
     (when (> cmd-start-pos sync-pos)
       (mistty--set-prompt-properties sync-pos cmd-start-pos))))
 

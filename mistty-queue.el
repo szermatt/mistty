@@ -5,6 +5,7 @@
 (require 'generator)
 
 (require 'mistty-log)
+(require 'mistty-util)
 
 ;; A queue of strings to send to the terminal process.
 ;;

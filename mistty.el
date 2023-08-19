@@ -80,6 +80,11 @@ links to the term buffer.
 This variable is available in both the work buffer and the term
 buffer.")
 
+(defvar-local mistty--queue nil
+  "A queue of data to send to the process; a mistty--queue struct.
+
+See mistty-queue.el.")
+
 (defvar-local mistty-sync-marker nil
   "A marker that links `mistty-term-buffer' to `mistty-work-buffer'.
 
@@ -366,6 +371,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
     (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker (point-max)))
     (setq mistty-cmd-start-marker (copy-marker mistty-sync-marker))
     (setq mistty-sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
+    (setq mistty--queue (mistty--make-queue proc))
 
     (with-current-buffer term-buffer
       (setq mistty-term-proc proc)
@@ -411,7 +417,10 @@ mapping somewhat consistent between fullscreen and normal mode.")
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
   (remove-hook 'pre-command-hook #'mistty-pre-command t)
   (remove-hook 'post-command-hook #'mistty-post-command t)
-  
+
+  (when mistty--queue
+    (mistty--cancel-queue mistty--queue)
+    (setq mistty--queue nil))
   (when mistty-sync-ov
     (delete-overlay mistty-sync-ov)
     (setq mistty-sync-ov nil))
@@ -551,10 +560,10 @@ mapping somewhat consistent between fullscreen and normal mode.")
       (mistty--with-live-buffer work-buffer
         (ignore-errors
             (cd (buffer-local-value 'default-directory term-buffer)))
-        (mistty--cancel-dequeue-timeout)
+        (mistty--cancel-dequeue-timeout mistty--queue)
         (unless (accept-process-output proc 0 0 t)
           (mistty--refresh)
-          (mistty--dequeue-with-timer proc)))))))
+          (mistty--dequeue-with-timer mistty--queue)))))))
 
 (defun mistty--process-terminal-seq (proc str)
   (mistty--require-term-buffer)
@@ -1161,7 +1170,7 @@ END section to be valid in the term buffer."
           (setq mistty--need-refresh t)))
 
         (when replay
-          (mistty--enqueue mistty-term-proc (mistty--replay-generator cs)))
+          (mistty--enqueue mistty--queue (mistty--replay-generator cs)))
         
         ;; Abandon changesets that haven't been picked up for replay.
         (when (and (not replay) (mistty--changeset-p cs))
@@ -1169,7 +1178,7 @@ END section to be valid in the term buffer."
           (mistty--refresh-after-changeset))
         
         (when (and (not replay) point-moved)
-          (mistty--enqueue mistty-term-proc (mistty--cursor-to-point-generator))))))))
+          (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator))))))))
 
 (iter-defun mistty--cursor-to-point-generator ()
   (when (mistty-on-prompt-p (point))

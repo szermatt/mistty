@@ -1440,7 +1440,7 @@
                    (push (iter-yield "") answers)
                    ;; this is actually displayed
                    (push (iter-yield "done") answers))))
-     (mistty--enqueue mistty-term-proc (funcall lambda))
+     (mistty--enqueue mistty--queue (funcall lambda))
      (while (length< answers 4)
        (ert-run-idle-timers)
        (accept-process-output mistty-term-proc 0 100 t))
@@ -1489,8 +1489,8 @@
 (defun mistty-test-after-command ()
   (mistty-post-command)
   (ert-run-idle-timers)
-  (while mistty--queue
-    (while (accept-process-output mistty-term-proc 0 100 t))
+  (while (not (mistty--queue-empty-p mistty--queue))
+    (accept-process-output mistty-term-proc 0 100 t)
     (ert-run-idle-timers)))
 
 (defun mistty-wait-for-output ()

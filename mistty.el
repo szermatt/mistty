@@ -207,7 +207,7 @@ cause changes are just ignored by the command.")
 (defconst mistty--ws "[:blank:]\n\r"
   "A character class that matches spaces and newlines, for MisTTY.")
 
-(defvar mistty-prompt-re "[#$%>.] *$"
+(defvar mistty-prompt-re "[#$%>.❯] ?$"
   "Regexp used to identify prompts.
 
 Strings that might be prompts are evaluated against this regexp,
@@ -231,7 +231,7 @@ function for the definition of a positional character.")
 This is used when the display is a terminal."
   :group 'mistty)
 
-(defface mistty-prompt-face '((t (:underline (:color "purple" :position 0))))
+(defface mistty-prompt-face nil
   "Face that highlights the current, detected prompt (debug)."
   :group 'mistty)
 
@@ -719,7 +719,11 @@ Also updates prompt and point."
                        (or (> prompt-beg mistty-sync-marker)
                            (and (= prompt-beg mistty-sync-marker)
                                 (= mistty-sync-marker mistty-cmd-start-marker)))
-                       (< prompt-beg (mistty-cursor)))
+                       (< prompt-beg (mistty-cursor))
+                       (string-match
+                        mistty-prompt-re
+                        (mistty--safe-bufstring
+                         (mistty--bol-pos-from (mistty-cursor)) (mistty-cursor))))
               (mistty-log "Detected prompt: [%s-%s]" prompt-beg (mistty-cursor))
               (mistty--set-sync-mark-from-end prompt-beg (mistty-cursor))))))
       

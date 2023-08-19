@@ -149,6 +149,13 @@ terminal to the work buffer.
 
 This variable is available in the work buffer.")
 
+(defvar-local mistty--end-prompt nil
+  "End the prompt after the next refresh.
+
+When this variable is non-nil, it contains a position in the work
+buffer that's on the last line of the current prompt. The line
+after that is going to be a process output or a new prompt.")
+
 (defvar-local mistty--possible-prompt nil
   "Region of the work buffer identified as possible prompt.
 
@@ -699,6 +706,22 @@ Also updates prompt and point."
               ;; restore point, possibly moved by narrow-to-region.
               (goto-char old-point)))))
 
+      ;; Right after a mistty-send-command, we're waiting for a line
+      ;; after mistty--end-prompt that's not part of the old prompt.
+      (when (and mistty--end-prompt
+                 (< mistty-sync-marker mistty--end-prompt))
+        (let ((pos mistty--end-prompt)
+              has-new-line-after)
+          (setq has-new-line-after
+                (if (get-text-property pos 'mistty-prompt-id)
+                    (progn
+                      (setq pos (next-single-property-change pos 'mistty-prompt-id nil (point-max)))
+                      (eq ?\n (char-before pos)))
+                  (< pos (mistty--bol-pos-from pos 2))))
+          (when has-new-line-after
+            (mistty--set-sync-mark-from-end pos)))
+        (setq mistty--end-prompt nil))
+
       ;; detect prompt from bracketed-past region and use that to
       ;; restrict the sync region.
       (mistty--with-live-buffer mistty-work-buffer
@@ -852,7 +875,8 @@ This command is available in fullscreen mode."
   "Send the current command to the shell."
   (interactive)
   (mistty--maybe-realize-possible-prompt)
-  (setq mistty-goto-cursor-next-time t)
+  (setq mistty-goto-cursor-next-time t
+        mistty--end-prompt (mistty-cursor))
   (mistty-send-raw-string "\C-m"))
 
 (defun mistty-send-last-key (n)

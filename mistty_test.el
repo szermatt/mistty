@@ -1447,6 +1447,26 @@
      (should (equal '(timeout nil nil nil) (nreverse answers)))
      (should (equal "$ done<>" (mistty-test-content))))))
 
+(ert-deftest mistty-test-end-prompt ()
+  (with-mistty-buffer
+   (mistty-send-raw-string "for i in {1..10} ; do echo line $i; done && read l")
+   (mistty-send-and-wait-for-prompt nil "line 10")
+   (should
+    (equal
+     "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n"
+     (mistty--safe-bufstring mistty-sync-marker (point-max))))))
+
+(ert-deftest mistty-test-end-prompt-multiline ()
+  (with-mistty-buffer
+   (mistty-run-command
+    (insert "for i in {1..10} ; do \necho line $i\n done && read l")
+    (mistty-test-goto "echo line"))
+   (mistty-send-and-wait-for-prompt nil "line 10")
+   (should
+    (equal
+     "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n"
+     (mistty--safe-bufstring mistty-sync-marker (point-max))))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

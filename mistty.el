@@ -708,19 +708,22 @@ Also updates prompt and point."
 
       ;; Right after a mistty-send-command, we're waiting for a line
       ;; after mistty--end-prompt that's not part of the old prompt.
-      (when (and mistty--end-prompt
-                 (< mistty-sync-marker mistty--end-prompt))
-        (let ((pos mistty--end-prompt)
-              has-new-line-after)
-          (setq has-new-line-after
+      (when (and mistty--end-prompt (< mistty-sync-marker mistty--end-prompt))
+        (let* ((pos mistty--end-prompt)
+               (has-new-line-after
                 (if (get-text-property pos 'mistty-prompt-id)
                     (progn
                       (setq pos (next-single-property-change pos 'mistty-prompt-id nil (point-max)))
                       (eq ?\n (char-before pos)))
-                  (< pos (mistty--bol-pos-from pos 2))))
-          (when has-new-line-after
-            (mistty--set-sync-mark-from-end pos)))
-        (setq mistty--end-prompt nil))
+                  (progn
+                    (setq pos (mistty--bol-pos-from pos 2))
+                    (< mistty--end-prompt pos))))
+               (last-non-ws (mistty--last-non-ws)))
+          (when (and has-new-line-after
+                     (> last-non-ws pos)
+                     (< last-non-ws (point-max)))
+            (mistty--set-sync-mark-from-end pos))
+          (setq mistty--end-prompt nil)))
 
       ;; detect prompt from bracketed-past region and use that to
       ;; restrict the sync region.

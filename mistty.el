@@ -214,7 +214,7 @@ cause changes are just ignored by the command.")
 (defconst mistty--ws "[:blank:]\n\r"
   "A character class that matches spaces and newlines, for MisTTY.")
 
-(defvar mistty-prompt-re "[#$%>.❯] ?$"
+(defvar mistty-prompt-re "[#$%>.❯\ue000-\uf8ff][[:blank:]]?$"
   "Regexp used to identify prompts.
 
 Strings that might be prompts are evaluated against this regexp,

@@ -170,7 +170,8 @@
      ;; modification, though it moves the point.
      (mistty-send-command)
      (mistty-wait-for-output)
-     (should (equal "$ echo bonjour\nhello\n$ echo world\nworld" (mistty-test-content :show (point)))))))
+     (should (equal "$ echo bonjour\nhello\n$ echo world\nworld\n$ <>"
+                    (mistty-test-content :show (point)))))))
 
 (ert-deftest test-mistty-send-command-because-at-prompt ()
   (with-mistty-buffer-selected
@@ -178,7 +179,7 @@
    (should (equal "hello" (mistty-send-and-capture-command-output
                            (lambda ()
                              (execute-kbd-macro (kbd "RET"))))))
-   (should (equal "$ echo hello\nhello" (mistty-test-content)))))
+   (should (equal "$ echo hello\nhello\n$" (mistty-test-content)))))
 
 (ert-deftest test-mistty-send-newline-because-not-at-prompt ()
   (with-mistty-buffer-selected
@@ -187,7 +188,7 @@
    (mistty-run-command
     (mistty-test-goto "hello"))
    (execute-kbd-macro (kbd "RET"))
-   (should (equal "$ echo\n<>hello\nhello" (mistty-test-content :show (point))))))
+   (should (equal "$ echo\n<>hello\nhello\n$" (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-send-newline-because-not-at-prompt-multiline ()
   (with-mistty-buffer-selected
@@ -197,7 +198,7 @@
    (mistty-run-command
     (mistty-test-goto "hello"))
    (execute-kbd-macro (kbd "RET"))
-   (should (equal "$ echo\n<>hello\necho world\nhello\nworld" (mistty-test-content :show (point))))))
+   (should (equal "$ echo\n<>hello\necho world\nhello\nworld\n$" (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-send-tab-to-complete  ()
   (with-mistty-buffer
@@ -300,19 +301,19 @@
   (with-mistty-buffer
    (mistty-send-raw-string "echo hello")
    (mistty-wait-for-output)
-   (should (equal "$ echo hello<>" (mistty-test-content :show (point) :keep-empty t)))
+   (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
 
    (mistty-run-command
     (mistty-send-beginning-of-line))
    (mistty-wait-for-output)
    
-   (should (equal "$ <>echo hello" (mistty-test-content  :show (point) :keep-empty t)))
+   (should (equal "$ <>echo hello" (mistty-test-content  :show (point))))
    
    (mistty-run-command
     (mistty-send-end-of-line))
    (mistty-wait-for-output)
    
-   (should (equal "$ echo hello<>" (mistty-test-content :show (point) :keep-empty t)))))
+   (should (equal "$ echo hello<>" (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-eol-empty-prompt ()
   (with-mistty-buffer
@@ -322,7 +323,7 @@
    
    (should
     (equal "$ <>"
-           (mistty-test-content :show (point) :keep-empty t)))))
+           (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-next-prompt ()
   (with-mistty-buffer
@@ -434,22 +435,22 @@
    (mistty-next-prompt 1)
    (should
     (equal "$ <>\n$\n$\n$ echo current"
-           (mistty-test-content :show (point) :keep-empty t)))
+           (mistty-test-content :show (point))))
    
    (mistty-next-prompt 1)
    (should
     (equal "$\n$ <>\n$\n$ echo current"
-           (mistty-test-content :show (point) :keep-empty t)))
+           (mistty-test-content :show (point))))
    
    (mistty-next-prompt 1)
    (should
     (equal "$\n$\n$ <>\n$ echo current"
-           (mistty-test-content :show (point) :keep-empty t)))
+           (mistty-test-content :show (point))))
    
    (mistty-next-prompt 1)
    (should
     (equal "$\n$\n$\n$ <>echo current"
-           (mistty-test-content :show (point) :keep-empty t)))
+           (mistty-test-content :show (point))))
    
    (should-error (mistty-next-prompt 1))
    
@@ -457,12 +458,12 @@
    (mistty-next-prompt 2)
    (should
     (equal "$\n$ <>\n$\n$ echo current"
-           (mistty-test-content :show (point) :keep-empty t)))
+           (mistty-test-content :show (point))))
 
    (mistty-next-prompt 2)
    (should
     (equal "$\n$\n$\n$ <>echo current"
-           (mistty-test-content :show (point) :keep-empty t)))))
+           (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-previous-prompt ()
   (with-mistty-buffer
@@ -558,7 +559,7 @@
                           "one two three four f\n"
                           "ive six seven eight\n"
                           "nine")
-                  (mistty-test-content)))
+                  (mistty-test-content :strip-last-prompt t)))
 
    (let ((one (mistty-test-goto "one"))
          (six (mistty-test-goto "six"))
@@ -1098,7 +1099,8 @@
    (mistty-send-and-wait-for-prompt)
    (mistty-send-raw-string "echo two")
    (mistty-send-and-wait-for-prompt)
-   (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo" (mistty-test-content)))))
+   (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo\n$"
+                  (mistty-test-content)))))
 
 (ert-deftest test-mistty-clear-screen ()
   (with-mistty-buffer
@@ -1112,7 +1114,8 @@
    (mistty-send-and-wait-for-prompt)
    (mistty-send-raw-string "echo two")
    (mistty-send-and-wait-for-prompt)
-   (should (equal "$ echo one\none\n$ printf '\\e[2J'\n$ echo two\ntwo" (mistty-test-content)))))
+   (should (equal "$ echo one\none\n$ printf '\\e[2J'\n$ echo two\ntwo"
+                  (mistty-test-content :strip-last-prompt t)))))
    
 (ert-deftest test-mistty-hide-cursor ()
   (with-mistty-buffer
@@ -1712,7 +1715,8 @@ buffer to a new region at the beginning of the new prompt."
             (goto-char (line-end-position))
             (1+ (point))))
     (setq output (mistty-test-content :start output-start :end next-prompt-start
-                                      :show (unless nopointer (point))))
+                                      :show (unless nopointer (point))
+                                      :strip-last-prompt t))
     (when narrow
       (narrow-to-region next-prompt-start (point-max)))
     output))
@@ -1736,14 +1740,14 @@ of the beginning of the prompt."
     (goto-char before-send)
     (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
 
-(cl-defun mistty-test-content (&key (start (point-min)) (end (point-max)) show keep-empty)
+(cl-defun mistty-test-content (&key (start (point-min)) (end (point-max)) show (strip-last-prompt nil))
   (interactive)
   (let* ((output (buffer-substring-no-properties start end))
          (p (when show (- show start)))
          (length (- end start)))
     (when (and p (>= p 0) (<= p length))
       (setq output (concat (substring output 0 p) "<>" (substring output p))))
-    (unless keep-empty
+    (when strip-last-prompt
       (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output)))
     (setq output (replace-regexp-in-string "[ \t\n]*$" "" output))
     output))

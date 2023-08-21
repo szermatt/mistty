@@ -219,12 +219,12 @@
                            (cons mistty-term-buffer mistty-proc)))
          (term-buffer (car buffer-and-proc))
          (term-proc (cdr buffer-and-proc)))
-    (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc 2)))
+    (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
 
 (ert-deftest test-mistty-term-buffer-exits ()
   (with-mistty-buffer
    (mistty-send-raw-string "exit\n")
-   (mistty-wait-for-term-buffer-and-proc-to-die mistty-term-buffer mistty-proc 2)
+   (mistty-wait-for-term-buffer-and-proc-to-die mistty-term-buffer mistty-proc)
    (should (string-suffix-p "finished\n" (buffer-substring-no-properties (point-min) (point-max))))))
 
 (ert-deftest test-mistty-scroll-with-long-command ()
@@ -615,8 +615,10 @@
       
       (execute-kbd-macro (kbd "v i RET"))
       (mistty-wait-for-output
-       :test (lambda ()
-               (buffer-local-value 'mistty-fullscreen work-buffer)))
+       :proc proc
+       :test
+       (lambda ()
+         (buffer-local-value 'mistty-fullscreen work-buffer)))
       (should (eq mistty-term-buffer (window-buffer (selected-window))))
       (should (equal (concat bufname " scrollback") (buffer-name work-buffer)))
       (should (equal bufname (buffer-name term-buffer)))
@@ -625,8 +627,10 @@
       
       (execute-kbd-macro (kbd ": q ! RET"))
       (mistty-wait-for-output
-       :test (lambda ()
-               (not (buffer-local-value 'mistty-fullscreen work-buffer))))
+       :proc proc
+       :test
+       (lambda ()
+         (not (buffer-local-value 'mistty-fullscreen work-buffer))))
       (should (eq mistty-work-buffer (window-buffer (selected-window))))
       (should (equal (concat " mistty tty " bufname) (buffer-name term-buffer)))
       (should (equal bufname (buffer-name work-buffer))))))
@@ -641,14 +645,18 @@
               on-seq off-seq))
      (mistty-send-command)
       (mistty-wait-for-output
-       :test (lambda ()
-               (buffer-local-value 'mistty-fullscreen work-buffer)))
+       :proc proc
+       :test
+       (lambda ()
+         (buffer-local-value 'mistty-fullscreen work-buffer)))
      (should (eq mistty-term-buffer (window-buffer (selected-window))))
 
      (execute-kbd-macro (kbd "RET"))
       (mistty-wait-for-output
-       :test (lambda ()
-               (not (buffer-local-value 'mistty-fullscreen work-buffer))))
+       :proc proc
+       :test
+       (lambda ()
+         (not (buffer-local-value 'mistty-fullscreen work-buffer))))
      (should (eq mistty-work-buffer (window-buffer (selected-window)))))))
 
 (ert-deftest test-mistty-enter-fullscreen-alternative-code ()
@@ -668,7 +676,7 @@
       (mistty-wait-for-output :test (lambda () mistty-fullscreen))
 
       (kill-buffer mistty-term-buffer)
-      (mistty-wait-for-term-buffer-and-proc-to-die work-buffer proc 2))))
+      (mistty-wait-for-term-buffer-and-proc-to-die work-buffer proc))))
 
 (ert-deftest test-mistty-proc-dies-during-fullscreen ()
   (with-mistty-buffer-selected
@@ -681,7 +689,7 @@
 
       (signal-process proc 'SIGILL)
 
-      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc 2)
+      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc)
 
       (should (buffer-live-p work-buffer))
       (should (eq work-buffer (window-buffer (selected-window))))
@@ -1684,7 +1692,8 @@
    :test (lambda ()
            (mistty--queue-empty-p mistty--queue))))
 
-(cl-defun mistty-wait-for-output (&key (test nil) (str nil) (regexp nil) (start (point-min)))
+(cl-defun mistty-wait-for-output
+    (&key (test nil) (str nil) (regexp nil) (start (point-min)) (proc mistty-proc) (on-error nil))
   "Wait for process output.
 
 With TEST set to a function, keep waiting for process output
@@ -1719,13 +1728,19 @@ be incomplete output. This makes tests unstable."
         (let ((time-limit (time-add (current-time) 1)))
           (while (not (funcall condition))
             (unless (time-less-p (current-time) time-limit)
-              (error "condition never met (wait-for-output)"))
-            (accept-process-output mistty-proc 0 100 t)
+              (if on-error
+                  (funcall on-error)
+                (error "condition never met (wait-for-output)")))
+            (if (process-live-p proc)
+                (accept-process-output proc 0 100 t)
+              (accept-process-output nil 0 100))
             (ert-run-idle-timers)))
       
       ;; waiting for any process output (makes test unstable)
-      (unless (accept-process-output mistty-proc 0 500 t)
-        (error "no output (wait-for-output with no conditions)")))))
+      (unless (accept-process-output proc 0 500 t)
+        (if on-error
+            (funcall on-error)
+          (error "no output (wait-for-output with no conditions)"))))))
 
 (defun mistty-send-and-capture-command-output (&optional send-command-func narrow nopointer prompt)
   "Send the current commanhd line with SEND-COMMAND-FUNC and return its output.
@@ -1776,18 +1791,22 @@ of the beginning of the prompt."
     (setq output (replace-regexp-in-string "[ \t\n]*$" "" output))
     output))
 
-(defun mistty-wait-for-term-buffer-and-proc-to-die (buf proc deadline)
+(defun mistty-wait-for-term-buffer-and-proc-to-die (buf proc)
   (should (not (null buf)))
   (should (not (null proc)))
-  (let ((tstart (current-time)))
-    (while (or (process-live-p proc) (buffer-live-p buf))
-      (accept-process-output proc 0 100)
-      (when (> (float-time (time-subtract (current-time) tstart)) deadline)
-        (cond ((process-live-p proc)
-               (error "Process %s didn't die. Status: %s" proc (process-status proc)))
-              ((buffer-live-p buf)
-               (error "Buffer %s wasn't killed." buf))
-              (t (error "Something else went wrong.")))))))
+  (mistty-wait-for-output
+   :test
+   (lambda ()
+     (and
+      (not (process-live-p proc))
+      (not (buffer-live-p buf))))
+   :on-error
+   (lambda ()
+     (cond ((process-live-p proc)
+            (error "Process %s didn't die. Status: %s" proc (process-status proc)))
+           ((buffer-live-p buf)
+            (error "Buffer %s wasn't killed." buf))
+           (t (error "Something else went wrong."))))))
 
 (defun mistty-filter-plist (options allowed)
   "Filter a symbol and values list OPTIONS to online include ALLOWED symbols.

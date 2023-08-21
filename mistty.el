@@ -1089,10 +1089,22 @@ Possibly detect a prompt on the current line."
       (mistty--refresh))))
 
 (defun mistty--move-str (from to &optional will-wait)
-  (or (mistty--fish-multiline-move-str from to)
-      (mistty--move-horizontally-str (mistty--distance-on-term from to) will-wait)))
+  (or
+   (when (= from to) "")
+   (mistty--fish-multiline-move-str from to)
+   (mistty--move-horizontally-str (mistty--distance-on-term from to) will-wait)))
 
 (defun mistty--move-horizontally-str (direction &optional will-wait)
+  "Return a key sequence to move horizontally.
+
+The absolute value of DIRECTION specifies the number of character
+ to move and the sign specifies whether to go right (positive) or
+ left (negative).
+
+If WILL-WAIT, add a useless right-left or left-right move at the
+end, which forces the terminal to send something back in the case
+where we jest can't move left/right anymore, thus avoiding a
+timeout."
   (if (zerop direction)
       ""
     (let ((distance (abs direction))
@@ -1111,11 +1123,27 @@ Possibly detect a prompt on the current line."
          "")))))
 
 (defun mistty--move-vertically-str (direction)
+  "Return a key sequence to move vertically.
+
+The absolute value of DIRECTION specifies the number of character
+ to move and the sign specifies whether to go down (positive) or
+ up (negative)."
   (mistty--repeat-string
    (abs direction)
    (if (< direction 0) mistty-up-str mistty-down-str)))
 
 (defun mistty--fish-multiline-move-str (from to)
+  "Return a move sequence if currently in a fish multiline prompt.
+
+Normally MisTTY avoids using up and down arrows, as these
+typically move up and down history in a shell. However, in a fish
+multiline prompt, the up and down arrows work normally and help
+work around the problem of moving from line to line without
+knowing which space on the screen are reachable with the cursor
+and which spaces aren't.
+
+If in a multiline fish prompt, return a string, otherwise return
+nil."
   (let* ((prompt-end (marker-position mistty-cmd-start-marker))
          (prompt-length (if (> prompt-end mistty-sync-marker)
                             (- prompt-end
@@ -1131,7 +1159,8 @@ Possibly detect a prompt on the current line."
          (mistty--safe-pos (mistty--from-work-pos prompt-end))
          prompt-length)))))
 
-(defun mistty--fish-multiline-move-str-on-term (from to prompt-start prompt-length)
+(defun mistty--fish-multiline-move-str-on-term
+    (from to prompt-start prompt-length)
   (let ((beg (mistty--bol-skipping-fakes (min from to)))
         (end (max from to))
         (calling-buffer (current-buffer)))

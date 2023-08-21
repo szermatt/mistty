@@ -1194,12 +1194,19 @@ nil."
                     lines)))
             (dolist (line-start lines)
               (delete-region line-start (+ prompt-length line-start)))
-            (delete-trailing-whitespace (point-min) (point-max))
-            
-            (setq min-col (1- (seq-min (mapcar #'mistty--line-length lines))))
+
+            ;; Get from and to column before deleting trailing ws, in
+            ;; case from is on a trailing ws, we know it exits and in
+            ;; case to is on a trailing ws, we optimistically assume
+            ;; it exists.
             (setq from-col (mistty--col from))
             (setq to-col (mistty--col to))
+
+            ;; Find a column that's not on a trailing ws to move down.
+            (delete-trailing-whitespace (point-min) (point-max))
+            (setq min-col (max 0 (1- (seq-min (mapcar #'mistty--line-length lines)))))
             (setq move-col (min min-col to-col from-col))
+            
             (concat
              ;; go left-right from from-col to move-col
              (mistty--move-horizontally-str (- move-col from-col))

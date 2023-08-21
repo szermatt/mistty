@@ -1565,6 +1565,42 @@
                  (mistty--fish-multiline-move-str-on-term
                   from to prompt-start prompt-length)))))))
 
+
+(ert-deftest mistty-test-fish-multiline-on-term-through-empty-line ()
+  (ert-with-test-buffer ()
+    (insert "prompt> echo 'hello\n")
+    (insert "                   \n")
+    (insert "        world'     \n")
+    (goto-char (point-min))
+    (let ((prompt-start (search-forward "prompt> "))
+          (prompt-length 8)
+          (from (search-forward "hello"))
+          (to (search-forward "world")))
+      (should (equal
+               (concat
+                (mistty--repeat-string 10 mistty-left-str)
+                (mistty--repeat-string 2 mistty-down-str)
+                (mistty--repeat-string 4 mistty-right-str))
+               (mistty--fish-multiline-move-str-on-term
+                from to prompt-start prompt-length))))))
+
+(ert-deftest mistty-test-fish-multiline-on-term-from-ws-to-ws ()
+  (ert-with-test-buffer ()
+    (insert "prompt> echo 'hello   \n")
+    (insert "        world'        \n")
+    (goto-char (point-min))
+    (let ((prompt-start (search-forward "prompt> "))
+          (prompt-length 8)
+          (from (search-forward "hello  "))
+          (to (search-forward "world'  ")))
+      (should (equal
+               (concat
+                (mistty--repeat-string 7 mistty-left-str)
+                (mistty--repeat-string 1 mistty-down-str)
+                (mistty--repeat-string 2 mistty-right-str))
+               (mistty--fish-multiline-move-str-on-term
+                from to prompt-start prompt-length))))))
+
 (ert-deftest mistty-test-fish-multiline-for-real ()
   (with-mistty-buffer-fish
    (should mistty-bracketed-paste)

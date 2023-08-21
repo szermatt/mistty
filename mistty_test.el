@@ -215,7 +215,7 @@
 
 (ert-deftest test-mistty-kill-term-buffer ()
   (let* ((buffer-and-proc (with-mistty-buffer
-                           (cons mistty-term-buffer mistty-term-proc)))
+                           (cons mistty-term-buffer mistty-proc)))
          (term-buffer (car buffer-and-proc))
          (term-proc (cdr buffer-and-proc)))
     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc 2)))
@@ -223,7 +223,7 @@
 (ert-deftest test-mistty-term-buffer-exits ()
   (with-mistty-buffer
    (mistty-send-raw-string "exit\n")
-   (mistty-wait-for-term-buffer-and-proc-to-die mistty-term-buffer mistty-term-proc 2)
+   (mistty-wait-for-term-buffer-and-proc-to-die mistty-term-buffer mistty-proc 2)
    (should (string-suffix-p "finished\n" (buffer-substring-no-properties (point-min) (point-max))))))
 
 (ert-deftest test-mistty-scroll-with-long-command ()
@@ -576,7 +576,7 @@
     (insert "echo one two three four five six seven eight nine"))
 
    (while (length= (mistty-test-content) 0)
-     (accept-process-output mistty-term-proc 0 500 t))
+     (accept-process-output mistty-proc 0 500 t))
    (should (equal "$ echo one two three\n four five six seven\n eight nine<>"
                   (mistty-test-content)))))
 
@@ -588,7 +588,7 @@
     (insert "echo one two three four five six seven eight nine"))
    
    (while (length= (mistty-test-content) 0)
-     (accept-process-output mistty-term-proc 0 500 t))
+     (accept-process-output mistty-proc 0 500 t))
 
    ;; make sure that the newlines didn't confuse the sync marker
    (should (equal (marker-position mistty-sync-marker) (point-min)))
@@ -614,7 +614,7 @@
     (let ((bufname (buffer-name))
           (work-buffer mistty-work-buffer)
           (term-buffer mistty-term-buffer)
-          (proc mistty-term-proc))
+          (proc mistty-proc))
       
       (execute-kbd-macro (kbd "v i RET"))
       (while (not (buffer-local-value 'mistty-fullscreen work-buffer))
@@ -636,7 +636,7 @@
 (defun mistty-test-enter-fullscreen (on-seq off-seq)
   (with-mistty-buffer-selected
    (let ((work-buffer mistty-work-buffer)
-         (proc mistty-term-proc))
+         (proc mistty-proc))
 
      (mistty-send-raw-string
       (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off\n'"
@@ -663,10 +663,10 @@
 (ert-deftest test-mistty-kill-fullscreen-buffer-kills-scrollback ()
   (with-mistty-buffer-selected
     (let ((work-buffer mistty-work-buffer)
-          (proc mistty-term-proc))
+          (proc mistty-proc))
       (execute-kbd-macro (kbd "v i RET"))
       (while (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer))
-        (accept-process-output mistty-term-proc 0 500 t))
+        (accept-process-output mistty-proc 0 500 t))
 
       (kill-buffer mistty-term-buffer)
       (mistty-wait-for-term-buffer-and-proc-to-die work-buffer proc 2))))
@@ -676,7 +676,7 @@
     (let ((bufname (buffer-name))
           (work-buffer mistty-work-buffer)
           (term-buffer mistty-term-buffer)
-          (proc mistty-term-proc))
+          (proc mistty-proc))
       (execute-kbd-macro (kbd "v i RET"))
       (while (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer))
         (accept-process-output proc 0 500 t))
@@ -1066,11 +1066,11 @@
                   (lambda (seq)
                     (push seq osc-list)))
      (mistty-emulate-terminal
-      mistty-term-proc "foo\e]999;he" mistty-work-buffer)
+      mistty-proc "foo\e]999;he" mistty-work-buffer)
      (mistty-emulate-terminal
-      mistty-term-proc "llo, w" mistty-work-buffer)
+      mistty-proc "llo, w" mistty-work-buffer)
      (mistty-emulate-terminal
-      mistty-term-proc "orld\abar" mistty-work-buffer)
+      mistty-proc "orld\abar" mistty-work-buffer)
      (mistty--refresh)
      (should (equal "$ foobar<>" (mistty-test-content)))
      (should (equal '("999;hello, world") osc-list)))))
@@ -1083,7 +1083,7 @@
                   (lambda (seq)
                     (push seq osc-list)))
      (mistty-emulate-terminal
-      mistty-term-proc
+      mistty-proc
       "foo\e]999;\xce\xb1\xce\xb2\xce\xb3\abar"
       mistty-work-buffer)
      (mistty--refresh)
@@ -1137,7 +1137,7 @@
     "printf 'say %s>> ' something; read something; echo something: $something")
    (mistty-send-command)
    (while (not (mistty-test-find-p "say something"))
-     (accept-process-output mistty-term-proc 0 500 t))
+     (accept-process-output mistty-proc 0 500 t))
    (mistty-send-raw-string "foo")
    (mistty-wait-for-output)
    (should (equal
@@ -1285,13 +1285,13 @@
      (while (not (progn
                    (goto-char before-send)
                    (search-forward-regexp "line 10" nil 'no-error)))
-       (while (accept-process-output mistty-term-proc 0 500 t)))
+       (while (accept-process-output mistty-proc 0 500 t)))
      (setq after-line-10 (point-marker))
      ;; wait for more's prompt
      (while (not (progn
                    (goto-char after-line-10)
                    (search-forward-regexp "^[^l]" nil 'no-error)))
-       (while (accept-process-output mistty-term-proc 0 500 t)))
+       (while (accept-process-output mistty-proc 0 500 t)))
 
      ;; edit from prompt to line 10
      (mistty-run-command
@@ -1445,7 +1445,7 @@
      (mistty--enqueue mistty--queue (funcall lambda))
      (while (length< answers 4)
        (ert-run-idle-timers)
-       (accept-process-output mistty-term-proc 0 100 t))
+       (accept-process-output mistty-proc 0 100 t))
      (should (equal '(timeout nil nil nil) (nreverse answers)))
      (should (equal "$ done<>" (mistty-test-content))))))
 
@@ -1633,7 +1633,7 @@
 
 (defun mistty-test-set-ps1 ()
   (while (eq (point-min) (point-max))
-    (accept-process-output mistty-term-proc 0 100 t))
+    (accept-process-output mistty-proc 0 100 t))
   (mistty-send-raw-string (concat "PS1='" mistty-test-prompt "'"))
   (mistty-wait-for-output)
   (narrow-to-region (mistty-send-and-wait-for-prompt) (point-max)))
@@ -1642,13 +1642,13 @@
   (mistty-post-command)
   (ert-run-idle-timers)
   (while (not (mistty--queue-empty-p mistty--queue))
-    (accept-process-output mistty-term-proc 0 100 t)
+    (accept-process-output mistty-proc 0 100 t)
     (ert-run-idle-timers)))
 
 (defun mistty-wait-for-output ()
   "Wait for process output, which should be short and immediate."
   (ert-run-idle-timers)
-  (unless (accept-process-output mistty-term-proc 0 500 t)
+  (unless (accept-process-output mistty-proc 0 500 t)
     (error "no output (wait-for-output)")))
 
 (defun mistty-send-and-capture-command-output (&optional send-command-func narrow nopointer prompt)
@@ -1683,7 +1683,7 @@ of the beginning of the prompt."
     (funcall (or send-command-func #'mistty-send-command))
     (while (not (mistty-has-prompt-after before-send prompt))
       (ert-run-idle-timers)
-      (when (and (not (accept-process-output mistty-term-proc 0 500 t))
+      (when (and (not (accept-process-output mistty-proc 0 500 t))
                  (not (mistty-has-prompt-after before-send prompt)))
           (error "no output (wait-for-prompt)"))))
     (match-beginning 0))

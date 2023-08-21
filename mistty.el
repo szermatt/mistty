@@ -43,7 +43,7 @@ buffer that can be independently switched to with
 
 While there is normally a terminal buffer, available as
 `mistty-term-buffer' as well as a process, available as
-`mistty-term-proc' either or both of these might be nil, such as
+`mistty-proc' either or both of these might be nil, such as
 after the process died.
 
 
@@ -61,13 +61,13 @@ this buffer is hidden.
 
 While there is normally a work buffer, available as
 `mistty-work-buffer' as well as a process, available as
-`mistty-term-proc` either or both of these might be nil in some
+`mistty-proc` either or both of these might be nil in some
 cases.
 
 This variable is available in both the work buffer and the term
 buffer.")
 
-(defvar-local mistty-term-proc nil
+(defvar-local mistty-proc nil
   "The process that controls the terminal, usually a shell.
 
 This process is associated to `mistty-term-buffer' and is set up
@@ -380,7 +380,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
       (process-put proc 'mistty-work-buffer work-buffer)
       (process-put proc 'mistty-term-buffer term-buffer))
 
-    (setq mistty-term-proc proc)
+    (setq mistty-proc proc)
     (setq mistty-term-buffer term-buffer)
     (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker (point-max)))
     (setq mistty-cmd-start-marker (copy-marker mistty-sync-marker))
@@ -389,7 +389,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
     (setq mistty--queue (mistty--make-queue proc))
 
     (with-current-buffer term-buffer
-      (setq mistty-term-proc proc)
+      (setq mistty-proc proc)
       (setq mistty-work-buffer work-buffer)
       (setq mistty-term-buffer term-buffer)
       (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker term-home-marker)))
@@ -440,10 +440,10 @@ mapping somewhat consistent between fullscreen and normal mode.")
   (when mistty-sync-ov
     (delete-overlay mistty-sync-ov)
     (setq mistty-sync-ov nil))
-  (when mistty-term-proc
-    (set-process-filter mistty-term-proc #'term-emulate-terminal)
-    (set-process-sentinel mistty-term-proc #'term-sentinel)
-    (setq mistty-term-proc nil))
+  (when mistty-proc
+    (set-process-filter mistty-proc #'term-emulate-terminal)
+    (set-process-sentinel mistty-proc #'term-sentinel)
+    (setq mistty-proc nil))
   (when mistty-cmd-start-marker
     (move-marker mistty-cmd-start-marker nil)
     (setq mistty-cmd-start-marker nil))
@@ -468,8 +468,8 @@ mapping somewhat consistent between fullscreen and normal mode.")
            (bufferp buffer)
            (eq 'mistty-mode (buffer-local-value 'major-mode buffer))
            (buffer-live-p buffer)
-           (buffer-local-value 'mistty-term-proc buffer)
-           (process-live-p (buffer-local-value 'mistty-term-proc buffer)))
+           (buffer-local-value 'mistty-proc buffer)
+           (process-live-p (buffer-local-value 'mistty-proc buffer)))
       buffer))
 
 (defun mistty--buffers ()
@@ -602,7 +602,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
 
 (defun mistty--recenter (win)
   (with-current-buffer (window-buffer win)
-    (when (and mistty-term-proc
+    (when (and mistty-proc
                (or (eq (mistty-cursor) (window-point win))
                    (> (window-point win) (misty--bol (point-max) -3))))
         (with-selected-window win
@@ -652,7 +652,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
       (mistty-emulate-terminal proc str work-buffer))))
 
 (defun mistty-cursor ()
-  (mistty--from-pos-of (process-mark mistty-term-proc) mistty-term-buffer))
+  (mistty--from-pos-of (process-mark mistty-proc) mistty-term-buffer))
 
 (defun mistty--from-pos-of (pos buffer-of-pos)
   "Return the local equivalent to POS defined in BUFFER-OF-POS."
@@ -728,7 +728,7 @@ Also updates prompt and point."
       ;; detect prompt from bracketed-past region and use that to
       ;; restrict the sync region.
       (mistty--with-live-buffer mistty-work-buffer
-        (when (process-live-p mistty-term-proc)
+        (when (process-live-p mistty-proc)
           (let ((prompt-beg
                  (let ((pos (mistty-cursor)))
                    (unless (and (> pos (point-min))
@@ -769,7 +769,7 @@ Also updates prompt and point."
 
       ;; Move the point to the cursor, if necessary.
       (mistty--with-live-buffer mistty-work-buffer
-        (when (process-live-p mistty-term-proc)
+        (when (process-live-p mistty-proc)
           (when (or mistty-goto-cursor-next-time
                     (null mistty--cursor-after-last-refresh)
                     (= old-point mistty--cursor-after-last-refresh))
@@ -858,7 +858,7 @@ from `mistty--modification-hook' tracking the changes."
   "Send STR to the terminal, unprocessed.
 
 This command is available in fullscreen mode."
-  (mistty--send-string mistty-term-proc str))
+  (mistty--send-string mistty-proc str))
 
 (defun mistty--at-prompt-1 (&optional inexact)
   (let ((cursor (mistty-cursor)))
@@ -1273,7 +1273,7 @@ END section to be valid in the term buffer."
   (mistty--with-live-buffer buf
     (save-restriction
       (widen)
-    (when (and (process-live-p mistty-term-proc)
+    (when (and (process-live-p mistty-proc)
                (buffer-live-p mistty-term-buffer))
       (let* ((cs (mistty--active-changeset))
              shift replay)
@@ -1324,10 +1324,10 @@ END section to be valid in the term buffer."
   (when (mistty-on-prompt-p (point))
     (iter-yield (mistty--move-str (mistty-cursor) (point)))))
 (defun mistty--window-size-change (_win)
-  (when (process-live-p mistty-term-proc)
-    (let* ((adjust-func (or (process-get mistty-term-proc 'adjust-window-size-function)
+  (when (process-live-p mistty-proc)
+    (let* ((adjust-func (or (process-get mistty-proc 'adjust-window-size-function)
                             window-adjust-process-window-size-function))
-           (size (funcall adjust-func mistty-term-proc
+           (size (funcall adjust-func mistty-proc
                           (get-buffer-window-list mistty-work-buffer nil t))))
       (when size
         (mistty--set-process-window-size (car size) (- (cdr size) left-margin-width)))))
@@ -1336,7 +1336,7 @@ END section to be valid in the term buffer."
 
 (defun mistty--set-process-window-size (width height)
   (mistty--with-live-buffer mistty-term-buffer
-    (set-process-window-size mistty-term-proc height width)
+    (set-process-window-size mistty-proc height width)
     (term-reset-size height width)))
 
 (defun mistty--enter-fullscreen (proc terminal-sequence)

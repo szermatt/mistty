@@ -1171,7 +1171,12 @@ nil."
         (let ((from (copy-marker (- from beg)))
               (to (copy-marker (- to beg)))
               lines min-col from-col to-col move-col)
-          (term--remove-fake-newlines) ;; TODO: write custom impl
+
+          ;; delete fake newlines
+          (goto-char (point-min))
+          (while-let ((fake-nl (text-property-any (point) (point-max) 'term-line-wrap t)))
+            (goto-char fake-nl)
+            (delete-char 1))
           
           ;; all lines must start with spaces except the one with the
           ;; prompt.

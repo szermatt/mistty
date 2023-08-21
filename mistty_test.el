@@ -1565,16 +1565,26 @@
                  (mistty--fish-multiline-move-str-on-term
                   from to prompt-start prompt-length)))))))
 
-;; TODO: fish doesn't behave in test as in normal operations
-;; (ert-deftest mistty-test-fish-multiline ()
-;;   (with-mistty-buffer-fish
-;;    (mistty-send-raw-string "echo 'hello\nworld\nand all that sort of things.'")
-;;    (mistty-wait-for-output)
+(ert-deftest mistty-test-fish-multiline-for-real ()
+  (with-mistty-buffer-fish
+   (should mistty-bracketed-paste)
+   (mistty-send-raw-string "echo 'hello\nworld\nand all that sort of things.'")
+   (mistty-wait-for-output)
 
-;;    (mistty-run-command
-;;     (mistty-test-goto "sort"))
-;;    (should (equal "$ echo 'hello\n  world\n  and all that <>sort of things.'" (mistty-test-content)))
-;;    (should (equal (point) (mistty-cursor)))))
+   (mistty-run-command
+    (mistty-test-goto "sort"))
+   (should (equal "$ echo 'hello\n  world\n  and all that <>sort of things.'" (mistty-test-content)))
+   (should (equal (point) (mistty-cursor)))
+
+   (mistty-run-command
+    (mistty-test-goto "llo"))
+   (should (equal "$ echo 'he<>llo\n  world\n  and all that sort of things.'" (mistty-test-content)))
+   (should (equal (point) (mistty-cursor)))
+
+   (mistty-run-command
+    (mistty-test-goto "rld"))
+   (should (equal "$ echo 'hello\n  wo<>rld\n  and all that sort of things.'" (mistty-test-content)))
+   (should (equal (point) (mistty-cursor)))))
 
 
 ;; TODO: find a way of testing non-empty modifications that are
@@ -1605,8 +1615,20 @@
     (mistty--exec mistty-test-zsh-exe "-i" "--no-rcs")
     (mistty-test-set-ps1))
    ((eq shell 'fish)
-    (mistty--exec mistty-test-fish-exe "-i" "-N" "-C" "function fish_prompt; printf '$ '; end")
-    (mistty-send-and-wait-for-prompt (lambda ()())))
+    (mistty--exec
+     mistty-test-fish-exe
+     "-i" "-N" "-C"
+     (concat "function fish_prompt; printf '$ '; end; "
+             ;; This enables bracketed-paste; this is normally done in
+             ;; __fish_config_interactive.fish but is disabled by -N.
+             "function __fish_enable_bracketed_paste --on-event fish_prompt --on-event fish_read; "
+             "  printf \"\\e[?2004h\";"
+             "end;"
+             "function __fish_disable_bracketed_paste --on-event fish_preexec --on-event fish_exit; "
+             "  printf \"\\e[?2004l\";"
+             "end"))
+    (setq mistty-log-enabled t)
+    (mistty-send-and-wait-for-prompt (lambda ())))
    (t (error "Unsupported shell %s" shell))))
 
 (defun mistty-test-set-ps1 ()

@@ -575,7 +575,7 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (mistty-wait-for-output "nine")
+   (mistty-wait-for-output :str "nine")
    (should (equal "$ echo one two three\n four five six seven\n eight nine"
                   (mistty-test-content)))))
 
@@ -585,7 +585,7 @@
 
    (mistty-run-command
     (insert "echo one two three four five six seven eight nine"))
-   (mistty-wait-for-output "nine")   
+   (mistty-wait-for-output :str "nine")   
 
    ;; make sure that the newlines didn't confuse the sync marker
    (should (equal (marker-position mistty-sync-marker) (point-min)))
@@ -615,8 +615,8 @@
       
       (execute-kbd-macro (kbd "v i RET"))
       (mistty-wait-for-output
-       (lambda ()
-         (buffer-local-value 'mistty-fullscreen work-buffer)))
+       :test (lambda ()
+               (buffer-local-value 'mistty-fullscreen work-buffer)))
       (should (eq mistty-term-buffer (window-buffer (selected-window))))
       (should (equal (concat bufname " scrollback") (buffer-name work-buffer)))
       (should (equal bufname (buffer-name term-buffer)))
@@ -625,8 +625,8 @@
       
       (execute-kbd-macro (kbd ": q ! RET"))
       (mistty-wait-for-output
-       (lambda ()
-         (not (buffer-local-value 'mistty-fullscreen work-buffer))))
+       :test (lambda ()
+               (not (buffer-local-value 'mistty-fullscreen work-buffer))))
       (should (eq mistty-work-buffer (window-buffer (selected-window))))
       (should (equal (concat " mistty tty " bufname) (buffer-name term-buffer)))
       (should (equal bufname (buffer-name work-buffer))))))
@@ -641,14 +641,14 @@
               on-seq off-seq))
      (mistty-send-command)
       (mistty-wait-for-output
-       (lambda ()
-         (buffer-local-value 'mistty-fullscreen work-buffer)))
+       :test (lambda ()
+               (buffer-local-value 'mistty-fullscreen work-buffer)))
      (should (eq mistty-term-buffer (window-buffer (selected-window))))
 
      (execute-kbd-macro (kbd "RET"))
       (mistty-wait-for-output
-       (lambda ()
-         (not (buffer-local-value 'mistty-fullscreen work-buffer))))
+       :test (lambda ()
+               (not (buffer-local-value 'mistty-fullscreen work-buffer))))
      (should (eq mistty-work-buffer (window-buffer (selected-window)))))))
 
 (ert-deftest test-mistty-enter-fullscreen-alternative-code ()
@@ -665,7 +665,7 @@
     (let ((work-buffer mistty-work-buffer)
           (proc mistty-proc))
       (execute-kbd-macro (kbd "v i RET"))
-      (mistty-wait-for-output (lambda () mistty-fullscreen))
+      (mistty-wait-for-output :test (lambda () mistty-fullscreen))
 
       (kill-buffer mistty-term-buffer)
       (mistty-wait-for-term-buffer-and-proc-to-die work-buffer proc 2))))
@@ -677,7 +677,7 @@
           (term-buffer mistty-term-buffer)
           (proc mistty-proc))
       (execute-kbd-macro (kbd "v i RET"))
-      (mistty-wait-for-output (lambda () mistty-fullscreen))
+      (mistty-wait-for-output :test (lambda () mistty-fullscreen))
 
       (signal-process proc 'SIGILL)
 
@@ -1136,7 +1136,7 @@
    (mistty-send-raw-string
     "printf 'say %s>> ' something; read something; echo something: $something")
    (mistty-send-command)
-   (mistty-wait-for-output "say something")
+   (mistty-wait-for-output :str "say something")
    (mistty-send-raw-string "foo")
    (mistty-wait-for-output)
    (should (equal
@@ -1283,16 +1283,16 @@
    (let ((before-send (point)) after-line-10)
      (mistty-send-raw-string "for i in {1..100} ; do echo \"line $i\"; done | more")
      (mistty-send-command)
-     (mistty-wait-for-output
-      (lambda ()
-        (goto-char before-send)
-        (search-forward-regexp "line 10" nil 'no-error)))
+     (mistty-wait-for-output 
+      :test (lambda ()
+              (goto-char before-send)
+              (search-forward "line 10" nil 'no-error)))
      (setq after-line-10 (point-marker))
      ;; wait for more's prompt
      (mistty-wait-for-output
-      (lambda ()
-        (goto-char after-line-10)
-        (search-forward-regexp "^[^l]" nil 'no-error)))
+      :test (lambda ()
+              (goto-char after-line-10)
+              (search-forward-regexp "^[^l]" nil 'no-error)))
 
      ;; edit from prompt to line 10
      (mistty-run-command
@@ -1427,8 +1427,9 @@
    (mistty-send-and-wait-for-prompt)
    (narrow-to-region (misty--bol (point)) (point-max))
    (mistty-send-raw-string "toto\t")
-   (while (not (search-forward-regexp "^toto" nil 'noerror))
-     (mistty-wait-for-output))
+   (mistty-wait-for-output
+    :test (lambda ()
+            (search-forward-regexp "^toto" nil 'noerror)))
    (mistty-run-command
     (insert "foobar"))
    (should (equal "$ toto<>\ntoto0  toto1  toto2"
@@ -1448,7 +1449,7 @@
                    ;; this is actually displayed
                    (push (iter-yield "done") answers))))
      (mistty--enqueue mistty--queue (funcall lambda))
-     (mistty-wait-for-output (lambda () (length= answers 4)))
+     (mistty-wait-for-output :test (lambda () (length= answers 4)))
      (should (equal '(timeout nil nil nil) (nreverse answers)))
      (should (equal "$ done" (mistty-test-content))))))
 
@@ -1671,50 +1672,57 @@
    (t (error "Unsupported shell %s" shell))))
 
 (defun mistty-test-set-ps1 ()
-  (mistty-wait-for-output (lambda () (= (point-min) (point-max))))
+  (mistty-wait-for-output :test (lambda () (= (point-min) (point-max))))
   (mistty-send-raw-string (concat "PS1='" mistty-test-prompt "'"))
-  (mistty-wait-for-output "PS1=")
+  (mistty-wait-for-output :str "PS1=")
   (narrow-to-region (mistty-send-and-wait-for-prompt) (point-max)))
 
 (defun mistty-test-after-command ()
   (mistty-post-command)
   (ert-run-idle-timers)
   (mistty-wait-for-output
-   (lambda ()
-     (mistty--queue-empty-p mistty--queue))))
+   :test (lambda ()
+           (mistty--queue-empty-p mistty--queue))))
 
-(cl-defun mistty-wait-for-output (&optional func-or-str &key (start (point-min)))
+(cl-defun mistty-wait-for-output (&key (test nil) (str nil) (regexp nil) (start (point-min)))
   "Wait for process output.
 
-With FUNC-OR-STR set to a function, keep waiting for process
-output until the function evaluates to true.
+With TEST set to a function, keep waiting for process output
+until the function evaluates to true.
 
-With FUNC-OR-STR set to a string, keep waiting for process output
-until the text can be found. If START is set, always go back to
+With STR set to a string, keep waiting for process output until
+the text can be found. If START is set, always go back to START
+to search for the text instead of (point-min)
+
+With REGEXP set to a string, keep waiting for process output
+until the regexp matches. If START is set, always go back to
 START to search for the text instead of (point-min)
 
-With FUNC-OR-STR nil, wait for any process output. This could be
+With all of these nil, wait for any process output. This could be
 anything: it could be output reacting to some old event, it could
 be incomplete output. This makes tests unstable."
   (ert-run-idle-timers)
   (let ((condition
          (cond
-          ((stringp func-or-str)
+          (regexp
            (lambda ()
              (save-excursion
                (when start (goto-char start))
-               (search-forward func-or-str nil t))))
-          ((functionp func-or-str)
-           func-or-str)
-          ((not (null func-or-str))
-           (error "invalid value for func-or-str: %s" func-or-str)))))
+               (search-forward-regexp regexp nil 'noerror))))
+          (str
+           (lambda ()
+             (save-excursion
+               (when start (goto-char start))
+               (search-forward str nil t))))
+          (t test))))
     (if condition
         (let ((time-limit (time-add (current-time) 1)))
           (while (not (funcall condition))
             (unless (time-less-p (current-time) time-limit)
-              (error "condition never met (wait-for-output): %s" func-or-str))
+              (error "condition never met (wait-for-output)"))
             (accept-process-output mistty-proc 0 100 t)
             (ert-run-idle-timers)))
+      
       ;; waiting for any process output (makes test unstable)
       (unless (accept-process-output mistty-proc 0 500 t)
         (error "no output (wait-for-output with no conditions)")))))
@@ -1752,14 +1760,9 @@ of the beginning of the prompt."
   (let ((before-send (point)))
     (funcall (or send-command-func #'mistty-send-command))
     (mistty-wait-for-output
-     (lambda ()
-       (mistty-has-prompt-after before-send prompt)))
+     :regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt)))
+     :start before-send)
     (match-beginning 0)))
-
-(defun mistty-has-prompt-after (before-send prompt)
-  (save-excursion
-    (goto-char before-send)
-    (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
 
 (cl-defun mistty-test-content (&key (start (point-min)) (end (point-max)) show (strip-last-prompt nil))
   (interactive)

@@ -604,14 +604,14 @@ mapping somewhat consistent between fullscreen and normal mode.")
   (with-current-buffer (window-buffer win)
     (when (and mistty-term-proc
                (or (eq (mistty-cursor) (window-point win))
-                   (> (window-point win) (mistty--bol-pos-from (point-max) -3))))
+                   (> (window-point win) (misty--bol (point-max) -3))))
         (with-selected-window win
           (recenter (- (1+ (count-lines
                             (window-point win) (point-max)))) t)))))
 
 (defun mistty--detect-possible-prompt (cursor)
   (mistty--require-term-buffer)
-  (let* ((bol (mistty--bol-pos-from cursor)))
+  (let* ((bol (misty--bol cursor)))
     (when (and (> cursor bol)
                (>= cursor (mistty--last-non-ws))
                (string-match
@@ -716,7 +716,7 @@ Also updates prompt and point."
                       (setq pos (next-single-property-change pos 'mistty-prompt-id nil (point-max)))
                       (eq ?\n (char-before pos)))
                   (progn
-                    (setq pos (mistty--bol-pos-from pos 2))
+                    (setq pos (misty--bol pos 2))
                     (< mistty--end-prompt pos))))
                (last-non-ws (mistty--last-non-ws)))
           (when (and has-new-line-after
@@ -749,7 +749,7 @@ Also updates prompt and point."
                        (string-match
                         mistty-prompt-re
                         (mistty--safe-bufstring
-                         (mistty--bol-pos-from (mistty-cursor)) (mistty-cursor))))
+                         (misty--bol (mistty-cursor)) (mistty-cursor))))
               (mistty-log "Detected prompt: [%s-%s]" prompt-beg (mistty-cursor))
               (mistty--set-sync-mark-from-end prompt-beg (mistty-cursor))))))
       
@@ -839,7 +839,7 @@ from `mistty--modification-hook' tracking the changes."
     (move-marker mistty-cmd-start-marker cmd-start-pos)
     (move-overlay mistty-sync-ov sync-pos (point-max))
     (move-overlay mistty-prompt-ov
-                  (max sync-pos (mistty--bol-pos-from mistty-cmd-start-marker))
+                  (max sync-pos (misty--bol mistty-cmd-start-marker))
                   mistty-cmd-start-marker)
     (when (> cmd-start-pos sync-pos)
       (mistty--set-prompt-properties sync-pos cmd-start-pos))))
@@ -864,8 +864,8 @@ This command is available in fullscreen mode."
   (let ((cursor (mistty-cursor)))
     (if inexact
         (or (>= (point) cursor)
-            (>= (mistty--bol-pos-from (point))
-                (mistty--bol-pos-from cursor)))
+            (>= (misty--bol (point))
+                (misty--bol cursor)))
         (= (point) cursor))))
 
 (defun mistty--last-non-ws ()
@@ -1119,7 +1119,7 @@ Possibly detect a prompt on the current line."
   (let* ((prompt-end (marker-position mistty-cmd-start-marker))
          (prompt-length (if (> prompt-end mistty-sync-marker)
                             (- prompt-end
-                               (mistty--bol-pos-from prompt-end))
+                               (misty--bol prompt-end))
                           0)))
     (when (and (> prompt-length 0)
                (> from prompt-end)
@@ -1269,10 +1269,10 @@ END section to be valid in the term buffer."
          ;; as long as the term and work buffers haven't diverged.
          ((and (< (mistty--changeset-end cs)
                   ;; modifiable limit
-                  (mistty--bol-pos-from (point-max) -5))
+                  (misty--bol (point-max) -5))
                (not mistty--need-refresh))
           (mistty--set-sync-mark-from-end
-           (mistty--bol-pos-from (mistty--changeset-end cs) 3)))
+           (misty--bol (mistty--changeset-end cs) 3)))
 
          (t ;; revert everything
           
@@ -1391,7 +1391,7 @@ END section to be valid in the term buffer."
             (>= pos mistty-cmd-start-marker)
             (> mistty-cmd-start-marker mistty-sync-marker)
             (>= pos mistty-cmd-start-marker)
-            (<= pos (mistty--eol-pos-from mistty-cmd-start-marker))))))
+            (<= pos (mistty--eol mistty-cmd-start-marker))))))
 
 (defun mistty-before-positional ()
   (let ((cursor (mistty-cursor)))
@@ -1421,13 +1421,13 @@ END section to be valid in the term buffer."
        (and (>= end mistty-cmd-start-marker)
             (>= cursor end)
             (or (> cursor (point-max))
-                    (<= cursor (mistty--bol-pos-from start 2)))
+                    (<= cursor (misty--bol start 2)))
             (string= content (mistty--safe-bufstring start end)))))))
 
 (defun mistty--possible-prompt-contains (pos)
   (pcase mistty--possible-prompt
     (`(,start ,line-start ,_)
-     (and (>= pos line-start) (<= pos (mistty--eol-pos-from start))))))
+     (and (>= pos line-start) (<= pos (mistty--eol start))))))
 
 (provide 'mistty)
 

@@ -275,7 +275,7 @@
    ;; Point is in the 2nd line, after world, and there's no prompt
    ;; on that line, so just go there.
    (beginning-of-line)
-   (should (equal (point) (mistty--bol-pos-from (point))))))
+   (should (equal (point) (misty--bol (point))))))
 
 (ert-deftest test-mistty-bol-outside-of-prompt ()
   (with-mistty-buffer
@@ -515,7 +515,7 @@
    (mistty-run-command
     (insert "echo third"))
    (mistty-send-and-wait-for-prompt)
-   (narrow-to-region (mistty--bol-pos-from (point)) (point-max))
+   (narrow-to-region (misty--bol (point)) (point-max))
    (mistty-send-raw-string "?\C-r")
    (mistty-wait-for-output)
    (should (equal "(reverse-i-search)`': ?<>" (mistty-test-content)))
@@ -1206,7 +1206,7 @@
    (mistty-send-beginning-of-line)
    (mistty-wait-for-output)
    (should (equal ">>> <>1 + 1"
-                  (mistty-test-content (mistty--bol-pos-from (point)))))))
+                  (mistty-test-content (misty--bol (point)))))))
 
 (ert-deftest test-mistty-python-edit-prompt ()
   (with-mistty-buffer
@@ -1421,7 +1421,7 @@
    (dotimes (i 3)
      (mistty-send-raw-string (format "function toto%d { echo %d; };" i i)))
    (mistty-send-and-wait-for-prompt)
-   (narrow-to-region (mistty--bol-pos-from (point)) (point-max))
+   (narrow-to-region (misty--bol (point)) (point-max))
    (mistty-send-raw-string "toto\t")
    (while (not (search-forward-regexp "^toto" nil 'noerror))
      (mistty-wait-for-output))

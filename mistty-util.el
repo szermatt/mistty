@@ -18,13 +18,13 @@ changed outside of this function.")
 (defun mistty--next-id ()
   (setq mistty--last-id (1+ mistty--last-id)))
 
-(defun mistty--bol-pos-from (pos &optional n)
+(defun misty--bol (pos &optional n)
   (save-excursion
     (goto-char pos)
     (let ((inhibit-field-text-motion t))
       (line-beginning-position n))))
 
-(defun mistty--eol-pos-from (pos)
+(defun mistty--eol (pos)
   (save-excursion
     (goto-char pos)
     (let ((inhibit-field-text-motion t))
@@ -71,7 +71,7 @@ changed outside of this function.")
 
 (defun mistty--col (pos)
   "Column number at POS"
-  (- pos (mistty--bol-pos-from pos)))
+  (- pos (misty--bol pos)))
 
 (defun mistty--line (pos)
   "Line number at POS"
@@ -84,7 +84,7 @@ changed outside of this function.")
 
 (defun mistty--line-length (pos)
   "Length of the line at POS"
-  (- (mistty--eol-pos-from pos)
-     (mistty--bol-pos-from pos)))
+  (- (mistty--eol pos)
+     (misty--bol pos)))
 
 (provide 'mistty-util)

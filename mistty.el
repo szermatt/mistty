@@ -1087,24 +1087,92 @@ Possibly detect a prompt on the current line."
     (setq mistty--inhibit-refresh nil)
     (when mistty--need-refresh
       (mistty--refresh))))
+
 (defun mistty--move-str (from to &optional will-wait)
-  (let ((diff (mistty--distance-on-term from to)))
-    (if (zerop diff)
-        nil
-      (let ((distance (abs diff))
-            (direction
-             (if (< diff 0) mistty-left-str mistty-right-str))
-            (reverse-direction
-             (if (< diff 0) mistty-right-str mistty-left-str)))
+  (or (mistty--fish-multiline-move-str from to)
+      (mistty--move-horizontally-str (mistty--distance-on-term from to) will-wait)))
+
+(defun mistty--move-horizontally-str (direction &optional will-wait)
+  (if (zerop direction)
+      ""
+    (let ((distance (abs direction))
+          (towards-str
+           (if (< direction 0) mistty-left-str mistty-right-str))
+          (away-from-str
+           (if (< direction 0) mistty-right-str mistty-left-str)))
       (concat
-       (mistty--repeat-string distance direction)
+       (mistty--repeat-string distance towards-str)
        (if will-wait
            ;; Send a no-op right/left pair so that if, for example, it's
            ;; just not possible to go left anymore, the connected process
            ;; might still send *something* back and mistty--send-and-wait
            ;; won't have to time out.
-           (concat reverse-direction direction)
-         ""))))))
+           (concat away-from-str towards-str)
+         "")))))
+
+(defun mistty--move-vertically-str (direction)
+  (mistty--repeat-string
+   (abs direction)
+   (if (< direction 0) mistty-up-str mistty-down-str)))
+
+(defun mistty--fish-multiline-move-str (from to)
+  (let* ((prompt-end (marker-position mistty-cmd-start-marker))
+         (prompt-length (if (> prompt-end mistty-sync-marker)
+                            (- prompt-end
+                               (mistty--bol-pos-from prompt-end))
+                          0)))
+    (when (and (> prompt-length 0)
+               (> from prompt-end)
+               (> to prompt-end))
+      (with-current-buffer mistty-term-buffer
+        (mistty--fish-multiline-move-str-on-term
+         (mistty--safe-pos (mistty--from-work-pos from))
+         (mistty--safe-pos (mistty--from-work-pos to))
+         (mistty--safe-pos (mistty--from-work-pos prompt-end))
+         prompt-length)))))
+
+(defun mistty--fish-multiline-move-str-on-term (from to prompt-start prompt-length)
+  (let ((beg (mistty--bol-skipping-fakes (min from to)))
+        (end (max from to))
+        (calling-buffer (current-buffer)))
+    (when (> (count-lines beg end) 1)
+      (with-temp-buffer
+        (insert (with-current-buffer calling-buffer
+                  (buffer-substring beg end)))
+        (let ((from (copy-marker (- from beg)))
+              (to (copy-marker (- to beg)))
+              lines min-col from-col to-col move-col)
+          (term--remove-fake-newlines) ;; TODO: write custom impl
+          
+          ;; all lines must start with spaces except the one with the
+          ;; prompt.
+          (when (and
+                 (>= (mistty--col from) prompt-length)
+                 (>= (mistty--col to) prompt-length)
+                 (length> (setq lines (mistty--lines)) 1)
+                 (seq-every-p
+                  (lambda (line-start)
+                    (progn
+                      (goto-char line-start)
+                      (looking-at-p (make-string prompt-length ?\ ))))
+                  (if (> prompt-start beg)
+                      (cdr lines)
+                    lines)))
+            (dolist (line-start lines)
+              (delete-region line-start (+ prompt-length line-start)))
+            (delete-trailing-whitespace (point-min) (point-max))
+            
+            (setq min-col (1- (seq-min (mapcar #'mistty--line-length lines))))
+            (setq from-col (mistty--col from))
+            (setq to-col (mistty--col to))
+            (setq move-col (min min-col to-col from-col))
+            (concat
+             ;; go left-right from from-col to move-col
+             (mistty--move-horizontally-str (- move-col from-col))
+             ;; go up/down from from-line to to-line
+             (mistty--move-vertically-str (- (mistty--line to) (mistty--line from)))
+             ;; go left-right from move-col to to-col
+             (mistty--move-horizontally-str (- to-col move-col)))))))))
 
 (defun mistty--distance-on-term (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.
@@ -1116,8 +1184,8 @@ While it takes BEG and END as work buffer positions, it looks in
 the term buffer to figure out, so it's important for the BEG and
 END section to be valid in the term buffer."
   (with-current-buffer mistty-term-buffer
-    (let ((beg (mistty--safe-pos (mistty--from-pos-of (min beg end) mistty-work-buffer)))
-          (end (mistty--safe-pos (mistty--from-pos-of (max beg end) mistty-work-buffer)))
+    (let ((beg (mistty--safe-pos (mistty--from-work-pos (min beg end))))
+          (end (mistty--safe-pos (mistty--from-work-pos (max beg end))))
           (sign (if (< end beg) -1 1)))
       (let ((pos beg) (nlcount 0))
         (while (and (< pos end) (setq pos (text-property-any pos end 'term-line-wrap t)))

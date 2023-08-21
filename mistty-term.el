@@ -18,12 +18,17 @@ The current buffer is set to the term-mode buffer. The hook is
 allowed to modify it, to add text properties, for example. In
 such case, consider using `mistty-register-text-properties'.")
 
-(defconst mistty-left-str "\eOD"
-  "Sequence to send to the process when the left arrow is pressed.")
+(defconst mistty-up-str "\eOA"
+  "Sequence to send to the process when the up arrow is pressed.")
+
+(defconst mistty-down-str "\eOB"
+  "Sequence to send to the process when the downarrow is pressed.")
 
 (defconst mistty-right-str "\eOC"
   "Sequence to send to the process when the rightarrow is pressed.")
 
+(defconst mistty-left-str "\eOD"
+  "Sequence to send to the process when the left arrow is pressed.")
 
 (defvar mistty-term-key-map
   (let ((map (make-sparse-keymap)))

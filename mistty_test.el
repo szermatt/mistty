@@ -5,6 +5,8 @@
 (require 'ert)
 (require 'ert-x)
 (require 'generator)
+(eval-when-compile
+  (require 'cl-lib))
 
 (require 'mistty-changeset)
 (require 'mistty-queue)
@@ -1467,6 +1469,114 @@
      "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n"
      (mistty--safe-bufstring mistty-sync-marker (point-max))))))
 
+(ert-deftest mistty-test-fish-multiline-on-term ()
+  (ert-with-test-buffer ()
+    (insert "prompt> echo 'hello                 \n")
+    (insert "        world                       \n")
+    (insert "        and all that sort of things.\n")
+    (goto-char (point-min))
+    (let ((prompt-start (search-forward "prompt> "))
+          (prompt-length 8)
+          (from (search-forward "hell"))
+          (to (search-forward "sort ")))
+      (should (equal
+               (concat
+                (mistty--repeat-string 5 mistty-left-str)
+                (mistty--repeat-string 2 mistty-down-str)
+                (mistty--repeat-string 13 mistty-right-str))
+               (mistty--fish-multiline-move-str-on-term
+                from to prompt-start prompt-length))))))
+
+(ert-deftest mistty-test-fish-multiline-on-term-straightforward ()
+  (ert-with-test-buffer ()
+    (insert "prompt> echo 'hello\n")
+    (insert "        world'\n")
+    (goto-char (point-min))
+    (let ((prompt-start (search-forward "prompt> "))
+          (prompt-length 8)
+          (from (search-forward "echo"))
+          (to (search-forward "world")))
+      (should (equal
+               (concat
+                (mistty--repeat-string 1 mistty-down-str)
+                (mistty--repeat-string 1 mistty-right-str))
+               (mistty--fish-multiline-move-str-on-term
+                from to prompt-start prompt-length))))))
+
+(ert-deftest mistty-test-fish-multiline-on-term-back ()
+  (ert-with-test-buffer ()
+    (insert "prompt> echo 'hello\n")
+    (insert "        world'\n")
+    (goto-char (point-min))
+    (let ((prompt-start (search-forward "prompt> "))
+          (prompt-length 8)
+          (from (search-forward "world"))
+          (to (progn
+                (goto-char (point-min))
+                (search-forward "echo"))))
+      (should (equal
+               (concat
+                (mistty--repeat-string 1 mistty-left-str)
+                (mistty--repeat-string 1 mistty-up-str))
+               (mistty--fish-multiline-move-str-on-term
+                from to prompt-start prompt-length))))))
+
+(ert-deftest mistty-test-fish-multiline-on-term-bad-indent ()
+  (ert-with-test-buffer ()
+    (insert "prompt> echo 'hello\n")
+    (insert "prompt> world'\n")
+    (goto-char (point-min))
+    (let ((prompt-start (search-forward "prompt> "))
+          (prompt-length 8)
+          (from (search-forward "echo"))
+          (to (search-forward "world")))
+      (should (null
+               (mistty--fish-multiline-move-str-on-term
+                from to prompt-start prompt-length))))))
+
+(ert-deftest mistty-test-fish-multiline-on-term-single-line ()
+  (ert-with-test-buffer ()
+    (insert "prompt> echo 'hello'\n")
+    (goto-char (point-min))
+    (let ((prompt-start (search-forward "prompt> "))
+          (prompt-length 8)
+          (from (search-forward "echo"))
+          (to (search-forward "hello")))
+      (should (null
+               (mistty--fish-multiline-move-str-on-term
+                from to prompt-start prompt-length))))))
+
+(ert-deftest mistty-test-fish-multiline-on-term-ignore-fake-nl ()
+  (ert-with-test-buffer ()
+    (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
+      (insert "prompt> echo '" fake-nl "hello                 \n")
+      (insert "        world " fake-nl "                      \n")
+      (insert "        and al" fake-nl "l that sort of things.\n")
+      (goto-char (point-min))
+      (let ((prompt-start (search-forward "prompt> "))
+            (prompt-length 8)
+            (from (search-forward "hell"))
+            (to (search-forward "sort ")))
+        (should (equal
+                 (concat
+                  (mistty--repeat-string 5 mistty-left-str)
+                  (mistty--repeat-string 2 mistty-down-str)
+                  (mistty--repeat-string 13 mistty-right-str))
+                 (mistty--fish-multiline-move-str-on-term
+                  from to prompt-start prompt-length)))))))
+
+;; TODO: fish doesn't behave in test as in normal operations
+;; (ert-deftest mistty-test-fish-multiline ()
+;;   (with-mistty-buffer-fish
+;;    (mistty-send-raw-string "echo 'hello\nworld\nand all that sort of things.'")
+;;    (mistty-wait-for-output)
+
+;;    (mistty-run-command
+;;     (mistty-test-goto "sort"))
+;;    (should (equal "$ echo 'hello\n  world\n  and all that <>sort of things.'" (mistty-test-content)))
+;;    (should (equal (point) (mistty-cursor)))))
+
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 
@@ -1561,7 +1671,7 @@ of the beginning of the prompt."
     (goto-char before-send)
     (search-forward-regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt))) nil 'noerror)))
 
-(defun mistty-test-content  (&optional start end nopointer keep-empty)
+(cl-defun mistty-test-content  (&optional start end nopointer keep-empty)
   (interactive)
   (let* ((start (or start (point-min)))
          (end (or end (point-max)))

@@ -30,6 +30,15 @@ changed outside of this function.")
     (let ((inhibit-field-text-motion t))
       (line-end-position))))
 
+(defun mistty--bol-skipping-fakes (pos)
+  (save-excursion
+    (let ((inhibit-field-text-motion t))
+      (goto-char pos)
+      (while (and (setq pos (line-beginning-position))
+                  (eq ?\n (char-before pos))
+                  (get-text-property (1- pos) 'term-line-wrap))
+        (goto-char (1- pos)))
+      pos)))
 
 (defun mistty--repeat-string (count elt)
   (let ((elt-len (length elt)))
@@ -51,5 +60,31 @@ changed outside of this function.")
 (defun mistty--safe-pos (pos)
   (min (point-max) (max (point-min) pos)))
 
+(defun mistty--lines ()
+  "A list of markers to the beginning of the buffer's line."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((lines (list (point-min-marker))))
+      (while (search-forward "\n" nil t)
+        (push (point-marker) lines))
+      (nreverse lines))))
+
+(defun mistty--col (pos)
+  "Column number at POS"
+  (- pos (mistty--bol-pos-from pos)))
+
+(defun mistty--line (pos)
+  "Line number at POS"
+  (save-excursion
+    (let ((count 0))
+      (goto-char pos)
+      (while (zerop (forward-line -1))
+        (setq count (1+ count)))
+      count)))
+
+(defun mistty--line-length (pos)
+  "Length of the line at POS"
+  (- (mistty--eol-pos-from pos)
+     (mistty--bol-pos-from pos)))
 
 (provide 'mistty-util)

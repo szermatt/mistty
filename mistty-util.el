@@ -21,24 +21,21 @@ changed outside of this function.")
 (defun mistty--bol (pos &optional n)
   (save-excursion
     (goto-char pos)
-    (let ((inhibit-field-text-motion t))
-      (line-beginning-position n))))
+    (pos-bol n)))
 
-(defun mistty--eol (pos)
+(defun mistty--eol (pos &optional n)
   (save-excursion
     (goto-char pos)
-    (let ((inhibit-field-text-motion t))
-      (line-end-position))))
+    (pos-eol n)))
 
 (defun mistty--bol-skipping-fakes (pos)
   (save-excursion
-    (let ((inhibit-field-text-motion t))
-      (goto-char pos)
-      (while (and (setq pos (line-beginning-position))
-                  (eq ?\n (char-before pos))
-                  (get-text-property (1- pos) 'term-line-wrap))
-        (goto-char (1- pos)))
-      pos)))
+    (goto-char pos)
+    (while (and (setq pos (pos-bol))
+                (eq ?\n (char-before pos))
+                (get-text-property (1- pos) 'term-line-wrap))
+      (goto-char (1- pos)))
+    pos))
 
 (defun mistty--repeat-string (count elt)
   (let ((elt-len (length elt)))

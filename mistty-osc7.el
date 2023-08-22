@@ -12,8 +12,7 @@
          path (decode-coding-string
                path (or file-name-coding-system
                         default-file-name-coding-system) 'nocopy))
-        (ignore-errors
-          (cd-absolute path))))))
+        (setq default-directory path)))))
 
 
 (provide 'mistty-osc7)

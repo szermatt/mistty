@@ -13,7 +13,7 @@
                path (or file-name-coding-system
                         default-file-name-coding-system) 'nocopy))
         (ignore-errors
-          (cd path))))))
+          (cd-absolute path))))))
 
 
 (provide 'mistty-osc7)

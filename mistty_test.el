@@ -1020,57 +1020,49 @@
 
 (ert-deftest test-mistty-osc ()
   (with-mistty-buffer
-    (let ((mistty-osc-hook nil)
-          (osc-list))
-      (with-current-buffer mistty-term-buffer
-        (add-hook 'mistty-osc-hook
-                  (lambda (seq)
-                    (push seq osc-list))
-                  nil t))
+   (let* ((osc-list)
+          (mistty-osc-handlers
+           `(("8" . ,(lambda (code text)
+                       (push (cons code text) osc-list))))))
       (mistty-send-raw-string "printf '\\e]8;;http://www.example.com\\aSome OSC\\e]8;;\\a!\\n'")
       (should (equal "Some OSC!" (mistty-send-and-capture-command-output)))
-      (should (equal '("8;;http://www.example.com" "8;;") (nreverse osc-list))))))
+      (should (equal '(("8" . ";http://www.example.com") ("8" . ";")) (nreverse osc-list))))))
 
 (ert-deftest test-mistty-osc-standard-end ()
   (with-mistty-buffer
-    (let ((mistty-osc-hook nil)
-          (osc-list))
-      (with-current-buffer mistty-term-buffer
-        (add-hook 'mistty-osc-hook
-                  (lambda (seq)
-                    (push seq osc-list))))
+   (let* ((osc-list)
+          (mistty-osc-handlers
+           `(("8" . ,(lambda (code text)
+                       (push (cons code text) osc-list))))))
       (mistty-send-raw-string "printf '\\e]8;;http://www.example.com\\e\\\\Some OSC\\e]8;;\\e\\\\!\\n'")
       (should (equal "Some OSC!" (mistty-send-and-capture-command-output)))
-      (should (equal '("8;;http://www.example.com" "8;;") (nreverse osc-list))))))
+      (should (equal '(("8" . ";http://www.example.com") ("8" . ";")) (nreverse osc-list))))))
 
 (ert-deftest test-mistty-osc-add-text-properties ()
   (with-mistty-buffer
-   (with-current-buffer mistty-term-buffer
-     (let ((start nil)
-           (test-value nil))
-       (add-hook 'mistty-osc-hook
-                 (lambda (seq)
-                   (if (length> seq 0)
-                       (setq test-value seq
-                             start (point))
-                     (put-text-property start (point) 'mistty-test test-value)))
-                 nil t)))
-   (mistty-send-raw-string "printf 'abc \\e]foobar\\adef\\e]\\a ghi\\n'")
-   (should (equal "abc def ghi" (mistty-send-and-capture-command-output)))
-   (search-backward "def")
-   (should (equal `((,(1- (point)) ,(+ 2 (point)) (mistty-test "foobar")))
-                  (mistty-merge-intervals
-                   (mistty-filter-intervals
-                    (object-intervals (current-buffer))
-                    '(mistty-test)))))))
+   (let* ((start nil)
+          (test-value nil)
+          (mistty-osc-handlers
+           `(("f" . ,(lambda (_ text)
+                       (if (length> text 0)
+                           (setq test-value text
+                                 start (point))
+                         (put-text-property start (point) 'mistty-test test-value)))))))
+     (mistty-send-raw-string "printf 'abc \\e]f;foobar\\adef\\e]f;\\a ghi\\n'")
+     (should (equal "abc def ghi" (mistty-send-and-capture-command-output)))
+     (search-backward "def")
+     (should (equal `((,(1- (point)) ,(+ 2 (point)) (mistty-test "foobar")))
+                    (mistty-merge-intervals
+                     (mistty-filter-intervals
+                      (object-intervals (current-buffer))
+                      '(mistty-test))))))))
 
 (ert-deftest mistty-test-split-osc-sequence ()
   (with-mistty-buffer
-   (let ((mistty-osc-hook nil)
-         osc-list)
-     (add-hook 'mistty-osc-hook
-                  (lambda (seq)
-                    (push seq osc-list)))
+   (let* (osc-list
+          (mistty-osc-handlers
+           `(("999" . ,(lambda (_ text)
+                         (push text osc-list))))))
      (mistty-emulate-terminal
       mistty-proc "foo\e]999;he" mistty-work-buffer)
      (mistty-emulate-terminal
@@ -1079,22 +1071,21 @@
       mistty-proc "orld\abar" mistty-work-buffer)
      (mistty--refresh)
      (should (equal "$ foobar" (mistty-test-content)))
-     (should (equal '("999;hello, world") osc-list)))))
+     (should (equal '("hello, world") osc-list)))))
 
 (ert-deftest mistty-test-decode-osc ()
   (with-mistty-buffer
-   (let ((mistty-osc-hook nil)
-         osc-list)
-     (add-hook 'mistty-osc-hook
-                  (lambda (seq)
-                    (push seq osc-list)))
+   (let* (osc-list
+          (mistty-osc-handlers
+           `(("999" . ,(lambda (_ text)
+                         (push text osc-list))))))
      (mistty-emulate-terminal
       mistty-proc
       "foo\e]999;\xce\xb1\xce\xb2\xce\xb3\abar"
       mistty-work-buffer)
      (mistty--refresh)
      (should (equal "$ foobar" (mistty-test-content)))
-     (should (equal '("999;αβγ") osc-list)))))
+     (should (equal '("αβγ") osc-list)))))
 
 (ert-deftest test-mistty-reset ()
   (with-mistty-buffer

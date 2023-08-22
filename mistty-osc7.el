@@ -2,8 +2,8 @@
 
 (require 'url-util)
 
-(defun mistty-osc7 (osc-seq)
-  (when (string-match "7;file://\\([^/]*\\)\\(/.*\\)" osc-seq)
+(defun mistty-osc7 (_ osc-seq)
+  (when (string-match "file://\\([^/]*\\)\\(/.*\\)" osc-seq)
     (let ((hostname (url-unhex-string (match-string 1 osc-seq)))
           (path (url-unhex-string (match-string 2 osc-seq))))
       (when (and (string= hostname (system-name))

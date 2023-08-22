@@ -7,7 +7,7 @@
 
 (autoload 'mistty-osc7 "mistty-osc7")
 
-(defvar mistty-osc-hook (list #'mistty-osc7)
+(defvar mistty-osc-handlers '(("7" . mistty-osc7))
   "Hook run when unknown OSC sequences have been received.
 
 This hook is run on the term-mode buffer. It is passed the
@@ -399,9 +399,10 @@ all should rightly be part of term.el."
       ;; encoded. This would be inconvenient and error-prone, so we
       ;; disallow the US-ASCII characters disallowed by ECMA 48 and
       ;; allow all non-US-ASCII chars (usually multibyte UTF-8).
-      (while (string-match "\e\\(\\[\\?\\(2004\\|25\\)[hl]\\|\\]\\([^\x00-\x07\x0e-\x1f\x7f]*\\)\\(\e\\\\\\|\a\\|\\'\\)\\)" str start)
+      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\|25\\)[hl]\\|\\]\\(?2:\\(?:\\(?3:[a-zA-Z0-9]+\\);\\)?[^\x00-\x07\x0e-\x1f\x7f]*\\)\\(?4:\e\\\\\\|\a\\|\\'\\)\\)" str start)
         (let ((ext (match-string 1 str))
-              (osc (match-string 3 str))
+              (osc (match-string 2 str))
+              (osc-code (match-string 3 str))
               (osc-terminator (match-string 4 str))
               (seq-start (match-beginning 0))
               (seq-end (match-end 0)))
@@ -429,14 +430,18 @@ all should rightly be part of term.el."
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty--with-live-buffer work-buffer
               (setq cursor-type nil)))
+           ((and osc (length= osc-terminator 0))
+            (term-emulate-terminal proc (substring str start seq-start))
+            ;; sequence is not finished; save it for later
+            (setq mistty--undecoded-bytes (substring str seq-start)))
            (osc
             (term-emulate-terminal proc (substring str start seq-start))
-            (if (length= osc-terminator 0)
-                ;; sequence is not finished; save it for later
-                (setq mistty--undecoded-bytes (substring str seq-start))
-              (run-hook-with-args
-               'mistty-osc-hook
-               (decode-coding-string osc locale-coding-system t)))))
+            (when-let ((code osc-code)
+                       (handler (cdr (assoc-string code mistty-osc-handlers))))
+              (funcall handler code
+                       (decode-coding-string
+                        (string-remove-prefix (concat code ";") osc)
+                        locale-coding-system t)))))
           (setq start seq-end)))
       (let ((split (mistty--split-incomplete-chars (substring str start))))
         (when (length> (cdr split) 0)

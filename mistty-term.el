@@ -16,6 +16,7 @@
   (let ((alist nil))
     ;; not using ansi-osc-directory-tracker because it doesn't decode
     ;; the coding system of the path after percent-decoding it.
+    ;; TODO: propose a fix for ansi-osc
     (push '("7" . mistty-osc7) alist)
 
     ;; These handlers are reasonably compatibly with MisTTY OSC.
@@ -31,7 +32,10 @@ ST (ESC \\ or \\a) and may chooose to handle or ignore them.
 
 The current buffer is set to the term-mode buffer. The hook is
 allowed to modify it, to add text properties, for example. In
-such case, consider using `mistty-register-text-properties'.")
+such case, consider using `mistty-register-text-properties'.
+
+Most handlers written for ansi-osc (Emacs 29) should work here as
+well.")
 
 (defconst mistty-up-str "\eOA"
   "Sequence to send to the process when the up arrow is pressed.")

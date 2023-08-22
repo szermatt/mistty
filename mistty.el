@@ -131,7 +131,8 @@ true, the `term-mode' buffer is the buffer shown to the user,
 while the `mistty-mode' buffer is kept aside, detached from the
 process.
 
-This variable is available in the work buffer.")
+This variable is available in both the work buffer and the term
+buffer.")
 
 (defvar-local mistty--old-point nil
   "The position of the point captured in `pre-command-hook'.
@@ -473,25 +474,32 @@ mapping somewhat consistent between fullscreen and normal mode.")
       (let ((kill-buffer-query-functions nil))
         (kill-buffer term-buffer)))))
       
-(defsubst mistty--buffer-p (buffer)
-  "Return the BUFFER if the buffer is a live mistty buffer."
-  (if (and buffer
-           (bufferp buffer)
-           (eq 'mistty-mode (buffer-local-value 'major-mode buffer))
-           (buffer-live-p buffer)
-           (buffer-local-value 'mistty-proc buffer)
-           (process-live-p (buffer-local-value 'mistty-proc buffer)))
-      buffer))
+(defun mistty-live-buffer-p (buffer)
+  "Return the BUFFER if the buffer is a MisTTY buffer.
 
-(defun mistty--buffers ()
-  "List of live term buffers, sorted."
-  (sort (delq nil (mapcar #'mistty--buffer-p (buffer-list)))
+The process attached to the buffer must be live.
+
+When in fullscreen mode, the main MisTTY buffer is actually a
+term-mode buffer, not the scrollback buffer."
+  (and
+   (buffer-live-p buffer)
+   (pcase (buffer-local-value 'major-mode buffer)
+     ('mistty-mode (not (buffer-local-value 'mistty-fullscreen buffer)))
+     ('term-mode (buffer-local-value 'mistty-fullscreen buffer)))
+   (buffer-local-value 'mistty-proc buffer)
+   (process-live-p (buffer-local-value 'mistty-proc buffer))
+   ;; returns
+   buffer))
+
+(defun mistty-list-live-buffers ()
+  "List of live MisTTY buffers, sorted."
+  (sort (delq nil (mapcar #'mistty-live-buffer-p (buffer-list)))
         (lambda (a b) (string< (buffer-name a) (buffer-name b)))))
 
 ;;;###autoload
 (defun mistty ()
   (interactive)
-  (let ((existing (mistty--buffers)))
+  (let ((existing (mistty-list-live-buffers)))
     (if (or current-prefix-arg         ; command prefix was given
             (null existing)            ; there are no mistty buffers
             (and (null (cdr existing)) ; the current buffer is the only mistty buffer
@@ -1376,6 +1384,8 @@ END section to be valid in the term buffer."
   (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
     (mistty--detach 'keep-sync-markers)
     (setq mistty-fullscreen t)
+    (mistty--with-live-buffer mistty-term-buffer
+      (setq mistty-fullscreen t))
 
     (let ((msg
            "Fullscreen mode ON. C-c C-j switches between the tty and scrollback buffer."))
@@ -1403,6 +1413,8 @@ END section to be valid in the term buffer."
     (save-restriction
       (widen)
     (setq mistty-fullscreen nil)
+    (mistty--with-live-buffer mistty-term-buffer
+      (setq mistty-fullscreen nil))
 
     (mistty--attach (process-buffer proc))
     

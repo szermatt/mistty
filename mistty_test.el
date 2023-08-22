@@ -668,6 +668,28 @@
 (ert-deftest test-mistty-enter-fullscreen-1049 ()
   (mistty-test-enter-fullscreen "[?1049h" "[?1049l"))
 
+(ert-deftest test-mistty-live-buffer-p ()
+  (with-mistty-buffer
+   (should (mistty-live-buffer-p mistty-work-buffer))
+   (should (not (mistty-live-buffer-p mistty-term-buffer))))
+  (with-temp-buffer
+    (should (not (mistty-live-buffer-p (current-buffer))))))
+
+(ert-deftest test-mistty-fullscreen-live-buffer-p ()
+  (with-mistty-buffer
+   (mistty-send-raw-string
+    (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off\n'"
+            "[47h" "[47l"))
+   (mistty-send-command)
+   (mistty-wait-for-output
+    :test
+    (lambda ()
+      (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
+
+   (should (not (mistty-live-buffer-p mistty-work-buffer)))
+   (should (mistty-live-buffer-p mistty-term-buffer))))
+
+
 (ert-deftest test-mistty-kill-fullscreen-buffer-kills-scrollback ()
   (with-mistty-buffer-selected
     (let ((work-buffer mistty-work-buffer)

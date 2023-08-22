@@ -227,6 +227,15 @@ When the user makes changes on or before such a line that looks
 like a prompt, MisTTY attempts to send these changes to the
 terminal, which might or might not work.")
 
+(defvar mistty-variables-to-copy
+  '(default-directory
+    ansi-osc-window-title)
+  "List of buffer-local variables to copy from term to mistty.
+
+These are variable set from OSC handlers, configured it
+`mistty-osc-handlers'. As OSC handlers run in the term buffer,
+they need to be copied to be available in the main MisTTY buffer.")
+
 (defvar mistty-positional-keys "\t\C-d\C-w\C-t\C-k\C-y"
   "Set of control characters that are defined as positional.
 
@@ -579,12 +588,10 @@ mapping somewhat consistent between fullscreen and normal mode.")
       (mistty--with-live-buffer term-buffer
         (mistty--process-terminal-seq proc str))
       (mistty--with-live-buffer work-buffer
-        ;; copy some buffer-local values set by OSC handlers.
-        ;; TODO: generalize and make it configurable.
-        (ignore-errors
-            (cd (buffer-local-value 'default-directory term-buffer)))
-        (when-let ((title (buffer-local-value 'ansi-osc-window-title term-buffer)))
-          (setq-local ansi-osc-window-title title))
+        (dolist (var mistty-variables-to-copy)
+          (when-let (val (buffer-local-value var term-buffer))
+            (make-local-variable var)
+            (set var val)))
         
         (mistty--cancel-timeout mistty--queue)
         (when (or (and (mistty--queue-empty-p mistty--queue)

@@ -5,25 +5,21 @@
 
 (require 'mistty-util)
 
-(require 'ansi-osc nil 'noerror)
-
 (autoload 'mistty-osc7 "mistty-osc7")
-(when (>= emacs-major-version 29)
-  (autoload 'ansi-osc-window-title-handler "ansi-osc")
-  (autoload 'ansi-osc-hyperlink-handler "ansi-osc"))
+(autoload 'ansi-osc-window-title-handler "ansi-osc")
+(autoload 'ansi-osc-hyperlink-handler "ansi-osc")
 
 (defvar mistty-osc-handlers
-  (let ((alist nil))
+  '(
     ;; not using ansi-osc-directory-tracker because it doesn't decode
     ;; the coding system of the path after percent-decoding it.
     ;; TODO: propose a fix for ansi-osc
-    (push '("7" . mistty-osc7) alist)
-
-    ;; These handlers are reasonably compatibly with MisTTY OSC.
-    (when (>= emacs-major-version 29)
-      (push '("2" . ansi-osc-window-title-handler) alist)
-      (push '("8" . ansi-osc-hyperlink-handler) alist))
-    alist)
+    ("7" . mistty-osc7)
+    
+    ;; These handlers are reasonably compatibly with MisTTY OSC. This
+    ;; isn't necessary going to be the case for all such handlers.
+    ("2" . ansi-osc-window-title-handler)
+    ("8" . ansi-osc-hyperlink-handler))
   "Hook run when unknown OSC sequences have been received.
 
 This hook is run on the term-mode buffer. It is passed the

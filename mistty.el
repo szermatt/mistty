@@ -4,7 +4,7 @@
 
 ;; Author: Stephane Zermatten <szermatt@gmx.net>
 ;; Version: 0.1
-;; Package-Requires: ((emacs "28.2"))
+;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: convenience, unix
 ;; URL: http://github.com/szermatt/mixterm
 

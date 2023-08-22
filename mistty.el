@@ -577,7 +577,9 @@ mapping somewhat consistent between fullscreen and normal mode.")
         (ignore-errors
             (cd (buffer-local-value 'default-directory term-buffer)))
         (mistty--cancel-timeout mistty--queue)
-        (unless (accept-process-output proc 0 0 t)
+        (when (or (and (mistty--queue-empty-p mistty--queue)
+                       (not mistty-bracketed-paste))
+                  (not (accept-process-output proc 0 0 t)))
           (mistty--refresh)
           (mistty--dequeue-with-timer mistty--queue)))))))
 

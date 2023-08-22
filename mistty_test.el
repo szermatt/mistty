@@ -1316,6 +1316,22 @@
    (mistty-send-and-wait-for-prompt
     (lambda () (mistty-send-raw-string "q")))))
 
+(ert-deftest test-mistty-python-prompt-too-long ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   (let ((line-start (misty--bol (point))))
+     (mistty-send-raw-string "if a > b:")
+     (mistty-wait-for-output)
+     (mistty-run-command
+      (mistty-send-beginning-of-line))
+     (mistty-send-raw-string "el")
+     (mistty-wait-for-output)
+
+     (should (equal ">>> <>elif a > b:"
+                    (mistty-test-content :start line-start
+                                         :show mistty-cmd-start-marker))))))
+
 (ert-deftest test-mistty-and-hippie-completion ()
   (with-mistty-buffer
    (mistty-send-raw-string "echo hello, hullo, hallo, hi")

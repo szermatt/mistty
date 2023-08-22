@@ -592,7 +592,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
     (when (or (/= mistty-sync-marker old-sync-position)
               (< (point) mistty-sync-marker))
       (mistty--reset-markers))
-    (when (> (point) old-last-non-ws) ;; on a new line
+    (when (> (misty--bol (point)) old-last-non-ws) ;; on a new line
       (mistty--detect-possible-prompt (point)))))
 
 (defun mistty-goto-cursor ()
@@ -625,7 +625,11 @@ mapping somewhat consistent between fullscreen and normal mode.")
           (setq mistty--possible-prompt
                 (list (mistty--from-term-pos bol)
                       (mistty--from-term-pos end)
-                      content)))))))
+                      content))
+          (mistty-log "Possible prompt: [%s-%s] '%s'"
+                      (nth 0 mistty--possible-prompt)
+                      (nth 1 mistty--possible-prompt)
+                      (nth 2 mistty--possible-prompt)))))))
  
 (defun mistty--reset-markers ()
   (mistty--with-live-buffer mistty-work-buffer

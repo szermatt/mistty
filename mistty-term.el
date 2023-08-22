@@ -438,9 +438,44 @@ all should rightly be part of term.el."
                'mistty-osc-hook
                (decode-coding-string osc locale-coding-system t)))))
           (setq start seq-end)))
-      (let ((final-str (substring str start)))
-        (unless (length= final-str 0)
-          (term-emulate-terminal proc final-str))))))
+      (let ((split (mistty--split-incomplete-chars (substring str start))))
+        (when (length> (cdr split) 0)
+          (setq mistty--undecoded-bytes (cdr split)))
+        (term-emulate-terminal proc (car split))))))
+
+(defun mistty--split-incomplete-chars (str)
+  "Extract incomplete multibyte chars at the end of STR.
+
+This function detects multibyte chars that couldn't be decoded at
+the end of STR and splits it into a cons of complete string and
+remaining bytes.
+
+term.el is meant to do that, but it fails, because char-charset
+alone doesn't behave the way term.el assumes (anymore?). This is
+hopefully a temporary workaround."
+  (let* ((len (length str))
+         (end (substring str (max 0 (- len 8))))
+         (decoded-end (decode-coding-string end locale-coding-system t))
+         (undecoded-count 0)
+         (i (1- (length decoded-end))))
+    (while (and (>= i 0) (mistty--eight-bit-char-p decoded-end i))
+      (cl-incf undecoded-count)
+      (cl-decf i))
+    (if (zerop undecoded-count)
+        (cons str "")
+      (cons
+       (substring str 0 (- len undecoded-count))
+       (substring str (- len undecoded-count))))))
+
+(defun mistty--eight-bit-char-p (str index)
+  "Check whether char in STR at INDEX has been decoded."
+  ;; logic taken from Emacs 29 describe-char
+  (let ((c (aref str index)))
+    (eq 'eight-bit
+        (if (and (not enable-multibyte-characters) (>= c 128))
+            'eight-bit
+          (or (get-text-property index 'charset str)
+              (char-charset c))))))
 
 (defun mistty-register-text-properties (id props)
   (unless (eq 'term-mode major-mode) (error "requires a term-mode buffer"))

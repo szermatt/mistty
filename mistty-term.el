@@ -432,7 +432,7 @@ all should rightly be part of term.el."
               ;; zsh enables bracketed paste only after having printed
               ;; the prompt.
               (unless (eq ?\n (char-before (point)))
-                (add-text-properties (misty--bol (point)) (point) props))
+                (add-text-properties (mistty--bol (point)) (point) props))
               (mistty-register-text-properties 'mistty-bracketed-paste props))
             (mistty--with-live-buffer work-buffer
               (setq mistty-bracketed-paste t)))

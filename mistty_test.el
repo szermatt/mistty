@@ -276,7 +276,7 @@
    ;; Point is in the 2nd line, after world, and there's no prompt
    ;; on that line, so just go there.
    (beginning-of-line)
-   (should (equal (point) (misty--bol (point))))))
+   (should (equal (point) (mistty--bol (point))))))
 
 (ert-deftest test-mistty-bol-outside-of-prompt ()
   (with-mistty-buffer
@@ -516,7 +516,7 @@
    (mistty-run-command
     (insert "echo third"))
    (mistty-send-and-wait-for-prompt)
-   (narrow-to-region (misty--bol (point)) (point-max))
+   (narrow-to-region (mistty--bol (point)) (point-max))
    (mistty-send-raw-string "?\C-r")
    (mistty-wait-for-output)
    (should (equal "(reverse-i-search)`': ?<>" (mistty-test-content :show (point))))
@@ -1205,7 +1205,7 @@
    (mistty-wait-for-output)
    (should (equal ">>> <>1 + 1"
                   (mistty-test-content
-                   :start (misty--bol (point)) :show (point))))))
+                   :start (mistty--bol (point)) :show (point))))))
 
 (ert-deftest test-mistty-python-edit-prompt ()
   (with-mistty-buffer
@@ -1311,7 +1311,7 @@
   (with-mistty-buffer
    (mistty-send-raw-string mistty-test-py-exe)
    (mistty-send-and-wait-for-prompt nil ">>> ")
-   (let ((line-start (misty--bol (point))))
+   (let ((line-start (mistty--bol (point))))
      (mistty-send-raw-string "if a > b:")
      (mistty-wait-for-output)
      (mistty-run-command
@@ -1440,7 +1440,7 @@
    (dotimes (i 3)
      (mistty-send-raw-string (format "function toto%d { echo %d; };" i i)))
    (mistty-send-and-wait-for-prompt)
-   (narrow-to-region (misty--bol (point)) (point-max))
+   (narrow-to-region (mistty--bol (point)) (point-max))
    (mistty-send-raw-string "toto\t")
    (mistty-wait-for-output
     :test (lambda ()
@@ -1474,7 +1474,7 @@
    (mistty-send-raw-string "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")
    (mistty-wait-for-output)
    (mistty-send-and-wait-for-prompt nil "read> ")
-   (let ((start (misty--bol (point))))
+   (let ((start (mistty--bol (point))))
      (mistty-send-raw-string "I say: hello")
      (mistty-wait-for-output :str "hello")
      (mistty-run-command

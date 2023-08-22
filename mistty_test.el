@@ -1459,7 +1459,7 @@
    (should (equal "$ toto<>\ntoto0  toto1  toto2"
                   (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-timeout ()
+(ert-deftest mistty-queue-timeout ()
   (with-mistty-buffer-zsh
    (let* ((answers nil)
           (lambda (iter-lambda ()
@@ -1476,6 +1476,35 @@
      (mistty-wait-for-output :test (lambda () (length= answers 4)))
      (should (equal '(timeout nil nil nil) (nreverse answers)))
      (should (equal "$ done" (mistty-test-content))))))
+
+(ert-deftest mistty-reset-during-replay ()
+  (with-mistty-buffer
+   (setq mistty-log-enabled t)
+   (mistty-send-raw-string "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")
+   (mistty-wait-for-output)
+   (mistty-send-and-wait-for-prompt nil "read> ")
+   (let ((start (misty--bol (point))))
+     (mistty-send-raw-string "I say: hello")
+     (mistty-wait-for-output :str "hello")
+     (mistty-run-command
+      (insert "foo\n")
+      (mistty-test-goto "hello")
+      (insert "bar"))
+     (mistty-log "done")
+     (mistty-wait-for-output :str "$ " :start start)
+     
+     (should (equal (concat "read> I say:\n"
+                            "hellofoo\n"
+                            "will resetreset done\n"
+                            "$")
+                    (mistty-test-content :start start)))
+     ;; note: bar is lost as the replay was cancelled by the reset
+     ;; triggered by the \n after foo. Make sure that inhibit-refresh
+     ;; was reset correctly, which could happen if the generator's
+     ;; unwind form wasn't executed.
+     (should (not mistty--inhibit-refresh))
+     (should (null mistty--changesets))
+     (should (not mistty--need-refresh)))))
 
 (ert-deftest mistty-test-end-prompt ()
   (with-mistty-buffer

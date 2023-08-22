@@ -106,8 +106,12 @@ process, waiting for it to pause."
            (current-buffer) queue))))
 
 (defun mistty--cancel-queue (queue)
-  "Clear QUEUE and cancel all pending timers."
-  (setf (mistty--queue-proc queue) nil)
+  "Clear QUEUE and cancel all pending actions.
+
+The queue remains usable, but empty."
+  (when (mistty--queue-iter queue)
+    (iter-close (mistty--queue-iter queue))
+    (setf (mistty--queue-iter queue) nil))
   (mistty--cancel-timeout queue)
   (mistty--cancel-timer queue))
 
@@ -149,9 +153,15 @@ process, waiting for it to pause."
 
 (iter-defun mistty--iter-chain (iter1 iter2)
   "Returns a generator that first calls ITER1, then ITER2."
-  (iter-do (value iter1)
-    (iter-yield value))
-  (iter-do (value iter2)
-    (iter-yield value)))
+  (unwind-protect
+      (progn
+        (iter-do (value iter1)
+          (iter-yield value))
+        (iter-do (value iter2)
+          (iter-yield value)))
+    
+    ;; unwind; close iterators recursively
+    (iter-close iter1)
+    (iter-close iter2)))
 
 (provide 'mistty-queue)

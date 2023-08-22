@@ -710,21 +710,14 @@ Also updates prompt and point."
 
       ;; Right after a mistty-send-command, we're waiting for a line
       ;; after mistty--end-prompt that's not part of the old prompt.
-      (when (and mistty--end-prompt (< mistty-sync-marker mistty--end-prompt))
-        (let* ((pos mistty--end-prompt)
-               (has-new-line-after
-                (if (get-text-property pos 'mistty-prompt-id)
-                    (progn
-                      (setq pos (next-single-property-change pos 'mistty-prompt-id nil (point-max)))
-                      (eq ?\n (char-before pos)))
-                  (progn
-                    (setq pos (misty--bol pos 2))
-                    (< mistty--end-prompt pos))))
-               (last-non-ws (mistty--last-non-ws)))
-          (when (and has-new-line-after
-                     (> last-non-ws pos)
-                     (< last-non-ws (point-max)))
-            (mistty--set-sync-mark-from-end pos))
+      (when mistty--end-prompt
+        (when-let ((command-end
+                    (if (get-text-property mistty-sync-marker 'mistty-prompt-id)
+                        (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
+                      (misty--bol mistty-cmd-start-marker 2))))
+          (when (and (eq ?\n (char-before command-end))
+                     (> (mistty--last-non-ws) command-end))
+            (mistty--set-sync-mark-from-end command-end))
           (setq mistty--end-prompt nil)))
 
       ;; detect prompt from bracketed-past region and use that to
@@ -881,7 +874,7 @@ This command is available in fullscreen mode."
   (interactive)
   (mistty--maybe-realize-possible-prompt)
   (setq mistty-goto-cursor-next-time t
-        mistty--end-prompt (mistty-cursor))
+        mistty--end-prompt t)
   (mistty-send-raw-string "\C-m"))
 
 (defun mistty-send-last-key (n)

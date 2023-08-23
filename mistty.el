@@ -15,6 +15,7 @@
 (require 'term)
 (require 'seq)
 (require 'subr-x)
+(require 'pcase)
 (require 'generator)
 (require 'text-property-search)
 (require 'fringe)
@@ -827,11 +828,8 @@ Also updates prompt and point."
     intervals))
 
 (defun mistty--restore-properties (intervals start)
-  (dolist (interval intervals)
-    (pcase interval
-      (`(,beg ,end ,props)
-       (set-text-properties (+ beg start) (+ end start) props))
-      (_ (error "invalid interval %s" interval)))))
+  (pcase-dolist (`(,beg ,end ,props) intervals)
+    (set-text-properties (+ beg start) (+ end start) props)))
 
 (defun mistty--set-sync-mark-from-end (sync-pos &optional cmd-pos)
   "Set the sync marker to SYNC-POS, assuming buffer ends are the same.
@@ -1558,27 +1556,23 @@ END section to be valid in the term buffer."
       t)))
 
 (defun mistty--realize-possible-prompt (&optional shift)
-  (pcase mistty--possible-prompt
-    (`(,start ,end ,_ )
-     (if shift
-         (mistty--move-sync-mark-with-shift start end shift)
-       (mistty--set-sync-mark-from-end start end)))
-    (_ (error "no possible prompt"))))
+  (pcase-let ((`(,start ,end ,_ ) mistty--possible-prompt))
+    (if shift
+        (mistty--move-sync-mark-with-shift start end shift)
+      (mistty--set-sync-mark-from-end start end))))
 
 (defun mistty--possible-prompt-p ()
-  (pcase mistty--possible-prompt
-    (`(,start ,end ,content)
-     (let ((cursor (mistty-cursor)))
-       (and (>= end mistty-cmd-start-marker)
-            (>= cursor end)
-            (or (> cursor (point-max))
-                    (<= cursor (mistty--bol start 2)))
-            (string= content (mistty--safe-bufstring start end)))))))
+  (pcase-let ((`(,start ,end ,content) mistty--possible-prompt))
+    (let ((cursor (mistty-cursor)))
+      (and (>= end mistty-cmd-start-marker)
+           (>= cursor end)
+           (or (> cursor (point-max))
+               (<= cursor (mistty--bol start 2)))
+           (string= content (mistty--safe-bufstring start end))))))
 
 (defun mistty--possible-prompt-contains (pos)
-  (pcase mistty--possible-prompt
-    (`(,start ,line-start ,_)
-     (and (>= pos line-start) (<= pos (mistty--eol start))))))
+  (pcase-let ((`(,start ,line-start ,_) mistty--possible-prompt))
+    (and (>= pos line-start) (<= pos (mistty--eol start)))))
 
 (provide 'mistty)
 

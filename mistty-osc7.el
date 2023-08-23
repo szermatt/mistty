@@ -2,7 +2,7 @@
 
 (require 'url-util)
 
-(defvar mistty-allow-tramp-paths t
+(defvar mistty-allow-tramp-paths nil
   "If true, allow TRAMP paths as shell-specified directory.
 
 Make sure tramps works before enabling.
@@ -34,9 +34,9 @@ This affects directories set using OSC 7, which can then:
 
        ;; Build TRAMP remote paths from the path and hostname.
        ((and mistty-allow-tramp-paths
-             (string= hostname "")
-             (file-remote-p path))
-        (setq default-directory path)))))
+             (not (string= hostname (system-name)))
+             (not (file-remote-p path)))
+        (setq default-directory (concat "/" hostname ":" path))))))
 
    ;; A TRAMP remote path.
    ((and mistty-allow-tramp-paths

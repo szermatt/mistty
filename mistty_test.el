@@ -361,6 +361,9 @@
            (mistty-test-content :show (point))))
    
    (should-error (mistty-next-prompt 1))
+   (should
+    (equal "$ echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ <>echo current"
+           (mistty-test-content :show (point))))
    
    (goto-char (point-min))
    (mistty-next-prompt 2)
@@ -494,7 +497,11 @@
     (equal "$ <>echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ echo current"
            (mistty-test-content :show (point))))
    
-   (should-error (mistty-previous-prompt 1))))
+   (should-error (mistty-previous-prompt 1))
+
+   (should
+    (equal "$ <>echo one\none\n$ echo two\ntwo\n$ echo three\nthree\n$ echo current"
+           (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-dirtrack ()
   (with-mistty-buffer

@@ -1283,20 +1283,24 @@ END section to be valid in the term buffer."
 
 (defun mistty-previous-prompt (n)
   (interactive "p")
-  (let ((not-current nil))
+  (let ((not-current nil)
+        (pos (point)))
     (when (eq 'mistty-prompt
               (or (get-text-property (point) 'field)
                   (get-text-property (1- (point)) 'field)))
       (setq not-current t)
-      (goto-char (1- (point))))
+      (setq pos (1- (point))))
     (dotimes (_ n)
-      (let ((match (text-property-search-backward 'mistty-prompt-id nil nil not-current)))
+      (let ((match (save-excursion
+                     (goto-char pos)
+                     (text-property-search-backward 'mistty-prompt-id nil nil not-current))))
         (unless match
           (error "No previous prompt"))
         (goto-char (prop-match-beginning match)))
       (when (get-text-property (point) 'field)
-        (goto-char (next-single-property-change (point) 'field)))
-      (setq not-current t))))
+        (goto-char (next-single-property-change (point) 'field nil (point-max))))
+      (setq not-current t)
+      (setq pos (point)))))
 
 (defun mistty-pre-command ()
   (setq mistty--old-point (point)))

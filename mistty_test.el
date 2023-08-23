@@ -468,6 +468,31 @@
     (equal "$\n$\n$\n$ <>echo current"
            (mistty-test-content :show (point))))))
 
+(ert-deftest test-mistty-next-python-prompt ()
+  (with-mistty-buffer
+   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   
+   (narrow-to-region (mistty--bol (point)) (point-max))
+     
+   (mistty-send-raw-string "1 + 1")
+   (mistty-send-and-wait-for-prompt nil ">>> ")
+   (mistty-send-raw-string "2 + 2")
+   (mistty-wait-for-output :str "2 + 2")
+
+   (goto-char (point-min))
+   (mistty-next-prompt 1)
+   (should (equal (concat ">>> <>1 + 1\n"
+                          "2\n"
+                          ">>> 2 + 2")
+                  (mistty-test-content :show (point))))
+
+   (mistty-next-prompt 1)
+   (should (equal (concat ">>> 1 + 1\n"
+                          "2\n"
+                          ">>> <>2 + 2")
+                  (mistty-test-content :show (point))))))
+
 (ert-deftest test-mistty-previous-prompt ()
   (with-mistty-buffer
    (mistty-run-command

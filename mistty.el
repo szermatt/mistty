@@ -1278,8 +1278,10 @@ END section to be valid in the term buffer."
           (if (get-text-property found 'field)
               (goto-char (next-single-property-change found 'field nil pos))
             (goto-char found))
-        
-        (error "No next prompt")))))
+
+        (if (mistty--maybe-realize-possible-prompt (mistty-cursor))
+            (mistty-next-prompt 1)
+        (error "No next prompt"))))))
 
 (defun mistty-previous-prompt (n)
   (interactive "p")
@@ -1477,12 +1479,13 @@ END section to be valid in the term buffer."
                (mistty--maybe-realize-possible-prompt))
       (mistty-send-raw-string (mistty--move-str cursor (point))))))
 
-(defun mistty--maybe-realize-possible-prompt ()
-  (when (and (not (mistty-on-prompt-p (point)))
-             (mistty--possible-prompt-p)
-             (mistty--possible-prompt-contains (point)))
-    (mistty--realize-possible-prompt)
-    t))
+(defun mistty--maybe-realize-possible-prompt (&optional pos)
+  (let ((pos (or pos (point))))
+    (when (and (not (mistty-on-prompt-p pos))
+               (mistty--possible-prompt-p)
+               (mistty--possible-prompt-contains pos))
+      (mistty--realize-possible-prompt)
+      t)))
 
 (defun mistty--realize-possible-prompt (&optional shift)
   (pcase mistty--possible-prompt

@@ -1405,7 +1405,7 @@ END section to be valid in the term buffer."
       (with-current-buffer mistty-term-buffer
         (rename-buffer bufname)
         (turn-on-font-lock)))
-    (mistty--replace-buffer-everywhere mistty-work-buffer mistty-term-buffer)
+    (mistty--swap-buffer-in-windows mistty-work-buffer mistty-term-buffer)
 
 
     (set-process-filter proc #'mistty--fs-process-filter)
@@ -1429,25 +1429,32 @@ END section to be valid in the term buffer."
         (rename-buffer (generate-new-buffer-name (concat " mistty tty " bufname))))
       (rename-buffer bufname))
 
-    (mistty--replace-buffer-everywhere mistty-term-buffer mistty-work-buffer)
+    (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer)
     (with-current-buffer mistty-term-buffer
       (font-lock-mode -1))
 
     (when (length> terminal-sequence 0)
       (funcall (process-filter proc) proc terminal-sequence)))))
 
-(defun mistty--replace-buffer-everywhere (oldbuf newbuf)
+(defun mistty--swap-buffer-in-windows (a b)
+  "Swap buffers A and B in windows and window previous buffers."
   (walk-windows
    (lambda (win)
+     (cond
+      ((eq (window-buffer win) a)
+       (set-window-buffer win b))
+      ((eq (window-buffer win) b)
+       (set-window-buffer win a)))
      (let ((prev-buffers (window-prev-buffers win))
            (modified nil))
-       (when (eq (window-buffer win) oldbuf)
-         (set-window-buffer win newbuf)
-         (setq modified t))
        (dolist (entry prev-buffers)
-         (when (eq (car entry) oldbuf)
-           (setcar entry newbuf)
-           (setq modified t)))
+         (cond
+          ((eq (car entry) a)
+           (setcar entry b)
+           (setq modified t))
+          ((eq (car entry) b)
+           (setcar entry a)
+           (setq modified t))))
        (when modified
          (set-window-prev-buffers win prev-buffers))))))
 

@@ -356,8 +356,6 @@ mapping somewhat consistent between fullscreen and normal mode.")
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
   (setq-local scroll-conservatively 1024)
-  
-  (setq-local window-point-insertion-type t)
 
   (if (window-system)
       (unless (fringe-bitmap-p 'mistty-bar)

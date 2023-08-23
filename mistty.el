@@ -259,6 +259,7 @@ This is used when the display is a terminal."
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
     (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
     (define-key map (kbd "C-c C-j") 'mistty-switch-to-fullscreen-buffer)
+    (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)
     (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-cursor)
     
     ;; mistty-send-last-key makes here some globally useful keys
@@ -328,6 +329,7 @@ By default, it is bound to C-q in `mistty-prompt-map'.")
     (set-keymap-parent map term-raw-map)
     
     (define-key map (kbd "C-q") mistty-send-last-key-map)
+    (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)    
     
     ;; switching the term buffer to line mode would cause issues.
     (define-key map [remap term-line-mode] #'mistty-switch-to-scrollback-buffer )
@@ -966,6 +968,19 @@ This command is available in fullscreen mode."
         (when (or positional (mistty-positional-p key))
           (mistty-before-positional))))
     (mistty-send-raw-string (mistty-translate-key key n))))
+
+(defun mistty-send-key-sequence ()
+  "Send all keys to terminal until interrupted.
+
+This function continuously read keys and sends them to the
+terminal, just like `mistty-send-key', until it is interrupted
+with C-g or until it is passed a key or event it doesn't support,
+such as a mouse event.."
+  (interactive)
+  (while-let ((key
+               (read-event "Sending all KEYS to terminal... Exit with C-g."
+                           'inherit-input-method)))
+    (mistty-send-key 1 (make-vector 1 key))))
 
 (defun mistty-send-beginning-of-line (&optional n)
   "Send C-a (usually beginnning-of-line) to the terminal.

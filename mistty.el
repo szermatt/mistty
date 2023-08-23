@@ -329,7 +329,11 @@ By default, it is bound to C-q in `mistty-prompt-map'.")
     (set-keymap-parent map term-raw-map)
     
     (define-key map (kbd "C-q") mistty-send-last-key-map)
-    (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)    
+    (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)
+
+    ;; Disable the "Terminal" menu; nothing that it contains should be
+    ;; used on Term buffers used by MisTTY.
+    (define-key map [menu-bar terminal] nil) 
     
     ;; switching the term buffer to line mode would cause issues.
     (define-key map [remap term-line-mode] #'mistty-switch-to-scrollback-buffer )

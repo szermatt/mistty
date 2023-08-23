@@ -386,7 +386,8 @@ mapping somewhat consistent between fullscreen and normal mode.")
     ;; width
     (- (window-max-chars-per-line) left-margin-width)
     ;; height
-    (floor (window-screen-lines)))))
+    (floor (window-screen-lines))))
+  (mistty--update-mode-lines))
 
 (defun mistty--attach (term-buffer)
   (let ((work-buffer (current-buffer))
@@ -474,6 +475,7 @@ mapping somewhat consistent between fullscreen and normal mode.")
 (defun mistty--kill-term-buffer ()
   (let ((term-buffer mistty-term-buffer))
     (mistty--detach)
+    (mistty--update-mode-lines)
     (when (buffer-live-p term-buffer)
       (let ((kill-buffer-query-functions nil))
         (kill-buffer term-buffer)))))
@@ -528,6 +530,8 @@ term-mode buffer, not the scrollback buffer."
     ))
 
 (defun mistty-process-sentinel (proc msg)
+  (mistty--update-mode-lines proc)
+  
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-buffer proc)))
     (if (buffer-live-p work-buffer)
@@ -544,6 +548,8 @@ term-mode buffer, not the scrollback buffer."
     (term-sentinel proc msg)))
 
 (defun mistty--fs-process-sentinel (proc msg)
+  (mistty--update-mode-lines proc)
+  
   (let ((process-dead (memq (process-status proc) '(signal exit)))
         (term-buffer (process-get proc 'mistty-term-buffer))
         (work-buffer (process-get proc 'mistty-work-buffer)))
@@ -1427,7 +1433,8 @@ END section to be valid in the term buffer."
 
     (set-process-filter proc #'mistty--fs-process-filter)
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
-    
+
+    (mistty--update-mode-lines proc)
     (when (length> terminal-sequence 0)
       (funcall (process-filter proc) proc terminal-sequence))))
 
@@ -1450,8 +1457,43 @@ END section to be valid in the term buffer."
     (with-current-buffer mistty-term-buffer
       (font-lock-mode -1))
 
+    (mistty--update-mode-lines proc)
     (when (length> terminal-sequence 0)
       (funcall (process-filter proc) proc terminal-sequence)))))
+
+(defun mistty--update-mode-lines (&optional proc)
+  (mistty--with-live-buffer
+      (or mistty-work-buffer (and proc (process-get proc 'mistty-work-buffer)))
+    (cond
+     (mistty-fullscreen
+      (setq mode-line-process
+            (propertize "scrollback"
+                        'help-echo "mouse-1: Go to Term buffer"
+                        'mouse-face 'mode-line-highlight
+                        'local-map '(keymap
+                                     (mode-line
+                                      keymap
+                                      (down-mouse-1 . mistty-switch-to-fullscreen-buffer))))))
+     (mistty-proc
+      (setq mode-line-process (format ":%s" (process-status mistty-proc))))
+     (t
+      (setq mode-line-process ":no process"))))
+  (mistty--with-live-buffer
+      (or mistty-term-buffer (and proc (process-buffer proc)))
+    (cond
+     (mistty-fullscreen
+      (setq mode-line-process
+            (concat
+             (propertize "misTTY"
+                         'help-echo "mouse-1: Go to scrollback buffer"
+                         'mouse-face 'mode-line-highlight
+                         'local-map '(keymap
+                                      (mode-line
+                                       keymap
+                                       (down-mouse-1 . mistty-switch-to-scrollback-buffer)))) ":%s")))
+     (t
+      (setq mode-line-process "misTTY:%s"))))
+  (force-mode-line-update))
 
 (defun mistty--swap-buffer-in-windows (a b)
   "Swap buffers A and B in windows and window previous buffers."

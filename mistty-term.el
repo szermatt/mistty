@@ -391,11 +391,11 @@ text is written to the terminal.
 This variable is available in the work buffer.")
 
 (defvar-local mistty--undecoded-bytes nil
-  "Bytes leftover in the last call to `mistty-emulate-terminal'.
+  "Bytes leftover in the last call to `mistty--emulate-terminal'.
 
 They'll be processed once more data is passed to the next call.")
 
-(defun mistty-emulate-terminal (proc str work-buffer)
+(defun mistty--emulate-terminal (proc str work-buffer)
   "Handle process output as a terminal would.
 
 This function accepts output from PROC included into STR and

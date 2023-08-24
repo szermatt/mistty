@@ -97,17 +97,17 @@ at the same time.
 This variable is available in both the work buffer and the term
 buffer.")
 
-(defvar-local mistty-cmd-start-marker nil
+(defvar-local mistty--cmd-start-marker nil
   "Mark the end of the prompt; the beginning of the command line.
 
-The region [`mistty-sync-marker', `mistty-cmd-start-marker']
+The region [`mistty-sync-marker', `mistty--cmd-start-marker']
 marks the prompt of the command line, if one was detected. If no
 prompt was detected, this marker points to the same position as
 `mistty-sync-marker'.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty-sync-ov nil
+(defvar-local mistty--sync-ov nil
   "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
 
 This overlay covers the region of the work buffer that's
@@ -121,7 +121,7 @@ is on this overlay.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty-prompt-ov nil
+(defvar-local mistty--prompt-ov nil
   "An overlay that covers the current detected prompt, if any.")
 
 (defvar-local mistty-fullscreen nil
@@ -410,9 +410,9 @@ buffer and `mistty-proc' to that buffer's process."
     (setq mistty-proc proc)
     (setq mistty-term-buffer term-buffer)
     (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker (point-max)))
-    (setq mistty-cmd-start-marker (copy-marker mistty-sync-marker))
-    (setq mistty-sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
-    (setq mistty-prompt-ov (make-overlay mistty-sync-marker mistty-cmd-start-marker))
+    (setq mistty--cmd-start-marker (copy-marker mistty-sync-marker))
+    (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
+    (setq mistty--prompt-ov (make-overlay mistty-sync-marker mistty--cmd-start-marker))
     (setq mistty--queue (mistty--make-queue proc))
 
     (with-current-buffer term-buffer
@@ -421,28 +421,28 @@ buffer and `mistty-proc' to that buffer's process."
       (setq mistty-term-buffer term-buffer)
       (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker term-home-marker)))
 
-    (overlay-put mistty-sync-ov 'keymap mistty-prompt-map)
-    (overlay-put mistty-sync-ov 'modification-hooks (list #'mistty--modification-hook))
-    (overlay-put mistty-sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
+    (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
+    (overlay-put mistty--sync-ov 'modification-hooks (list #'mistty--modification-hook))
+    (overlay-put mistty--sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
 
     ;; highlight the synced region in the fringe or margin
     (overlay-put
-     mistty-sync-ov
+     mistty--sync-ov
      'line-prefix
      (propertize " " 'display
                  (if (window-system)
                      '(left-fringe mistty-bar mistty-fringe-face)
                    `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face)))))
-    (overlay-put mistty-prompt-ov 'face 'mistty-prompt-face)
+    (overlay-put mistty--prompt-ov 'face 'mistty-prompt-face)
 
     (when proc
-      (set-process-filter proc #'mistty-process-filter)
-      (set-process-sentinel proc #'mistty-process-sentinel))
+      (set-process-filter proc #'mistty--process-filter)
+      (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
     (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
-    (add-hook 'pre-command-hook #'mistty-pre-command nil t)
-    (add-hook 'post-command-hook #'mistty-post-command nil t)
+    (add-hook 'pre-command-hook #'mistty--pre-command nil t)
+    (add-hook 'post-command-hook #'mistty--post-command nil t)
 
     (mistty--refresh)
     (when proc
@@ -467,22 +467,22 @@ in both the work and term buffers."
 
   (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
-  (remove-hook 'pre-command-hook #'mistty-pre-command t)
-  (remove-hook 'post-command-hook #'mistty-post-command t)
+  (remove-hook 'pre-command-hook #'mistty--pre-command t)
+  (remove-hook 'post-command-hook #'mistty--post-command t)
 
   (when mistty--queue
     (mistty--cancel-queue mistty--queue)
     (setq mistty--queue nil))
-  (when mistty-sync-ov
-    (delete-overlay mistty-sync-ov)
-    (setq mistty-sync-ov nil))
+  (when mistty--sync-ov
+    (delete-overlay mistty--sync-ov)
+    (setq mistty--sync-ov nil))
   (when mistty-proc
     (set-process-filter mistty-proc #'term-emulate-terminal)
     (set-process-sentinel mistty-proc #'term-sentinel)
     (setq mistty-proc nil))
-  (when mistty-cmd-start-marker
-    (move-marker mistty-cmd-start-marker nil)
-    (setq mistty-cmd-start-marker nil))
+  (when mistty--cmd-start-marker
+    (move-marker mistty--cmd-start-marker nil)
+    (setq mistty--cmd-start-marker nil))
   (unless keep-sync-markers
     (when mistty-sync-marker
       (move-marker mistty-sync-marker nil)
@@ -565,7 +565,7 @@ from the ESHELL or SHELL environment variables."
                       (getenv "SHELL")))
     (switch-to-buffer (current-buffer))))
 
-(defun mistty-process-sentinel (proc msg)
+(defun mistty--process-sentinel (proc msg)
   "Process sentinel for MisTTY shell processes."
   (mistty--update-mode-lines proc)
 
@@ -594,14 +594,14 @@ from the ESHELL or SHELL environment variables."
     (cond
      ((and process-dead (buffer-live-p term-buffer) (buffer-live-p work-buffer))
       (mistty--leave-fullscreen proc "")
-      (mistty-process-sentinel proc msg))
+      (mistty--process-sentinel proc msg))
      ((and process-dead (not (buffer-live-p term-buffer)) (buffer-live-p work-buffer))
       (let ((kill-buffer-query-functions nil))
         (kill-buffer (process-get proc 'mistty-work-buffer)))
       (term-sentinel proc msg))
      (t (term-sentinel proc msg)))))
 
-(defun mistty-process-filter (proc str)
+(defun mistty--process-filter (proc str)
   "Process filter for MisTTY shell processes."
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-get proc 'mistty-term-buffer)))
@@ -613,7 +613,7 @@ from the ESHELL or SHELL environment variables."
      ;; switch to fullscreen
      ((string-match "\e\\[\\(\\??47\\|\\?104[79]\\)h" str)
       (let ((smcup-pos (match-beginning 0)))
-        (mistty-process-filter proc (substring str 0 smcup-pos))
+        (mistty--process-filter proc (substring str 0 smcup-pos))
         (mistty--enter-fullscreen proc (substring str smcup-pos))))
 
      ;; reset
@@ -637,7 +637,7 @@ from the ESHELL or SHELL environment variables."
         (mistty--with-live-buffer work-buffer
           (setq mistty-bracketed-paste nil))
         (mistty--reset-markers)
-        (mistty-process-filter proc (substring str rs1-after-pos))))
+        (mistty--process-filter proc (substring str rs1-after-pos))))
 
      ;; normal processing
      (t
@@ -662,7 +662,7 @@ from the ESHELL or SHELL environment variables."
   (mistty--require-term-buffer)
   (let ((old-sync-position (marker-position mistty-sync-marker))
         (old-last-non-ws (mistty--last-non-ws)))
-    (mistty-emulate-terminal proc str mistty-work-buffer)
+    (mistty--emulate-terminal proc str mistty-work-buffer)
     (goto-char (process-mark proc))
     (when (or (/= mistty-sync-marker old-sync-position)
               (< (point) mistty-sync-marker))
@@ -723,7 +723,7 @@ markers have gone out-of-sync."
       (delete-region (mistty--last-non-ws) (point-max))
       (insert "\n"))
     (move-marker mistty-sync-marker (point-max))
-    (move-marker mistty-cmd-start-marker (point-max)))
+    (move-marker mistty--cmd-start-marker (point-max)))
   (mistty--with-live-buffer mistty-term-buffer
     (save-excursion
       (goto-char term-home-marker)
@@ -742,10 +742,10 @@ update the term buffer normally."
              (buffer-live-p work-buffer)
              (buffer-live-p term-buffer))
         (let ((after-rmcup-pos (match-beginning 0)))
-          (mistty-emulate-terminal proc (substring str 0 after-rmcup-pos) work-buffer)
+          (mistty--emulate-terminal proc (substring str 0 after-rmcup-pos) work-buffer)
           (mistty--leave-fullscreen proc (substring str after-rmcup-pos)))
       ;; normal processing
-      (mistty-emulate-terminal proc str work-buffer))))
+      (mistty--emulate-terminal proc str work-buffer))))
 
 (defun mistty-cursor ()
   "Return the position of the terminal cursor in the MisTTY buffer.
@@ -810,9 +810,9 @@ Also updates prompt and point."
               (narrow-to-region mistty-sync-marker (point-max-marker))
               (replace-buffer-contents mistty-term-buffer 0.2)
               (mistty--restore-properties properties mistty-sync-marker)
-              (when (> mistty-cmd-start-marker mistty-sync-marker)
+              (when (> mistty--cmd-start-marker mistty-sync-marker)
                 (mistty--set-prompt-properties
-                 mistty-sync-marker mistty-cmd-start-marker)))
+                 mistty-sync-marker mistty--cmd-start-marker)))
             (when (< old-point mistty-sync-marker)
               ;; restore point, possibly moved by narrow-to-region.
               (goto-char old-point)))))
@@ -823,7 +823,7 @@ Also updates prompt and point."
         (when-let ((command-end
                     (if (get-text-property mistty-sync-marker 'mistty-prompt-id)
                         (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
-                      (mistty--bol mistty-cmd-start-marker 2))))
+                      (mistty--bol mistty--cmd-start-marker 2))))
           (when (and (eq ?\n (char-before command-end))
                      (> (mistty--last-non-ws) command-end))
             (mistty--set-sync-mark-from-end command-end))
@@ -848,7 +848,7 @@ Also updates prompt and point."
                        (get-text-property prompt-beg 'mistty-prompt-id)
                        (or (> prompt-beg mistty-sync-marker)
                            (and (= prompt-beg mistty-sync-marker)
-                                (= mistty-sync-marker mistty-cmd-start-marker)))
+                                (= mistty-sync-marker mistty--cmd-start-marker)))
                        (< prompt-beg (mistty-cursor))
                        (string-match
                         mistty-prompt-re
@@ -907,7 +907,7 @@ This is the reverse operation of `mistty--save-properties'."
   "Set the sync marker to SYNC-POS, assuming buffer ends are the same.
 
 This function sets the `mistty-sync-marker' SYNC-POS and optionally
-`mistty-cmd-start-marker' to CMD-POS.
+`mistty--cmd-start-marker' to CMD-POS.
 
 For this to work, the term and work buffer starting with SYNC-POS
 must have the same content, which is only true when SYNC-POS is
@@ -943,17 +943,17 @@ from `mistty--modification-hook' tracking the changes."
   "Set the sync and command start position.
 
 SYNC-POS is used to initialize `mistty-sync-marker' and
-CMD-START-POS is used to initialize `mistty-cmd-start-marker'.
+CMD-START-POS is used to initialize `mistty--cmd-start-marker'.
 They are often the same position."
   (let ((cmd-start-pos (max sync-pos cmd-start-pos))
         (inhibit-read-only t)
         (inhibit-modification-hooks t))
     (move-marker mistty-sync-marker sync-pos)
-    (move-marker mistty-cmd-start-marker cmd-start-pos)
-    (move-overlay mistty-sync-ov sync-pos (point-max))
-    (move-overlay mistty-prompt-ov
-                  (max sync-pos (mistty--bol mistty-cmd-start-marker))
-                  mistty-cmd-start-marker)
+    (move-marker mistty--cmd-start-marker cmd-start-pos)
+    (move-overlay mistty--sync-ov sync-pos (point-max))
+    (move-overlay mistty--prompt-ov
+                  (max sync-pos (mistty--bol mistty--cmd-start-marker))
+                  mistty--cmd-start-marker)
     (when (> cmd-start-pos sync-pos)
       (mistty--set-prompt-properties sync-pos cmd-start-pos))))
 
@@ -1102,12 +1102,12 @@ the buffer is modified. It creates or extends a
 `mistty-changeset', storing enough information about the change
 to replay it afterwards."
   (when (and is-after
-             mistty-cmd-start-marker
-             (>= orig-end mistty-cmd-start-marker))
+             mistty--cmd-start-marker
+             (>= orig-end mistty--cmd-start-marker))
     (let ((inhibit-read-only t)
-          (beg (max orig-beg mistty-cmd-start-marker))
-          (end (max orig-end mistty-cmd-start-marker))
-          (old-end (max (+ orig-beg old-length) mistty-cmd-start-marker))
+          (beg (max orig-beg mistty--cmd-start-marker))
+          (end (max orig-end mistty--cmd-start-marker))
+          (old-end (max (+ orig-beg old-length) mistty--cmd-start-marker))
           (cs (mistty--activate-changeset)))
 
       ;; Temporarily stop refreshing the work buffer while collecting
@@ -1291,7 +1291,7 @@ If in a multiline fish prompt, return a string moving the cursor
 from FROM to TO, otherwise return nil.
 
 FROM and TO are positions in the work buffer."
-  (let* ((prompt-end (marker-position mistty-cmd-start-marker))
+  (let* ((prompt-end (marker-position mistty--cmd-start-marker))
          (prompt-length (if (> prompt-end mistty-sync-marker)
                             (- prompt-end
                                (mistty--bol prompt-end))
@@ -1425,24 +1425,24 @@ END section to be valid in the term buffer."
       (setq not-current t)
       (setq pos (point)))))
 
-(defun mistty-pre-command ()
+(defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."
   (setq mistty--old-point (point)))
 
-(defun mistty-post-command ()
+(defun mistty--post-command ()
   "Function called from the `post-command-hook' in `mistty-mode' buffers."
   ;; Show cursor again if the command moved the point.
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
     (when point-moved
       (setq cursor-type t))
 
-    (run-with-idle-timer 0 nil #'mistty-post-command-1
+    (run-with-idle-timer 0 nil #'mistty--post-command-1
                          mistty-work-buffer point-moved)))
 
-(defun mistty-post-command-1 (buf point-moved)
-  "Function called from `mistty-post-command'.
+(defun mistty--post-command-1 (buf point-moved)
+  "Function called from `mistty--post-command'.
 
-This is the body of `mistty-post-command', which replays any
+This is the body of `mistty--post-command', which replays any
 modifications or cursor movement executed during the command. It
 is run in an idle timer to avoid failures inside of the
 post-command hook."
@@ -1659,10 +1659,10 @@ Ignores buffers that don't exist."
   (and (>= pos mistty-sync-marker)
        (or mistty-bracketed-paste
            (and
-            (>= pos mistty-cmd-start-marker)
-            (> mistty-cmd-start-marker mistty-sync-marker)
-            (>= pos mistty-cmd-start-marker)
-            (<= pos (mistty--eol mistty-cmd-start-marker))))))
+            (>= pos mistty--cmd-start-marker)
+            (> mistty--cmd-start-marker mistty-sync-marker)
+            (>= pos mistty--cmd-start-marker)
+            (<= pos (mistty--eol mistty--cmd-start-marker))))))
 
 (defun mistty-before-positional ()
   "Prepare the state for executing a positional command.
@@ -1700,7 +1700,7 @@ the prompt."
   "Return non-nil if `mistty--possible-prompt' is usable."
   (pcase-let ((`(,start ,end ,content) mistty--possible-prompt))
     (let ((cursor (mistty-cursor)))
-      (and (>= end mistty-cmd-start-marker)
+      (and (>= end mistty--cmd-start-marker)
            (>= cursor end)
            (or (> cursor (point-max))
                (<= cursor (mistty--bol start 2)))

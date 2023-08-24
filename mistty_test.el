@@ -770,7 +770,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -795,7 +795,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -812,7 +812,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -831,7 +831,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -851,7 +851,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -875,7 +875,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdef")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -893,7 +893,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -916,7 +916,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -943,7 +943,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcd<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -963,7 +963,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcd<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -985,7 +985,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcd<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -1004,7 +1004,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -1029,7 +1029,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdef")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -1049,7 +1049,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
       (insert "$ ")
       (move-overlay ov (point) (point-max-marker))
-      (setq mistty--cmd-start-marker (point))
+      (setq mistty-sync-marker (point))
       
       (insert "abcdefghijklmno<<end>>")
       (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
@@ -1070,7 +1070,7 @@
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
     (move-overlay ov (point) (point-max-marker))
-    (setq mistty--cmd-start-marker (point))
+    (setq mistty-sync-marker (point))
     
     (insert "abcdefghijklmno<<end>>")
     (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))

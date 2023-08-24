@@ -1205,12 +1205,12 @@ the buffer is modified. It creates or extends a
 `mistty-changeset', storing enough information about the change
 to replay it afterwards."
   (when (and is-after
-             mistty--cmd-start-marker
-             (>= orig-end mistty--cmd-start-marker))
+             mistty-sync-marker
+             (>= orig-end mistty-sync-marker))
     (let ((inhibit-read-only t)
-          (beg (max orig-beg mistty--cmd-start-marker))
-          (end (max orig-end mistty--cmd-start-marker))
-          (old-end (max (+ orig-beg old-length) mistty--cmd-start-marker))
+          (beg (max orig-beg mistty-sync-marker))
+          (end (max orig-end mistty-sync-marker))
+          (old-end (max (+ orig-beg old-length) mistty-sync-marker))
           (cs (mistty--activate-changeset)))
 
       ;; Temporarily stop refreshing the work buffer while collecting

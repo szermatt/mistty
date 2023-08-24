@@ -1524,7 +1524,7 @@
 
 (ert-deftest mistty-reset-during-replay ()
   (with-mistty-buffer
-   (setq mistty-log-enabled t)
+   (setq mistty-log t)
    (mistty-send-raw-string "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")
    (mistty-wait-for-output)
    (mistty-send-and-wait-for-prompt nil "read> ")
@@ -1765,7 +1765,7 @@
              "function __fish_disable_bracketed_paste --on-event fish_preexec --on-event fish_exit; "
              "  printf \"\\e[?2004l\";"
              "end"))
-    (setq mistty-log-enabled t)
+    (setq mistty-log t)
     (mistty-send-and-wait-for-prompt (lambda ())))
    (t (error "Unsupported shell %s" shell))))
 

@@ -8,8 +8,8 @@
 ;;
 ;; To turn on logging in a buffer, call the command
 ;; `mistty-start-log'. This command creates a buffer that gets filled
-;; with events reported to `mistty-log' on that buffer and any other
-;; buffer on which `mistty-start-log' was called.
+;; with events reported to the function `mistty-log' on that buffer
+;; and any other buffer on which `mistty-start-log' was called.
 
 ;;; Code:
 
@@ -19,10 +19,12 @@
 (defvar mistty-log-buffer nil
   "Buffer when log messages are directed, might not be live.")
 
-(defvar-local mistty-log-enabled nil
+(defvar-local mistty-log nil
   "Whether logging is enabled on the current buffer.
 
-Calling `mistty-log' is a no-op unless this is set.")
+This is usually set by calling `mistty-start-log'.
+
+Calling the function `mistty-log' is a no-op unless this is set.")
 
 (defvar mistty-backlog-size 0
   "Log entries to track when logging is disabled.
@@ -69,7 +71,7 @@ communication can safely be sent out.
 
 This does nothing unless logging is enabled for the current
 buffer. It is usually enabled by calling mistty-start-log."
-  (when (or mistty-log-enabled (> mistty-backlog-size 0))
+  (when (or mistty-log (> mistty-backlog-size 0))
     (mistty--log str args)))
 
 (defun mistty-start-log ()
@@ -77,9 +79,9 @@ buffer. It is usually enabled by calling mistty-start-log."
 
 If logging is already enabled, just show the buffer."
   (interactive)
-  (if (and mistty-log-enabled (buffer-live-p mistty-log-buffer))
+  (if (and mistty-log (buffer-live-p mistty-log-buffer))
       (switch-to-buffer-other-window mistty-log-buffer)
-    (setq mistty-log-enabled t)
+    (setq mistty-log t)
     (mistty--backlog-foreach
      mistty--backlog
      (lambda (args)
@@ -91,18 +93,18 @@ If logging is already enabled, just show the buffer."
 (defun mistty-stop-log ()
   "Disable logging for the current buffer."
   (interactive)
-  (when mistty-log-enabled
+  (when mistty-log
     (when (buffer-live-p mistty-log-buffer)
       (mistty-log "Log disabled for %s" (buffer-name)))
-    (setq mistty-log-enabled nil)))
+    (setq mistty-log nil)))
 
 (defun mistty-drop-log ()
   "Disable logging for all buffers and kill the log buffer."
   (interactive)
   (dolist (buf (buffer-list))
     (with-current-buffer buf
-      (when mistty-log-enabled
-        (setq mistty-log-enabled nil))))
+      (when mistty-log
+        (setq mistty-log nil))))
   (when (buffer-live-p mistty-log-buffer)
     (kill-buffer mistty-log-buffer)))
 
@@ -125,7 +127,7 @@ Calling this function creates `mistty-log-buffer' if it doesn't
 exit already."
   (let ((event-time (or event-time (float-time)))
         (calling-buffer (current-buffer)))
-    (if (and (not mistty-log-enabled) (> mistty-backlog-size 0))
+    (if (and (not mistty-log) (> mistty-backlog-size 0))
         ;; not enabled; add to backlog
         (mistty--backlog-add
          (or mistty--backlog

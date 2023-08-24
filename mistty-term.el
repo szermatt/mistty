@@ -1,9 +1,18 @@
 ;;; mistty-term.el --- Extensions for term.el for MisTTY -*- lexical-binding: t -*-
 
+
+;;; Commentary:
+;;
+;; This file collects helpers for mistty.el that deal with the
+;; terminal and the `term-mode' buffer. term.el would be a better fit
+;; for many of these.
+
 (require 'term)
 (require 'subr-x)
 
 (require 'mistty-util)
+
+;;; Code:
 
 (autoload 'mistty-osc7 "mistty-osc7")
 (autoload 'ansi-osc-window-title-handler "ansi-osc")
@@ -15,7 +24,7 @@
     ;; the coding system of the path after percent-decoding it.
     ;; TODO: propose a fix for ansi-osc
     ("7" . mistty-osc7)
-    
+
     ;; These handlers are reasonably compatibly with MisTTY OSC. This
     ;; isn't necessary going to be the case for all such handlers.
     ("2" . ansi-osc-window-title-handler)
@@ -387,10 +396,20 @@ This variable is available in the work buffer.")
 They'll be processed once more data is passed to the next call.")
 
 (defun mistty-emulate-terminal (proc str work-buffer)
-  "Handle special terminal codes, then call `term-emulate-terminal'.
+  "Handle process output as a terminal would.
 
-This functions intercepts some extented sequences term.el. This
-all should rightly be part of term.el."
+This function accepts output from PROC included into STR and
+forwards them to `term-emulate-terminal'.
+
+Some special sequences are interrupted and pre-processed:
+
+- enabling and disabling bracketed paste, which means that
+bracketed paste strings can be sent to PROC. The state is stored
+into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
+
+- making cursor visible or invisible in WORK-BUFFER
+
+- OSC sequences, either fed to `mistty-osc-handlers' or ignored."
   (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
             (inhibit-read-only t) ;; allow modifications in char mode
             (start 0)
@@ -470,7 +489,7 @@ This function detects multibyte chars that couldn't be decoded at
 the end of STR and splits it into a cons of complete string and
 remaining bytes.
 
-term.el is meant to do that, but it fails, because char-charset
+term.el is meant to do that, but it fails, because `char-charset'
 alone doesn't behave the way term.el assumes (anymore?). This is
 hopefully a temporary workaround."
   (let* ((len (length str))
@@ -498,19 +517,37 @@ hopefully a temporary workaround."
               (char-charset c))))))
 
 (defun mistty-register-text-properties (id props)
-  (unless (eq 'term-mode major-mode) (error "requires a term-mode buffer"))
+  "Add PROPS to any text written to the terminal.
+
+Call `mistty-unregister-text-properties' with the same ID to turn
+that off.
+
+If this function is called more than once with the same ID, only
+the last set of properties to be registered is applied."
+  (unless (eq 'term-mode major-mode) (error "Requires a term-mode buffer"))
   (if-let ((cell (assq id mistty--term-properties-to-add-alist)))
       (setcdr cell props)
     (push (cons id props) mistty--term-properties-to-add-alist)))
 
 (defun mistty-unregister-text-properties (id)
-  (unless (eq 'term-mode major-mode) (error "requires a term-mode buffer"))
+  "Stop applying properties previously registered with ID."
+  (unless (eq 'term-mode major-mode) (error "Requires a term-mode buffer"))
   (when-let ((cell (assq id mistty--term-properties-to-add-alist)))
-    (setq mistty--term-properties-to-add-alist 
+    (setq mistty--term-properties-to-add-alist
           (delq cell
                 mistty--term-properties-to-add-alist))))
 
 (defun mistty--create-term (name program args local-map width height)
+  "Create a new term buffer with name NAME.
+
+The buffer runs PROGRAM with the given ARGS.
+
+LOCAL-MAP specifies a local map to be used as the char-mode map.
+
+WIDTH and HEIGHT are the initial dimension of the terminal
+reported to the remote process.
+
+This function returns the newly-created buffer."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
       (term-mode)
@@ -528,6 +565,7 @@ hopefully a temporary workaround."
     term-buffer))
 
 (defun mistty--after-change-on-term (beg end _old-length)
+  "Function registered to `after-change-functions' by `mistty--create-term'."
   (when (and mistty--term-properties-to-add-alist (> end beg))
     (when-let ((props (apply #'append
                        (mapcar #'cdr mistty--term-properties-to-add-alist))))
@@ -535,6 +573,11 @@ hopefully a temporary workaround."
 
 
 (defun mistty--maybe-bracketed-str (str)
+  "Prepare STR to be sent, possibly bracketed, to the terminal.
+
+If bracketed paste is enabled and STR contains control and
+bracketed paste is enabled, this function returns STR with
+bracketed paste brackets around it."
   (let ((str (string-replace "\t" (make-string tab-width ? ) str)))
     (cond
      ((not mistty-bracketed-paste) str)
@@ -542,6 +585,9 @@ hopefully a temporary workaround."
      (t (concat "\e[200~"
                 str
                 "\e[201~"
+                ;; Moving the cursor just after sending a bracketed
+                ;; sequence is useful do de-activating the paste
+                ;; region, if the process created one.
                 mistty-left-str
                 mistty-right-str)))))
 
@@ -566,3 +612,5 @@ If N is specified, the string is repeated N times."
                (key-description key))))))
 
 (provide 'mistty-term)
+
+;;; mistty-term.el ends here

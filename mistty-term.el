@@ -18,7 +18,7 @@
 (autoload 'ansi-osc-window-title-handler "ansi-osc")
 (autoload 'ansi-osc-hyperlink-handler "ansi-osc")
 
-(defvar mistty-osc-handlers
+(defcustom mistty-osc-handlers
   '(
     ;; not using ansi-osc-directory-tracker because it doesn't decode
     ;; the coding system of the path after percent-decoding it.
@@ -33,14 +33,21 @@
 
 This hook is run on the term-mode buffer. It is passed the
 content of OSC sequence - everything between OSC (ESC ]) and
-ST (ESC \\ or \\a) and may chooose to handle or ignore them.
+ST (ESC \\ or \\a) and may choose to handle them.
 
-The current buffer is set to the term-mode buffer. The hook is
-allowed to modify it, to add text properties, for example. In
-such case, consider using `mistty-register-text-properties'.
+The current buffer a`term-mode' buffer. The hook is allowed to
+modify it, to add text properties, for example. In such case,
+consider using `mistty-register-text-properties'.
 
-Most handlers written for ansi-osc (Emacs 29) should work here as
-well.")
+Most handlers written for the ansi-osc package (Emacs 29) should
+work here as well.
+
+If you add here a handler that sets a buffer-local variable,
+consider adding that variable to `mistty-variables-to-copy' so
+that its value is available in the main MisTTY buffer, not just
+the terminal buffer."
+  :group 'mistty
+  :type '(alist :key-type string :value-type function))
 
 (defconst mistty-up-str "\eOA"
   "Sequence to send to the process when the up arrow is pressed.")

@@ -12,14 +12,17 @@
 
 ;;; Code:
 
-(defvar mistty-allow-tramp-paths nil
+(defcustom mistty-allow-tramp-paths nil
   "If true, allow TRAMP paths as shell-specified directory.
 
 Make sure tramps works before enabling.
 
 This affects directories set using OSC 7, which can then build
 TRAMP remote paths based on the hostname specified in the file://
-URL, using the default method.")
+URL, using the default method."
+
+  :group 'mistty
+  :type '(boolean))
 
 (defun mistty-osc7 (_ osc-seq)
   "Store OSC-SEQ as path to the current directory.

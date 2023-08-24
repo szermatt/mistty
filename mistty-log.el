@@ -56,11 +56,15 @@ This is also the time the log buffer was created.")
   array)
 
 (defface mistty-log-header-face '((t (:italic t)))
-  "Face applied to the headers in `mistty-log' buffer."
+  "Face applied to the headers in `mistty-log' buffer.
+
+This applies to log entries created by the function `mistty-log'."
   :group 'mistty)
 
 (defface mistty-log-message-face nil
-  "Face applied to the message in `mistty-log' buffer."
+  "Face applied to the message in `mistty-log' buffer.
+
+This applies to log entries created by the function `mistty-log'."
   :group 'mistty)
 
 (defsubst mistty-log (str &rest args)

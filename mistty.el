@@ -30,229 +30,76 @@
 
 ;;; Code:
 
-(defvar-local mistty-work-buffer nil
-  "The main `mistty-mode' buffer.
+;; Customization:
+(defgroup mistty nil
+  "Shell/Comint alternative with a real terminal."
+  :group 'shell)
 
-This buffer keeps a modifiable history of all commands at the top
-and a view of the terminal modified by the current command at the
-bottom.
-
-In normal mode, this is the buffer that's displayed to the user.
-In fullscreen mode, this buffer is kept as historical scrollback
-buffer that can be independently switched to with
-`mistty-switch-to-scrollback-buffer'.
-
-While there is normally a terminal buffer, available as
-`mistty-term-buffer' as well as a process, available as
-`mistty-proc' either or both of these might be nil, such as
-after the process died.
-
-
-This variable is available in both the work buffer and the term
-buffer.")
-
-(defvar-local mistty-term-buffer nil
-  "Secondary `term-mode' buffer.
-
-This buffer contains the current screen state, as drawn by the
-different commands. In normal mode, changes made in this buffer
-are normally copied to `mistty-work-buffer'. In fullscreen mode,
-this is the buffer that's displayed to the user. In normal mode,
-this buffer is hidden.
-
-While there is normally a work buffer, available as
-`mistty-work-buffer' as well as a process, available as
-`mistty-proc` either or both of these might be nil in some
-cases.
-
-This variable is available in both the work buffer and the term
-buffer.")
-
-(defvar-local mistty-proc nil
-  "The process that controls the terminal, usually a shell.
-
-This process is associated to `mistty-term-buffer' and is set up
-to output first to that buffer.
-
-The process property `mistty-work-buffer' links the work buffer
-and, for consistency, the process property `mistty-term-buffer'
-links to the term buffer.
-
-This variable is available in both the work buffer and the term
-buffer.")
-
-(defvar-local mistty--queue nil
-  "A queue of data to send to the process; a mistty--queue struct.
-
-See mistty-queue.el.")
-
-(defvar-local mistty-sync-marker nil
-  "A marker that links `mistty-term-buffer' to `mistty-work-buffer'.
-
-The region of the terminal that's copied to the work buffer
-starts at `mistty-sync-marker' and ends at `(point-max)' on both
-buffers. The two markers must always be kept in sync and updated
-at the same time.
-
-This variable is available in both the work buffer and the term
-buffer.")
-
-(defvar-local mistty--cmd-start-marker nil
-  "Mark the end of the prompt; the beginning of the command line.
-
-The region [`mistty-sync-marker', `mistty--cmd-start-marker']
-marks the prompt of the command line, if one was detected. If no
-prompt was detected, this marker points to the same position as
-`mistty-sync-marker'.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--sync-ov nil
-  "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
-
-This overlay covers the region of the work buffer that's
-currently kept in sync with the terminal. MisTTY tries to send
-any modifications made to this region to the terminal for
-processing. Such modification might be rejected and eventually
-undone, accepted or accepted with modifications.
-
-The special keymap `mistty-prompt-map' is active when the pointer
-is on this overlay.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--prompt-ov nil
-  "An overlay that covers the current detected prompt, if any.")
-
-(defvar-local mistty-fullscreen nil
-  "Whether MisTTY is in full-screen mode.
-
-When MisTTY is in full-screen mode, this variable evaluates to
-true, the `term-mode' buffer is the buffer shown to the user,
-while the `mistty-mode' buffer is kept aside, detached from the
-process.
-
-This variable is available in both the work buffer and the term
-buffer.")
-
-(defvar-local mistty--old-point nil
-  "The position of the point captured in `pre-command-hook'.
-
-It is used in the `post-command-hook'.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty-goto-cursor-next-time nil
-  "Non-nil if the point should be moved to the cursor.
-
-This variable tells `mistty--refresh' that it should move
-the point to the cursor next time it copies the state of the
-terminal to the work buffer.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--end-prompt nil
-  "End the prompt after the next refresh.
-
-When this variable is non-nil, it contains a position in the work
-buffer that's on the last line of the current prompt. The line
-after that is going to be a process output or a new prompt.")
-
-(defvar-local mistty--possible-prompt nil
-  "Region of the work buffer identified as possible prompt.
-
-This variable is either nil or a list that contains:
- - the start of the prompt, a position in the work buffer
- - the end of the prompt
- - the content of the prompt
-
-While start and end points to positions in the work buffer, such
-position might not contain any data yet - if they haven't been
-copied from the terminal, or might contain data - if they have
-since been modified.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--cursor-after-last-refresh nil
-  "The position of the cursor at the end of `mistty--refresh'.
-
-This variable is meant for `mistty--refresh' to detect
-whether the cursor has moved since its last call. It's not meant
-to be modified or accessed by other functions.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--inhibit-refresh nil
-  "When non-nil, prevent `mistty--refresh' from copying data.
-
-When this variable is true, `mistty--refresh' does nothing
-unless it is forced; it just sets
-`mistty--need-refresh'. This is useful to temporarily
-prevent changes to the terminal to be reflected to the work
-buffer and shown to the user.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--need-refresh nil
-  "If true, the work buffer is known to be out-of-date.
-
-This variable is set by `mistty--refresh' when copying data
-from the terminal to the work buffer is disabled. It signals that
-`mistty--refresh' should be called after setting
-`mistty--refresh' to true again.
-
-This variable is available in the work buffer.")
-
-(defvar-local mistty--refresh-timer nil
-  "A timer for calling refresh after some delay.
-
-This is used to cover the case where modifications that should
-cause changes are just ignored by the command.")
-
-(eval-when-compile
-  ;; defined in term.el
-  (defvar term-home-marker))
-
-(defconst mistty--ws "[:blank:]\n\r"
-  "A character class that matches spaces and newlines, for MisTTY.")
-
-(defvar mistty-prompt-re
+(defcustom mistty-prompt-re
   "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]?$"
-  ;;"[#$%>.─❯\ue000-\uf8ff][[:blank:]]?$"
   "Regexp used to identify prompts.
 
-Strings that might be prompts are evaluated against this regexp,
-without any command. This regexp should match something that
-looks like a prompt.
+New, empty lines that might be prompts are evaluated against this
+regexp. This regexp should match something that looks like the
+end of a prompt with no commands.
 
-When the user makes changes on or before such a line that looks
-like a prompt, MisTTY attempts to send these changes to the
-terminal, which might or might not work.")
+Customizing this string is usually not necessary, but if you
+notice that MisTTY doesn't detect prompts or detects prompts that
+aren't there, you might want to adapt this regexp to match only
+the prompts of the commands you actually use."
+  :type '(regexp)
+  :group 'mistty)
 
-(defvar mistty-variables-to-copy
+(defcustom mistty-variables-to-copy
   '(default-directory
     ansi-osc-window-title)
   "List of buffer-local variables to copy from term to mistty.
 
-These are variable set from OSC handlers, configured it
-`mistty-osc-handlers'. As OSC handlers run in the term buffer,
-they need to be copied to be available in the main MisTTY buffer.")
+These are typically variable set from OSC handlers, configured in
+`mistty-osc-handlers'. As OSC handlers run in the terminal
+buffer, they need to be copied to be available in the main MisTTY
+buffer."
+  :type '(list variable)
+  :group 'mistty)
 
-(defvar mistty-positional-keys "\t\C-d\C-w\C-t\C-k\C-y"
+(defcustom mistty-positional-keys "\t\C-d\C-w\C-t\C-k\C-y"
   "Set of control characters that are defined as positional.
 
-This is the set of control characters for which
-`mistty-positional-p' returns true. See the documentation of that
-function for the definition of a positional character.")
+A key is defined as positional if it traditionally have an effect
+that modifies what is displayed on the terminal in a way that
+depends on where the cursor is on the terminal.
+
+Graphical characters are always considered positional, so don't
+appear on this list.
+
+MisTTY moves the cursor to the point and before sending a
+positional key to the terminal."
+  :type '(string)
+  :group 'mistty)
+
+(defcustom mistty-fringe-enabled t
+  "If non-nil, highlight the synced region with a left fringe or margin.
+
+This makes the synced region visible, which is useful as
+modifications made inside of the synced region are treated
+differently from modifications made inside of the synced region."
+  :type '(boolean)
+  :group 'mistty)
 
 (defface mistty-fringe-face '((t (:foreground "purple")))
-  "Color of the left fringe or margin that indicates the synced region (debug).
+  "Color of the left fringe or margin that highlights the synced region.
 
-This is used when the display is a terminal."
+On the terminal, a margin is created instead of a fringe. This
+face is used as well in such case.
+
+You can turn this off completely by setting
+`mistty-fringe-enabled'."
   :group 'mistty)
 
 (defface mistty-prompt-face nil
-  "Face that highlights the current, detected prompt (debug)."
+  "Face that highlights the current, detected prompt.
+
+This is generally only set when debugging prompt detection."
   :group 'mistty)
 
 (defvar mistty-mode-map
@@ -276,9 +123,7 @@ This is used when the display is a terminal."
 This map is active whenever the current buffer is in MisTTY mode.")
 
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
-  "Keymap that sends everything to the terminal using `mistty-send-last-key'.
-
-By default, it is bound to C-q in `mistty-prompt-map'.")
+  "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
 
 (defvar mistty-prompt-map
   (let ((map (make-sparse-keymap)))
@@ -347,6 +192,194 @@ own keymaps (`term-mod-map' and `term-raw-map')
 This map is applied in addition to these as a way of making key
 mapping somewhat consistent between fullscreen and normal mode.")
 
+;; Variables:
+(defvar-local mistty-work-buffer nil
+  "The main `mistty-mode' buffer.
+
+This buffer keeps a modifiable history of all commands at the top
+and a view of the terminal modified by the current command at the
+bottom.
+
+In normal mode, this is the buffer that's displayed to the user.
+In fullscreen mode, this buffer is kept as historical scrollback
+buffer that can be independently switched to with
+`mistty-switch-to-scrollback-buffer'.
+
+While there is normally a terminal buffer, available as
+`mistty-term-buffer' as well as a process, available as
+`mistty-proc' either or both of these might be nil, such as
+after the process died.
+
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty-term-buffer nil
+  "Secondary `term-mode' buffer.
+
+This buffer contains the current screen state, as drawn by the
+different commands. In normal mode, changes made in this buffer
+are normally copied to `mistty-work-buffer'. In fullscreen mode,
+this is the buffer that's displayed to the user. In normal mode,
+this buffer is hidden.
+
+While there is normally a work buffer, available as
+`mistty-work-buffer' as well as a process, available as
+`mistty-proc` either or both of these might be nil in some
+cases.
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty-proc nil
+  "The process that controls the terminal, usually a shell.
+
+This process is associated to `mistty-term-buffer' and is set up
+to output first to that buffer.
+
+The process property `mistty-work-buffer' links the work buffer
+and, for consistency, the process property `mistty-term-buffer'
+links to the term buffer.
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+
+(defvar-local mistty-fullscreen nil
+  "Whether MisTTY is in full-screen mode.
+
+When MisTTY is in full-screen mode, this variable evaluates to
+true, the `term-mode' buffer is the buffer shown to the user,
+while the `mistty-mode' buffer is kept aside, detached from the
+process.
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty-goto-cursor-next-time nil
+  "Non-nil if the point should be moved to the cursor.
+
+This variable tells `mistty--refresh' that it should move
+the point to the cursor next time it copies the state of the
+terminal to the work buffer.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--queue nil
+  "A queue of data to send to the process; a mistty--queue struct.
+
+See mistty-queue.el.")
+
+(defvar-local mistty-sync-marker nil
+  "A marker that links `mistty-term-buffer' to `mistty-work-buffer'.
+
+The region of the terminal that's copied to the work buffer
+starts at `mistty-sync-marker' and ends at `(point-max)' on both
+buffers. The two markers must always be kept in sync and updated
+at the same time.
+
+This variable is available in both the work buffer and the term
+buffer.")
+
+(defvar-local mistty--cmd-start-marker nil
+  "Mark the end of the prompt; the beginning of the command line.
+
+The region [`mistty-sync-marker', `mistty--cmd-start-marker']
+marks the prompt of the command line, if one was detected. If no
+prompt was detected, this marker points to the same position as
+`mistty-sync-marker'.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--sync-ov nil
+  "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
+
+This overlay covers the region of the work buffer that's
+currently kept in sync with the terminal. MisTTY tries to send
+any modifications made to this region to the terminal for
+processing. Such modification might be rejected and eventually
+undone, accepted or accepted with modifications.
+
+The special keymap `mistty-prompt-map' is active when the pointer
+is on this overlay.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--prompt-ov nil
+  "An overlay that covers the current detected prompt, if any.")
+
+(defvar-local mistty--old-point nil
+  "The position of the point captured in `pre-command-hook'.
+
+It is used in the `post-command-hook'.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--end-prompt nil
+  "End the prompt after the next refresh.
+
+When this variable is non-nil, it contains a position in the work
+buffer that's on the last line of the current prompt. The line
+after that is going to be a process output or a new prompt.")
+
+(defvar-local mistty--possible-prompt nil
+  "Region of the work buffer identified as possible prompt.
+
+This variable is either nil or a list that contains:
+ - the start of the prompt, a position in the work buffer
+ - the end of the prompt
+ - the content of the prompt
+
+While start and end points to positions in the work buffer, such
+position might not contain any data yet - if they haven't been
+copied from the terminal, or might contain data - if they have
+since been modified.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--cursor-after-last-refresh nil
+  "The position of the cursor at the end of `mistty--refresh'.
+
+This variable is meant for `mistty--refresh' to detect
+whether the cursor has moved since its last call. It's not meant
+to be modified or accessed by other functions.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--inhibit-refresh nil
+  "When non-nil, prevent `mistty--refresh' from copying data.
+
+When this variable is true, `mistty--refresh' does nothing
+unless it is forced; it just sets
+`mistty--need-refresh'. This is useful to temporarily
+prevent changes to the terminal to be reflected to the work
+buffer and shown to the user.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--need-refresh nil
+  "If true, the work buffer is known to be out-of-date.
+
+This variable is set by `mistty--refresh' when copying data
+from the terminal to the work buffer is disabled. It signals that
+`mistty--refresh' should be called after setting
+`mistty--refresh' to true again.
+
+This variable is available in the work buffer.")
+
+(defvar-local mistty--refresh-timer nil
+  "A timer for calling refresh after some delay.
+
+This is used to cover the case where modifications that should
+cause changes are just ignored by the command.")
+
+(eval-when-compile
+  ;; defined in term.el
+  (defvar term-home-marker))
+
+(defconst mistty--ws "[:blank:]\n\r"
+  "A character class that matches spaces and newlines, for MisTTY.")
+
 (define-derived-mode mistty-mode fundamental-mode "misTTY" "Line-based TTY."
   :interactive nil
   (setq buffer-read-only nil)
@@ -357,17 +390,18 @@ mapping somewhat consistent between fullscreen and normal mode.")
   ;; commands such as more expect than the default Emacs behavior.
   (setq-local scroll-conservatively 1024)
 
-  (if (window-system)
-      (unless (fringe-bitmap-p 'mistty-bar)
-        (define-fringe-bitmap
-          'mistty-bar (make-vector 40 7) nil 3 'center))
-
-    ;; on a terminal, set margin width, and call set-window-buffer to make
-    ;; sure it has taken effect.
-    (setq left-margin-width 1)
-    (let ((buf (current-buffer)))
-      (dolist (win (get-buffer-window-list buf))
-        (set-window-buffer win buf)))))
+  (when mistty-fringe-enabled
+    (if (window-system)
+        (unless (fringe-bitmap-p 'mistty-bar)
+          (define-fringe-bitmap
+            'mistty-bar (make-vector 40 7) nil 3 'center))
+      
+      ;; on a terminal, set margin width, and call set-window-buffer to make
+      ;; sure it has taken effect.
+      (setq left-margin-width 1)
+      (let ((buf (current-buffer)))
+        (dolist (win (get-buffer-window-list buf))
+          (set-window-buffer win buf))))))
 
 (put 'mistty-mode 'mode-class 'special)
 
@@ -426,13 +460,14 @@ buffer and `mistty-proc' to that buffer's process."
     (overlay-put mistty--sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
 
     ;; highlight the synced region in the fringe or margin
-    (overlay-put
-     mistty--sync-ov
-     'line-prefix
-     (propertize " " 'display
-                 (if (window-system)
-                     '(left-fringe mistty-bar mistty-fringe-face)
-                   `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face)))))
+    (when mistty-fringe-enabled
+      (overlay-put
+       mistty--sync-ov
+       'line-prefix
+       (propertize " " 'display
+                   (if (window-system)
+                       '(left-fringe mistty-bar mistty-fringe-face)
+                     `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face))))))
     (overlay-put mistty--prompt-ov 'face 'mistty-prompt-face)
 
     (when proc

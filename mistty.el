@@ -895,30 +895,42 @@ Also updates prompt and point."
       ;; restrict the sync region.
       (mistty--with-live-buffer mistty-work-buffer
         (when (process-live-p mistty-proc)
-          (let ((prompt-beg
-                 (let ((pos (mistty-cursor)))
-                   (unless (and (> pos (point-min))
-                                (get-text-property (1- pos) 'mistty-prompt-id))
-                     (setq pos (previous-single-property-change
-                                pos 'mistty-prompt-id nil mistty-sync-marker)))
-                   (when (and (> pos (point-min))
-                              (get-text-property (1- pos) 'mistty-prompt-id))
-                     (setq pos (previous-single-property-change
-                                pos 'mistty-prompt-id nil mistty-sync-marker)))
-                   pos)))
+          (let* ((cursor (mistty-cursor))
+                 (prompt-beg
+                  (let ((pos cursor))
+                    (unless (and (> pos (point-min))
+                                 (get-text-property (1- pos) 'mistty-prompt-id))
+                      (setq pos (previous-single-property-change
+                                 pos 'mistty-prompt-id nil mistty-sync-marker)))
+                    (when (and (> pos (point-min))
+                               (get-text-property (1- pos) 'mistty-prompt-id))
+                      (setq pos (previous-single-property-change
+                                 pos 'mistty-prompt-id nil mistty-sync-marker)))
+                    pos)))
             (when (and prompt-beg
                        (get-text-property prompt-beg 'mistty-prompt-id)
                        (or (> prompt-beg mistty-sync-marker)
                            (and (= prompt-beg mistty-sync-marker)
                                 (= mistty-sync-marker mistty--cmd-start-marker)))
-                       (< prompt-beg (mistty-cursor))
+                       (< prompt-beg cursor)
                        (string-match
                         mistty-prompt-re
                         (mistty--safe-bufstring
-                         (mistty--bol (mistty-cursor)) (mistty-cursor))))
-              (mistty-log "Detected prompt: [%s-%s]" prompt-beg (mistty-cursor))
-              (mistty--set-sync-mark-from-end prompt-beg (mistty-cursor))))))
+                         (mistty--bol cursor) cursor)))
+              (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)
+              (mistty--set-sync-mark-from-end prompt-beg cursor)))))
 
+      ;; Fix detected prompt.
+      (mistty--with-live-buffer mistty-work-buffer
+        (when (process-live-p mistty-proc)
+          (let ((cursor (mistty-cursor)))
+            (when (< cursor mistty--cmd-start-marker)
+              ;; An overly-large prompt causes more issues than a
+              ;; prompt that's just missing.
+              (mistty-log "Detected prompt too large %s > %s. RESET."
+                          (marker-position mistty--cmd-start-marker) cursor)
+              (mistty--set-prompt mistty-sync-marker mistty-sync-marker)))))
+      
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.
         (when (< mistty-sync-marker term-home-marker)

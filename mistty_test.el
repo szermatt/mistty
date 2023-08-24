@@ -1724,6 +1724,14 @@
    (should (equal "$ echo 'hello\n  wo<>rld\n  and all that sort of things.'"
                   (mistty-test-content :show (mistty-cursor))))))
 
+(ert-deftest mistty-test-truncation ()
+  (let ((mistty-buffer-maximum-size 20))
+    (with-mistty-buffer
+     (dotimes (_ 100)
+       (mistty-send-raw-string "for i in {0..10}; do echo line $i; done")
+       (mistty-send-and-wait-for-prompt))
+     (ert-run-idle-timers)
+     (should (<= (count-lines (point-min) (point-max)) 30)))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
@@ -1862,7 +1870,7 @@ buffer to a new region at the beginning of the new prompt."
 
 Puts the point at the end of the prompt and return the position
 of the beginning of the prompt."
-  (let ((before-send (point)))
+  (let ((before-send (point-marker)))
     (funcall (or send-command-func #'mistty-send-command))
     (mistty-wait-for-output
      :regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt)))

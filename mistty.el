@@ -102,6 +102,14 @@ You can turn this off completely by setting
 This is generally only set when debugging prompt detection."
   :group 'mistty)
 
+(defcustom mistty-buffer-maximum-size 8192
+  "The maximum size in lines for MisTTY buffers
+
+Buffers that grow larger than the given size might be truncated.
+Set to 0 to disable truncation."
+  :group 'mistty
+  :type 'natnum)
+
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
@@ -372,6 +380,11 @@ This variable is available in the work buffer.")
 
 This is used to cover the case where modifications that should
 cause changes are just ignored by the command.")
+
+(defvar-local mistty--truncate-timer nil
+  "An idle timer that'll truncate the buffer.
+
+Truncation is configured by `mistty-buffer-maximum-size'.")
 
 (eval-when-compile
   ;; defined in term.el
@@ -690,6 +703,7 @@ from the ESHELL or SHELL environment variables."
                        (not mistty-bracketed-paste))
                   (not (accept-process-output proc 0 0 t)))
           (mistty--refresh)
+          (mistty--maybe-truncate-when-idle)
           (mistty--dequeue-with-timer mistty--queue)))))))
 
 (defun mistty--process-terminal-seq (proc str)
@@ -915,6 +929,35 @@ Also updates prompt and point."
               (mistty-goto-cursor))
           (setq mistty-goto-cursor-next-time nil)
           (setq mistty--cursor-after-last-refresh (mistty-cursor)))))))
+
+(defun mistty--maybe-truncate-when-idle ()
+  "Schedule a buffer truncation on an idle timer."
+  (when (and (> mistty-buffer-maximum-size 0)
+             (null mistty--truncate-timer))
+    (setq mistty--truncate-timer
+          (run-with-idle-timer
+           1 nil #'mistty--maybe-truncate (current-buffer)))))
+
+(defun mistty--maybe-truncate (buf)
+  "Truncate BUF, if necessary and possible."
+  (mistty--with-live-buffer buf
+    (setq mistty--truncate-timer nil)
+    (when (> mistty-buffer-maximum-size 0)
+      (save-restriction
+        (widen)
+        (let ((cutoff (mistty--bol (point-max)
+                                   (- mistty-buffer-maximum-size))))
+          (when (and (> cutoff (point-min))
+                     (< cutoff mistty-sync-marker))
+            ;; In most cases, the solution to deal with a buffer being
+            ;; truncated is to use markers, but it won't work with
+            ;; possible-prompt, as it often points to locations that
+            ;; don't yet exist in the work buffer.
+            (when mistty--possible-prompt
+              (let ((diff (- cutoff (point-min))))
+                (cl-decf (nth 0 mistty--possible-prompt) diff)
+                (cl-decf (nth 1 mistty--possible-prompt) diff)))
+            (delete-region (point-min) cutoff)))))))
 
 (defun mistty--save-properties (start)
   "Extracts the properties from START in the current buffer.
@@ -1729,22 +1772,25 @@ the prompt."
   (pcase-let ((`(,start ,end ,_ ) mistty--possible-prompt))
     (if shift
         (mistty--move-sync-mark-with-shift start end shift)
-      (mistty--set-sync-mark-from-end start end))))
+      (mistty--set-sync-mark-from-end start end)))
+  (setq mistty--possible-prompt nil))
 
 (defun mistty--possible-prompt-p ()
   "Return non-nil if `mistty--possible-prompt' is usable."
-  (pcase-let ((`(,start ,end ,content) mistty--possible-prompt))
-    (let ((cursor (mistty-cursor)))
-      (and (>= end mistty--cmd-start-marker)
-           (>= cursor end)
-           (or (> cursor (point-max))
-               (<= cursor (mistty--bol start 2)))
-           (string= content (mistty--safe-bufstring start end))))))
+  (when mistty--possible-prompt
+    (pcase-let ((`(,start ,end ,content) mistty--possible-prompt))
+      (let ((cursor (mistty-cursor)))
+        (and (>= end mistty--cmd-start-marker)
+             (>= cursor end)
+             (or (> cursor (point-max))
+                 (<= cursor (mistty--bol start 2)))
+             (string= content (mistty--safe-bufstring start end)))))))
 
 (defun mistty--possible-prompt-contains (pos)
   "Return non-nil if POS is on `mistty--possible-prompt'."
-  (pcase-let ((`(,start ,line-start ,_) mistty--possible-prompt))
-    (and (>= pos line-start) (<= pos (mistty--eol start)))))
+  (when mistty--possible-prompt
+    (pcase-let ((`(,start ,line-start ,_) mistty--possible-prompt))
+      (and (>= pos line-start) (<= pos (mistty--eol start))))))
 
 (provide 'mistty)
 

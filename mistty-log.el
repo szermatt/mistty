@@ -1,5 +1,18 @@
 ;;; mistty-log.el --- Logging infrastructure for mistty.el. -*- lexical-binding: t -*-
 
+
+;;; Commentary:
+;;
+;; This file contains helper utilities for mistty.el for logging
+;; events, for debugging.
+;;
+;; To turn on logging in a buffer, call the command
+;; `mistty-start-log'. This command creates a buffer that gets filled
+;; with events reported to `mistty-log' on that buffer and any other
+;; buffer on which `mistty-start-log' was called.
+
+;;; Code:
+
 (eval-when-compile
   (require 'cl-lib))
 
@@ -93,8 +106,20 @@ If logging is already enabled, just show the buffer."
   (when (buffer-live-p mistty-log-buffer)
     (kill-buffer mistty-log-buffer)))
 
-(defun mistty--log (str args &optional event-time)
-  "Logging function, normally called from `mistty-log'.
+(defun mistty--log (format-str args &optional event-time)
+  "Append FORMAT-STR and ARGS to the log.
+
+This is normally called from `mistty-log', which first checks
+whether logging or the backlog are enabled.
+
+If logging is disabled, but the backlog is enabled, add a new
+entry to the backlog.
+
+If logging is enabled, add a new entry to the buffer
+*mistty-log*.
+
+EVENT-TIME is the time of the event to log, a float time, as
+returned by `float-time'. It defaults to the current time.
 
 Calling this function creates `mistty-log-buffer' if it doesn't
 exit already."
@@ -105,8 +130,8 @@ exit already."
         (mistty--backlog-add
          (or mistty--backlog
              (setq mistty--backlog (mistty--make-backlog mistty-backlog-size)))
-         (list str args event-time))
-      
+         (list format-str args event-time))
+
       ;; enabled; log
       (with-current-buffer
           (or (and (buffer-live-p mistty-log-buffer) mistty-log-buffer)
@@ -125,7 +150,7 @@ exit already."
           'face 'mistty-log-header-face))
         (insert-before-markers
          (propertize
-          (apply #'format str (mapcar #'mistty--format-log-arg args))
+          (apply #'format format-str (mapcar #'mistty--format-log-arg args))
           'face 'mistty-log-message-face))
         (insert-before-markers "\n")))))
 
@@ -146,6 +171,7 @@ Return ARG unmodified if it's not a string."
     arg))
 
 (defun mistty--backlog-add (backlog elt)
+  "Add ELT to the BACKLOG."
   (aset (mistty--backlog-array backlog)
         (mistty--backlog-idx backlog)
         elt)
@@ -155,6 +181,7 @@ Return ARG unmodified if it's not a string."
     (setf (mistty--backlog-idx backlog) 0)))
 
 (defun mistty--backlog-foreach (backlog func)
+  "Apply FUNC to each non-nil element of the BACKLOG."
   (when backlog
     (let ((arr (mistty--backlog-array backlog))
           (size (mistty--backlog-size backlog))
@@ -172,3 +199,5 @@ Return ARG unmodified if it's not a string."
 
 
 (provide 'mistty-log)
+
+;;; mistty-log.el ends here

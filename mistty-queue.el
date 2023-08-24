@@ -1,7 +1,18 @@
 ;;; mistty.el --- Queue of terminal actions for mistty.el. -*- lexical-binding: t -*-
 
+;;; Code:
+
 (eval-when-compile
   (require 'cl-lib))
+
+;;; Commentary:
+;;
+;; This file defines the struct `mistty--queue' to be used in mistty.el.
+;;
+;; `mistty--queue' sends strings to the terminal process in sequence,
+;; using a generator to adapt the next string to the current state of
+;; the process.
+
 (require 'generator)
 
 (require 'mistty-log)
@@ -20,33 +31,34 @@
 
   ;; A generator that yields strings to send to the terminal or nil.
   iter
-  
+
   ;; Timer used by mistty--dequeue-with-timer.
   timer
-  
+
   ;; Timer called if the process doesn't not answer after a certain
   ;; time.
   timeout
 )
 
 (defsubst mistty--queue-empty-p (queue)
-  "Returns t if QUEUE generator hasn't finished yet."
+  "Return t if QUEUE generator hasn't finished yet."
   (not (mistty--queue-iter queue)))
 
 (defun mistty--send-string (proc str)
+  "Send STR to PROC, if it is still live."
   (when (and str (length> str 0) (process-live-p proc))
     (mistty-log "SEND[%s]" str)
     (process-send-string proc str)))
 
 (defun mistty--enqueue-str (queue str)
-  "Enqueue sending STR to the terminal.
+  "Enqueue sending STR to the terminal into QUEUE.
 
 Does nothing is STR is nil or empty."
   (when (and str (length> str 0))
     (mistty--enqueue queue (mistty--iter-single str))))
 
 (defun mistty--enqueue (queue gen)
-  "Add GEN to the queue.
+  "Add GEN to QUEUE.
 
 The given generator should yield strings to send to the process.
 `iter-yield' calls return once some response has been received
@@ -70,7 +82,7 @@ Does nothing if GEN is nil."
             (mistty--iter-chain (mistty--queue-iter queue) gen)))))
 
 (defun mistty--dequeue (queue &optional value)
-  "Send the next string from the queue to the terminal.
+  "Send the next string from QUEUE to the terminal.
 
 If VALUE is set, send that value to the first call to `iter-next'."
   (cl-assert (mistty--queue-p queue))
@@ -91,11 +103,13 @@ If VALUE is set, send that value to the first call to `iter-next'."
      (setf (mistty--queue-iter queue) nil)))))
 
 (defun mistty--dequeue-with-timer (queue)
-  "Call `mistty--dequeue' on a timer.
+  "Call `mistty--dequeue' on QUEUE on a timer.
 
-Restart the timer if a dequeue is already scheduled. The idea is
-to accumulate updates that arrive at the same time from the
-process, waiting for it to pause."
+The idea is to accumulate updates that arrive at the same time
+from the process, waiting for it to pause.
+
+This function restarts the timer if a dequeue is already
+scheduled."
   (cl-assert (mistty--queue-p queue))
   (mistty--cancel-timeout queue)
   (mistty--cancel-timer queue)
@@ -116,18 +130,25 @@ The queue remains usable, but empty."
   (mistty--cancel-timer queue))
 
 (defun mistty--cancel-timeout (queue)
+  "Cancel the timeout timer in QUEUE."
   (cl-assert (mistty--queue-p queue))
   (when (timerp (mistty--queue-timeout queue))
     (cancel-timer (mistty--queue-timeout queue))
     (setf (mistty--queue-timeout queue) nil)))
 
 (defun mistty--cancel-timer (queue)
+  "Cancel the timer in QUEUE."
   (cl-assert (mistty--queue-p queue))
   (when (timerp (mistty--queue-timer queue))
     (cancel-timer (mistty--queue-timer queue))
     (setf (mistty--queue-timer queue) nil)))
 
 (defun mistty--timeout-handler (buf queue)
+  "Handle timeout in QUEUE.
+
+The code is executed inside BUF.
+
+This function is meant to be use as timer handler."
   (cl-assert (mistty--queue-p queue))
   (mistty--with-live-buffer buf
     (let ((proc (mistty--queue-proc queue)))
@@ -141,27 +162,33 @@ The queue remains usable, but empty."
         (mistty--dequeue queue 'timeout)))))
 
 (defun mistty--queue-timer-handler (buf queue)
-  "Idle timer callback that calls `mistty--dequeue'."
+  "Idle timer callback that calls `mistty--dequeue' on QUEUE.
+
+The code is executed inside BUF.
+
+This function is meant to be use as timer handler."
   (cl-assert (mistty--queue-p queue))
   (mistty--with-live-buffer buf
     (setf (mistty--queue-timer queue) nil)
     (mistty--dequeue queue)))
 
 (iter-defun mistty--iter-single (elt)
-  "Returns a generator that returns ELT and ends."
+  "Build a generator that returns ELT and ends."
   (iter-yield elt))
 
 (iter-defun mistty--iter-chain (iter1 iter2)
-  "Returns a generator that first calls ITER1, then ITER2."
+  "Build a generator that first calls ITER1, then ITER2."
   (unwind-protect
       (progn
         (iter-do (value iter1)
           (iter-yield value))
         (iter-do (value iter2)
           (iter-yield value)))
-    
+
     ;; unwind; close iterators recursively
     (iter-close iter1)
     (iter-close iter2)))
 
 (provide 'mistty-queue)
+
+;;; mistty-queue.el ends here

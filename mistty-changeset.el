@@ -1,6 +1,30 @@
 ;;; mistty-changeset.el --- Accumulate and replays changes -*- lexical-binding: t -*-
 
+
+;;; Commentary:
+;;
+;; This file contains helper utilities for mistty.el for collecting
+;; buffer modifications and forward them to the terminal.
+;;
+;; It defines `mistty--changesets' a list of `mistty--changeset' struct
+;; instances.
+;;
+;; Each `mistty--changeset' tracks of a set of buffer modifications to
+;; be replayed, some of which might be kept in the buffer as text with
+;; specific text properties. Such changes kept in the buffer are
+;; linked to the active changeset, returned by
+;; `mistty--active-changeset'.
+;;
+;; New buffer modifications are reported and linked to the active
+;; changeset by `mistty-changeset-mark-region'. They are then kept in
+;; the buffer until they're collected and eventually transformed into
+;; a set of modifications to be replayed by
+;; `mistty--changeset-modifications'.
+
 (require 'generator)
+
+;;; Code:
+
 (eval-when-compile
   (require 'cl-lib))
 
@@ -32,26 +56,32 @@ Use `mistty--active-changeset' to access it.")
   ;; be removed from mistty--changesets
   applied)
 
-(defsubst mistty--changeset-collected (cs)
-  "Evaluate to a true value if changeset intervals exist.
+(defsubst mistty--changeset-collected (changeset)
+  "Evaluate to a true value if CHANGESET intervals exist.
 
 Calling `mistty-changeset-collect' guarantees this to be true."
-  (mistty--changeset-intervals cs))
+  (mistty--changeset-intervals changeset))
 
 (defun mistty--activate-changeset ()
   "Create a new active changeset.
 
 Returns the changeset."
-  (let ((cs (mistty--active-changeset)))
-    (unless cs
-      (setq cs (mistty--make-changeset))
-      (push cs mistty--changesets))
-    cs))
+  (let ((changeset (mistty--active-changeset)))
+    (unless changeset
+      (setq changeset (mistty--make-changeset))
+      (push changeset mistty--changesets))
+    changeset))
 
-(defun mistty--release-changeset (cs)
-  (when (and (mistty--changeset-beg cs) (not (mistty--changeset-collected cs)))
-    (remove-text-properties (mistty--changeset-beg cs) (point-max) '(mistty-change t)))
-  (setq mistty--changesets (delq cs mistty--changesets)))
+(defun mistty--release-changeset (changeset)
+  "Remove CHANGESET from `mistty-changeset'.
+
+This function also cleans up any change information left in the
+ work buffer."
+  (when (and (mistty--changeset-beg changeset)
+             (not (mistty--changeset-collected changeset)))
+    (remove-text-properties (mistty--changeset-beg changeset)
+                            (point-max) '(mistty-change t)))
+  (setq mistty--changesets (delq changeset mistty--changesets)))
 
 (defun mistty--active-changeset ()
   "Return the active changeset or nil.
@@ -64,27 +94,27 @@ The active changeset is the first changeset on
              (not (mistty--changeset-collected head)))
       head)))
 
-(defun mistty--changeset-mark-region (cs beg end old-end)
-  "Store insertion and deletion for CS into buffer properties.
+(defun mistty--changeset-mark-region (changeset beg end old-end)
+  "Store insertion and deletion for CHANGESET into buffer properties.
 
 Creates and activate a changeset as necessary.
 
 BEG to END reports a newly inserted string, BEG to OLD-END a
 recently deleted string."
-  (setf (mistty--changeset-beg cs)
+  (setf (mistty--changeset-beg changeset)
         (max (point-min)
-             (if (mistty--changeset-beg cs)
-                 (min (mistty--changeset-beg cs) beg)
+             (if (mistty--changeset-beg changeset)
+                 (min (mistty--changeset-beg changeset) beg)
                beg)))
-  (setf (mistty--changeset-end cs)
+  (setf (mistty--changeset-end changeset)
         (min (point-max)
-             (if (mistty--changeset-end cs)
-                 (max (mistty--changeset-end cs) end)
+             (if (mistty--changeset-end changeset)
+                 (max (mistty--changeset-end changeset) end)
                end)))
-  
+
   ;; Mark the text that was inserted
   (put-text-property beg end 'mistty-change '(inserted))
-  
+
   ;; Update the shift value of everything that comes after.
   (let ((shift (- old-end end))
         (pos end))
@@ -96,17 +126,17 @@ recently deleted string."
           ('() (put-text-property pos next-pos 'mistty-change `(shift ,shift))))
         (setq pos next-pos)))
     (when (and (> old-end beg) (= end (point-max)))
-      (setf (mistty--changeset-deleted-point-max cs) t))))
+      (setf (mistty--changeset-deleted-point-max changeset) t))))
 
-(defun mistty--changeset-collect (cs)
-  "Extract data stored into text properties and returns it.
+(defun mistty--changeset-collect (changeset)
+  "Extract CHANGESET data stored into text properties.
 
 The second time this is called, this just returns
 `mistty--changeset-intervals'."
-  (unless (mistty--changeset-intervals cs)
+  (unless (mistty--changeset-intervals changeset)
     (save-excursion
       (save-restriction
-        (narrow-to-region (mistty--changeset-beg cs) (point-max))
+        (narrow-to-region (mistty--changeset-beg changeset) (point-max))
         (let ((last-point (point-min))
               intervals last-at-point )
           (goto-char last-point)
@@ -119,32 +149,32 @@ The second time this is called, this just returns
                    (< (point) (point-max))))
           (when last-at-point
             (push `(,last-point . ,last-at-point) intervals))
-          (when (mistty--changeset-deleted-point-max cs)
+          (when (mistty--changeset-deleted-point-max changeset)
             (push `(,(point-max) deleted-to-end) intervals))
           (let ((inhibit-read-only t)
                 (inhibit-modification-hooks t))
             (remove-text-properties (point-min) (point-max) '(mistty-change t)))
-          (setf (mistty--changeset-intervals cs) (nreverse intervals))))))
-  (mistty--changeset-intervals cs))
+          (setf (mistty--changeset-intervals changeset) (nreverse intervals))))))
+  (mistty--changeset-intervals changeset))
 
-(defun mistty--changeset-restrict (cs min-pos)
-  "Restrict the changes in changeset CS to the range [MIN-POS, (point-max)].
+(defun mistty--changeset-restrict (changeset min-pos)
+  "Restrict the changes in CHANGESET to the range [MIN-POS,].
 
 The function returns the difference between the work buffer and
 term buffer at MIN-POS (shift), or nil if a restriction isn't
 possible after MIN-POS."
-  (let ((intervals (mistty--changeset-collect cs)))
+  (let ((intervals (mistty--changeset-collect changeset)))
     (if (and (caar intervals) (>= (caar intervals) min-pos))
         0 ;; shift is 0, intervals don't change.
-      
+
       ;; apply restrictions
       (while (pcase intervals
                ((and `((,_ . ,_ ) (,pos2 . ,_) . ,_) (guard (<= pos2 min-pos)))
                 (setq intervals (cdr intervals))
                 t)))
-      
+
       ;; intervals now points to the first relevant section, which likely
-      ;; starts before min-pos. 
+      ;; starts before min-pos.
       (let ((base-shift
              (pcase intervals
                (`((,_ shift ,shift) . ,_) shift)
@@ -154,7 +184,7 @@ possible after MIN-POS."
                 nil))))
         (when (and base-shift intervals)
           (setcar (car intervals) min-pos)
-          
+
           ;; shifts must be relative to base-shift
           (setq intervals
                 (mapcar
@@ -163,17 +193,18 @@ possible after MIN-POS."
                      (`(,pos shift ,shift) `(,pos shift ,(- shift base-shift)))
                      (_ cur)))
                  intervals))
-          (setf (mistty--changeset-intervals cs) intervals)
+          (setf (mistty--changeset-intervals changeset) intervals)
           base-shift)))))
 
-(defun mistty--changeset-modifications (cs)
-  "Returns modifications to re-apply for changeset CS.
+(defun mistty--changeset-modifications (changeset)
+  "Return modifications to re-apply for CHANGESET.
 
-Returns a list of (beg content old-length), with beg the
-beginning position, content text that\'s inserted at beg and
+This function returns a list of (beg content old-length), with beg
+the beginning position, content text that\'s inserted at beg and
 old-length the length of text deleted from beg. old-length might
-be -1 to mean delete everything from pos to the end of the buffer."
-  (let ((intervals (mistty--changeset-collect cs))
+be -1 to mean delete everything from pos to the end of the
+buffer."
+  (let ((intervals (mistty--changeset-collect changeset))
         (changes nil)
         (last-shift 0))
     (while intervals
@@ -215,7 +246,7 @@ be -1 to mean delete everything from pos to the end of the buffer."
         (`((,pos deleted-to-end))
          (push (list (+ pos last-shift) "" -1)
                changes)))
-      
+
       ;; prepare for next loop
       (pcase (car intervals)
         (`(,_ shift ,shift) (setq last-shift shift)))
@@ -223,3 +254,5 @@ be -1 to mean delete everything from pos to the end of the buffer."
     changes))
 
 (provide 'mistty-changeset)
+
+;;; mistty-changeset.el ends here

@@ -35,6 +35,15 @@
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
 
+(defvar mistty-test-timeout (if noninteractive 10 1)
+  "Time, in seconds, to wait for expected output in tests.
+
+When running tests automatically, a larger value is useful to
+avoid falkey tests in case the machine running the tests is slow.
+
+When running tests manually, a smaller value is useful to avoid
+waiting for failing test results.")
+
 (defvar mistty-test-prompt "$ ")
 
 (defmacro with-mistty-buffer (&rest body)
@@ -1845,13 +1854,13 @@ be incomplete output. This makes tests unstable."
       (setq condition-descr (format ":test %s" test))))
     
     (if condition
-        (let ((time-limit (time-add (current-time) 1)))
+        (let ((time-limit (time-add (current-time) mistty-test-timeout)))
           (while (not (funcall condition))
             (unless (time-less-p (current-time) time-limit)
               (if on-error
                   (funcall on-error)
-                (error "condition never met (wait-for-output %s)"
-                       condition-descr)))
+                (error "condition not met after %ss (wait-for-output %s)"
+                       mistty-test-timeout condition-descr)))
             (if (process-live-p proc)
                 (accept-process-output proc 0 100 t)
               (accept-process-output nil 0 100))

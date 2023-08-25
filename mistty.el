@@ -49,7 +49,7 @@
   :group 'shell)
 
 (defcustom mistty-prompt-re
-  "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]?$"
+  "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
   "Regexp used to identify prompts.
 
 New, empty lines that might be prompts are evaluated against this

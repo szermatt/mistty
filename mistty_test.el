@@ -254,9 +254,12 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-term-buffer-exits ()
   (with-mistty-buffer
-   (mistty-send-text "exit\n")
-   (mistty-wait-for-term-buffer-and-proc-to-die mistty-term-buffer mistty-proc)
-   (should (string-suffix-p "finished\n" (buffer-substring-no-properties (point-min) (point-max))))))
+   (let ((proc mistty-proc)
+         (term-buffer mistty-term-buffer))
+     (mistty-send-text "exit")
+     (mistty-send-command)
+     (mistty-wait-for-output :str "finished" :start (point-min))
+     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc))))
 
 (ert-deftest test-mistty-scroll-with-long-command ()
   (with-mistty-buffer

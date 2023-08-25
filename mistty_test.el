@@ -71,8 +71,9 @@ waiting for failing test results.")
   `(progn
      (should mistty-test-py-exe)
      (ert-with-test-buffer ()
-     (mistty-test-setup 'python)
-     ,@body)))
+       (let ((mistty-test-prompt ">>> "))
+         (mistty-test-setup 'python)
+         ,@body))))
 
 (defmacro with-mistty-buffer-selected (&rest body)
   `(save-window-excursion
@@ -88,28 +89,30 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-simple-command ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello\n")
+   (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-simple-command-zsh ()
   (with-mistty-buffer-zsh
-   (mistty-send-raw-string "echo hello\n")
+   (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-simple-command-fish ()
   (with-mistty-buffer-fish
-   (mistty-send-raw-string "echo hello\n")
+   (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-keystrokes ()
   (with-mistty-buffer-selected
    (execute-kbd-macro (kbd "e c h o SPC o k"))
-   (should (equal "ok" (mistty-send-and-capture-command-output (lambda () (execute-kbd-macro (kbd "RET"))))))))
+   (should (equal "ok" (mistty-send-and-capture-command-output
+                        (lambda () (execute-kbd-macro (kbd "RET"))))))))
 
 (ert-deftest test-mistty-keystrokes-backspace ()
   (with-mistty-buffer-selected
    (execute-kbd-macro (kbd "e c h o SPC f o o DEL DEL DEL o k"))
-   (should (equal "ok" (mistty-send-and-capture-command-output (lambda () (execute-kbd-macro (kbd "RET"))))))))
+   (should (equal "ok" (mistty-send-and-capture-command-output
+                        (lambda () (execute-kbd-macro (kbd "RET"))))))))
 
 (ert-deftest test-mistty-reconcile-insert ()
   (with-mistty-buffer
@@ -120,8 +123,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reconcile-delete ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo hello")
    
    (mistty-run-command
       (mistty-test-goto "hello")
@@ -132,8 +134,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reconcile-delete-last-word ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello world")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo hello world")
    (mistty-run-command
     (save-excursion
       (mistty-test-goto " world")
@@ -143,8 +144,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reconcile-replace ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo hello")
    (mistty-run-command
     (goto-char (point-min))
     (search-forward "hello")
@@ -155,8 +155,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reconcile-replace-with-point-outside-of-change ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello, hello")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo hello, hello")
    (mistty-run-command
     (goto-char (point-min))
     (while (search-forward "hello" nil t)
@@ -168,8 +167,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reconcile-multiple-replace ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo boo boo, white goat")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo boo boo, white goat")
    (mistty-run-command
     (goto-char (point-min))
     (while (search-forward "boo" nil t)
@@ -186,14 +184,12 @@ waiting for failing test results.")
 (ert-deftest test-mistty-change-before-prompt ()
   (with-mistty-buffer
    (let (beg end)
-     (mistty-send-raw-string "echo hello")
-     (mistty-wait-for-output)
-     (setq beg (- (point) 5))
-     (setq end (point))
-     (mistty-send-raw-string "\n")
-     (mistty-wait-for-output)
-     (mistty-send-raw-string "echo world")  
-     (mistty-wait-for-output)
+     (mistty-send-text "echo hello")
+     (save-excursion
+       (setq beg (mistty-test-goto "hello"))
+       (setq end (mistty-test-goto-after "hello")))
+     (mistty-send-and-wait-for-prompt)
+     (mistty-send-text "echo world")  
      (should (equal "$ echo hello\nhello\n$ echo world<>" (mistty-test-content :show (point))))
      (mistty-run-command
       (delete-region beg end)
@@ -204,14 +200,14 @@ waiting for failing test results.")
      
      ;; the next command executes normally and doesn't revert the
      ;; modification, though it moves the point.
-     (mistty-send-command)
-     (mistty-wait-for-output)
+     (mistty-test-goto "world")
+     (mistty-send-and-wait-for-prompt)
      (should (equal "$ echo bonjour\nhello\n$ echo world\nworld\n$ <>"
                     (mistty-test-content :show (point)))))))
 
 (ert-deftest test-mistty-send-command-because-at-prompt ()
   (with-mistty-buffer-selected
-   (mistty-send-raw-string "echo hello")
+   (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output
                            (lambda ()
                              (execute-kbd-macro (kbd "RET"))))))
@@ -219,7 +215,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-send-newline-because-not-at-prompt ()
   (with-mistty-buffer-selected
-   (mistty-send-raw-string "echo hello")
+   (mistty-send-text "echo hello")
    (mistty-send-and-wait-for-prompt)
    (mistty-run-command
     (mistty-test-goto "hello"))
@@ -238,8 +234,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-send-tab-to-complete  ()
   (with-mistty-buffer
-   (mistty-send-raw-string "ech world")
-   (mistty-wait-for-output)
+   (mistty-send-text "ech world")
    ;; Move the point before doing completion, to make sure that
    ;; mistty-send-if-at-prompt moves the cursor to the right position
    ;; before sending TAB.
@@ -247,7 +242,7 @@ waiting for failing test results.")
     (goto-char (+ (point-min) 5)))
    (should (equal "$ ech<> world" (mistty-test-content :show (point))))
    (mistty-send-key 1 "\t")
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :str "echo")
    (should (equal "$ echo<> world" (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-kill-term-buffer ()
@@ -259,15 +254,14 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-term-buffer-exits ()
   (with-mistty-buffer
-   (mistty-send-raw-string "exit\n")
+   (mistty-send-text "exit\n")
    (mistty-wait-for-term-buffer-and-proc-to-die mistty-term-buffer mistty-proc)
    (should (string-suffix-p "finished\n" (buffer-substring-no-properties (point-min) (point-max))))))
 
 (ert-deftest test-mistty-scroll-with-long-command ()
   (with-mistty-buffer
    (let ((loop-command "for i in {0..49}; do echo line $i; done"))
-     (mistty-send-raw-string loop-command)
-     (mistty-wait-for-output)
+     (mistty-send-text loop-command)
      (should (equal (concat "$ " loop-command "<>") (mistty-test-content :show (point))))
      (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 49) "\n")
                     (mistty-send-and-capture-command-output))))))
@@ -276,18 +270,16 @@ waiting for failing test results.")
   (with-mistty-buffer
    (let ((loop-command "for i in {0..4}; do echo line $i; done"))
      (dotimes (_ 10)
-       (mistty-send-raw-string loop-command)
-       (mistty-wait-for-output)
+       (mistty-send-text loop-command)
        (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 4) "\n")
                       (mistty-send-and-capture-command-output nil nil 'nopointer)))))))
 
 (ert-deftest test-mistty-bracketed-paste ()
   (with-mistty-buffer
    (should (equal mistty-bracketed-paste t))
-   (mistty-send-raw-string "read yesorno && echo answer: $yesorno\n")
-   (mistty-wait-for-output)
+   (mistty-send-text "read yesorno && echo answer: $yesorno\n")
    (should (equal mistty-bracketed-paste nil))
-   (mistty-send-raw-string "no")
+   (mistty-send-text "no")
    (should (equal "answer: no" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-bol ()
@@ -335,21 +327,20 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-eol ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo hello")
    (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
 
    (mistty-run-command
     (mistty-send-beginning-of-line))
-   (mistty-wait-for-output)
-   
-   (should (equal "$ <>echo hello" (mistty-test-content  :show (point))))
+   (mistty-wait-for-output
+    :test (lambda ()
+            (equal "$ <>echo hello" (mistty-test-content  :show (point)))))
    
    (mistty-run-command
     (mistty-send-end-of-line))
-   (mistty-wait-for-output)
-   
-   (should (equal "$ echo hello<>" (mistty-test-content :show (point))))))
+   (mistty-wait-for-output
+    :test (lambda ()
+            (equal "$ echo hello<>" (mistty-test-content :show (point)))))))
 
 (ert-deftest test-mistty-eol-empty-prompt ()
   (with-mistty-buffer
@@ -506,10 +497,10 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-next-python-prompt ()
   (with-mistty-buffer-python
-   (mistty-send-raw-string "1 + 1")
+   (mistty-send-text "1 + 1")
    (mistty-send-and-wait-for-prompt nil ">>> ")
-   (mistty-send-raw-string "2 + 2")
-   (mistty-wait-for-output :str "2 + 2")
+   
+   (mistty-send-text "2 + 2")
 
    (goto-char (point-min))
    (mistty-next-prompt 1)
@@ -561,10 +552,10 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-dirtrack ()
   (with-mistty-buffer
-   (mistty-send-raw-string "cd /\n")
+   (mistty-send-text "cd /")
    (mistty-send-and-wait-for-prompt)
    (should (equal "/" default-directory))
-   (mistty-send-raw-string "cd ~\n")
+   (mistty-send-text "cd ~")
    (mistty-send-and-wait-for-prompt)
    (should (equal (file-name-as-directory (getenv "HOME")) default-directory))))
 
@@ -581,24 +572,28 @@ waiting for failing test results.")
    (mistty-send-and-wait-for-prompt)
    (narrow-to-region (mistty--bol (point)) (point-max))
    (mistty-send-raw-string "?\C-r")
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :str "reverse")
    (should (equal "(reverse-i-search)`': ?<>" (mistty-test-content :show (point))))
    (execute-kbd-macro (kbd "e c"))
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :str "`ec'")
    (should (equal "(reverse-i-search)`ec': <>echo third" (mistty-test-content :show (point))))
    (execute-kbd-macro (kbd "o"))
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :str "`eco'")
    (should (equal "(reverse-i-search)`eco': echo s<>econd" (mistty-test-content :show (point))))
    (execute-kbd-macro (kbd "DEL"))
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :str "`ec'")
    (should (equal "(reverse-i-search)`ec': echo s<>econd" (mistty-test-content :show (point))))
    (execute-kbd-macro (kbd "<left>"))
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :str "$ ")
    (should (equal "second" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest test-mistty-distance-on-term ()
   (with-mistty-buffer-selected
    (mistty-send-raw-string "echo one two three four five six seven eight nine")
+   ;; not using mistty-send-text as words might be split by fake
+   ;; newlines.
+   (mistty-wait-for-output :str "nine")
+   
    (mistty-send-and-wait-for-prompt)
 
    (let ((two (mistty-test-goto "two"))
@@ -613,7 +608,10 @@ waiting for failing test results.")
    (mistty--set-process-window-size 20 20)
 
    (mistty-send-raw-string "echo one two three four five six seven eight nine")
-   (mistty-wait-for-output)
+   ;; not using mistty-send-text as words might be split by fake
+   ;; newlines.
+   (mistty-wait-for-output :str "nine")
+
    (mistty-send-and-wait-for-prompt)
 
    (should (equal (concat "$ echo one two three\n"
@@ -704,8 +702,8 @@ waiting for failing test results.")
    (let ((work-buffer mistty-work-buffer)
          (proc mistty-proc))
 
-     (mistty-send-raw-string
-      (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off\n'"
+     (mistty-send-text
+      (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
               on-seq off-seq))
      (mistty-send-command)
       (mistty-wait-for-output
@@ -741,8 +739,8 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-fullscreen-live-buffer-p ()
   (with-mistty-buffer
-   (mistty-send-raw-string
-    (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off\n'"
+   (mistty-send-text
+    (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
             "[47h" "[47l"))
    (mistty-send-command)
    (mistty-wait-for-output
@@ -1112,7 +1110,7 @@ waiting for failing test results.")
           (mistty-osc-handlers
            `(("8" . ,(lambda (code text)
                        (push (cons code text) osc-list))))))
-      (mistty-send-raw-string "printf '\\e]8;;http://www.example.com\\aSome OSC\\e]8;;\\a!\\n'")
+      (mistty-send-text "printf '\\e]8;;http://www.example.com\\aSome OSC\\e]8;;\\a!\\n'")
       (should (equal "Some OSC!" (mistty-send-and-capture-command-output)))
       (should (equal '(("8" . ";http://www.example.com") ("8" . ";")) (nreverse osc-list))))))
 
@@ -1122,7 +1120,7 @@ waiting for failing test results.")
           (mistty-osc-handlers
            `(("8" . ,(lambda (code text)
                        (push (cons code text) osc-list))))))
-      (mistty-send-raw-string "printf '\\e]8;;http://www.example.com\\e\\\\Some OSC\\e]8;;\\e\\\\!\\n'")
+      (mistty-send-text "printf '\\e]8;;http://www.example.com\\e\\\\Some OSC\\e]8;;\\e\\\\!\\n'")
       (should (equal "Some OSC!" (mistty-send-and-capture-command-output)))
       (should (equal '(("8" . ";http://www.example.com") ("8" . ";")) (nreverse osc-list))))))
 
@@ -1136,7 +1134,7 @@ waiting for failing test results.")
                            (setq test-value text
                                  start (point))
                          (put-text-property start (point) 'mistty-test test-value)))))))
-     (mistty-send-raw-string "printf 'abc \\e]f;foobar\\adef\\e]f;\\a ghi\\n'")
+     (mistty-send-text "printf 'abc \\e]f;foobar\\adef\\e]f;\\a ghi\\n'")
      (should (equal "abc def ghi" (mistty-send-and-capture-command-output)))
      (search-backward "def")
      (should (equal `((,(1- (point)) ,(+ 2 (point)) (mistty-test "foobar")))
@@ -1177,42 +1175,38 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reset ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo one")
+   (mistty-send-text "echo one")
    (mistty-send-and-wait-for-prompt)
-   (mistty-send-raw-string "printf '\\ec'")
+   (mistty-send-text "printf '\\ec'")
    (mistty-send-and-wait-for-prompt)
-   (mistty-send-raw-string "echo two")
+   (mistty-send-text "echo two")
    (mistty-send-and-wait-for-prompt)
    (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo\n$"
                   (mistty-test-content)))))
 
 (ert-deftest test-mistty-clear-screen ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo one")
+   (mistty-send-text "echo one")
    (mistty-send-and-wait-for-prompt)
-   (mistty-send-raw-string "printf '\\e[2J'")
-   ;; wait-for-output makes sure the printf is displayed before
-   ;; sending it otherwise it might or might not be included into the
-   ;; final output, depending on the command sequences are buffered.
-   (mistty-wait-for-output)
+   (mistty-send-text "printf '\\e[2J'")
    (mistty-send-and-wait-for-prompt)
-   (mistty-send-raw-string "echo two")
+   (mistty-send-text "echo two")
    (mistty-send-and-wait-for-prompt)
    (should (equal "$ echo one\none\n$ printf '\\e[2J'\n$ echo two\ntwo"
                   (mistty-test-content :strip-last-prompt t)))))
    
 (ert-deftest test-mistty-hide-cursor ()
   (with-mistty-buffer
-   (mistty-send-raw-string "printf 'o\\e[?25lk\\n'")
+   (mistty-send-text "printf 'o\\e[?25lk\\n'")
    (should (equal "ok" (mistty-send-and-capture-command-output)))
    (should (eq nil cursor-type))
-   (mistty-send-raw-string "printf 'o\\e[?25hk\\n'")
+   (mistty-send-text "printf 'o\\e[?25hk\\n'")
    (should (equal "ok" (mistty-send-and-capture-command-output)))
    (should (eq t cursor-type))))
    
 (ert-deftest test-mistty-show-cursor-if-moved ()
   (with-mistty-buffer
-   (mistty-send-raw-string "printf 'o\\e[?25lk\\n'")
+   (mistty-send-text "printf 'o\\e[?25lk\\n'")
    (should (equal "ok" (mistty-send-and-capture-command-output)))
    (should (eq nil cursor-type))
    (mistty-run-command (goto-char (1- (point))))
@@ -1220,12 +1214,11 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-detect-possible-prompt ()
   (with-mistty-buffer
-   (mistty-send-raw-string
+   (mistty-send-text
     "printf 'say %s>> ' something; read something; echo something: $something")
    (mistty-send-command)
    (mistty-wait-for-output :str "say something")
-   (mistty-send-raw-string "foo")
-   (mistty-wait-for-output)
+   (mistty-send-text "foo")
    (should (equal
             (list
              (mistty-test-goto "say something>> ")
@@ -1235,7 +1228,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-python-just-type ()
   (with-mistty-buffer-python
-   (mistty-send-raw-string "1 + 1")
+   (mistty-send-text "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
    ;; the prompt was identified and labelled
@@ -1244,8 +1237,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-python-move-and-type ()
   (with-mistty-buffer-python
-   (mistty-send-raw-string "10 * 10")
-   (mistty-wait-for-output)
+   (mistty-send-text "10 * 10")
    (mistty-run-command
     (mistty-test-goto "10 * 10")
     (goto-char (1+ (point))))
@@ -1260,29 +1252,28 @@ waiting for failing test results.")
 (ert-deftest test-mistty-python-eof ()
   (with-mistty-buffer
    (should mistty-test-py-exe)
-   (mistty-send-raw-string mistty-test-py-exe)
+   (mistty-send-text mistty-test-py-exe)
    (mistty-send-and-wait-for-prompt nil ">>> ")
    (mistty-send-and-wait-for-prompt (lambda () (mistty-send-key 1 "\C-d")))))
 
 (ert-deftest test-mistty-python-delchar ()
   (with-mistty-buffer-python
-   (mistty-send-raw-string "11 + 1")
-   (mistty-wait-for-output)
+   (mistty-send-text "11 + 1")
    (mistty-run-command
     (mistty-test-goto "11 + 1")
     (mistty-send-key 1 "\C-d"))
    ;; deleted the first 1, the command-line is now 1 + 1
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
 
-(ert-deftest test-mistty-python-beginnig-of-line ()
+(ert-deftest test-mistty-python-beginning-of-line ()
   (with-mistty-buffer-python
-   (mistty-send-raw-string "1 + 1")
-   (mistty-wait-for-output)
+   (mistty-send-text "1 + 1")
    (mistty-send-beginning-of-line)
-   (mistty-wait-for-output)
-   (should (equal ">>> <>1 + 1"
-                  (mistty-test-content
-                   :start (mistty--bol (point)) :show (point))))))
+   (mistty-wait-for-output
+    :test (lambda ()
+            (equal ">>> <>1 + 1"
+                   (mistty-test-content
+                    :start (mistty--bol (point)) :show (point)))))))
 
 (ert-deftest test-mistty-python-edit-prompt ()
   (with-mistty-buffer-python
@@ -1299,14 +1290,13 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-python-edit-before-prompt ()
   (with-mistty-buffer-python
-   (mistty-send-raw-string "1 + 1")
-   (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+   (mistty-send-text "1 + 1")
+   (should (equal "2" (mistty-send-and-capture-command-output)))
 
-   (mistty-send-raw-string "3 + 3")
-   (should (equal "6" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+   (mistty-send-text "3 + 3")
+   (should (equal "6" (mistty-send-and-capture-command-output)))
 
-   (mistty-send-raw-string "5 + 5")
-   (mistty-wait-for-output)
+   (mistty-send-text "5 + 5")
 
    (mistty-run-command
     (goto-char (point-min))
@@ -1322,14 +1312,13 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-more-edit-before-prompt ()
   (with-mistty-buffer-python
-   (mistty-send-raw-string "1 + 1")
+   (mistty-send-text "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
-   (mistty-send-raw-string "3 + 3")
+   (mistty-send-text "3 + 3")
    (should (equal "6" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
-   (mistty-send-raw-string "5 + 5")
-   (mistty-wait-for-output)
+   (mistty-send-text "5 + 5")
 
    (mistty-run-command
     (goto-char (point-min))
@@ -1345,10 +1334,10 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-edit-without-prompt ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello, world")
+   (mistty-send-text "echo hello, world")
    (mistty-send-and-wait-for-prompt)
    (let ((before-send (point)) after-line-10)
-     (mistty-send-raw-string "for i in {1..100} ; do echo \"line $i\"; done | more")
+     (mistty-send-text "for i in {1..100} ; do echo \"line $i\"; done | more")
      (mistty-send-command)
      (mistty-wait-for-output 
       :test (lambda ()
@@ -1378,12 +1367,10 @@ waiting for failing test results.")
 (ert-deftest test-mistty-python-prompt-too-long ()
   (with-mistty-buffer-python
    (let ((line-start (mistty--bol (point))))
-     (mistty-send-raw-string "if a > b:")
-     (mistty-wait-for-output)
+     (mistty-send-text "if a > b:")
      (mistty-run-command
       (mistty-send-beginning-of-line))
-     (mistty-send-raw-string "foobar")
-     (mistty-wait-for-output :str "foobar")
+     (mistty-send-text "foobar" (point-min))
 
      (should (equal ">>> <>foobarif a > b:"
                     (mistty-test-content :start line-start
@@ -1391,14 +1378,13 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-and-hippie-completion ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo hello, hullo, hallo, hi")
+   (mistty-send-text "echo hello, hullo, hallo, hi")
    (mistty-send-and-wait-for-prompt)
 
    (let ((hippie-expand-try-functions-list '(try-expand-dabbrev))
          (start (point)))
 
-     (mistty-send-raw-string "echo h")
-     (mistty-wait-for-output)
+     (mistty-send-text "echo h")
      (should (equal "echo h<>"
                     (mistty-test-content :start start :show (point))))
      
@@ -1466,24 +1452,23 @@ waiting for failing test results.")
      (mistty-send-key 1 " ")
      (mistty-send-key 1 "o")
      (mistty-send-key 1 "k"))
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :str "echo ok")
    (should (equal "ok" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest mistty-test-send-last-key-from-term-buffer ()
   (with-mistty-buffer
-   (mistty-send-raw-string "echo ok nok")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo ok nok")
    (with-current-buffer mistty-term-buffer
      (with-selected-window (display-buffer (current-buffer))
        (local-set-key (kbd "C-c C-w") #'mistty-send-last-key)
        (execute-kbd-macro (kbd "C-c C-w"))))
-   (mistty-wait-for-output)
+   (mistty-wait-for-output :regexp "echo ok *$")
    (should (equal "ok" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest mistty-test-raw-string-from-term-buffer ()
   (with-mistty-buffer
    (with-current-buffer mistty-term-buffer
-     (mistty-send-raw-string "echo ok"))
+     (mistty-send-text "echo ok"))
 
     (should (equal "ok" (mistty-send-and-capture-command-output)))))
 
@@ -1491,23 +1476,25 @@ waiting for failing test results.")
 (ert-deftest mistty-test-send-last-key ()
   (with-mistty-buffer-selected
    (local-set-key (kbd "C-c C-w") 'mistty-send-last-key)
-   (mistty-send-raw-string "echo abc def")
+   (mistty-send-text "echo abc def")
    (execute-kbd-macro (kbd "C-c C-w"))
+   (mistty-wait-for-output :regexp "abc *$")
    (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest mistty-test-C-q ()
   (with-mistty-buffer-selected
-   (mistty-send-raw-string "echo abc def")
+   (mistty-send-text "echo abc def")
    (execute-kbd-macro (kbd "C-q C-w"))
+   (mistty-wait-for-output :regexp "abc *$")
    (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest mistty-test-revert-modification-after-prompt ()
   (with-mistty-buffer-zsh
    (dotimes (i 3)
-     (mistty-send-raw-string (format "function toto%d { echo %d; };" i i)))
+     (mistty-send-text (format "function toto%d { echo %d; };" i i)))
    (mistty-send-and-wait-for-prompt)
    (narrow-to-region (mistty--bol (point)) (point-max))
-   (mistty-send-raw-string "toto\t")
+   (mistty-send-text "toto\t")
    (mistty-wait-for-output
     :test (lambda ()
             (search-forward-regexp "^toto" nil 'noerror)))
@@ -1537,12 +1524,10 @@ waiting for failing test results.")
 (ert-deftest mistty-reset-during-replay ()
   (with-mistty-buffer
    (setq mistty-log t)
-   (mistty-send-raw-string "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")
    (mistty-send-and-wait-for-prompt nil "read> ")
    (let ((start (mistty--bol (point))))
-     (mistty-send-raw-string "I say: hello")
-     (mistty-wait-for-output :str "hello")
+     (mistty-send-text "I say: hello")
      (mistty-run-command
       (insert "foo\n")
       (mistty-test-goto "hello")
@@ -1565,7 +1550,7 @@ waiting for failing test results.")
 
 (ert-deftest mistty-test-end-prompt ()
   (with-mistty-buffer
-   (mistty-send-raw-string "for i in {1..10} ; do echo line $i; done && read l")
+   (mistty-send-text "for i in {1..10} ; do echo line $i; done && read l")
    (mistty-send-and-wait-for-prompt nil "line 10")
    (should
     (equal
@@ -1718,8 +1703,7 @@ waiting for failing test results.")
 (ert-deftest mistty-test-fish-multiline-for-real ()
   (with-mistty-buffer-fish
    (should mistty-bracketed-paste)
-   (mistty-send-raw-string "echo 'hello\nworld\nand all that sort of things.'")
-   (mistty-wait-for-output)
+   (mistty-send-text "echo 'hello\nworld\nand all that sort of things.'")
 
    (mistty-run-command
     (mistty-test-goto "sort"))
@@ -1740,7 +1724,7 @@ waiting for failing test results.")
   (let ((mistty-buffer-maximum-size 20))
     (with-mistty-buffer
      (dotimes (_ 100)
-       (mistty-send-raw-string "for i in {0..10}; do echo line $i; done")
+       (mistty-send-text "for i in {0..10}; do echo line $i; done")
        (mistty-send-and-wait-for-prompt))
      (ert-run-idle-timers)
      (should (<= (count-lines (point-min) (point-max)) 30)))))
@@ -1801,7 +1785,6 @@ waiting for failing test results.")
     (mistty-send-and-wait-for-prompt (lambda ())))
    
    ((eq shell 'python)
-    (setq-local mistty-test-prompt ">>> ")
     (mistty--exec mistty-test-py-exe)
     (mistty-wait-for-output :str ">>> ")
     (save-excursion 
@@ -1812,8 +1795,7 @@ waiting for failing test results.")
 
 (defun mistty-test-set-ps1 ()
   (mistty-wait-for-output :test (lambda () (= (point-min) (point-max))))
-  (mistty-send-raw-string (concat "PS1='" mistty-test-prompt "'"))
-  (mistty-wait-for-output :str "PS1=")
+  (mistty-send-text (concat "PS1='" mistty-test-prompt "'"))
   (narrow-to-region (mistty-send-and-wait-for-prompt) (point-max)))
 
 (defun mistty-test-after-command ()
@@ -1836,11 +1818,7 @@ to search for the text instead of (point-min)
 
 With REGEXP set to a string, keep waiting for process output
 until the regexp matches. If START is set, always go back to
-START to search for the text instead of (point-min)
-
-With all of these nil, wait for any process output. This could be
-anything: it could be output reacting to some old event, it could
-be incomplete output. This makes tests unstable."
+START to search for the text instead of (point-min)."
   (ert-run-idle-timers)
   (let ((condition nil)
         (condition-descr nil))
@@ -1861,27 +1839,23 @@ be incomplete output. This makes tests unstable."
       (setq condition-descr (format ":str \"%s\"" str)))
      (test
       (setq condition test)
-      (setq condition-descr (format ":test %s" test))))
+      (setq condition-descr (format ":test %s" test)))
+
+     (t (error "mistty-wait-for-output: no condition specified")))
     
-    (if condition
-        (let ((time-limit (time-add (current-time) mistty-test-timeout)))
-          (while (not (funcall condition))
-            (unless (time-less-p (current-time) time-limit)
-              (if on-error
-                  (funcall on-error)
-                (error "condition not met after %ss (wait-for-output %s) buffer<<EOF\n%s\nEOF"
-                       mistty-test-timeout condition-descr
-                       (mistty-test-content :show (point)))))
-            (if (process-live-p proc)
-                (accept-process-output proc 0 100 t)
-              (accept-process-output nil 0 100))
-            (ert-run-idle-timers)))
+    (let ((time-limit (time-add (current-time) mistty-test-timeout)))
+      (while (not (funcall condition))
+        (unless (time-less-p (current-time) time-limit)
+          (if on-error
+              (funcall on-error)
+            (error "condition not met after %ss (wait-for-output %s) buffer<<EOF\n%s\nEOF"
+                   mistty-test-timeout condition-descr
+                   (mistty-test-content :show (point)))))
+        (if (process-live-p proc)
+            (accept-process-output proc 0 100 t)
+          (accept-process-output nil 0 100))
+        (ert-run-idle-timers)))))
       
-      ;; waiting for any process output (makes test unstable)
-      (unless (accept-process-output proc 0 500 t)
-        (if on-error
-            (funcall on-error)
-          (error "no output (wait-for-output with no conditions)"))))))
 
 (defun mistty-send-and-capture-command-output (&optional send-command-func narrow nopointer prompt)
   "Send the current commanhd line with SEND-COMMAND-FUNC and return its output.
@@ -1982,3 +1956,17 @@ list of (:key) will return (:key value)."
          (setcdr c tail))
         (_ (setq c (cdr c)))))
     intervals))
+
+(defun mistty-send-text (text &optional start)
+  "Send TEXT and wait until it appears after START.
+
+If START is not specified, the current cursor is used; expecting
+text to be inserted there."
+  (let ((start (or start (mistty-cursor))))
+    (mistty-send-raw-string text)
+    (mistty-wait-for-output
+     :start start
+     :regexp (mapconcat #'regexp-quote
+                        (split-string text "[ \t\n\r]" 'omit-nulls)
+                        "[ \t\n\r]+"))
+    ))

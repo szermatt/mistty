@@ -3,8 +3,15 @@ CASK_DIR := $(shell cask package-directory)
 
 BASH ?= $(shell which bash)
 ZSH ?= $(shell which zsh)
+FISH ?= $(shell which fish)
+PYTHON ?= $(shell which python3 || which python)
 
-setup_shells="(setq mistty-test-bash-exe \"$(BASH)\" mistty-test-zsh-exe \"$(ZSH)\")"
+setup_shells="(setq \
+  mistty-test-bash-exe \"$(BASH)\" \
+  mistty-test-zsh-exe \"$(ZSH)\" \
+  mistty-test-fish-exe \"$(FISH)\"\
+  mistty-test-py-exe \"$(PYTHON)\"\
+)"
 
 $(CASK_DIR): Cask
 	cask install

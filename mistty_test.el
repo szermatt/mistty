@@ -1859,8 +1859,9 @@ be incomplete output. This makes tests unstable."
             (unless (time-less-p (current-time) time-limit)
               (if on-error
                   (funcall on-error)
-                (error "condition not met after %ss (wait-for-output %s)"
-                       mistty-test-timeout condition-descr)))
+                (error "condition not met after %ss (wait-for-output %s) buffer<<EOF\n%s\nEOF"
+                       mistty-test-timeout condition-descr
+                       (mistty-test-content :show (point)))))
             (if (process-live-p proc)
                 (accept-process-output proc 0 100 t)
               (accept-process-output nil 0 100))

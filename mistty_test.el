@@ -1964,7 +1964,7 @@ list of (:key) will return (:key value)."
 
 If START is not specified, the current cursor is used; expecting
 text to be inserted there."
-  (let ((start (or start (mistty-cursor))))
+  (let ((start (or start (copy-marker (mistty-cursor)))))
     (mistty-send-raw-string text)
     (mistty-wait-for-output
      :start start

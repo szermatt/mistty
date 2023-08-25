@@ -30,27 +30,40 @@
   (defvar term-width))
 
 (defvar mistty-test-bash-exe (executable-find "bash"))
-(defvar mistty-test-zsh-exe (executable-find "zsh"))
-(defvar mistty-test-fish-exe (executable-find "fish"))
 (defvar mistty-test-py-exe (or (executable-find "python3")
                                (executable-find "python")))
+(defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
+(defvar mistty-test-fish-exe (executable-find "fish"));; optional
 
-(defconst mistty-test-prompt "$ ")
+(defvar mistty-test-prompt "$ ")
 
 (defmacro with-mistty-buffer (&rest body)
-  `(ert-with-test-buffer ()
+  `(progn
+     (should mistty-test-bash-exe)
+     (ert-with-test-buffer ()
      (mistty-test-setup 'bash)
-     ,@body))
+     ,@body)))
 
 (defmacro with-mistty-buffer-zsh (&rest body)
-  `(ert-with-test-buffer ()
+  `(progn
+     (skip-unless mistty-test-zsh-exe)
+     (ert-with-test-buffer ()
      (mistty-test-setup 'zsh)
-     ,@body))
+     ,@body)))
 
 (defmacro with-mistty-buffer-fish (&rest body)
-  `(ert-with-test-buffer ()
+  `(progn
+     (skip-unless mistty-test-fish-exe)
+     (ert-with-test-buffer ()
      (mistty-test-setup 'fish)
-     ,@body))
+     ,@body)))
+
+(defmacro with-mistty-buffer-python (&rest body)
+  `(progn
+     (should mistty-test-py-exe)
+     (ert-with-test-buffer ()
+     (mistty-test-setup 'python)
+     ,@body)))
 
 (defmacro with-mistty-buffer-selected (&rest body)
   `(save-window-excursion
@@ -483,12 +496,7 @@
            (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-next-python-prompt ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
-   
-   (narrow-to-region (mistty--bol (point)) (point-max))
-     
+  (with-mistty-buffer-python
    (mistty-send-raw-string "1 + 1")
    (mistty-send-and-wait-for-prompt nil ">>> ")
    (mistty-send-raw-string "2 + 2")
@@ -658,7 +666,8 @@
           (work-buffer mistty-work-buffer)
           (term-buffer mistty-term-buffer)
           (proc mistty-proc))
-      
+
+      (should (executable-find "vi"))
       (execute-kbd-macro (kbd "v i RET"))
       (mistty-wait-for-output
        :proc proc
@@ -740,6 +749,7 @@
   (with-mistty-buffer-selected
     (let ((work-buffer mistty-work-buffer)
           (proc mistty-proc))
+      (should (executable-find "vi"))
       (execute-kbd-macro (kbd "v i RET"))
       (mistty-wait-for-output :test (lambda () mistty-fullscreen))
 
@@ -752,6 +762,7 @@
           (work-buffer mistty-work-buffer)
           (term-buffer mistty-term-buffer)
           (proc mistty-proc))
+      (should (executable-find "vi"))
       (execute-kbd-macro (kbd "v i RET"))
       (mistty-wait-for-output :test (lambda () mistty-fullscreen))
 
@@ -1214,24 +1225,16 @@
             mistty--possible-prompt))))
 
 (ert-deftest test-mistty-python-just-type ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
+  (with-mistty-buffer-python
    (mistty-send-raw-string "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
    ;; the prompt was identified and labelled
    (mistty-previous-prompt 1)
-   (should (looking-at (regexp-quote "1 + 1")))
-
-   (mistty-previous-prompt 1)
-   (should (looking-at (regexp-quote mistty-test-py-exe)))))
+   (should (looking-at (regexp-quote "1 + 1")))))
 
 (ert-deftest test-mistty-python-move-and-type ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
-   
+  (with-mistty-buffer-python
    (mistty-send-raw-string "10 * 10")
    (mistty-wait-for-output)
    (mistty-run-command
@@ -1247,14 +1250,13 @@
 
 (ert-deftest test-mistty-python-eof ()
   (with-mistty-buffer
+   (should mistty-test-py-exe)
    (mistty-send-raw-string mistty-test-py-exe)
    (mistty-send-and-wait-for-prompt nil ">>> ")
    (mistty-send-and-wait-for-prompt (lambda () (mistty-send-key 1 "\C-d")))))
 
 (ert-deftest test-mistty-python-delchar ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
+  (with-mistty-buffer-python
    (mistty-send-raw-string "11 + 1")
    (mistty-wait-for-output)
    (mistty-run-command
@@ -1263,10 +1265,8 @@
    ;; deleted the first 1, the command-line is now 1 + 1
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
 
-(ert-deftest test-mistty-python-beginnnig-of-line ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
+(ert-deftest test-mistty-python-beginnig-of-line ()
+  (with-mistty-buffer-python
    (mistty-send-raw-string "1 + 1")
    (mistty-wait-for-output)
    (mistty-send-beginning-of-line)
@@ -1276,10 +1276,7 @@
                    :start (mistty--bol (point)) :show (point))))))
 
 (ert-deftest test-mistty-python-edit-prompt ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
-   
+  (with-mistty-buffer-python
    (let ((start (- (point) 4)))
      (mistty-run-command
       (insert "10 * 10"))
@@ -1292,10 +1289,7 @@
                     (mistty-test-content :start start :show (point)))))))
 
 (ert-deftest test-mistty-python-edit-before-prompt ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
-   
+  (with-mistty-buffer-python
    (mistty-send-raw-string "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
@@ -1318,10 +1312,7 @@
    (mistty-test-goto "3 * 3")))
 
 (ert-deftest test-mistty-more-edit-before-prompt ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
-   
+  (with-mistty-buffer-python
    (mistty-send-raw-string "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
@@ -1376,9 +1367,7 @@
     (lambda () (mistty-send-raw-string "q")))))
 
 (ert-deftest test-mistty-python-prompt-too-long ()
-  (with-mistty-buffer
-   (mistty-send-raw-string mistty-test-py-exe)
-   (mistty-send-and-wait-for-prompt nil ">>> ")
+  (with-mistty-buffer-python
    (let ((line-start (mistty--bol (point))))
      (mistty-send-raw-string "if a > b:")
      (mistty-wait-for-output)
@@ -1771,9 +1760,11 @@
    ((eq shell 'bash)
     (mistty--exec mistty-test-bash-exe "--noprofile" "--norc" "-i")
     (mistty-test-set-ps1))
+   
    ((eq shell 'zsh)
     (mistty--exec mistty-test-zsh-exe "-i" "--no-rcs")
     (mistty-test-set-ps1))
+   
    ((eq shell 'fish)
     (mistty--exec
      mistty-test-fish-exe
@@ -1789,6 +1780,15 @@
              "end"))
     (setq mistty-log t)
     (mistty-send-and-wait-for-prompt (lambda ())))
+   
+   ((eq shell 'python)
+    (setq-local mistty-test-prompt ">>> ")
+    (mistty--exec mistty-test-py-exe)
+    (mistty-wait-for-output :str ">>> ")
+    (save-excursion 
+      (mistty-test-goto ">>> ")
+      (narrow-to-region (point) (point-max))))
+   
    (t (error "Unsupported shell %s" shell))))
 
 (defun mistty-test-set-ps1 ()

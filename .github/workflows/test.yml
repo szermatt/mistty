@@ -21,6 +21,9 @@ jobs:
         version: ${{ matrix.emacs_version }}
     - uses: conao3/setup-cask@master
 
+    - name: Install zsh and fish
+      run: "sudo apt-get install -y zsh fish && zsh --version && fish --version"
+
     - name: Run tests
       if: matrix.allow_failure != true
       run: 'cask && make test'

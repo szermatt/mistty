@@ -1382,10 +1382,10 @@ waiting for failing test results.")
      (mistty-wait-for-output)
      (mistty-run-command
       (mistty-send-beginning-of-line))
-     (mistty-send-raw-string "el")
-     (mistty-wait-for-output)
+     (mistty-send-raw-string "foobar")
+     (mistty-wait-for-output :str "foobar")
 
-     (should (equal ">>> <>elif a > b:"
+     (should (equal ">>> <>foobarif a > b:"
                     (mistty-test-content :start line-start
                                          :show mistty--cmd-start-marker))))))
 

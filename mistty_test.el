@@ -1726,9 +1726,8 @@ waiting for failing test results.")
 (ert-deftest mistty-test-truncation ()
   (let ((mistty-buffer-maximum-size 20))
     (with-mistty-buffer
-     (dotimes (_ 100)
-       (mistty-send-text "for i in {0..10}; do echo line $i; done")
-       (mistty-send-and-wait-for-prompt))
+     (mistty-send-text "for i in {0..1000}; do echo line $i; done")
+     (mistty-send-and-wait-for-prompt)
      (ert-run-idle-timers)
      (should (<= (count-lines (point-min) (point-max)) 30)))))
 

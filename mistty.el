@@ -906,7 +906,8 @@ Also updates prompt and point."
                                (get-text-property (1- pos) 'mistty-prompt-id))
                       (setq pos (previous-single-property-change
                                  pos 'mistty-prompt-id nil mistty-sync-marker)))
-                    pos)))
+                    (when (and (>= pos (point-min)) (< pos (point-max)))
+                      pos))))
             (when (and prompt-beg
                        (get-text-property prompt-beg 'mistty-prompt-id)
                        (or (> prompt-beg mistty-sync-marker)

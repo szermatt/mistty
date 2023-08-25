@@ -29,5 +29,5 @@ compile: cask
 
 .PHONY: test
 test: compile
-	cask emacs --batch -L . --eval $(setup_shells) -L test -l mistty_test.el -f ert-run-tests-batch
+	cask emacs --batch -L . --eval $(setup_shells) -L test -l mistty_test.el -f ert-run-tests-batch-and-exit
 

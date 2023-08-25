@@ -1786,7 +1786,17 @@ waiting for failing test results.")
              "end;"
              "function __fish_disable_bracketed_paste --on-event fish_preexec --on-event fish_exit; "
              "  printf \"\\e[?2004l\";"
-             "end"))
+             "end; "
+             ;; Older version of fish, such as 3.3.1, ignore termcap
+             ;; entries. \eOA-\eOD is part of the default key binding,
+             ;; bypassed here by -N, so it's only a problem in these
+             ;; tests
+             "bind \\eOA up-line; "
+             "bind \\eOB down-line; "
+             "bind \\eOC forward-char; "
+             "bind \\eOD backward-char; "
+             "bind \\ca beginning-of-line; "
+             "bind \\ce end-of-line; "))
     (setq mistty-log t)
     (mistty-send-and-wait-for-prompt (lambda ())))
    

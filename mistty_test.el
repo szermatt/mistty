@@ -1508,6 +1508,13 @@ waiting for failing test results.")
 
 (ert-deftest mistty-queue-timeout ()
   (with-mistty-buffer-zsh
+   ;; Wait long enough to be sure that ZSH isn't doing anything,
+   ;; because sending any kind of output would not trigger the timeout
+   ;; this test wants.
+   (let ((mistty-test-timeout 1))
+     (should-error
+      (mistty-wait-for-output :str "not-found")))
+
    (let* ((answers nil)
           (lambda (iter-lambda ()
                    ;; zsh doesn't answer anything when the left arrow is sent, but

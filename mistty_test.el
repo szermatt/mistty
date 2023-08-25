@@ -1823,26 +1823,35 @@ With all of these nil, wait for any process output. This could be
 anything: it could be output reacting to some old event, it could
 be incomplete output. This makes tests unstable."
   (ert-run-idle-timers)
-  (let ((condition
-         (cond
-          (regexp
-           (lambda ()
-             (save-excursion
-               (when start (goto-char start))
-               (search-forward-regexp regexp nil 'noerror))))
-          (str
-           (lambda ()
-             (save-excursion
-               (when start (goto-char start))
-               (search-forward str nil t))))
-          (t test))))
+  (let ((condition nil)
+        (condition-descr nil))
+    (cond
+     (regexp
+      (setq condition
+            (lambda ()
+              (save-excursion
+                (when start (goto-char start))
+                (search-forward-regexp regexp nil 'noerror))))
+      (setq condition-descr (format ":regexp \"%s\"" regexp)))
+     (str
+      (setq condition
+            (lambda ()
+              (save-excursion
+                (when start (goto-char start))
+                (search-forward str nil t))))
+      (setq condition-descr (format ":str \"%s\"" str)))
+     (test
+      (setq condition test)
+      (setq condition-descr (format ":test %s" test))))
+    
     (if condition
         (let ((time-limit (time-add (current-time) 1)))
           (while (not (funcall condition))
             (unless (time-less-p (current-time) time-limit)
               (if on-error
                   (funcall on-error)
-                (error "condition never met (wait-for-output)")))
+                (error "condition never met (wait-for-output %s)"
+                       condition-descr)))
             (if (process-live-p proc)
                 (accept-process-output proc 0 100 t)
               (accept-process-output nil 0 100))

@@ -190,18 +190,18 @@ This function is meant to be use as timer handler."
   "Build a generator that returns ELT and ends."
   (iter-yield elt))
 
+(defmacro mistty--call-iter (iter)
+  "Call ITER from another generator."
+  `(let ((iter ,iter))
+     (unwind-protect
+         (iter-do (value iter)
+           (iter-yield value)))
+     (iter-close iter)))
+
 (iter-defun mistty--iter-chain (iter1 iter2)
   "Build a generator that first calls ITER1, then ITER2."
-  (unwind-protect
-      (progn
-        (iter-do (value iter1)
-          (iter-yield value))
-        (iter-do (value iter2)
-          (iter-yield value)))
-
-    ;; unwind; close iterators recursively
-    (iter-close iter1)
-    (iter-close iter2)))
+  (mistty--call-iter iter1)
+  (mistty--call-iter iter2))
 
 (provide 'mistty-queue)
 

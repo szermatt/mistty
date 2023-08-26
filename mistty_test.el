@@ -35,7 +35,7 @@
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
 
-(defvar mistty-test-timeout (if noninteractive 10 1)
+(defvar mistty-test-timeout (if noninteractive 10 3)
   "Time, in seconds, to wait for expected output in tests.
 
 When running tests automatically, a larger value is useful to

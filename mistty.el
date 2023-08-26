@@ -1223,8 +1223,8 @@ to replay it afterwards."
       (let ((intervals-start (mistty--changeset-beg cs))
             (intervals-end (mistty--changeset-end cs))
             (modifications (mistty--changeset-modifications cs))
+            (initial-point (point))
             first lower-limit upper-limit)
-        (mistty-log "replay: %s" modifications)
         (setq first (car modifications))
         (while modifications
           (let* ((m (car modifications))
@@ -1237,8 +1237,7 @@ to replay it afterwards."
                  (old-end (if (>= old-length 0)
                               (+ orig-beg old-length)
                             (mistty--from-pos-of (with-current-buffer mistty-term-buffer (point-max))
-                                                 mistty-term-buffer)))
-                 (replay-seqs nil))
+                                                 mistty-term-buffer))))
             (setq modifications (cdr modifications))
 
             ;; Don't bother inserting content that's already there.
@@ -1266,8 +1265,11 @@ to replay it afterwards."
               (setq end (min upper-limit end)
                     old-end (min upper-limit old-end)))
 
+            ;; Move to beg, if possible. If not possible, remember how
+            ;; far back we went when inserting.
             (when (> end beg)
-              (iter-yield (mistty--move-str cursor beg 'will-wait))
+              (mistty--call-iter
+               (mistty--move-generator cursor beg 'will-wait))
               (setq cursor (mistty-cursor))
               ;; cursor is as close to beg as we can make it
 
@@ -1279,63 +1281,52 @@ to replay it afterwards."
                 (setq lower-limit cursor))
               (setq beg cursor))
 
+            ;; Move to old-end, if possible. If not possible, remember
+            ;; how far we went when deleting.
             (when (> old-end beg)
-              (if (eq m first)
-                  (progn
-                    (iter-yield
-                     (mistty--move-str cursor old-end 'will-wait))
-                    (setq cursor (mistty-cursor))
-                    (when (and (> beg cursor)
-                               (> (mistty--distance-on-term beg cursor) 0))
-                      ;; If we couldn't even get to beg we'll have trouble with
-                      ;; the next modifications, too, as they start left of this
-                      ;; one. Remember that.
-                      (setq upper-limit cursor))
-                    (setq old-end (max beg (min old-end cursor))))
+              (mistty--call-iter
+               (mistty--move-generator cursor old-end 'will-wait))
+              (setq cursor (mistty-cursor))
+              (when (and (> beg cursor)
+                         (> (mistty--distance-on-term beg cursor) 0))
+                ;; If we couldn't even get to beg we'll have trouble with
+                ;; the next modifications, too, as they start left of this
+                ;; one. Remember that.
+                (setq upper-limit cursor))
+              (setq old-end (max beg (min old-end cursor))))
 
-                ;; after the first modification, just optimistically go to
-                ;; old-end if upper-limit allows it.
-                (push (mistty--move-str cursor old-end) replay-seqs)))
+            (iter-yield
+             (concat
+              ;; delete
+              (when (> old-end beg)
+                (mistty--repeat-string
+                 (mistty--distance-on-term beg old-end) "\b"))
+              ;; insert
+              (when (and (> end beg) (>= beg orig-beg))
+                (mistty--maybe-bracketed-str
+                 (let ((start-idx (max 0 (- beg orig-beg)))
+                       (end-idx (min (length content) (max 0 (- end orig-beg)))))
+                   (substring content start-idx end-idx))))))))
 
-            ;; delete
-            (when (> old-end beg)
-              (push (mistty--repeat-string
-                     (mistty--distance-on-term beg old-end) "\b")
-                    replay-seqs))
+        ;; Move cursor back to point, if possible
+        (when (and (>= initial-point intervals-start)
+                   (<= initial-point intervals-end))
+          (when lower-limit
+            (setq initial-point (max lower-limit initial-point)))
+          (when upper-limit
+            (setq initial-point (min upper-limit initial-point)))
+          (mistty--call-iter
+           (mistty--move-generator (mistty-cursor) initial-point))
+          (setq mistty-goto-cursor-next-time t))
 
-            ;; insert
-            (when (and (> end beg) (>= beg orig-beg))
-              (push (mistty--maybe-bracketed-str
-                     (substring content
-                                (max 0 (- beg orig-beg))
-                                (min (length content) (max 0 (- end orig-beg)))))
-                    replay-seqs))
-
-            ;; for the last modification, move cursor back to point
-            (when (and (null modifications)
-                       (>= (point) intervals-start)
-                       (<= (point) intervals-end))
-              (setq mistty-goto-cursor-next-time t)
-              (push (mistty--move-str
-                     end
-                     (if lower-limit (max lower-limit (point))
-                       (point)))
-                    replay-seqs))
-
-            ;; send the content of replay-seqs
-            (let ((replay-str (mapconcat #'identity (nreverse replay-seqs) "")))
-              (if (length> replay-str 0)
-                  (iter-yield replay-str)))))
-
-        ;; force refresh, even if nothing was sent, if only to revert what
+        ;; Force refresh, even if nothing was sent, if only to revert what
         ;; couldn't be replayed.
         (setq mistty--need-refresh t)
 
-        ;; Re-enable refresh.
-        (setf (mistty--changeset-applied cs) t)
-        )
+        (setf (mistty--changeset-applied cs) t))
 
-    ;; unwind; always release the changeset at the end.
+    ;; Unwind; always release the changeset at the end and re-enable
+    ;; refresh.
     (mistty--release-changeset cs)
     (mistty--refresh-after-changeset)))
 
@@ -1346,6 +1337,9 @@ to replay it afterwards."
     (when mistty--need-refresh
       (mistty--refresh))))
 
+(iter-defun mistty--move-generator (from to &optional will-wait)
+  (iter-yield (mistty--move-str from to will-wait)))
+  
 (defun mistty--move-str (from to &optional will-wait)
   "Builds a terminal sequence to move from FROM to TO.
 
@@ -1515,7 +1509,8 @@ post-command hook."
 (iter-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."
   (when (mistty-on-prompt-p (point))
-    (iter-yield (mistty--move-str (mistty-cursor) (point)))))
+    (mistty--call-iter (mistty--move-generator
+                        (mistty-cursor) (point)))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

@@ -1066,9 +1066,7 @@ They are often the same position."
   (add-text-properties
    start end
    (append
-    '(mistty prompt
-             field mistty-prompt
-             rear-nonsticky t)
+    '(mistty prompt rear-nonsticky t)
     (unless (get-text-property start 'mistty-prompt-id)
       `(mistty-prompt-id ,(mistty--next-id))))))
 
@@ -1489,45 +1487,36 @@ END section to be valid in the term buffer."
 (defun mistty-next-prompt (n)
   "Move the point to the Nth next prompt in the buffer."
   (interactive "p")
-  (let ((pos (point))
-        found)
-    ;; skip current prompt
-    (when (and (eq 'prompt (get-text-property pos 'mistty))
-               (not (get-text-property pos 'field)))
-      (setq pos (next-single-property-change pos 'mistty-prompt-id nil (point-max))))
-    ;; go to next prompt(s)
+  (let (found)
     (dotimes (_ n)
-      (if (and (setq found (text-property-any pos (point-max) 'mistty 'prompt))
-               (setq pos (next-single-property-change found 'mistty-prompt-id nil (point-max))))
-          (if (get-text-property found 'field)
-              (goto-char (next-single-property-change found 'field nil pos))
-            (goto-char found))
+      (cond
+       ((setq found (text-property-any (point) (point-max) 'mistty 'prompt))
+        (goto-char (next-single-property-change found 'mistty nil (point-max))))
 
-        (if (mistty--maybe-realize-possible-prompt (mistty-cursor))
-            (mistty-next-prompt 1)
-        (error "No next prompt"))))))
+       ((mistty--maybe-realize-possible-prompt (mistty-cursor))
+        (mistty-next-prompt 1))
+
+       (t (error "No next prompt"))))))
 
 (defun mistty-previous-prompt (n)
   "Move the point to the Nth previous prompt in the buffer."
   (interactive "p")
-  (let ((not-current nil)
-        (pos (point)))
-    (when (eq 'mistty-prompt
-              (or (get-text-property (point) 'field)
-                  (get-text-property (1- (point)) 'field)))
-      (setq not-current t)
-      (setq pos (1- (point))))
+  (let ((pos (point)))
     (dotimes (_ n)
-      (let ((match (save-excursion
-                     (goto-char pos)
-                     (text-property-search-backward 'mistty-prompt-id nil nil not-current))))
-        (unless match
-          (error "No previous prompt"))
-        (goto-char (prop-match-beginning match)))
-      (when (get-text-property (point) 'field)
-        (goto-char (next-single-property-change (point) 'field nil (point-max))))
-      (setq not-current t)
-      (setq pos (point)))))
+      ;; skip current
+      (cond
+       ((and (> (point) (point-min))
+             (eq 'prompt (get-text-property (1- (point)) 'mistty)))
+        (setq pos (1- (previous-single-property-change (point) 'mistty nil (point-min)))))
+       (t (setq pos (point))))
+
+      ;; find another prompt
+      (while (and (> pos (point-min))
+                  (not (eq 'prompt (get-text-property (1- pos) 'mistty))))
+        (setq pos (previous-single-property-change pos 'mistty nil (point-min))))
+      (if (> pos (point-min))
+          (goto-char pos)
+        (error "No previous prompt")))))
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."

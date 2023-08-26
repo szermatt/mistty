@@ -285,49 +285,6 @@ waiting for failing test results.")
    (mistty-send-text "no")
    (should (equal "answer: no" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-bol ()
-  (with-mistty-buffer
-   (mistty-run-command
-    (insert "echo hello")
-    
-    ;; Move the point after the prompt.
-    (beginning-of-line)
-    (should (equal (point) (mistty-test-goto "echo")))
-    
-    ;; Move to the real line start.
-    (let ((inhibit-field-text-motion t))
-      (beginning-of-line))
-    (should (equal (point) (mistty-test-goto "$ echo hello"))))))
-
-(ert-deftest test-mistty-bol-multiline ()
-  (with-mistty-buffer
-   (mistty-run-command
-    (insert "echo \"hello\nworld\""))
-   
-   ;; Point is in the 2nd line, after world, and there's no prompt
-   ;; on that line, so just go there.
-   (beginning-of-line)
-   (should (equal (point) (mistty--bol (point))))))
-
-(ert-deftest test-mistty-bol-outside-of-prompt ()
-  (with-mistty-buffer
-   (mistty-run-command
-    (insert "echo one"))
-   (mistty-send-and-wait-for-prompt)
-   (mistty-run-command
-    (insert "echo two"))
-   (mistty-send-and-wait-for-prompt)
-   (mistty-run-command
-    (insert "echo three"))
-   
-   ;; (beginning-of-line) moves just after the prompt, even though
-   ;; it's not the active prompt.
-   (mistty-test-goto "two")
-   (beginning-of-line)
-   (should (equal
-            (point) (save-excursion
-                      (mistty-test-goto "echo two"))))))
-
 (ert-deftest test-mistty-eol ()
   (with-mistty-buffer
    (mistty-send-text "echo hello")
@@ -496,6 +453,47 @@ waiting for failing test results.")
    (mistty-next-prompt 2)
    (should
     (equal "$\n$\n$\n$ <>echo current"
+           (mistty-test-content :show (point))))))
+
+(ert-deftest test-mistty-previous-empty-prompt ()
+  (with-mistty-buffer
+   (mistty-send-and-wait-for-prompt)
+   (mistty-send-and-wait-for-prompt)
+   (mistty-send-and-wait-for-prompt)
+   (mistty-run-command
+    (insert "echo current"))
+   
+   (mistty-previous-prompt 1)
+   (should
+    (equal "$\n$\n$\n$ <>echo current"
+           (mistty-test-content :show (point))))
+   
+   (mistty-previous-prompt 1)
+   (should
+    (equal "$\n$\n$ <>\n$ echo current"
+           (mistty-test-content :show (point))))
+   
+   (mistty-previous-prompt 1)
+   (should
+    (equal "$\n$ <>\n$\n$ echo current"
+           (mistty-test-content :show (point))))
+   
+   (mistty-previous-prompt 1)
+   (should
+    (equal "$ <>\n$\n$\n$ echo current"
+           (mistty-test-content :show (point))))
+   
+   (should-error (mistty-previous-prompt 1))
+   
+   (goto-char (point-max))
+   (mistty-previous-prompt 2)
+   (should
+    (equal "$\n$\n$ <>\n$ echo current"
+           (mistty-test-content :show (point))))
+
+   (mistty-previous-prompt 2)
+   (should
+    (equal "$ <>\n$\n$\n$ echo current"
            (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-next-python-prompt ()

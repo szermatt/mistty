@@ -1565,11 +1565,10 @@ waiting for failing test results.")
      "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n"
      (mistty--safe-bufstring mistty-sync-marker (point-max))))))
 
-(ert-deftest mistty-test-end-prompt-multiline ()
+(ert-deftest mistty-test-end-prompt-multiline-pasted ()
   (with-mistty-buffer
    (mistty-run-command
-    (insert "for i in {1..10} ; do \necho line $i\n done && read l")
-    (mistty-test-goto "echo line"))
+    (insert "for i in {1..10} ; do \necho line $i\n done && read l"))
    (mistty-send-and-wait-for-prompt nil "line 10")
    (should
     (equal
@@ -1595,6 +1594,43 @@ waiting for failing test results.")
     (mistty-test-goto "rld"))
    (should (equal "$ echo 'hello\n  wo<>rld\n  and all that sort of things.'"
                   (mistty-test-content :show (mistty-cursor))))))
+
+(ert-deftest mistty-test-fish-multiline-indented ()
+  (with-mistty-buffer-fish
+   (should mistty-bracketed-paste)
+   (mistty-send-text "while i in (seq 10)\necho line $i\nend")
+
+   (mistty-run-command
+    (mistty-test-goto "line"))
+   (should (equal "$ while i in (seq 10)\n      echo <>line $i\n  end"
+                  (mistty-test-content :show (mistty-cursor))))))
+
+(ert-deftest mistty-test-bash-multiline ()
+  (with-mistty-buffer
+   (should mistty-bracketed-paste)
+
+   (mistty-run-command
+    (insert "echo 'hello\n  world\n  and all that sort of things.'"))
+   ;; indentation might make it think it's a fish multiline prompt.
+
+   (mistty-log "end -> rld")
+   (mistty-run-command
+    (mistty-test-goto "rld"))
+   (should (equal "$ echo 'hello\n  wo<>rld\n  and all that sort of things.'"
+                  (mistty-test-content :show (mistty-cursor))))
+
+   (mistty-log "rld -> llo")
+   (mistty-run-command
+    (mistty-test-goto "llo"))
+   (should (equal "$ echo 'he<>llo\n  world\n  and all that sort of things.'"
+                  (mistty-test-content :show (mistty-cursor))))
+
+   (mistty-log "llo -> things")
+   (mistty-run-command
+    (mistty-test-goto "things"))
+   (should (equal "$ echo 'hello\n  world\n  and all that sort of <>things.'"
+                  (mistty-test-content :show (mistty-cursor))))))
+
 
 (ert-deftest mistty-test-truncation ()
   (let ((mistty-buffer-maximum-size 20))

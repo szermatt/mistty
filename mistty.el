@@ -1249,6 +1249,17 @@ to replay it afterwards."
                                 (char-after beg))))
                 (cl-incf beg)))
 
+            ;; Don't bother deleting content that's going to be added
+            ;; back.
+            (with-current-buffer mistty-term-buffer
+              (while (let ((end-idx (max 0 (- end orig-beg))))
+                       (and (> end-idx 0)
+                            (> old-end beg)
+                            (eq (aref content (1- end-idx))
+                                (char-after (1- old-end)))))
+                (cl-decf old-end)
+                (cl-decf end)))
+
             (when lower-limit
               (setq beg (max lower-limit beg)))
             (when upper-limit

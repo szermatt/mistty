@@ -1241,6 +1241,14 @@ to replay it afterwards."
                  (replay-seqs nil))
             (setq modifications (cdr modifications))
 
+            ;; Don't bother inserting content that's already there.
+            (with-current-buffer mistty-term-buffer
+              (while (let ((start-idx (max 0 (- beg orig-beg))))
+                       (and (length> content start-idx)
+                            (eq (aref content start-idx)
+                                (char-after beg))))
+                (cl-incf beg)))
+
             (when lower-limit
               (setq beg (max lower-limit beg)))
             (when upper-limit

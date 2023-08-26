@@ -1582,9 +1582,7 @@ waiting for failing test results.")
     (insert "        world                       \n")
     (insert "        and all that sort of things.\n")
     (goto-char (point-min))
-    (let ((prompt-start (search-forward "prompt> "))
-          (prompt-length 8)
-          (from (search-forward "hell"))
+    (let ((from (search-forward "hell"))
           (to (search-forward "sort ")))
       (should (equal
                (concat
@@ -1592,32 +1590,28 @@ waiting for failing test results.")
                 (mistty--repeat-string 2 mistty-down-str)
                 (mistty--repeat-string 13 mistty-right-str))
                (mistty--fish-multiline-move-str-on-term
-                from to prompt-start prompt-length))))))
+                from to 'start-on-prompt-line))))))
 
 (ert-deftest mistty-test-fish-multiline-on-term-straightforward ()
   (ert-with-test-buffer ()
     (insert "prompt> echo 'hello\n")
     (insert "        world'\n")
     (goto-char (point-min))
-    (let ((prompt-start (search-forward "prompt> "))
-          (prompt-length 8)
-          (from (search-forward "echo"))
+    (let ((from (search-forward "echo"))
           (to (search-forward "world")))
       (should (equal
                (concat
                 (mistty--repeat-string 1 mistty-down-str)
                 (mistty--repeat-string 1 mistty-right-str))
                (mistty--fish-multiline-move-str-on-term
-                from to prompt-start prompt-length))))))
+                from to 'start-on-prompt-line))))))
 
 (ert-deftest mistty-test-fish-multiline-on-term-back ()
   (ert-with-test-buffer ()
     (insert "prompt> echo 'hello\n")
     (insert "        world'\n")
     (goto-char (point-min))
-    (let ((prompt-start (search-forward "prompt> "))
-          (prompt-length 8)
-          (from (search-forward "world"))
+    (let ((from (search-forward "world"))
           (to (progn
                 (goto-char (point-min))
                 (search-forward "echo"))))
@@ -1626,32 +1620,28 @@ waiting for failing test results.")
                 (mistty--repeat-string 1 mistty-left-str)
                 (mistty--repeat-string 1 mistty-up-str))
                (mistty--fish-multiline-move-str-on-term
-                from to prompt-start prompt-length))))))
+                from to 'start-on-prompt-line))))))
 
 (ert-deftest mistty-test-fish-multiline-on-term-bad-indent ()
   (ert-with-test-buffer ()
     (insert "prompt> echo 'hello\n")
     (insert "prompt> world'\n")
     (goto-char (point-min))
-    (let ((prompt-start (search-forward "prompt> "))
-          (prompt-length 8)
-          (from (search-forward "echo"))
+    (let ((from (search-forward "echo"))
           (to (search-forward "world")))
       (should (null
                (mistty--fish-multiline-move-str-on-term
-                from to prompt-start prompt-length))))))
+                from to 'start-on-prompt-line))))))
 
 (ert-deftest mistty-test-fish-multiline-on-term-single-line ()
   (ert-with-test-buffer ()
     (insert "prompt> echo 'hello'\n")
     (goto-char (point-min))
-    (let ((prompt-start (search-forward "prompt> "))
-          (prompt-length 8)
-          (from (search-forward "echo"))
+    (let ((from (search-forward "echo"))
           (to (search-forward "hello")))
       (should (null
                (mistty--fish-multiline-move-str-on-term
-                from to prompt-start prompt-length))))))
+                from to 'start-on-prompt-line))))))
 
 (ert-deftest mistty-test-fish-multiline-on-term-ignore-fake-nl ()
   (ert-with-test-buffer ()
@@ -1660,9 +1650,7 @@ waiting for failing test results.")
       (insert "        world " fake-nl "                      \n")
       (insert "        and al" fake-nl "l that sort of things.\n")
       (goto-char (point-min))
-      (let ((prompt-start (search-forward "prompt> "))
-            (prompt-length 8)
-            (from (search-forward "hell"))
+      (let ((from (search-forward "hell"))
             (to (search-forward "sort ")))
         (should (equal
                  (concat
@@ -1670,7 +1658,7 @@ waiting for failing test results.")
                   (mistty--repeat-string 2 mistty-down-str)
                   (mistty--repeat-string 13 mistty-right-str))
                  (mistty--fish-multiline-move-str-on-term
-                  from to prompt-start prompt-length)))))))
+                  from to 'on-prompt-line)))))))
 
 
 (ert-deftest mistty-test-fish-multiline-on-term-through-empty-line ()
@@ -1679,9 +1667,7 @@ waiting for failing test results.")
     (insert "                   \n")
     (insert "        world'     \n")
     (goto-char (point-min))
-    (let ((prompt-start (search-forward "prompt> "))
-          (prompt-length 8)
-          (from (search-forward "hello"))
+    (let ((from (search-forward "hello"))
           (to (search-forward "world")))
       (should (equal
                (concat
@@ -1689,16 +1675,14 @@ waiting for failing test results.")
                 (mistty--repeat-string 2 mistty-down-str)
                 (mistty--repeat-string 4 mistty-right-str))
                (mistty--fish-multiline-move-str-on-term
-                from to prompt-start prompt-length))))))
+                from to 'start-on-prompt-line))))))
 
 (ert-deftest mistty-test-fish-multiline-on-term-from-ws-to-ws ()
   (ert-with-test-buffer ()
     (insert "prompt> echo 'hello   \n")
     (insert "        world'        \n")
     (goto-char (point-min))
-    (let ((prompt-start (search-forward "prompt> "))
-          (prompt-length 8)
-          (from (search-forward "hello  "))
+    (let ((from (search-forward "hello  "))
           (to (search-forward "world'  ")))
       (should (equal
                (concat
@@ -1706,7 +1690,21 @@ waiting for failing test results.")
                 (mistty--repeat-string 1 mistty-down-str)
                 (mistty--repeat-string 2 mistty-right-str))
                (mistty--fish-multiline-move-str-on-term
-                from to prompt-start prompt-length))))))
+                from to 'start-on-prompt-line))))))
+
+(ert-deftest mistty-test-fish-multiline-on-term-midlde ()
+  (ert-with-test-buffer ()
+    (insert "        world\n")
+    (insert "        ...and the rest'\n")
+    (goto-char (point-min))
+    (let ((from (search-forward "wor"))
+          (to (search-forward "rest")))
+      (should (equal
+               (concat
+                (mistty--repeat-string 1 mistty-down-str)
+                (mistty--repeat-string 12 mistty-right-str))
+               (mistty--fish-multiline-move-str-on-term
+                from to nil))))))
 
 (ert-deftest mistty-test-fish-multiline-for-real ()
   (with-mistty-buffer-fish

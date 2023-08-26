@@ -1393,23 +1393,15 @@ If in a multiline fish prompt, return a string moving the cursor
 from FROM to TO, otherwise return nil.
 
 FROM and TO are positions in the work buffer."
-  (let* ((prompt-end (marker-position mistty--cmd-start-marker))
-         (prompt-length (if (> prompt-end mistty-sync-marker)
-                            (- prompt-end
-                               (mistty--bol prompt-end))
-                          0)))
-    (when (and (> prompt-length 0)
-               (> from prompt-end)
-               (> to prompt-end))
-      (with-current-buffer mistty-term-buffer
-        (mistty--fish-multiline-move-str-on-term
-         (mistty--safe-pos (mistty--from-work-pos from))
-         (mistty--safe-pos (mistty--from-work-pos to))
-         (mistty--safe-pos (mistty--from-work-pos prompt-end))
-         prompt-length)))))
+  (let* ((prompt-end (marker-position mistty--cmd-start-marker)))
+    (with-current-buffer mistty-term-buffer
+      (mistty--fish-multiline-move-str-on-term
+       (mistty--safe-pos (mistty--from-work-pos from))
+       (mistty--safe-pos (mistty--from-work-pos to))
+       (= (mistty--bol prompt-end) (mistty--bol (min from to)))))))
 
 (defun mistty--fish-multiline-move-str-on-term
-    (from to prompt-start prompt-length)
+    (from to start-on-prompt-line)
   "Internal helper for `mistty--fish-multiline'."
   (let ((beg (mistty--bol-skipping-fakes (min from to)))
         (end (max from to))
@@ -1420,7 +1412,7 @@ FROM and TO are positions in the work buffer."
                   (buffer-substring beg end)))
         (let ((from (copy-marker (- from beg)))
               (to (copy-marker (- to beg)))
-              lines min-col from-col to-col move-col)
+              lines indent min-col from-col to-col move-col)
 
           ;; delete fake newlines
           (goto-char (point-min))
@@ -1428,42 +1420,39 @@ FROM and TO are positions in the work buffer."
             (goto-char fake-nl)
             (delete-char 1))
 
-          ;; all lines must start with spaces except the one with the
-          ;; prompt.
-          (when (and
-                 (>= (mistty--col from) prompt-length)
-                 (>= (mistty--col to) prompt-length)
-                 (length> (setq lines (mistty--lines)) 1)
-                 (seq-every-p
-                  (lambda (line-start)
-                    (progn
-                      (goto-char line-start)
-                      (looking-at-p (make-string prompt-length ?\ ))))
-                  (if (> prompt-start beg)
-                      (cdr lines)
-                    lines)))
-            (dolist (line-start lines)
-              (delete-region line-start (+ prompt-length line-start)))
+          ;; To be considered a fish multiline edit, all lines must
+          ;; start with some spaces except the one with the prompt.
+          (when (and (setq lines (mistty--lines))
+                     (length>  lines 1)
+                     (setq indent (seq-min (mapcar #'mistty--line-indent
+                                                   (if start-on-prompt-line
+                                                       (cdr lines)
+                                                     lines))))
+                     (> indent 0)
+                     (>= (mistty--col from) indent)
+                     (>= (mistty--col to) indent))
+              (dolist (line-start lines)
+                (delete-region line-start (+ line-start indent)))
 
-            ;; Get from and to column before deleting trailing ws, in
-            ;; case from is on a trailing ws, we know it exits and in
-            ;; case to is on a trailing ws, we optimistically assume
-            ;; it exists.
-            (setq from-col (mistty--col from))
-            (setq to-col (mistty--col to))
+              ;; Get from and to column before deleting trailing ws, in
+              ;; case from is on a trailing ws, we know it exits and in
+              ;; case to is on a trailing ws, we optimistically assume
+              ;; it exists.
+              (setq from-col (mistty--col from))
+              (setq to-col (mistty--col to))
 
-            ;; Find a column that's not on a trailing ws to move down.
-            (delete-trailing-whitespace (point-min) (point-max))
-            (setq min-col (max 0 (1- (seq-min (mapcar #'mistty--line-length lines)))))
-            (setq move-col (min min-col to-col from-col))
+              ;; Find a column that's not on a trailing ws to move down.
+              (delete-trailing-whitespace (point-min) (point-max))
+              (setq min-col (max 0 (1- (seq-min (mapcar #'mistty--line-length lines)))))
+              (setq move-col (min min-col to-col from-col))
 
-            (concat
-             ;; go left-right from from-col to move-col
-             (mistty--move-horizontally-str (- move-col from-col))
-             ;; go up/down from from-line to to-line
-             (mistty--move-vertically-str (- (mistty--line to) (mistty--line from)))
-             ;; go left-right from move-col to to-col
-             (mistty--move-horizontally-str (- to-col move-col)))))))))
+              (concat
+               ;; go left-right from from-col to move-col
+               (mistty--move-horizontally-str (- move-col from-col))
+               ;; go up/down from from-line to to-line
+               (mistty--move-vertically-str (- (mistty--line to) (mistty--line from)))
+               ;; go left-right from move-col to to-col
+               (mistty--move-horizontally-str (- to-col move-col)))))))))
 
 (defun mistty--distance-on-term (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.

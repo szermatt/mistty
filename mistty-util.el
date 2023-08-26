@@ -126,6 +126,13 @@ of failing."
   (- (mistty--eol pos)
      (mistty--bol pos)))
 
+(defun mistty--line-indent (pos)
+  "Return the number of spaces at the beginning of the line at POS."
+  (save-excursion
+    (goto-char pos)
+    (goto-char (pos-bol 1))
+    (skip-chars-forward " ")))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

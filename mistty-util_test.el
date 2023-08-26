@@ -113,6 +113,17 @@
       ;; point must not have been moved after insert
       (should (equal (point-max) (point))))))
 
+(ert-deftest mistty-util-test-indent ()
+  (ert-with-test-buffer ()
+    (insert "   abc\n")
+    (insert "  def\n")
+    (insert " ghi\n")
+    (insert "jkl")
+
+    (should (equal 3 (mistty--line-indent (mistty-test-pos "abc"))))
+    (should (equal 2 (mistty--line-indent (mistty-test-pos "def"))))
+    (should (equal 1 (mistty--line-indent (mistty-test-pos "ghi"))))
+    (should (equal 0 (mistty--line-indent (mistty-test-pos "jkl"))))))
 
 (defun mistty-test-pos (text)
   (save-excursion

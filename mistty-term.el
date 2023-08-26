@@ -581,6 +581,7 @@ This function returns the newly-created buffer."
       (set-process-window-size (get-buffer-process term-buffer) height width)
       (setq-local term-raw-map local-map)
       (term-char-mode)
+      (advice-add 'term-move-to-column :around #'mistty--around-move-to-column)
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
     term-buffer))
 
@@ -591,6 +592,12 @@ This function returns the newly-created buffer."
                        (mapcar #'cdr mistty--term-properties-to-add-alist))))
       (add-text-properties beg end props))))
 
+(defun mistty--around-move-to-column (orig-fun &rest args)
+  "Add property \\='mistty-skip t to spaces added when just moving."
+  (let ((initial-end (line-end-position)))
+    (apply orig-fun args)
+    (when (> (point) initial-end)
+      (put-text-property initial-end (point) 'mistty-skip t))))
 
 (defun mistty--maybe-bracketed-str (str)
   "Prepare STR to be sent, possibly bracketed, to the terminal.

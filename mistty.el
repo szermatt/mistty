@@ -1476,8 +1476,8 @@ FROM and TO are positions in the work buffer."
 (defun mistty--distance-on-term (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.
 
-This function skips over the `term-line-wrap' newlines introduced
-by term as if they were not here.
+This function skips over the \\='term-line-wrap newlines as well
+as \\='mistty-skip spaces.
 
 While it takes BEG and END as work buffer positions, it looks in
 the term buffer to figure out, so it's important for the BEG and
@@ -1486,11 +1486,13 @@ END section to be valid in the term buffer."
     (let ((beg (mistty--safe-pos (mistty--from-work-pos (min beg end))))
           (end (mistty--safe-pos (mistty--from-work-pos (max beg end))))
           (sign (if (< end beg) -1 1)))
-      (let ((pos beg) (nlcount 0))
-        (while (and (< pos end) (setq pos (text-property-any pos end 'term-line-wrap t)))
+      (let ((pos beg) (distance 0))
+        (while (< pos end)
           (setq pos (1+ pos))
-          (setq nlcount (1+ nlcount)))
-        (* sign (- (- end beg) nlcount))))))
+          (unless (or (get-text-property pos 'term-line-wrap)
+                      (get-text-property pos 'mistty-skip))
+            (setq distance (1+ distance))))
+        (* sign distance)))))
 
 (defun mistty-next-prompt (n)
   "Move the point to the Nth next prompt in the buffer."

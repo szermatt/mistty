@@ -62,12 +62,6 @@ the terminal buffer."
   :group 'mistty
   :type '(alist :key-type string :value-type function))
 
-(defconst mistty-up-str "\eOA"
-  "Sequence to send to the process when the up arrow is pressed.")
-
-(defconst mistty-down-str "\eOB"
-  "Sequence to send to the process when the downarrow is pressed.")
-
 (defconst mistty-right-str "\eOC"
   "Sequence to send to the process when the rightarrow is pressed.")
 

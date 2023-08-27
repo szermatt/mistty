@@ -568,6 +568,7 @@ This function returns the newly-created buffer."
       (setq-local term-char-mode-buffer-read-only t)
       (setq-local term-char-mode-point-at-process-mark t)
       (setq-local term-buffer-maximum-size 0)
+      (setq-local term-set-terminal-size t)
       (setq-local term-width width)
       (setq-local term-height height)
       (term-exec term-buffer (buffer-name term-buffer) program nil args)

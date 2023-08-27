@@ -1272,7 +1272,7 @@ to replay it afterwards."
             ;; far back we went when inserting.
             (when (> end beg)
               (mistty--call-iter
-               (mistty--move-cursor-generator beg 'will-wait))
+               (mistty--move-cursor-generator beg))
               (setq cursor (mistty-cursor))
               ;; cursor is as close to beg as we can make it
 
@@ -1288,7 +1288,7 @@ to replay it afterwards."
             ;; how far we went when deleting.
             (when (> old-end beg)
               (mistty--call-iter
-               (mistty--move-cursor-generator old-end 'will-wait))
+               (mistty--move-cursor-generator old-end))
               (setq cursor (mistty-cursor))
               (when (and (> beg cursor)
                          (> (mistty--distance-on-term beg cursor) 0))
@@ -1340,38 +1340,23 @@ to replay it afterwards."
     (when mistty--need-refresh
       (mistty--refresh))))
 
-(iter-defun mistty--move-cursor-generator (goal-pos &optional will-wait)
-  "Move the cursor to GOAL-POS.
-
-If WILL-WAIT is non-nil, add a little flourish at the end to
-avoid situation where movement not being possible results in the
-terminal not answering anything, which forces MisTTY to rely on a
-timeout to continue its operations."
-  (iter-yield (mistty--move-str (mistty-cursor) goal-pos will-wait)))
+(iter-defun mistty--move-cursor-generator (goal-pos)
+  "Move the cursor to GOAL-POS."
+  (iter-yield (mistty--move-str (mistty-cursor) goal-pos)))
   
-(defun mistty--move-str (from to &optional will-wait)
+(defun mistty--move-str (from to)
   "Builds a terminal sequence to move from FROM to TO.
 
-FROM and TO are positions in the work buffer.
-
-If WILL-WAIT is non-nil, add a little flourish at the end to
-avoid situation where movement not being possible results in the
-terminal not answering anything, which forces MisTTY to rely on a
-timeout to continue its operations."
+FROM and TO are positions in the work buffer."
   (mistty--move-horizontally-str
-   (mistty--distance-on-term from to) will-wait))
+   (mistty--distance-on-term from to)))
 
-(defun mistty--move-horizontally-str (direction &optional will-wait)
+(defun mistty--move-horizontally-str (direction)
   "Return a key sequence to move horizontally.
 
 The absolute value of DIRECTION specifies the number of character
  to move and the sign specifies whether to go right (positive) or
- left (negative).
-
-If WILL-WAIT, add a useless right-left or left-right move at the
-end, which forces the terminal to send something back in the case
-where we jest can't move left/right anymore, thus avoiding a
-timeout."
+ left (negative)."
   (if (zerop direction)
       ""
     (let ((distance (abs direction))
@@ -1381,13 +1366,12 @@ timeout."
            (if (< direction 0) mistty-right-str mistty-left-str)))
       (concat
        (mistty--repeat-string distance towards-str)
-       (if will-wait
-           ;; Send a no-op right/left pair so that if, for example, it's
-           ;; just not possible to go left anymore, the connected process
-           ;; might still send *something* back and mistty--send-and-wait
-           ;; won't have to time out.
-           (concat away-from-str towards-str)
-         "")))))
+       ;; Send a no-op right/left pair so that if, for example, it's
+       ;; just not possible to go left anymore, the connected process
+       ;; might still send *something* back and mistty--send-and-wait
+       ;; won't have to time out.
+       away-from-str
+       towards-str))))
 
 (defun mistty--distance-on-term (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.

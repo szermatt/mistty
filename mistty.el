@@ -1258,24 +1258,7 @@ to replay it afterwards."
                                                  mistty-term-buffer))))
             (setq modifications (cdr modifications))
 
-            ;; Don't bother inserting content that's already there.
-            (with-current-buffer mistty-term-buffer
-              (while (let ((start-idx (max 0 (- beg orig-beg))))
-                       (and (length> content start-idx)
-                            (eq (aref content start-idx)
-                                (char-after beg))))
-                (cl-incf beg)))
-
-            ;; Don't bother deleting content that's going to be added
-            ;; back.
-            (with-current-buffer mistty-term-buffer
-              (while (let ((end-idx (max 0 (- end orig-beg))))
-                       (and (> end-idx 0)
-                            (> old-end beg)
-                            (eq (aref content (1- end-idx))
-                                (char-after (1- old-end)))))
-                (cl-decf old-end)
-                (cl-decf end)))
+            (mistty-log "replay: %s" m)
 
             (when lower-limit
               (setq beg (max lower-limit beg)))
@@ -1296,6 +1279,7 @@ to replay it afterwards."
               ;; the command line.
               (when (and (> cursor beg)
                          (> (mistty--distance-on-term beg cursor) 0))
+                (mistty-log "LOWER LIMIT: %s (wanted %s)" cursor beg)
                 (setq lower-limit cursor))
               (setq beg cursor))
 
@@ -1311,6 +1295,7 @@ to replay it afterwards."
                 ;; If we couldn't even get to beg we'll have trouble with
                 ;; the next modifications, too, as they start left of this
                 ;; one. Remember that.
+                (mistty-log "UPPER LIMIT: %s (wanted %s)" cursor old-end)
                 (setq upper-limit cursor))
               (setq old-end (max beg (min old-end cursor))))
 

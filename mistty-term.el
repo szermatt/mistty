@@ -565,18 +565,18 @@ This function returns the newly-created buffer."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
       (term-mode)
-      (setq-local term-char-mode-buffer-read-only t
-                  term-char-mode-point-at-process-mark t
-                  term-buffer-maximum-size 0
-                  term-height height
-                  term-width width)
-      (term--reset-scroll-region)
+      (setq-local term-char-mode-buffer-read-only t)
+      (setq-local term-char-mode-point-at-process-mark t)
+      (setq-local term-buffer-maximum-size 0)
+      (setq-local term-width width)
+      (setq-local term-height height)
       (term-exec term-buffer (buffer-name term-buffer) program nil args)
       (set-process-window-size (get-buffer-process term-buffer) height width)
       (setq-local term-raw-map local-map)
       (term-char-mode)
       (advice-add 'term-move-to-column :around #'mistty--around-move-to-column)
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
+
     term-buffer))
 
 (defun mistty--after-change-on-term (beg end _old-length)

@@ -1,6 +1,7 @@
 # MisTTY, a shell/comint alternative with a real terminal
 
-MisTTY runs a shell interactively under Emacs 29.1 and later, just like `M-x shell` does. 
+MisTTY runs a shell interactively under Emacs 29.1 and later, just like
+`M-x shell` does. 
 
 In a MisTTY buffer, just like in a normal shell buffer, the usual
 native Emacs movement and editing work. What *also* work is everything
@@ -9,10 +10,9 @@ native shell history.
 
 MisTTY works well with Bash and ZSH, but it is especially well suited
 to running [Fish](https://fishshell.com): you get autosuggestions,
-completion in full colors. With
-[TIDE](https://github.com/IlanCosman/tide) you also get asynchronous
-prompts. You get all that in Emacs buffer, together with the usual
-Emacs commands!
+completion in full colors. Here's what the end result might look like:
+
+![screen grab](https://github.com/szermatt/mistty/blob/master/screengrab.gif?raw=true)
 
 ## INSTALLATION
 
@@ -38,7 +38,7 @@ Here's one way of installing MisTTY and binding it to the key `C-c s`:
          ("M-<right>" . mistty-send-key)))
 ```
 
-Binding keys is of course optional, but strongly recommended.
+Keys bound to `mistty-send-key` are sent to the terminal, so the action is executed by the shell. Bind the keys you actually use in a shell and leave Emacs handle everything else.
 
 ## USAGE
 
@@ -48,6 +48,11 @@ use it as you would comint.
 You'll quickly notice some differences. For example TAB completion
 working just like in a terminal instead of relying of Emacs
 completion.
+
+The purple line on the left indicates the portion of the buffer 
+that's a terminal. What you type in there gets sent to the program, 
+usually a shell, and translated by that program. The rest of the
+buffer is normal, editable, text. 
 
 Commands that takes the whole screen such as `less` or `vi` take you 
 into terminal mode for the duration of that command. You can still 

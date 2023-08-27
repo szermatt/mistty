@@ -133,6 +133,11 @@ of failing."
     (goto-char (pos-bol 1))
     (skip-chars-forward " ")))
 
+(defsubst mistty--nonempty-str-p (str)
+  "Returns non-nil if STR is a nonempty string."
+  (and (stringp str)
+       (length> str 0)))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

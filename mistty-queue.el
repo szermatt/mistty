@@ -60,7 +60,8 @@
 
 (defun mistty--send-string (proc str)
   "Send STR to PROC, if it is still live."
-  (when (and str (length> str 0) (process-live-p proc))
+  (when (and (mistty--nonempty-str-p str)
+             (process-live-p proc))
     (mistty-log "SEND[%s]" str)
     (process-send-string proc str)))
 
@@ -68,7 +69,7 @@
   "Enqueue sending STR to the terminal into QUEUE.
 
 Does nothing is STR is nil or empty."
-  (when (and str (length> str 0))
+  (when (mistty--nonempty-str-p str)
     (mistty--enqueue queue (mistty--iter-single str))))
 
 (defun mistty--enqueue (queue gen)
@@ -106,7 +107,7 @@ If VALUE is set, send that value to the first call to `iter-next'."
         (let ((proc (mistty--queue-proc queue))
               seq)
           (setq seq (iter-next (mistty--queue-iter queue) value))
-          (while (or (null seq) (length= seq 0))
+          (while (not (mistty--nonempty-str-p seq))
             (setq seq (iter-next (mistty--queue-iter queue))))
           (setf (mistty--queue-timeout queue)
                 (run-with-timer

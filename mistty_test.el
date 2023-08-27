@@ -725,7 +725,7 @@ waiting for failing test results.")
     (insert "echo third"))
    (mistty-send-and-wait-for-prompt)
    (narrow-to-region (mistty--bol (point)) (point-max))
-   (mistty-send-raw-string "?\C-r")
+   (mistty--send-string mistty-proc "?\C-r")
    (mistty-wait-for-output :str "reverse")
    (should (equal "(reverse-i-search)`': ?<>" (mistty-test-content :show (point))))
    (execute-kbd-macro (kbd "e c"))
@@ -743,7 +743,8 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-distance-on-term ()
   (with-mistty-buffer-selected
-   (mistty-send-raw-string "echo one two three four five six seven eight nine")
+   (mistty--send-string
+    mistty-proc "echo one two three four five six seven eight nine")
    ;; not using mistty-send-text as words might be split by fake
    ;; newlines.
    (mistty-wait-for-output :str "nine")
@@ -761,7 +762,8 @@ waiting for failing test results.")
   (with-mistty-buffer
    (mistty--set-process-window-size 20 20)
 
-   (mistty-send-raw-string "echo one two three four five six seven eight nine")
+   (mistty--send-string
+    mistty-proc "echo one two three four five six seven eight nine")
    ;; not using mistty-send-text as words might be split by fake
    ;; newlines.
    (mistty-wait-for-output :str "nine")
@@ -1518,7 +1520,7 @@ waiting for failing test results.")
 
    ;; quit more and go back to the normal prompt
    (mistty-send-and-wait-for-prompt
-    (lambda () (mistty-send-raw-string "q")))))
+    (lambda () (mistty--send-string mistty-proc "q")))))
 
 (ert-deftest test-mistty-python-prompt-too-long ()
   (with-mistty-buffer-python
@@ -2018,7 +2020,7 @@ Trailing newlines are always stripped out from the output."
 If START is not specified, the current cursor is used; expecting
 text to be inserted there."
   (let ((start (or start (copy-marker (mistty-cursor)))))
-    (mistty-send-raw-string text)
+    (mistty--send-string mistty-proc text)
     (mistty-wait-for-output
      :start start
      :regexp (mapconcat #'regexp-quote

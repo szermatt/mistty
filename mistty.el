@@ -1070,12 +1070,6 @@ They are often the same position."
     (unless (get-text-property start 'mistty-prompt-id)
       `(mistty-prompt-id ,(mistty--next-id))))))
 
-(defun mistty-send-raw-string (str)
-  "Send STR to the terminal, unprocessed.
-
-This command is available in fullscreen mode."
-  (mistty--send-string mistty-proc str))
-
 (defun mistty--last-non-ws ()
   "Return the position of the last non-whitespace in the buffer."
   (save-excursion
@@ -1142,16 +1136,22 @@ KEY must be a string or vector as would be returned by `kbd'.
 
 This command is available in fullscreen mode."
   (interactive "p")
-  (let ((key (or key (this-command-keys-vector))))
-    (if (buffer-live-p mistty-work-buffer)
-        (with-current-buffer mistty-work-buffer
-          (when (not mistty-fullscreen)
-            (setq mistty-goto-cursor-next-time t)
-            (when (or positional (mistty-positional-p key))
-              (mistty-before-positional))
-            (mistty--enqueue-str
-             mistty--queue (mistty-translate-key key n))))
-      (mistty-send-raw-string (mistty-translate-key key n)))))
+  (let* ((key (or key (this-command-keys-vector)))
+         (translated-key (mistty-translate-key key n)))
+    (cond 
+     ((and (buffer-live-p mistty-work-buffer)
+           (not (buffer-local-value
+                 'mistty-fullscreen mistty-work-buffer)))
+      (with-current-buffer mistty-work-buffer
+        (setq mistty-goto-cursor-next-time t)
+        (when (or positional (mistty-positional-p key))
+          (mistty-before-positional))
+        (mistty--enqueue-str mistty--queue translated-key)))
+
+     ((process-live-p mistty-proc)
+      (mistty--send-string mistty-proc translated-key))
+
+     (t (error "No live process")))))
 
 (defun mistty-send-key-sequence ()
   "Send all keys to terminal until interrupted.

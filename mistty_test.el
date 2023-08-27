@@ -1686,21 +1686,21 @@ waiting for failing test results.")
 
 (ert-deftest mistty-reset-during-replay ()
   (with-mistty-buffer
-   (setq mistty-log t)
    (mistty-send-text "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")
    (mistty-send-and-wait-for-prompt nil "read> ")
    (let ((start (mistty--bol (point))))
-     (mistty-send-text "I say: hello")
-     (mistty-run-command
-      (insert "foo\n")
-      (mistty-test-goto "hello")
-      (insert "bar"))
-     (mistty-log "done")
+     (mistty--enqueue
+      mistty--queue
+      (funcall (iter-lambda ()
+                 (iter-yield "hello")
+                 (iter-yield "\C-m")
+                 (iter-yield "bar")
+                 (iter-yield "bar"))))
      (mistty-wait-for-output :str "$ " :start start)
      
-     (should (equal (concat "read> I say:\n"
-                            "hellofoo\n"
-                            "will resetreset done\n"
+     (should (equal (concat "read> hello\n"
+                            "will reset\n"
+                            "reset done\n"
                             "$")
                     (mistty-test-content :start start)))
      ;; note: bar is lost as the replay was cancelled by the reset

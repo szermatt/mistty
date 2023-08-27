@@ -1089,7 +1089,7 @@ This command is available in fullscreen mode."
   (mistty--maybe-realize-possible-prompt)
   (setq mistty-goto-cursor-next-time t
         mistty--end-prompt t)
-  (mistty-send-raw-string "\C-m"))
+  (mistty--enqueue-str mistty--queue "\C-m"))
 
 (defun mistty-send-last-key (&optional n)
   "Send the last key that was typed to the terminal N times.
@@ -1143,12 +1143,15 @@ KEY must be a string or vector as would be returned by `kbd'.
 This command is available in fullscreen mode."
   (interactive "p")
   (let ((key (or key (this-command-keys-vector))))
-    (mistty--with-live-buffer mistty-work-buffer
-      (when (not mistty-fullscreen)
-        (setq mistty-goto-cursor-next-time t)
-        (when (or positional (mistty-positional-p key))
-          (mistty-before-positional))))
-    (mistty-send-raw-string (mistty-translate-key key n))))
+    (if (buffer-live-p mistty-work-buffer)
+        (with-current-buffer mistty-work-buffer
+          (when (not mistty-fullscreen)
+            (setq mistty-goto-cursor-next-time t)
+            (when (or positional (mistty-positional-p key))
+              (mistty-before-positional))
+            (mistty--enqueue-str
+             mistty--queue (mistty-translate-key key n))))
+      (mistty-send-raw-string (mistty-translate-key key n)))))
 
 (defun mistty-send-key-sequence ()
   "Send all keys to terminal until interrupted.
@@ -1690,7 +1693,8 @@ This:
   (let ((cursor (mistty-cursor)))
     (when (and (not (= cursor (point)))
                (mistty--maybe-realize-possible-prompt))
-      (mistty-send-raw-string (mistty--move-str cursor (point))))))
+      (mistty--enqueue
+       mistty--queue (mistty--cursor-to-point-generator)))))
 
 (defun mistty--maybe-realize-possible-prompt (&optional pos)
   "If a possible prompt was detected at POS, create it now."

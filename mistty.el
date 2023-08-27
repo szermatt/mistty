@@ -1269,7 +1269,7 @@ to replay it afterwards."
             ;; far back we went when inserting.
             (when (> end beg)
               (mistty--call-iter
-               (mistty--move-generator cursor beg 'will-wait))
+               (mistty--move-cursor-generator beg 'will-wait))
               (setq cursor (mistty-cursor))
               ;; cursor is as close to beg as we can make it
 
@@ -1285,7 +1285,7 @@ to replay it afterwards."
             ;; how far we went when deleting.
             (when (> old-end beg)
               (mistty--call-iter
-               (mistty--move-generator cursor old-end 'will-wait))
+               (mistty--move-cursor-generator old-end 'will-wait))
               (setq cursor (mistty-cursor))
               (when (and (> beg cursor)
                          (> (mistty--distance-on-term beg cursor) 0))
@@ -1316,7 +1316,7 @@ to replay it afterwards."
           (when upper-limit
             (setq initial-point (min upper-limit initial-point)))
           (mistty--call-iter
-           (mistty--move-generator (mistty-cursor) initial-point))
+           (mistty--move-cursor-generator initial-point))
           (setq mistty-goto-cursor-next-time t))
 
         ;; Force refresh, even if nothing was sent, if only to revert what
@@ -1337,8 +1337,14 @@ to replay it afterwards."
     (when mistty--need-refresh
       (mistty--refresh))))
 
-(iter-defun mistty--move-generator (from to &optional will-wait)
-  (iter-yield (mistty--move-str from to will-wait)))
+(iter-defun mistty--move-cursor-generator (goal-pos &optional will-wait)
+  "Move the cursor to GOAL-POS.
+
+If WILL-WAIT is non-nil, add a little flourish at the end to
+avoid situation where movement not being possible results in the
+terminal not answering anything, which forces MisTTY to rely on a
+timeout to continue its operations."
+  (iter-yield (mistty--move-str (mistty-cursor) goal-pos will-wait)))
   
 (defun mistty--move-str (from to &optional will-wait)
   "Builds a terminal sequence to move from FROM to TO.
@@ -1509,8 +1515,7 @@ post-command hook."
 (iter-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."
   (when (mistty-on-prompt-p (point))
-    (mistty--call-iter (mistty--move-generator
-                        (mistty-cursor) (point)))))
+    (mistty--call-iter (mistty--move-cursor-generator (point)))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

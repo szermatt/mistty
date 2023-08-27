@@ -245,12 +245,21 @@ waiting for failing test results.")
    (mistty-wait-for-output :str "echo")
    (should (equal "$ echo<> world" (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-kill-term-buffer ()
+(ert-deftest test-mistty-kill-term-buffer-when-work-buffer-is-killed ()
   (let* ((buffer-and-proc (with-mistty-buffer
                            (cons mistty-term-buffer mistty-proc)))
          (term-buffer (car buffer-and-proc))
          (term-proc (cdr buffer-and-proc)))
     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
+
+(ert-deftest test-mistty-kill-term-buffer-but-keep-work-buffer ()
+  (with-mistty-buffer
+   (let* ((term-buffer mistty-term-buffer)
+          (term-proc mistty-proc))
+    (kill-buffer term-buffer)
+    (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
+    (mistty-wait-for-output :str "Terminal killed." :start (point-min))
+    (should (equal (point) (point-max))))))
 
 (ert-deftest test-mistty-term-buffer-exits ()
   (with-mistty-buffer
@@ -259,6 +268,7 @@ waiting for failing test results.")
      (mistty-send-text "exit")
      (mistty-send-command)
      (mistty-wait-for-output :str "finished" :start (point-min))
+     (should (equal (point) (point-max)))
      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc))))
 
 (ert-deftest test-mistty-scroll-with-long-command ()

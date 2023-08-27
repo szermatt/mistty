@@ -632,18 +632,31 @@ from the ESHELL or SHELL environment variables."
 
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-buffer proc)))
-    (if (buffer-live-p work-buffer)
-        (when (memq (process-status proc) '(signal exit))
-          (while (accept-process-output proc 0 0 t))
-          (term-sentinel proc msg)
-          (with-current-buffer work-buffer
-            (save-restriction
-              (widen)
-              (mistty--refresh)
-              (mistty--detach)))
-          (kill-buffer term-buffer)))
-    ;; detached term buffer
-    (term-sentinel proc msg)))
+    (mistty--with-live-buffer work-buffer
+      (when (memq (process-status proc) '(signal exit))
+        (while (accept-process-output proc 0 0 t))))
+
+    (cond
+     ((and (buffer-live-p term-buffer)
+           (buffer-live-p work-buffer))
+      (term-sentinel proc msg)
+      (mistty--with-live-buffer work-buffer
+        (save-restriction
+          (widen)
+          (mistty--refresh)
+          (when (and (processp mistty-proc)
+                     (>= (point) (mistty-cursor)))
+            (goto-char (point-max)))
+          (mistty--detach)))
+      (kill-buffer term-buffer))
+
+     ((buffer-live-p work-buffer)
+      (with-current-buffer work-buffer
+        (mistty--detach)
+        (insert-before-markers "\n\nTerminal killed.\n")))
+
+     ((buffer-live-p term-buffer)
+      (kill-buffer term-buffer)))))
 
 (defun mistty--fs-process-sentinel (proc msg)
   "Process sentinel for MisTTY shell processes in fullscreen mode."
@@ -863,11 +876,11 @@ Also updates prompt and point."
         (setq mistty--refresh-timer nil))
 
       (mistty-log "refresh")
-      (with-current-buffer mistty-term-buffer
+      (mistty--with-live-buffer mistty-term-buffer
         (save-restriction
           (narrow-to-region mistty-sync-marker (point-max-marker))
           (setq properties (mistty--save-properties mistty-sync-marker))
-          (with-current-buffer mistty-work-buffer
+          (mistty--with-live-buffer mistty-work-buffer
             (save-restriction
               (narrow-to-region mistty-sync-marker (point-max-marker))
               (replace-buffer-contents mistty-term-buffer 0.2)

@@ -1128,21 +1128,23 @@ waiting for failing test results.")
 (ert-deftest test-mistty-osc-add-text-properties ()
   (with-mistty-buffer
    (let* ((start nil)
-          (test-value nil)
           (mistty-osc-handlers
            `(("f" . ,(lambda (_ text)
-                       (if (length> text 0)
-                           (setq test-value text
-                                 start (point))
-                         (put-text-property start (point) 'mistty-test test-value)))))))
-     (mistty-send-text "printf 'abc \\e]f;foobar\\adef\\e]f;\\a ghi\\n'")
+                       (cond
+                        ((string= "start" text)
+                         (setq start (point)))
+                        ((string= "end" text)
+                         (put-text-property
+                          start (point) 'mistty-test t))
+                        (t (error "unexpected: '%s'" text))))))))
+     (mistty-send-text "printf 'abc \\e]f;start\\adef\\e]f;end\\a ghi\\n'")
      (should (equal "abc def ghi" (mistty-send-and-capture-command-output)))
-     (search-backward "def")
-     (should (equal `((,(1- (point)) ,(+ 2 (point)) (mistty-test "foobar")))
-                    (mistty-merge-intervals
-                     (mistty-filter-intervals
-                      (object-intervals (current-buffer))
-                      '(mistty-test))))))))
+     (mistty-test-goto "abc def ghi")
+     (should (equal "abc [def] ghi"
+                    (mistty-test-content
+                     :start (point)
+                     :show-property '(mistty-test t)
+                     :strip-last-prompt t))))))
 
 (ert-deftest mistty-test-split-osc-sequence ()
   (with-mistty-buffer
@@ -1805,13 +1807,36 @@ of the beginning of the prompt."
      :start before-send)
     (match-beginning 0)))
 
-(cl-defun mistty-test-content (&key (start (point-min)) (end (point-max)) show (strip-last-prompt nil))
+(cl-defun mistty-test-content (&key (start (point-min))
+                                    (end (point-max))
+                                    (show nil)
+                                    (show-property '(nil nil))
+                                    (strip-last-prompt nil))
+  "Return buffer content, post-processed.
+
+START and END specify the region to extract.
+
+SHOW is a specific position to highlight with <> in the string,
+often just the output of `point' or `mistty-cursor'.
+
+STRIP-LAST-PROMPT, if t, removes the last, empty prompt from the
+returned content.
+
+SHOW-PROPERTY \=='(PROP VAL) puts section with text-property PROP
+set to VAL within brackets.
+
+Trailing newlines are always stripped out from the output."
   (interactive)
-  (let* ((output (buffer-substring-no-properties start end))
+  (let* ((output (buffer-substring start end))
          (p (when show (- show start)))
          (length (- end start)))
     (when (and p (>= p 0) (<= p length))
       (setq output (concat (substring output 0 p) "<>" (substring output p))))
+    (pcase-let ((`(,prop ,val) show-property))
+      (when prop
+        (setq output (mistty-show-property prop val output))))
+    (set-text-properties 0 (length output) nil output)
+    
     (when strip-last-prompt
       (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output)))
     (setq output (replace-regexp-in-string "[ \t\n]*$" "" output))
@@ -1834,40 +1859,6 @@ of the beginning of the prompt."
             (error "Buffer %s wasn't killed." buf))
            (t (error "Something else went wrong."))))))
 
-(defun mistty-filter-plist (options allowed)
-  "Filter a symbol and values list OPTIONS to online include ALLOWED symbols.
-
-For example, filtering (:key value :other-key value) with allowed
-list of (:key) will return (:key value)."
-  (let ((filtered-list))
-    (dolist (key allowed)
-      (when (plist-member options key)
-        (setq filtered-list
-              (plist-put filtered-list key (plist-get options key)))))
-    filtered-list))
-
-(defun mistty-filter-intervals (intervals allowed)
-  (delq nil (mapcar
-             (lambda (c)
-               (pcase c
-                 (`(,beg ,end ,props)
-                  (let ((filtered (mistty-filter-plist props allowed)))
-                    (when filtered
-                      `(,beg ,end ,filtered))))))
-             intervals)))
-  
-(defun mistty-merge-intervals (intervals)
-  (let ((c intervals))
-    (while c
-      (pcase c
-        ((and `((,beg1 ,end1 ,props1) (,beg2 ,end2 ,props2) . ,tail)
-              (guard (and (= end1 beg2)
-                          (equal props1 props2))))
-         (setcar c `(,beg1 ,end2 ,props1))
-         (setcdr c tail))
-        (_ (setq c (cdr c)))))
-    intervals))
-
 (defun mistty-send-text (text &optional start)
   "Send TEXT and wait until it appears after START.
 
@@ -1879,5 +1870,21 @@ text to be inserted there."
      :start start
      :regexp (mapconcat #'regexp-quote
                         (split-string text "[ \t\n\r]" 'omit-nulls)
-                        "[ \t\n\r]+"))
-    ))
+                        "[ \t\n\r]+"))))
+
+(defun mistty-show-property (prop val text)
+  "Put section with property PROP set to VAL within []."
+  (let ((idx 0)
+        (len (length text))
+        found output)
+    (while (and
+            (< idx len)
+            (setq found (text-property-any idx len prop val text)))
+      (push (substring text idx found) output)
+      (push "[" output)
+      (setq idx (next-single-property-change found prop text len))
+      (push (substring text found idx) output)
+      (push "]" output))
+    (push (substring text idx len) output)
+    (apply #'concat (nreverse output))))
+

@@ -1301,7 +1301,8 @@ to replay it afterwards."
 
             ;; Move to old-end, if possible. If not possible, remember
             ;; how far we went when deleting.
-            (when (> old-end beg)
+            (when (and (> old-end beg)
+                       (eq m first))
               (mistty--call-iter
                (mistty--move-cursor-generator old-end))
               (setq cursor (mistty-cursor))
@@ -1315,6 +1316,11 @@ to replay it afterwards."
 
             (iter-yield
              (concat
+              ;; move to old-end (except the first time, because then
+              ;; we want to check the result of that move)
+              (when (and (> old-end beg)
+                         (not (eq m first)))
+                (mistty--move-str (mistty-cursor) old-end 'no-wait))
               ;; delete
               (when (> old-end beg)
                 (mistty--repeat-string
@@ -1341,7 +1347,7 @@ to replay it afterwards."
                 ;; necessarily be INITIAL-POINT.
                 (setq mistty-goto-cursor-next-time t)
                 (goto-char initial-point)
-                (mistty--move-str end initial-point))))))
+                (mistty--move-str end initial-point 'no-wait))))))
 
         ;; Force refresh, even if nothing was sent, if only to revert what
         ;; couldn't be replayed.
@@ -1365,19 +1371,25 @@ to replay it afterwards."
   "Move the cursor to GOAL-POS."
   (iter-yield (mistty--move-str (mistty-cursor) goal-pos)))
   
-(defun mistty--move-str (from to)
+(defun mistty--move-str (from to &optional no-wait)
   "Builds a terminal sequence to move from FROM to TO.
 
-FROM and TO are positions in the work buffer."
-  (mistty--move-horizontally-str
-   (mistty--distance-on-term from to)))
+FROM and TO are positions in the work buffer.
 
-(defun mistty--move-horizontally-str (direction)
+If NO-WAIT is non-til, don't attempt to extend the string to
+force a response from the program."
+  (mistty--move-horizontally-str
+   (mistty--distance-on-term from to) no-wait))
+
+(defun mistty--move-horizontally-str (direction &optional no-wait)
   "Return a key sequence to move horizontally.
 
 The absolute value of DIRECTION specifies the number of character
- to move and the sign specifies whether to go right (positive) or
- left (negative)."
+to move and the sign specifies whether to go right (positive) or
+left (negative).
+
+If NO-WAIT is non-til, don't attempt to extend the string to
+force a response from the program."
   (if (zerop direction)
       ""
     (let ((distance (abs direction))
@@ -1391,8 +1403,8 @@ The absolute value of DIRECTION specifies the number of character
        ;; just not possible to go left anymore, the connected process
        ;; might still send *something* back and mistty--send-and-wait
        ;; won't have to time out.
-       away-from-str
-       towards-str))))
+       (unless no-wait
+         (concat away-from-str towards-str))))))
 
 (defun mistty--distance-on-term (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.

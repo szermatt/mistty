@@ -1150,7 +1150,8 @@ KEY must be a string or vector as would be returned by `kbd'.
 This command is available in fullscreen mode."
   (interactive "p")
   (let* ((key (or key (this-command-keys-vector)))
-         (translated-key (mistty-translate-key key n)))
+         (translated-key (mistty-translate-key key n))
+         (fire-and-forget (string-match "^[[:graph:]]+$" translated-key)))
     (cond 
      ((and (buffer-live-p mistty-work-buffer)
            (not (buffer-local-value
@@ -1159,7 +1160,8 @@ This command is available in fullscreen mode."
         (setq mistty-goto-cursor-next-time t)
         (when (or positional (mistty-positional-p key))
           (mistty-before-positional))
-        (mistty--enqueue-str mistty--queue translated-key)))
+        (mistty--enqueue-str
+         mistty--queue translated-key fire-and-forget)))
 
      ((process-live-p mistty-proc)
       (mistty--send-string mistty-proc translated-key))

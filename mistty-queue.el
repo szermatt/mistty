@@ -65,12 +65,17 @@
     (mistty-log "SEND[%s]" str)
     (process-send-string proc str)))
 
-(defun mistty--enqueue-str (queue str)
+(defun mistty--enqueue-str (queue str &optional fire-and-forget)
   "Enqueue sending STR to the terminal into QUEUE.
 
 Does nothing is STR is nil or empty."
   (when (mistty--nonempty-str-p str)
-    (mistty--enqueue queue (mistty--iter-single str))))
+    (mistty--enqueue
+     queue
+     (mistty--iter-single
+      (if fire-and-forget
+          (list 'fire-and-forget str)
+        str)))))
 
 (defun mistty--enqueue (queue gen)
   "Add GEN to QUEUE.
@@ -105,17 +110,27 @@ If VALUE is set, send that value to the first call to `iter-next'."
   (unless (mistty--queue-empty-p queue)
     (condition-case nil
         (let ((proc (mistty--queue-proc queue))
-              seq)
-          (setq seq (iter-next (mistty--queue-iter queue) value))
-          (while (not (mistty--nonempty-str-p seq))
-            (setq seq (iter-next (mistty--queue-iter queue))))
-          (setf (mistty--queue-timeout queue)
-                (run-with-timer
-                 0.5 nil #'mistty--timeout-handler
-                 (current-buffer) queue))
-          (mistty--send-string proc seq))
-    (iter-end-of-sequence
-     (setf (mistty--queue-iter queue) nil)))))
+              (stop nil))
+          (while (not stop)
+            (let ((next-value (iter-next (mistty--queue-iter queue) value)))
+              (setq value nil)
+              (cond
+               ;; Fire-and-forget; no need to wait for a response
+               ((and (listp next-value)
+                     (eq (nth 0 next-value) 'fire-and-forget)
+                     (mistty--nonempty-str-p (nth 1 next-value)))
+                (mistty--send-string proc (nth 1 next-value)))
+
+               ;; Normal sequences
+               ((mistty--nonempty-str-p next-value)
+                (setf (mistty--queue-timeout queue)
+                      (run-with-timer
+                       0.5 nil #'mistty--timeout-handler
+                       (current-buffer) queue))
+                (mistty--send-string proc next-value)
+                (setq stop t))))))
+      (iter-end-of-sequence
+       (setf (mistty--queue-iter queue) nil)))))
 
 (defun mistty--dequeue-with-timer (queue)
   "Call `mistty--dequeue' on QUEUE on a timer.

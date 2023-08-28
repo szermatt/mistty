@@ -796,6 +796,38 @@ waiting for failing test results.")
      (should (equal 45 (mistty--distance-on-term one end)))
      (should (equal -45 (mistty--distance-on-term end one))))))
 
+(ert-deftest test-mistty-distance-on-term-skipped-spaces ()
+  (with-mistty-buffer-fish
+   (mistty-send-text "for i in (seq 10)\necho line $i\nend")
+
+   (should (equal (concat "$ for i in (seq 10)\n"
+                          "[      ]echo line $i\n"
+                          "[  ]end")
+                  (mistty-test-content
+                   :strip-last-prompt t
+                   :show-property '(mistty-skip t))))
+   (let (a b)
+
+     (mistty-test-goto-after "(seq 10)")
+     (setq a (point))
+     (mistty-test-goto "echo")
+     (setq b (point))
+
+     (should (equal 1 (mistty--distance-on-term a b)))
+     (should (equal 1 (mistty--distance-on-term a (- b 1))))
+     (should (equal 0 (mistty--distance-on-term (+ a 1) b)))
+     (should (equal 0 (mistty--distance-on-term (+ a 1) (- b 1))))
+
+     (should (equal 2 (mistty--distance-on-term (- a 1) b)))
+     (should (equal 3 (mistty--distance-on-term (- a 1) (+ 1 b))))
+
+     (mistty-test-goto "for")
+     (setq a (point))
+     (mistty-test-goto "end")
+     (setq b (point))
+
+     (should (equal 31 (mistty--distance-on-term a b))))))
+
 (ert-deftest test-mistty-insert-long-prompt ()
   (with-mistty-buffer
    (mistty--set-process-window-size 20 20)

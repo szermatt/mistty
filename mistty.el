@@ -1419,10 +1419,10 @@ END section to be valid in the term buffer."
           (sign (if (< end beg) -1 1)))
       (let ((pos beg) (distance 0))
         (while (< pos end)
-          (setq pos (1+ pos))
           (unless (or (get-text-property pos 'term-line-wrap)
                       (get-text-property pos 'mistty-skip))
-            (setq distance (1+ distance))))
+            (setq distance (1+ distance)))
+          (setq pos (1+ pos)))
         (* sign distance)))))
 
 (defun mistty-next-prompt (n)

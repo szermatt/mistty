@@ -780,52 +780,7 @@ waiting for failing test results.")
    (mistty-wait-for-output :str "$ ")
    (should (equal "second" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-distance-on-term ()
-  (with-mistty-buffer-selected
-   (mistty--send-string
-    mistty-proc "echo one two three four five six seven eight nine")
-   ;; not using mistty-send-text as words might be split by fake
-   ;; newlines.
-   (mistty-wait-for-output :str "nine")
-   
-   (mistty-send-and-wait-for-prompt)
-
-   (let ((two (mistty-test-goto "two"))
-         (three (mistty-test-goto "three"))
-         (four (mistty-test-goto "four")))
-     (should (equal 4 (mistty--distance-on-term two three)))
-     (should (equal 6 (mistty--distance-on-term three four)))
-     (should (equal -4 (mistty--distance-on-term three two))))))
-
-(ert-deftest test-mistty-distance-on-term-with-hard-newlines ()
-  (with-mistty-buffer
-   (mistty--set-process-window-size 20 20)
-
-   (mistty--send-string
-    mistty-proc "echo one two three four five six seven eight nine")
-   ;; not using mistty-send-text as words might be split by fake
-   ;; newlines.
-   (mistty-wait-for-output :str "nine")
-
-   (mistty-send-and-wait-for-prompt)
-
-   (should (equal (concat "$ echo one two three\n"
-                          " four five six seven\n"
-                          " eight nine\n"
-                          "one two three four f\n"
-                          "ive six seven eight\n"
-                          "nine")
-                  (mistty-test-content :strip-last-prompt t)))
-
-   (let ((one (mistty-test-goto "one"))
-         (six (mistty-test-goto "six"))
-         (end (mistty-test-goto-after "nine\n")))
-     (should (equal 24 (mistty--distance-on-term one six)))
-     (should (equal -24 (mistty--distance-on-term six one)))
-     (should (equal 45 (mistty--distance-on-term one end)))
-     (should (equal -45 (mistty--distance-on-term end one))))))
-
-(ert-deftest test-mistty-distance-on-term-skipped-spaces ()
+(ert-deftest test-mistty-skipped-spaces ()
   (with-mistty-buffer-fish
    (mistty-send-text "for i in (seq 10)\necho line $i\nend")
 
@@ -834,28 +789,7 @@ waiting for failing test results.")
                           "[  ]end")
                   (mistty-test-content
                    :strip-last-prompt t
-                   :show-property '(mistty-skip t))))
-   (let (a b)
-
-     (mistty-test-goto-after "(seq 10)")
-     (setq a (point))
-     (mistty-test-goto "echo")
-     (setq b (point))
-
-     (should (equal 1 (mistty--distance-on-term a b)))
-     (should (equal 1 (mistty--distance-on-term a (- b 1))))
-     (should (equal 0 (mistty--distance-on-term (+ a 1) b)))
-     (should (equal 0 (mistty--distance-on-term (+ a 1) (- b 1))))
-
-     (should (equal 2 (mistty--distance-on-term (- a 1) b)))
-     (should (equal 3 (mistty--distance-on-term (- a 1) (+ 1 b))))
-
-     (mistty-test-goto "for")
-     (setq a (point))
-     (mistty-test-goto "end")
-     (setq b (point))
-
-     (should (equal 31 (mistty--distance-on-term a b))))))
+                   :show-property '(mistty-skip t))))))
 
 (ert-deftest test-mistty-insert-long-prompt ()
   (with-mistty-buffer

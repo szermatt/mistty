@@ -1373,25 +1373,6 @@ to replay it afterwards."
     (when mistty--need-refresh
       (mistty--refresh))))
 
-(iter-defun mistty--move-cursor-generator (goal-pos)
-  "Move the cursor to GOAL-POS."
-  (let ((cursor (mistty-cursor)))
-    (mistty-log "MOVE: %s -> %s (distance %s)" cursor goal-pos (mistty--distance-on-term cursor goal-pos))
-    (iter-yield (mistty--move-str cursor goal-pos))
-    (mistty-log "MOVE: %s -> %s (distance %s) result: %s"
-                cursor goal-pos (mistty--distance-on-term cursor goal-pos)
-                (if (= (mistty-cursor) goal-pos) "OK" (mistty-cursor)))))
-  
-(defun mistty--move-str (from to &optional no-wait)
-  "Builds a terminal sequence to move from FROM to TO.
-
-FROM and TO are positions in the work buffer.
-
-If NO-WAIT is non-til, don't attempt to extend the string to
-force a response from the program."
-  (mistty--move-horizontally-str
-   (mistty--distance-on-term from to) no-wait))
-
 (defun mistty--move-horizontally-str (direction &optional no-wait)
   "Return a key sequence to move horizontally.
 
@@ -1416,32 +1397,6 @@ force a response from the program."
        ;; won't have to time out.
        (unless no-wait
          (concat away-from-str towards-str))))))
-
-(defun mistty--distance-on-term (beg end)
-  "Compute the number of cursor moves necessary to get from BEG to END.
-
-This function skips over the \\='term-line-wrap newlines as well
-as \\='mistty-skip spaces.
-
-While it takes BEG and END as work buffer positions, it looks in
-the term buffer to figure out, so it's important for the BEG and
-END section to be valid in the term buffer."
-  (with-current-buffer mistty-term-buffer
-    (mistty--distance
-     (mistty--safe-pos (mistty--from-work-pos beg))
-     (mistty--safe-pos (mistty--from-work-pos end)))))
-
-(defun mistty--distance (beg end)
-  (let ((beg (min beg end))
-        (end (max beg end))
-        (sign (if (< end beg) -1 1)))
-    (let ((pos beg) (distance 0))
-      (while (< pos end)
-        (unless (or (get-text-property pos 'term-line-wrap)
-                    (get-text-property pos 'mistty-skip))
-          (setq distance (1+ distance)))
-        (setq pos (1+ pos)))
-      (* sign distance))))
 
 (defun mistty-next-prompt (n)
   "Move the point to the Nth next prompt in the buffer."
@@ -1552,7 +1507,13 @@ post-command hook."
 (iter-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."
   (when (mistty-on-prompt-p (point))
-    (mistty--call-iter (mistty--move-cursor-generator (point)))))
+    (let* ((point-on-work (point))
+           (distance (with-current-buffer mistty-term-buffer
+                       (mistty--distance
+                        (process-mark mistty-proc)
+                        (mistty--from-work-pos point-on-work)))))
+      (unless (zerop distance)
+        (iter-yield (mistty--move-horizontally-str distance))))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

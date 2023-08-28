@@ -125,6 +125,52 @@
     (should (equal 1 (mistty--line-indent (mistty-test-pos "ghi"))))
     (should (equal 0 (mistty--line-indent (mistty-test-pos "jkl"))))))
 
+(ert-deftest test-mistty-distance-with-fake-nl ()
+  (ert-with-test-buffer ()
+   (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
+     (insert "echo one tw" fake-nl
+             "o three fou" fake-nl
+             "r five six " fake-nl
+             "seven eight" fake-nl
+             "nine")
+
+     (should (equal 4 (mistty--distance (mistty-test-pos "one")
+                                        (mistty-test-pos "tw"))))
+     (should (equal -4 (mistty--distance (mistty-test-pos "tw")
+                                         (mistty-test-pos "one"))))
+
+     (should (equal 4 (mistty--distance (mistty-test-pos "tw")
+                                        (mistty-test-pos "three"))))
+     (should (equal -4 (mistty--distance (mistty-test-pos "three")
+                                         (mistty-test-pos "tw"))))
+
+     (should (equal 19 (mistty--distance (mistty-test-pos "one")
+                                         (mistty-test-pos "five"))))
+
+     (should (equal 0 (mistty--distance (+ 3 (mistty-test-pos "fou"))
+                                        (+ 4 (mistty-test-pos "fou"))))))))
+
+(ert-deftest test-mistty-distance-skipped-spaces ()
+  (ert-with-test-buffer ()
+   (insert "$ for i in (seq 10)" (propertize "  " 'mistty-skip t)"\n"
+           (propertize "      " 'mistty-skip t) "echo line $i\n"
+           (propertize "  " 'mistty-skip t) "end")
+
+   (should (equal 1 (mistty--distance (+ 3 (mistty-test-pos "10)"))
+                                      (mistty-test-pos "echo"))))
+
+   (should (equal 1 (mistty--distance (+ 3 (mistty-test-pos "10)"))
+                                      (1- (mistty-test-pos "echo")))))
+
+   (should (equal 1 (mistty--distance (+ 4 (mistty-test-pos "10)"))
+                                      (mistty-test-pos "echo"))))
+   (should (equal 1 (mistty--distance (+ 4 (mistty-test-pos "10)"))
+                                        (1- (mistty-test-pos "echo")))))
+
+   (should (equal 31 (mistty--distance (mistty-test-pos "for")
+                                       (mistty-test-pos "end"))))))
+
+
 (defun mistty-test-pos (text)
   (save-excursion
     (goto-char (point-min))

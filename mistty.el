@@ -1246,7 +1246,6 @@ to replay it afterwards."
       (let ((intervals-start (mistty--changeset-beg cs))
             (intervals-end (mistty--changeset-end cs))
             (modifications (mistty--changeset-modifications cs))
-            (initial-point (point))
             first lower-limit upper-limit)
         (setq first (car modifications))
         (while modifications
@@ -1327,25 +1326,7 @@ to replay it afterwards."
                   (if (< (length sub) (length content))
                       (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
                     (mistty-log "INSERT: '%s'" sub))
-                  (mistty--maybe-bracketed-str sub)))
-
-              ;; After the last change, move the cursor back to point.
-              ;; We know the cursor is at END after the insertion or
-              ;; deletion. Move it back to INITIAL-POINT.
-              (when (and (null modifications)
-                         (>= initial-point mistty-sync-marker)
-                         (<= initial-point intervals-end))
-                (when lower-limit
-                  (setq initial-point (max lower-limit initial-point)))
-                (when upper-limit
-                  (setq initial-point (min upper-limit initial-point)))
-                ;; After having received the result from the server,
-                ;; go wherever the cursor ends up going; it might not
-                ;; necessarily be INITIAL-POINT.
-                (mistty-log "MOVE: %s -> %s" end initial-point)
-                (setq mistty-goto-cursor-next-time t)
-                (goto-char initial-point)
-                (mistty--move-str end initial-point 'no-wait))))))
+                  (mistty--maybe-bracketed-str sub)))))))
 
         ;; Force refresh, even if nothing was sent, if only to revert what
         ;; couldn't be replayed.
@@ -1525,7 +1506,8 @@ post-command hook."
           (setq mistty--need-refresh t)))
 
         (when replay
-          (mistty--enqueue mistty--queue (mistty--replay-generator cs)))
+          (mistty--enqueue mistty--queue (mistty--replay-generator cs))
+          (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))
 
         ;; Abandon changesets that haven't been picked up for replay.
         (when (and (not replay) (mistty--changeset-p cs))

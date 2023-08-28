@@ -741,6 +741,7 @@ from the ESHELL or SHELL environment variables."
     (goto-char (process-mark proc))
     (when (or (/= mistty-sync-marker old-sync-position)
               (< (point) mistty-sync-marker))
+      (mistty-log "RESET; unexpected change")
       (mistty--reset-markers))
     (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
       (mistty--detect-possible-prompt (point)))))
@@ -1065,6 +1066,10 @@ They are often the same position."
   (let ((cmd-start-pos (max sync-pos cmd-start-pos))
         (inhibit-read-only t)
         (inhibit-modification-hooks t))
+    (mistty-log "MOVE SYNC MARKER %s to %s (%s)"
+                mistty-sync-marker
+                sync-pos
+                (- sync-pos mistty-sync-marker))
     (move-marker mistty-sync-marker sync-pos)
     (move-marker mistty--cmd-start-marker cmd-start-pos)
     (move-overlay mistty--sync-ov sync-pos (point-max))

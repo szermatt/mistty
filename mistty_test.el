@@ -142,6 +142,23 @@ waiting for failing test results.")
    (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest test-mistty-reconcile-large-multiline-delete ()
+  (with-mistty-buffer-fish
+   (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")
+
+   (mistty-run-command
+    (goto-char (point-min))
+    (search-forward "this is a very long string to be deleted")
+    (goto-char (match-beginning 0))
+    (delete-region (match-beginning 0) (match-end 0))
+    (insert "foo"))
+   (mistty-wait-for-output :str "foo")
+
+   (should (equal (concat "$ for i in (seq 10)\n"
+                          "      echo foo<> $i\n"
+                          "  end")
+                  (mistty-test-content :show (point))))))
+
 (ert-deftest test-mistty-reconcile-replace ()
   (with-mistty-buffer
    (mistty-send-text "echo hello")
@@ -164,6 +181,18 @@ waiting for failing test results.")
    
    (should (equal "$ <>echo bonjour, bonjour" (mistty-test-content :show (point))))
    (should (equal "bonjour, bonjour" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest test-mistty-reconcile-replace-with-point-after-change ()
+  (with-mistty-buffer
+   (mistty-send-text "echo hello, hello world")
+   (mistty-run-command
+    (goto-char (point-min))
+    (while (search-forward "hello" nil t)
+      (replace-match "bonjour" nil t))
+    (mistty-test-goto "world"))
+
+   (should (equal "$ echo bonjour, bonjour <>world"
+                  (mistty-test-content :show (point))))))
 
 (ert-deftest test-mistty-reconcile-multiple-replace ()
   (with-mistty-buffer
@@ -1700,7 +1729,7 @@ waiting for failing test results.")
             (search-forward-regexp "^toto" nil 'noerror)))
    (mistty-run-command
     (insert "foobar"))
-   (should (equal "$ toto<>\ntoto0  toto1  toto2"
+   (should (equal "$ toto\ntoto<>0  toto1  toto2"
                   (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-queue-timeout ()
@@ -1839,6 +1868,58 @@ waiting for failing test results.")
      (ert-run-idle-timers)
      (should (<= (count-lines (point-min) (point-max)) 30)))))
 
+(ert-deftest mistty-test-from-pos-of ()
+  (with-mistty-buffer
+   (mistty--send-string mistty-proc "echo foo")
+   (mistty--send-string mistty-proc "\e[200~\n\e[201~")
+   (mistty--send-string mistty-proc "echo hello world")
+   (mistty-wait-for-output :str "hello world")
+   
+   (goto-char (point-min))
+   (should (equal (mistty-test-pos "foo")
+                  (mistty--from-term-pos
+                   (with-current-buffer mistty-term-buffer
+                     (goto-char (point-min))
+                     (mistty-test-pos "foo")))))
+
+   (goto-char (point-min))
+   (should (equal (mistty-test-pos "hello")
+                  (mistty--from-term-pos
+                   (with-current-buffer mistty-term-buffer
+                     (goto-char (point-min))
+                     (mistty-test-pos "hello")))))))
+
+(ert-deftest mistty-test-from-pos-of-ignore-trailing-spaces ()
+  (with-mistty-buffer
+   (mistty--send-string mistty-proc "echo foo")
+   (mistty--send-string mistty-proc "\e[200~\n\e[201~")
+   (mistty--send-string mistty-proc "echo hello world")
+   (mistty-wait-for-output :str "hello world")
+
+   ;; This simulates the terminal moving the point around, adding
+   ;; spaces, which should be ignored.
+   (with-current-buffer mistty-term-buffer
+     (let ((inhibit-read-only t))
+       (goto-char (point-min))
+       (mistty-test-goto "foo")
+       (term-move-to-column 40)
+       (mistty-test-goto "hello")
+       (term-move-to-column 40)))
+
+   (goto-char (point-min))
+   (should (equal (mistty-test-pos "foo")
+                  (mistty--from-term-pos
+                   (with-current-buffer mistty-term-buffer
+                     (goto-char (point-min))
+                     (mistty-test-pos "foo")))))
+
+   (goto-char (point-min))
+   (should (equal (mistty-test-pos "hello")
+                  (mistty--from-term-pos
+                   (with-current-buffer mistty-term-buffer
+                     (goto-char (point-min))
+                     (mistty-test-pos "hello")))))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 
@@ -1852,6 +1933,12 @@ waiting for failing test results.")
   "Search for STR, got to its beginning and return that position."
   (mistty-test-goto-after str)
   (goto-char (match-beginning 0)))
+
+(defun mistty-test-pos (str)
+  "Search for STR, returns its position."
+  (save-excursion
+    (mistty-test-goto-after str)
+    (match-beginning 0)))
 
 (defun mistty-test-goto-after (str)
   "Search for STR, got to its end and return that position."

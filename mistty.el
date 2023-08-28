@@ -1299,23 +1299,30 @@ to replay it afterwards."
                 (setq upper-limit cursor))
               (setq old-end (max beg (min old-end cursor))))
 
+            (mistty-log "REPLAY: cursor: %s beg: %s end: %s old-end: %s"
+                        (mistty-cursor) beg end old-end)
             (iter-yield
              (concat
               ;; move to old-end (except the first time, because then
               ;; we want to check the result of that move)
               (when (and (> old-end beg)
                          (not (eq m first)))
+                (mistty-log "MOVE %s -> %s" (mistty-cursor) old-end)
                 (mistty--move-str (mistty-cursor) old-end 'no-wait))
               ;; delete
               (when (> old-end beg)
+                (mistty-log "DELETE %s chars" (mistty--distance-on-term beg old-end))
                 (mistty--repeat-string
                  (mistty--distance-on-term beg old-end) "\b"))
               ;; insert
               (when (and (> end beg) (>= beg orig-beg))
-                (mistty--maybe-bracketed-str
-                 (let ((start-idx (max 0 (- beg orig-beg)))
-                       (end-idx (min (length content) (max 0 (- end orig-beg)))))
-                   (substring content start-idx end-idx))))
+                (let* ((start-idx (max 0 (- beg orig-beg)))
+                       (end-idx (min (length content) (max 0 (- end orig-beg))))
+                       (sub (substring content start-idx end-idx)))
+                  (if (< (length sub) (length content))
+                      (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
+                    (mistty-log "INSERT: '%s'" sub))
+                  (mistty--maybe-bracketed-str sub)))
 
               ;; After the last change, move the cursor back to point.
               ;; We know the cursor is at END after the insertion or
@@ -1330,6 +1337,7 @@ to replay it afterwards."
                 ;; After having received the result from the server,
                 ;; go wherever the cursor ends up going; it might not
                 ;; necessarily be INITIAL-POINT.
+                (mistty-log "MOVE: %s -> %s" end initial-point)
                 (setq mistty-goto-cursor-next-time t)
                 (goto-char initial-point)
                 (mistty--move-str end initial-point 'no-wait))))))
@@ -1354,7 +1362,12 @@ to replay it afterwards."
 
 (iter-defun mistty--move-cursor-generator (goal-pos)
   "Move the cursor to GOAL-POS."
-  (iter-yield (mistty--move-str (mistty-cursor) goal-pos)))
+  (let ((cursor (mistty-cursor)))
+    (mistty-log "MOVE: %s -> %s (distance %s)" cursor goal-pos (mistty--distance-on-term cursor goal-pos))
+    (iter-yield (mistty--move-str cursor goal-pos))
+    (mistty-log "MOVE: %s -> %s (distance %s) result: %s"
+                cursor goal-pos (mistty--distance-on-term cursor goal-pos)
+                (if (= (mistty-cursor) goal-pos) "OK" (mistty-cursor)))))
   
 (defun mistty--move-str (from to &optional no-wait)
   "Builds a terminal sequence to move from FROM to TO.

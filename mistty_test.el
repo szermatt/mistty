@@ -1889,36 +1889,58 @@ waiting for failing test results.")
                      (goto-char (point-min))
                      (mistty-test-pos "hello")))))))
 
-(ert-deftest mistty-test-from-pos-of-ignore-trailing-spaces ()
+(ert-deftest mistty-test-ignore-new-trailing-spaces-during-replay ()
   (with-mistty-buffer
    (mistty--send-string mistty-proc "echo foo")
    (mistty--send-string mistty-proc "\e[200~\n\e[201~")
    (mistty--send-string mistty-proc "echo hello world")
-   (mistty-wait-for-output :str "hello world")
+   (mistty--send-string mistty-proc "\e[200~\n\e[201~")
+   (mistty--send-string mistty-proc "echo bar")
+   (mistty-wait-for-output :str "bar")
 
-   ;; This simulates the terminal moving the point around, adding
-   ;; spaces, which should be ignored.
-   (with-current-buffer mistty-term-buffer
-     (let ((inhibit-read-only t))
-       (goto-char (point-min))
-       (mistty-test-goto "foo")
-       (term-move-to-column 40)
-       (mistty-test-goto "hello")
-       (term-move-to-column 40)))
+   ;; This attempts to simulation a situation where the cursor goes
+   ;; through columns that don't exist during replay and creates fake
+   ;; spaces. It very much depends on the shell, however.
+   (mistty-run-command
+    (mistty-test-goto "foo")
+    (insert "FOO:")
+    (mistty-test-goto "hello")
+    (insert "HELLO:")
+    (mistty-test-goto "world")
+    (insert "WORLD:")
+    (mistty-test-goto "bar")
+    (insert "BAR:"))
 
-   (goto-char (point-min))
-   (should (equal (mistty-test-pos "foo")
-                  (mistty--from-term-pos
-                   (with-current-buffer mistty-term-buffer
-                     (goto-char (point-min))
-                     (mistty-test-pos "foo")))))
+   (should (equal (concat "$ echo FOO:foo\n"
+                          "echo HELLO:hello WORLD:world\n"
+                          "echo BAR:<>bar")
+                  (mistty-test-content :show (point))))))
 
-   (goto-char (point-min))
-   (should (equal (mistty-test-pos "hello")
-                  (mistty--from-term-pos
-                   (with-current-buffer mistty-term-buffer
-                     (goto-char (point-min))
-                     (mistty-test-pos "hello")))))))
+(ert-deftest mistty-test-ignore-new-trailing-spaces-during-replay-fish ()
+  (with-mistty-buffer-fish
+   (mistty--send-string mistty-proc "for i in (seq 10)\necho boo line $i\nend")
+   (mistty-wait-for-output :str "end")
+
+   ;; This attempts to simulation a situation where the cursor goes
+   ;; through columns that don't exist during replay and creates fake
+   ;; spaces. It very much depends on the shell, however.
+   (mistty-run-command
+    (mistty-test-goto-after "(seq 10")
+    (insert "1")
+
+    (mistty-test-goto "boo")
+    (insert "BOO:")
+
+    (mistty-test-goto "line")
+    (insert "LINE:")
+
+    (mistty-test-goto-after "end")
+    (insert "#done"))
+
+   (should (equal (concat "$ for i in (seq 101)\n"
+                          "      echo BOO:boo LINE:line $i\n"
+                          "      end#done<>")
+                  (mistty-test-content :show (point))))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
@@ -1978,7 +2000,6 @@ waiting for failing test results.")
              "bind \\eOD backward-char; "
              "bind \\ca beginning-of-line; "
              "bind \\ce end-of-line; "))
-    (setq mistty-log t)
     (mistty-send-and-wait-for-prompt (lambda ())))
    
    ((eq shell 'python)

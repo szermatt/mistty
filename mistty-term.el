@@ -594,7 +594,7 @@ This function returns the newly-created buffer."
     (when (> (point) initial-end)
       (put-text-property initial-end (point) 'mistty-skip t))))
 
-(defun mistty--maybe-bracketed-str (str)
+(defun mistty--maybe-bracketed-str (bracketed-paste str)
   "Prepare STR to be sent, possibly bracketed, to the terminal.
 
 If bracketed paste is enabled and STR contains control and
@@ -602,7 +602,7 @@ bracketed paste is enabled, this function returns STR with
 bracketed paste brackets around it."
   (let ((str (string-replace "\t" (make-string tab-width ? ) str)))
     (cond
-     ((not mistty-bracketed-paste) str)
+     ((not bracketed-paste) str)
      ((not (string-match "[[:cntrl:]]" str)) str)
      (t (concat "\e[200~"
                 str

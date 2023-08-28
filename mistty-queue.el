@@ -110,25 +110,28 @@ If VALUE is set, send that value to the first call to `iter-next'."
   (unless (mistty--queue-empty-p queue)
     (condition-case nil
         (let ((proc (mistty--queue-proc queue))
-              (stop nil))
-          (while (not stop)
-            (let ((next-value (iter-next (mistty--queue-iter queue) value)))
-              (setq value nil)
-              (cond
-               ;; Fire-and-forget; no need to wait for a response
-               ((and (listp next-value)
-                     (eq (nth 0 next-value) 'fire-and-forget)
-                     (mistty--nonempty-str-p (nth 1 next-value)))
-                (mistty--send-string proc (nth 1 next-value)))
+              (stop nil)
+              (calling-buffer (current-buffer)))
+          (save-excursion
+            (while (not stop)
+              (let ((next-value (iter-next (mistty--queue-iter queue) value)))
+                (set-buffer calling-buffer)
+                (setq value nil)
+                (cond
+                 ;; Fire-and-forget; no need to wait for a response
+                 ((and (listp next-value)
+                       (eq (nth 0 next-value) 'fire-and-forget)
+                       (mistty--nonempty-str-p (nth 1 next-value)))
+                  (mistty--send-string proc (nth 1 next-value)))
 
-               ;; Normal sequences
-               ((mistty--nonempty-str-p next-value)
-                (setf (mistty--queue-timeout queue)
-                      (run-with-timer
-                       0.5 nil #'mistty--timeout-handler
-                       (current-buffer) queue))
-                (mistty--send-string proc next-value)
-                (setq stop t))))))
+                 ;; Normal sequences
+                 ((mistty--nonempty-str-p next-value)
+                  (setf (mistty--queue-timeout queue)
+                        (run-with-timer
+                         0.5 nil #'mistty--timeout-handler
+                         (current-buffer) queue))
+                  (mistty--send-string proc next-value)
+                  (setq stop t)))))))
       (iter-end-of-sequence
        (setf (mistty--queue-iter queue) nil)))))
 

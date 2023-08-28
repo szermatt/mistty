@@ -1242,102 +1242,129 @@ to replay it afterwards."
       (mistty--changeset-mark-region cs beg end old-end))))
 
 (iter-defun mistty--replay-generator (cs)
-  (unwind-protect
-      (let ((intervals-start (mistty--changeset-beg cs))
-            (intervals-end (mistty--changeset-end cs))
-            (modifications (mistty--changeset-modifications cs))
-            first lower-limit upper-limit)
-        (setq first (car modifications))
-        (while modifications
-          (let* ((m (car modifications))
-                 (orig-beg (nth 0 m))
-                 (content (nth 1 m))
-                 (old-length (nth 2 m))
-                 (cursor (mistty-cursor))
-                 (beg orig-beg)
-                 (end (+ orig-beg (length content)))
-                 (old-end (if (>= old-length 0)
-                              (+ orig-beg old-length)
-                            (mistty--from-pos-of (with-current-buffer mistty-term-buffer (point-max))
-                                                 mistty-term-buffer))))
-            (setq modifications (cdr modifications))
+  (let ((backstage (mistty--create-backstage mistty-proc))
+        (work-buffer mistty-work-buffer))
+    (unwind-protect
+        (let ((work-sync-marker (marker-position mistty-sync-marker))
+              (bracketed-paste mistty-bracketed-paste)
+              (log-enabled mistty-log)
+              (proc mistty-proc)
+              (intervals-start (mistty--changeset-beg cs))
+              (intervals-end (mistty--changeset-end cs))
+              (modifications (mistty--changeset-modifications cs))
+              (beg (make-marker))
+              (old-end (make-marker))
+              (is-first t)
+              lower-limit upper-limit distance)
 
-            (mistty-log "replay: %s" m)
+          ;; iter-yield doesn't preserve with-current-buffer, so let's
+          ;; use set-buffer here and after every yield.
+          (set-buffer backstage)
+          (setq-local mistty-log log-enabled)
 
-            (when lower-limit
-              (setq beg (max lower-limit beg)))
-            (when upper-limit
-              (setq end (min upper-limit end)
-                    old-end (min upper-limit old-end)))
+          ;; Move modifications positions into the backstage buffer.
+          ;; Rely on markers to keep the positions valid through
+          ;; buffer modifications.
+          (dolist (m modifications)
+            (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min)))))
+          (setq lower-limit (point-min-marker))
+          (setq upper-limit (point-max-marker))
+
+          (pcase-dolist (`(,orig-beg ,content ,old-length) modifications)
+            (move-marker beg (max lower-limit orig-beg))
+            (move-marker old-end
+                         (if (>= old-length 0)
+                             (min upper-limit (+ orig-beg old-length))
+                           (point-max)))
+
+            (mistty-log "replay: %s %s %s old-content: %s (limit: [%s-%s])"
+                        (marker-position orig-beg)
+                        content
+                        old-length
+                        (mistty--safe-bufstring beg old-end)
+                        (marker-position lower-limit)
+                        (marker-position upper-limit))
 
             ;; Move to beg, if possible. If not possible, remember how
             ;; far back we went when inserting.
-            (when (> end beg)
-              (mistty--call-iter
-               (mistty--move-cursor-generator beg))
-              (setq cursor (mistty-cursor))
-              ;; cursor is as close to beg as we can make it
+            (when (length> content 0)
+              (setq distance (mistty--distance (point) beg))
+              (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
+              (iter-yield (mistty--move-horizontally-str distance))
+              (set-buffer backstage)
+              (mistty--update-backstage backstage proc)
+              (mistty-log "Got to %s" (point))
 
-              ;; We couldn't move cursor as far back as beg. Presumably, the
+              ;; Point is now as close to beg as we can make it
+
+              ;; We couldn't move point as far back as beg. Presumably, the
               ;; process mark points to the leftmost modifiable position of
               ;; the command line.
-              (when (and (> cursor beg)
-                         (> (mistty--distance-on-term beg cursor) 0))
-                (mistty-log "LOWER LIMIT: %s (wanted %s)" cursor beg)
-                (setq lower-limit cursor))
-              (setq beg cursor))
+              (when (and (> (point) beg)
+                         (> (mistty--distance beg (point)) 0))
+                (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) beg)
+                (move-marker lower-limit (point)))
+              (move-marker beg (point)))
 
             ;; Move to old-end, if possible. If not possible, remember
             ;; how far we went when deleting.
-            (when (and (> old-end beg)
-                       (eq m first))
-              (mistty--call-iter
-               (mistty--move-cursor-generator old-end))
-              (setq cursor (mistty-cursor))
-              (when (and (> beg cursor)
-                         (> (mistty--distance-on-term beg cursor) 0))
+            (when (and is-first (> old-end beg))
+              (setq distance (mistty--distance (point) old-end))
+              (mistty-log "to old-end: %s -> %s distance: %s" (point) old-end distance)
+              (iter-yield (mistty--move-horizontally-str distance))
+              (set-buffer backstage)
+              (mistty--update-backstage backstage proc)
+              (mistty-log "Got to %s" (point))
+
+              (when (and (> beg (point))
+                         (> (mistty--distance beg (point)) 0))
                 ;; If we couldn't even get to beg we'll have trouble with
                 ;; the next modifications, too, as they start left of this
                 ;; one. Remember that.
-                (mistty-log "UPPER LIMIT: %s (wanted %s)" cursor old-end)
-                (setq upper-limit cursor))
-              (setq old-end (max beg (min old-end cursor))))
+                (mistty-log "UPPER LIMIT: %s (wanted %s)" (point) old-end)
+                (move-marker upper-limit (point)))
+              (move-marker old-end (max beg (min old-end (point)))))
 
-            (mistty-log "REPLAY: cursor: %s beg: %s end: %s old-end: %s"
-                        (mistty-cursor) beg end old-end)
+            (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
             (iter-yield
              (concat
               ;; move to old-end (except the first time, because then
               ;; we want to check the result of that move)
-              (when (and (> old-end beg)
-                         (not (eq m first)))
-                (mistty-log "MOVE %s -> %s" (mistty-cursor) old-end)
-                (mistty--move-str (mistty-cursor) old-end 'no-wait))
+              (when (and (not is-first) (> old-end beg))
+                (mistty-log "MOVE %s -> %s" (point) old-end)
+                (mistty--move-horizontally-str
+                 (mistty--distance (point) old-end) 'no-wait))
               ;; delete
               (when (> old-end beg)
-                (mistty-log "DELETE %s chars" (mistty--distance-on-term beg old-end))
-                (mistty--repeat-string
-                 (mistty--distance-on-term beg old-end) "\b"))
+                (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
+                (mistty--repeat-string (mistty--distance beg old-end) "\b"))
               ;; insert
-              (when (and (> end beg) (>= beg orig-beg))
-                (let* ((start-idx (max 0 (- beg orig-beg)))
-                       (end-idx (min (length content) (max 0 (- end orig-beg))))
-                       (sub (substring content start-idx end-idx)))
-                  (if (< (length sub) (length content))
+              (when (and (>= beg orig-beg) (length> content 0))
+                (let* ((start-idx (min (length content) (max 0 (- beg orig-beg))))
+                       (sub (substring content start-idx)))
+                  (if (> start-idx 0)
                       (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
                     (mistty-log "INSERT: '%s'" sub))
-                  (mistty--maybe-bracketed-str sub)))))))
+                  (mistty--maybe-bracketed-str bracketed-paste sub)))))
+            (setq is-first nil)
+            (set-buffer backstage)
+            (mistty--update-backstage backstage proc))
 
-        ;; Force refresh, even if nothing was sent, if only to revert what
-        ;; couldn't be replayed.
-        (setq mistty--need-refresh t)
+          (set-buffer work-buffer)
 
-        (setf (mistty--changeset-applied cs) t))
+          ;; Force refresh, even if nothing was sent, if only to revert what
+          ;; couldn't be replayed.
+          (setq mistty--need-refresh t)
 
-    ;; Unwind; always release the changeset at the end and re-enable
-    ;; refresh.
-    (mistty--release-changeset cs)
-    (mistty--refresh-after-changeset)))
+          (setf (mistty--changeset-applied cs) t))
+
+      ;; Unwind
+      (set-buffer work-buffer)
+      (mistty--delete-backstage backstage)
+      ;; Always release the changeset at the end and re-enable
+      ;; refresh.
+      (mistty--release-changeset cs)
+      (mistty--refresh-after-changeset))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."
@@ -1400,16 +1427,21 @@ While it takes BEG and END as work buffer positions, it looks in
 the term buffer to figure out, so it's important for the BEG and
 END section to be valid in the term buffer."
   (with-current-buffer mistty-term-buffer
-    (let ((beg (mistty--safe-pos (mistty--from-work-pos (min beg end))))
-          (end (mistty--safe-pos (mistty--from-work-pos (max beg end))))
-          (sign (if (< end beg) -1 1)))
-      (let ((pos beg) (distance 0))
-        (while (< pos end)
-          (unless (or (get-text-property pos 'term-line-wrap)
-                      (get-text-property pos 'mistty-skip))
-            (setq distance (1+ distance)))
-          (setq pos (1+ pos)))
-        (* sign distance)))))
+    (mistty--distance
+     (mistty--safe-pos (mistty--from-work-pos beg))
+     (mistty--safe-pos (mistty--from-work-pos end)))))
+
+(defun mistty--distance (beg end)
+  (let ((beg (min beg end))
+        (end (max beg end))
+        (sign (if (< end beg) -1 1)))
+    (let ((pos beg) (distance 0))
+      (while (< pos end)
+        (unless (or (get-text-property pos 'term-line-wrap)
+                    (get-text-property pos 'mistty-skip))
+          (setq distance (1+ distance)))
+        (setq pos (1+ pos)))
+      (* sign distance))))
 
 (defun mistty-next-prompt (n)
   "Move the point to the Nth next prompt in the buffer."
@@ -1735,6 +1767,38 @@ the prompt."
   (when mistty--possible-prompt
     (pcase-let ((`(,start ,line-start ,_) mistty--possible-prompt))
       (and (>= pos line-start) (<= pos (mistty--eol start))))))
+
+(defun mistty--create-backstage (proc)
+  "Create a backstage buffer for PROC.
+
+A backstage buffer is a partial copy of PROC's buffer that's kept
+up-to-date with replace-buffer-contents, so markers can be used
+to keep positions stable while the buffer is being modified."
+  (let ((backstage (generate-new-buffer " *mistty-backstage" t)))
+    (with-current-buffer backstage
+      (setq-local mistty-sync-marker (point-min)))
+    (mistty--update-backstage backstage proc)
+    backstage))
+
+(defun mistty--update-backstage (backstage proc)
+  "Update BACKSTAGE to include the latest updates from PROC.
+
+The point is set to the equivalent of proc marker
+position (cursor) in the buffer."
+  (mistty--with-live-buffer (process-buffer proc)
+    (save-restriction
+      (let* ((sync-marker mistty-sync-marker)
+             (properties (mistty--save-properties sync-marker)))
+        (narrow-to-region sync-marker (point-max-marker))
+        (with-current-buffer backstage
+          (replace-buffer-contents (process-buffer proc) 0.2)
+          (mistty--restore-properties properties (point-min))
+          (goto-char (+ (process-mark proc) (- sync-marker) (point-min))))))))
+
+(defun mistty--delete-backstage (backstage)
+  "Gets rid of a BACKSTAGE buffer."
+  (when (buffer-live-p backstage)
+    (kill-buffer backstage)))
 
 (provide 'mistty)
 

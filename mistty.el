@@ -1354,9 +1354,7 @@ to replay it afterwards."
 
           ;; Force refresh, even if nothing was sent, if only to revert what
           ;; couldn't be replayed.
-          (setq mistty--need-refresh t)
-
-          (setf (mistty--changeset-applied cs) t))
+          (setq mistty--need-refresh t))
 
       ;; Unwind
       (set-buffer work-buffer)

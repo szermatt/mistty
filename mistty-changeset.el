@@ -63,11 +63,7 @@ Use `mistty--active-changeset' to access it.")
   ;; Modification intervals collected from the buffer. As long as this
   ;; is nil, details about the modifications are stored in the buffer,
   ;; as text properties.
-  intervals
-
-  ;; if t, the change has been applied; such a change should
-  ;; be removed from mistty--changesets
-  applied)
+  intervals)
 
 (defsubst mistty--changeset-collected (changeset)
   "Evaluate to a true value if CHANGESET intervals exist.
@@ -100,7 +96,7 @@ This function also cleans up any change information left in the
   "Return the active changeset or nil.
 
 The active changeset is the first changeset on
-`mistty--changesets' and hasn't been collected or applied yet."
+`mistty--changesets' and hasn't been collected yet."
   (let ((head (car mistty--changesets)))
     (when
         (and head

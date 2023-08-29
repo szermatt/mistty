@@ -294,10 +294,10 @@ See mistty-queue.el.")
 (defvar-local mistty-sync-marker nil
   "A marker that links `mistty-term-buffer' to `mistty-work-buffer'.
 
-The region of the terminal that's copied to the work buffer
-starts at `mistty-sync-marker' and ends at `(point-max)' on both
-buffers. The two markers must always be kept in sync and updated
-at the same time.
+The region of the terminal that's copied to the work buffer by
+`mistty--sync-buffer' starts at `mistty-sync-marker' and ends
+at `(point-max)' on both buffers. The two markers must always be
+kept in sync.
 
 This variable is available in both the work buffer and the term
 buffer.")
@@ -869,29 +869,18 @@ Also updates prompt and point."
       (setq mistty--need-refresh t)
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
-          (old-point (point))
-          properties)
+          (old-point (point)))
       (setq mistty--need-refresh nil)
       (when (timerp mistty--refresh-timer)
         (cancel-timer mistty--refresh-timer)
         (setq mistty--refresh-timer nil))
 
       (mistty-log "refresh")
-      (mistty--with-live-buffer mistty-term-buffer
-        (save-restriction
-          (narrow-to-region mistty-sync-marker (point-max-marker))
-          (setq properties (mistty--save-properties mistty-sync-marker))
-          (mistty--with-live-buffer mistty-work-buffer
-            (save-restriction
-              (narrow-to-region mistty-sync-marker (point-max-marker))
-              (replace-buffer-contents mistty-term-buffer 0.2)
-              (mistty--restore-properties properties mistty-sync-marker)
-              (when (> mistty--cmd-start-marker mistty-sync-marker)
-                (mistty--set-prompt-properties
-                 mistty-sync-marker mistty--cmd-start-marker)))
-            (when (< old-point mistty-sync-marker)
-              ;; restore point, possibly moved by narrow-to-region.
-              (goto-char old-point)))))
+      (mistty--sync-buffer mistty-term-buffer)
+      (when (> mistty--cmd-start-marker mistty-sync-marker)
+        (mistty--set-prompt-properties
+         mistty-sync-marker mistty--cmd-start-marker))
+
 
       ;; Right after a mistty-send-command, we're waiting for a line
       ;; after mistty--end-prompt that's not part of the old prompt.
@@ -969,6 +958,39 @@ Also updates prompt and point."
               (mistty-goto-cursor))
           (setq mistty-goto-cursor-next-time nil)
           (setq mistty--cursor-after-last-refresh (mistty-cursor)))))))
+
+(defun mistty--sync-buffer (source-buffer)
+  "Copy the sync region of SOURCE-BUFFER to the current buffer.
+
+The region [mistty-sync-marker,(point-max)] is copied from PROC
+buffer to the current buffer. Both buffers must have
+`mistty-sync-marker' set.
+
+The text and text properties of the destination buffer are
+overwritten with the properties of SOURCE-BUFFER.
+
+Markers, overlays and point of the destination buffer are moved
+as relevant to the changes that happened on the process buffer
+since the last update.
+
+Does nothing if SOURCE-BUFFER is dead."
+  (let ((dest-buffer (current-buffer))
+        (old-point (and (< (point) mistty-sync-marker) (point))))
+    (mistty--with-live-buffer source-buffer
+      (save-restriction
+        (narrow-to-region mistty-sync-marker (point-max))
+        (let ((properties (mistty--save-properties (point-min))))
+          (with-current-buffer dest-buffer
+            (save-restriction
+              (narrow-to-region mistty-sync-marker (point-max))
+              (replace-buffer-contents source-buffer 0.2)
+              (mistty--restore-properties properties (point-min)))
+
+            ;; If the point was outside the sync region, restore it as it has
+            ;; been moved by narrow-to-region . Otherwise, trust
+            ;; replace-buffer-contents to do something reasonable with it.
+            (when old-point
+              (goto-char old-point))))))))
 
 (defun mistty--maybe-truncate-when-idle ()
   "Schedule a buffer truncation on an idle timer."
@@ -1744,15 +1766,11 @@ to keep positions stable while the buffer is being modified."
 
 The point is set to the equivalent of proc marker
 position (cursor) in the buffer."
-  (mistty--with-live-buffer (process-buffer proc)
-    (save-restriction
-      (let* ((sync-marker mistty-sync-marker)
-             (properties (mistty--save-properties sync-marker)))
-        (narrow-to-region sync-marker (point-max-marker))
-        (with-current-buffer backstage
-          (replace-buffer-contents (process-buffer proc) 0.2)
-          (mistty--restore-properties properties (point-min))
-          (goto-char (+ (process-mark proc) (- sync-marker) (point-min))))))))
+  (with-current-buffer backstage
+    (mistty--sync-buffer (process-buffer proc))
+    (goto-char
+     (mistty--from-pos-of
+      (process-mark proc) (process-buffer proc)))))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."

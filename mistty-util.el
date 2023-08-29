@@ -154,6 +154,10 @@ as \\='mistty-skip spaces."
         (setq pos (1+ pos)))
       (* sign distance))))
 
+(defun mistty--same-line-p (a b)
+  "Return non-nil if positions A and B are on the same line."
+  (= (mistty--bol a) (mistty--bol b)))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

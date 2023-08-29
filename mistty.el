@@ -99,6 +99,15 @@ differently from modifications made inside of the synced region."
   :type '(boolean)
   :group 'mistty)
 
+(defcustom mistty-skip-empty-spaces nil
+  "If non-nil the cursor skips over empty spaces like the shell does.
+
+With this option set, MisTTY attempts to reproduce the jumps the
+shell does when moving around a prompt that contains empty
+spaces, such as the indentation spaces fish adds."
+  :type '(boolean)
+  :group 'mistty)
+
 (defface mistty-fringe-face '((t (:foreground "purple")))
   "Color of the left fringe or margin that highlights the synced region.
 
@@ -415,6 +424,8 @@ Truncation is configured by `mistty-buffer-maximum-size'.")
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
   (setq-local scroll-conservatively 1024)
+
+  (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
 
   (when mistty-fringe-enabled
     (if (window-system)
@@ -1787,6 +1798,62 @@ position (cursor) in the buffer."
   "Gets rid of a BACKSTAGE buffer."
   (when (buffer-live-p backstage)
     (kill-buffer backstage)))
+
+(defun mistty--cursor-skip (win)
+  (when mistty-skip-empty-spaces
+    (let* ((pos (window-point win))
+           (skip-region (cons (mistty--cursor-skip-backward pos)
+                              (mistty--cursor-skip-forward pos)))
+           (beg (car skip-region))
+           (end (cdr skip-region))
+           (last-pos (window-parameter win 'mistty--last-pos))
+           (move-to
+            (cond
+             ((or (null beg) (null end)
+                  (= pos beg) (= pos end)) nil)
+             ;; horizontal movement from the left, go right
+             ((and last-pos (<= last-pos beg) (mistty--same-line-p last-pos beg))
+              end)
+             ;; horizontal movement from the right, go left
+             ((and last-pos (>= last-pos end) (mistty--same-line-p last-pos end))
+              beg)
+             ;; vertical move; on beg's line, so go to beg
+             ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
+              beg)
+             ;; vertical move; on end's line, so go to end
+             ((and (mistty--same-line-p pos end) (not (mistty--same-line-p pos beg)))
+              end)
+             ;; closer to beg than to end, go to beg
+             ((< (- pos beg) (- end pos))
+              beg)
+             ;; otherwise go to end
+             (t
+              end))))
+      (when move-to
+        (set-window-point win move-to))
+      (set-window-parameter win 'mistty--last-pos
+                            (or move-to pos)))))
+
+(defun mistty--cursor-skip-forward (pos)
+  (cond
+   ((get-text-property pos 'mistty-skip)
+    (mistty--cursor-skip-forward
+     (next-single-property-change pos 'mistty-skip nil (point-max))))
+   ((and (eq ?\n (char-after pos))
+         (and (< pos (point-max)) (get-text-property (1+ pos) 'mistty-skip)))
+    (mistty--cursor-skip-forward (1+ pos)))
+   (t pos)))
+
+(defun mistty--cursor-skip-backward (pos)
+  (cond
+   ((and (> pos (point-min))
+            (get-text-property (1- pos) 'mistty-skip))
+    (mistty--cursor-skip-backward
+     (previous-single-property-change pos 'mistty-skip nil (point-min))))
+   ((and (eq ?\n (char-before pos))
+         (and (get-text-property pos 'mistty-skip)))
+    (mistty--cursor-skip-backward (1- pos)))
+   (t pos)))
 
 (provide 'mistty)
 

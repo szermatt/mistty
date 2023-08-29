@@ -1876,6 +1876,117 @@ waiting for failing test results.")
                           "      end#done<>")
                   (mistty-test-content :show (point))))))
 
+(ert-deftest mistty-test-cursor-skip-range ()
+  (ert-with-test-buffer ()
+    (insert "$ for i in (seq 10)" (propertize "  " 'mistty-skip t)"\n"
+            (propertize "      " 'mistty-skip t) "echo line $i  \n"
+            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
+            "extra stuff goes here")
+
+    ;; skip over spaces marked with 'mistty-skip and newlines
+    ;; surrounded by such spaces.
+    (should (equal (mistty-test-pos "echo")
+                   (mistty--cursor-skip-forward (mistty-test-pos-after "(seq 10)"))))
+    (should (equal (mistty-test-pos-after "(seq 10)")
+                   (mistty--cursor-skip-backward (mistty-test-pos "echo"))))
+
+    (should (equal (mistty-test-pos-after "$i  ")
+                   (mistty--cursor-skip-backward (mistty-test-pos "end"))))
+    (should (equal (mistty-test-pos "end")
+                   (mistty--cursor-skip-forward (mistty-test-pos-after "$i  "))))
+
+    ;; newlines not surrounded by 'mistty-skip are not skipped over
+    (should (equal (1- (mistty-test-pos "extra"))
+                   (mistty--cursor-skip-forward (mistty-test-pos-after "end"))))
+    (should (equal (1- (mistty-test-pos "extra"))
+                   (mistty--cursor-skip-forward (1- (mistty-test-pos "extra")))))
+
+    ;; spaces not marked with 'mistty-skip are not skipped over
+    (should (equal (mistty-test-pos-after "$i")
+                   (mistty--cursor-skip-forward (mistty-test-pos-after "$i"))))))
+
+(ert-deftest mistty-test-cursor-skip-hook-go-right ()
+  (ert-with-test-buffer-selected ()
+    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
+            (propertize "      " 'mistty-skip t) "echo line $i\n"
+            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
+            "extra stuff goes here")
+
+    ;; go right from "for" to "end"
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (set-window-point win (mistty-test-pos "for"))
+      (mistty--cursor-skip win)
+      (goto-char (mistty-test-pos-after "a b c"))
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos-after "a b c") (window-point win)))
+      (goto-char (1+ (mistty-test-pos-after "a b c")))
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos "echo") (window-point win)))
+      (goto-char (1+ (mistty-test-pos-after "$i")))
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos "end") (window-point win))))))
+
+(ert-deftest mistty-test-cursor-skip-hook-go-left ()
+  (ert-with-test-buffer-selected ()
+    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
+            (propertize "      " 'mistty-skip t) "echo line $i\n"
+            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
+            "extra stuff goes here")
+
+    ;; go left from "end" to "for"
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (set-window-point win (mistty-test-pos "end"))
+      (mistty--cursor-skip win)
+      (goto-char (1- (mistty-test-pos "end")))
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos-after "$i") (window-point win)))
+      (goto-char (mistty-test-pos "echo"))
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos "echo") (window-point win)))
+      (goto-char (1- (mistty-test-pos "echo")))
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos-after "a b c") (window-point win))))))
+
+(ert-deftest mistty-test-cursor-skip-hook-go-down ()
+  (ert-with-test-buffer-selected ()
+    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
+            (propertize "      " 'mistty-skip t) "echo line $i\n"
+            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
+            "extra stuff goes here")
+
+    ;; go down from "for" to "end"
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (set-window-point win (mistty-test-pos "for"))
+      (mistty--cursor-skip win)
+      (vertical-motion 1 win)
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos "echo") (window-point win)))
+      (vertical-motion 1 win)
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos "end") (window-point win))))))
+
+(ert-deftest mistty-test-cursor-skip-hook-go-up ()
+  (ert-with-test-buffer-selected ()
+    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
+            (propertize "      " 'mistty-skip t) "echo line $i\n"
+            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
+            "extra stuff goes here")
+
+    ;; go up from "end" to "for"
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (set-window-point win (mistty-test-pos "end"))
+      (mistty--cursor-skip win)
+      (call-interactively 'previous-line)
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos "echo") (window-point win)))
+      (call-interactively 'previous-line)
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos-after "for ") (window-point win))))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 
@@ -1895,6 +2006,12 @@ waiting for failing test results.")
   (save-excursion
     (mistty-test-goto-after str)
     (match-beginning 0)))
+
+(defun mistty-test-pos-after (str)
+  "Search for STR, returns its end position."
+  (save-excursion
+    (mistty-test-goto-after str)
+    (match-end 0)))
 
 (defun mistty-test-goto-after (str)
   "Search for STR, got to its end and return that position."

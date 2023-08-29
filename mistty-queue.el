@@ -214,8 +214,8 @@ This function is meant to be use as timer handler."
   `(let ((iter ,iter))
      (unwind-protect
          (iter-do (value iter)
-           (iter-yield value)))
-     (iter-close iter)))
+           (iter-yield value))
+       (iter-close iter))))
 
 (iter-defun mistty--iter-chain (iter1 iter2)
   "Build a generator that first calls ITER1, then ITER2."

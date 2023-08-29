@@ -719,10 +719,8 @@ from the ESHELL or SHELL environment variables."
       (mistty--with-live-buffer term-buffer
         (mistty--process-terminal-seq proc str))
       (mistty--with-live-buffer work-buffer
-        (dolist (var mistty-variables-to-copy)
-          (when-let (val (buffer-local-value var term-buffer))
-            (make-local-variable var)
-            (set var val)))
+        (mistty--copy-buffer-local-variables
+         mistty-variables-to-copy term-buffer)
 
         (mistty--cancel-timeout mistty--queue)
         (when (or (and (mistty--queue-empty-p mistty--queue)
@@ -991,6 +989,15 @@ Does nothing if SOURCE-BUFFER is dead."
             ;; replace-buffer-contents to do something reasonable with it.
             (when old-point
               (goto-char old-point))))))))
+
+(defun mistty--copy-buffer-local-variables (variables source-buffer)
+  "Copy the buffer-local values of VARIABLES between buffers.
+
+Copies values from SOURCE-BUFFER to the current buffer."
+  (dolist (var variables)
+    (when-let (val (buffer-local-value var source-buffer))
+      (make-local-variable var)
+      (set var val))))
 
 (defun mistty--maybe-truncate-when-idle ()
   "Schedule a buffer truncation on an idle timer."
@@ -1268,8 +1275,6 @@ to replay it afterwards."
         (work-buffer mistty-work-buffer))
     (unwind-protect
         (let ((work-sync-marker (marker-position mistty-sync-marker))
-              (bracketed-paste mistty-bracketed-paste)
-              (log-enabled mistty-log)
               (proc mistty-proc)
               (intervals-start (mistty--changeset-beg cs))
               (intervals-end (mistty--changeset-end cs))
@@ -1282,7 +1287,6 @@ to replay it afterwards."
           ;; iter-yield doesn't preserve with-current-buffer, so let's
           ;; use set-buffer here and after every yield.
           (set-buffer backstage)
-          (setq-local mistty-log log-enabled)
 
           ;; Move modifications positions into the backstage buffer.
           ;; Rely on markers to keep the positions valid through
@@ -1367,7 +1371,7 @@ to replay it afterwards."
                   (if (> start-idx 0)
                       (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
                     (mistty-log "INSERT: '%s'" sub))
-                  (mistty--maybe-bracketed-str bracketed-paste sub)))))
+                  (mistty--maybe-bracketed-str sub)))))
             (setq is-first nil)
             (set-buffer backstage)
             (mistty--update-backstage backstage proc))
@@ -1754,10 +1758,17 @@ the prompt."
 
 A backstage buffer is a partial copy of PROC's buffer that's kept
 up-to-date with replace-buffer-contents, so markers can be used
-to keep positions stable while the buffer is being modified."
-  (let ((backstage (generate-new-buffer " *mistty-backstage" t)))
+to keep positions stable while the buffer is being modified.
+
+The value of some buffer-local variables are carried over to the
+backstage buffer: mistty-log, mistty-bracketed-paste.
+"
+  (let ((backstage (generate-new-buffer " *mistty-backstage" t))
+        (calling-buffer (current-buffer)))
     (with-current-buffer backstage
-      (setq-local mistty-sync-marker (point-min)))
+      (setq-local mistty-sync-marker (point-min))
+      (mistty--copy-buffer-local-variables
+       '(mistty-bracketed-paste mistty-log) calling-buffer))
     (mistty--update-backstage backstage proc)
     backstage))
 

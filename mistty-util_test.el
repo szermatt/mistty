@@ -170,6 +170,23 @@
    (should (equal 31 (mistty--distance (mistty-test-pos "for")
                                        (mistty-test-pos "end"))))))
 
+(ert-deftest mistty-util-test-same-line ()
+  (ert-with-test-buffer ()
+    (insert "abc\n")
+    (insert "def\n")
+
+    (should (mistty--same-line-p
+             (mistty-test-pos "a")
+             (mistty-test-pos "a")))
+    (should (mistty--same-line-p
+             (mistty-test-pos "a")
+             (1+ (mistty-test-pos "c"))))
+    (should (not (mistty--same-line-p
+                  (1+ (mistty-test-pos "c"))
+                  (mistty-test-pos "d"))))
+    (should (not (mistty--same-line-p
+                  (mistty-test-pos "a")
+                  (mistty-test-pos "d"))))))
 
 (defun mistty-test-pos (text)
   (save-excursion

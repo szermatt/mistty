@@ -1806,14 +1806,33 @@ position (cursor) in the buffer."
                               (mistty--cursor-skip-forward pos)))
            (beg (car skip-region))
            (end (cdr skip-region))
+           (last-pos (window-parameter win 'mistty--last-pos))
            (move-to
             (cond
              ((or (null beg) (null end)
                   (= pos beg) (= pos end)) nil)
-             ((< (- pos beg) (- end pos)) end)
-             (t beg))))
+             ;; horizontal movement from the left, go right
+             ((and last-pos (<= last-pos beg) (mistty--same-line-p last-pos beg))
+              end)
+             ;; horizontal movement from the right, go left
+             ((and last-pos (>= last-pos end) (mistty--same-line-p last-pos end))
+              beg)
+             ;; vertical move; on beg's line, so go to beg
+             ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
+              beg)
+             ;; vertical move; on end's line, so go to end
+             ((and (mistty--same-line-p pos end) (not (mistty--same-line-p pos beg)))
+              end)
+             ;; closer to beg than to end, go to beg
+             ((< (- pos beg) (- end pos))
+              beg)
+             ;; otherwise go to end
+             (t
+              end))))
       (when move-to
-        (set-window-point win move-to)))))
+        (set-window-point win move-to))
+      (set-window-parameter win 'mistty--last-pos
+                            (or move-to pos)))))
 
 (defun mistty--cursor-skip-forward (pos)
   (cond

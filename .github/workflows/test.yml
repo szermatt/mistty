@@ -18,8 +18,11 @@ jobs:
     - name: Install zsh
       run: "sudo apt-get install -y zsh && zsh --version"
 
+    - name: Setup homebrew
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"'
+
     - name: Install fish
-      run: "sudo brew install -q fish && fish --version"
+      run: 'brew install -q fish && fish --version'
 
     - uses: actions/checkout@v1
     - uses: purcell/setup-emacs@master

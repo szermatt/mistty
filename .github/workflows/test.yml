@@ -15,14 +15,17 @@ jobs:
           - emacs_version: 'snapshot'
             allow_failure: true
     steps:
+    - name: Install zsh
+      run: "sudo apt-get install -y zsh && zsh --version"
+
+    - name: Install fish
+      run: "sudo brew install -q fish && fish --version"
+
     - uses: actions/checkout@v1
     - uses: purcell/setup-emacs@master
       with:
         version: ${{ matrix.emacs_version }}
     - uses: conao3/setup-cask@master
-
-    - name: Install zsh and fish
-      run: "sudo apt-get install -y zsh fish && zsh --version && fish --version"
 
     - name: Run tests
       if: matrix.allow_failure != true

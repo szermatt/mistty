@@ -1745,18 +1745,24 @@ waiting for failing test results.")
    (mistty-send-text "echo 'hello\nworld\nand all that sort of things.'")
 
    (mistty-run-command
-    (mistty-test-goto "sort"))
-   (should (equal "$ echo 'hello\n  world\n  and all that <>sort of things.'"
+    (mistty-test-goto "sort")
+    (insert ":::1"))
+   (mistty-wait-for-output :str ":::1" :start (point-min))
+   (should (equal "$ echo 'hello\n  world\n  and all that :::1<>sort of things.'"
                   (mistty-test-content :show (mistty-cursor))))
 
    (mistty-run-command
-    (mistty-test-goto "llo"))
-   (should (equal "$ echo 'he<>llo\n  world\n  and all that sort of things.'"
+    (mistty-test-goto "llo")
+    (insert ":::2"))
+   (mistty-wait-for-output :str ":::2" :start (point-min))
+   (should (equal "$ echo 'he:::2<>llo\n  world\n  and all that :::1sort of things.'"
                   (mistty-test-content :show (mistty-cursor))))
 
    (mistty-run-command
-    (mistty-test-goto "rld"))
-   (should (equal "$ echo 'hello\n  wo<>rld\n  and all that sort of things.'"
+    (mistty-test-goto "rld")
+    (insert ":::3"))
+   (mistty-wait-for-output :str ":::3" :start (point-min))
+   (should (equal "$ echo 'he:::2llo\n  wo:::3<>rld\n  and all that :::1sort of things.'"
                   (mistty-test-content :show (mistty-cursor))))))
 
 (ert-deftest mistty-test-fish-multiline-indented ()
@@ -1765,8 +1771,10 @@ waiting for failing test results.")
    (mistty-send-text "while i in (seq 10)\necho line $i\nend")
 
    (mistty-run-command
-    (mistty-test-goto "line"))
-   (should (equal "$ while i in (seq 10)\n      echo <>line $i\n  end"
+    (mistty-test-goto "line")
+    (insert ":::"))
+   (mistty-wait-for-output :str ":::" :start (point-min))
+   (should (equal "$ while i in (seq 10)\n      echo :::<>line $i\n  end"
                   (mistty-test-content :show (mistty-cursor))))))
 
 (ert-deftest mistty-test-bash-multiline ()

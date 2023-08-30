@@ -18,11 +18,8 @@ jobs:
     - name: Install zsh
       run: "sudo apt-get install -y zsh && zsh --version"
 
-    - name: Setup homebrew
-      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"'
-
     - name: Install fish
-      run: 'brew install -q fish && fish --version'
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && brew install -q fish && fish --version'
 
     - uses: actions/checkout@v1
     - uses: purcell/setup-emacs@master
@@ -32,9 +29,9 @@ jobs:
 
     - name: Run tests
       if: matrix.allow_failure != true
-      run: 'cask && make test'
+      run: 'cask && FISH=/home/linuxbrew/bin/fish make test'
 
     - name: Run tests (allow failure)
       if: matrix.allow_failure == true
-      run: 'cask && make test || true'
+      run: 'cask && FISH=/home/linuxbrew/bin/fish make test || true'
       

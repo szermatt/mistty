@@ -144,6 +144,7 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reconcile-large-multiline-delete ()
   (with-mistty-buffer-fish
+   (setq mistty-log t) ; to help figure out why this test is flakey
    (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")
 
    (mistty-run-command

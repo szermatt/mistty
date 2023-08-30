@@ -29,9 +29,9 @@ jobs:
 
     - name: Run tests
       if: matrix.allow_failure != true
-      run: 'cask && FISH=/home/linuxbrew/bin/fish make test'
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && cask && make test'
 
     - name: Run tests (allow failure)
       if: matrix.allow_failure == true
-      run: 'cask && FISH=/home/linuxbrew/bin/fish make test || true'
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && cask && make test || true'
       

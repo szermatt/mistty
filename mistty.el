@@ -645,7 +645,8 @@ from the ESHELL or SHELL environment variables."
         (save-restriction
           (widen)
           (mistty--refresh)
-          (when (>= (point) mistty-sync-marker)
+          (when (and (processp mistty-proc)
+                     (>= (point) (mistty-cursor)))
             (goto-char (point-max)))
           (mistty--detach)))
       (kill-buffer term-buffer))

@@ -163,13 +163,13 @@ exit already."
         (setq-local window-point-insertion-type t)
         (goto-char (point-max))
         (insert-before-markers
-         (propertize (mistty--log-header event-time calling-buffer))
-          'face 'mistty-log-header-face))
+         (propertize (mistty--log-header event-time calling-buffer)
+                     'face 'mistty-log-header-face))
         (insert-before-markers
          (propertize
           (apply #'format format-str (mapcar #'mistty--format-log-arg args))
           'face 'mistty-log-message-face))
-        (insert-before-markers "\n"))
+        (insert-before-markers "\n")))
 
      ;; enabled; batch: output
      ((and mistty-log noninteractive)

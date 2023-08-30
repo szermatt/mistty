@@ -2023,6 +2023,38 @@ waiting for failing test results.")
      (equal "one two three four five six seven eight nine"
             (mistty-test-content)))))
    
+(ert-deftest test-mistty-fish-right-prompt-simple-command ()
+  (with-mistty-buffer-fish
+     (mistty-setup-fish-right-prompt)
+
+     ;; Make sure the right prompt doesn't interfere with normal operations
+     (mistty-send-text "echo hello")
+     (should (equal "hello" (mistty-send-and-capture-command-output)))))
+
+
+(ert-deftest test-mistty-fish-right-prompt-skip-empty-spaces ()
+  (with-mistty-buffer-fish
+     (mistty-setup-fish-right-prompt)
+
+     (with-selected-window (display-buffer (current-buffer))
+       (let ((mistty-skip-empty-spaces t)
+             (win (selected-window)))
+         (mistty--cursor-skip win)
+         (should (string-match "^\\$ <> +< right$"
+                               (mistty-test-content :show (point))))
+         (right-char)
+         (mistty--cursor-skip win)
+         (should (string-match "^\\$ +< right\n<>$"
+                               (mistty-test-content :show (point))))))))
+
+(ert-deftest test-mistty-fish-right-prompt-yank ()
+  (with-mistty-buffer-fish
+     (mistty-setup-fish-right-prompt)
+     (mistty-send-text "echo hello")
+     (copy-region-as-kill (mistty--bol (point)) (mistty--eol (point)))
+     (with-temp-buffer
+       (yank)
+       (should (equal "$ echo hello" (mistty-test-content))))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
@@ -2104,6 +2136,11 @@ waiting for failing test results.")
   (mistty-wait-for-output :test (lambda () (= (point-min) (point-max))))
   (mistty-send-text (concat "PS1='" mistty-test-prompt "'"))
   (narrow-to-region (mistty-send-and-wait-for-prompt) (point-max)))
+
+(defun mistty-setup-fish-right-prompt ()
+  (mistty-send-text "function fish_right_prompt; printf '< right'; end")
+  (mistty-send-and-wait-for-prompt)
+  (narrow-to-region (mistty--bol (point)) (point-max)))
 
 (defun mistty-test-after-command ()
   (mistty--post-command)
@@ -2282,3 +2319,6 @@ text to be inserted there."
     (push (substring text idx len) output)
     (apply #'concat (nreverse output))))
 
+(defun mistty-ert-explain-string-match (a b)
+  `(string-match ,a ,b))
+(put 'equal 'ert-explainer 'mistty-ert-explain-string-match)

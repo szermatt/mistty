@@ -591,14 +591,27 @@ This function returns the newly-created buffer."
   (while-let ((pos (text-property-any beg end 'term-line-wrap t)))
     (let ((fake-nl-end (next-single-property-change pos 'term-line-wrap nil end)))
       (put-text-property pos fake-nl-end 'yank-handler '(nil "" nil nil))
-      (setq beg fake-nl-end))))
+      (setq beg fake-nl-end)))
+
+  ;; Detect and mark right prompts.
+  (let ((bol (mistty--bol beg))
+        (eol (mistty--eol beg)))
+    (when (and (> beg bol)
+               (<= end eol)
+               (get-text-property (1- beg) 'mistty-skip)
+               (not (get-text-property bol 'mistty-skip)))
+      (when (eq ?\n (char-after end))
+        (setq end (1+ end)))
+      (add-text-properties beg end '(mistty-skip t yank-handler (nil "" nil nil))))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-skip t to spaces added when just moving."
   (let ((initial-end (line-end-position)))
     (apply orig-fun args)
     (when (> (point) initial-end)
-      (put-text-property initial-end (point) 'mistty-skip t))))
+      (add-text-properties
+       initial-end (point)
+       '(mistty-skip t yank-handler (nil "" nil nil))))))
 
 (defun mistty--maybe-bracketed-str (str)
   "Prepare STR to be sent, possibly bracketed, to the terminal.

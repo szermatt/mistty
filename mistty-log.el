@@ -144,14 +144,17 @@ Calling this function creates `mistty-log-buffer' if it doesn't
 exit already."
   (let ((event-time (or event-time (float-time)))
         (calling-buffer (current-buffer)))
-    (if (and (not mistty-log) (> mistty-backlog-size 0))
-        ;; not enabled; add to backlog
-        (mistty--backlog-add
-         (or mistty--backlog
-             (setq mistty--backlog (mistty--make-backlog mistty-backlog-size)))
-         (list format-str args event-time))
+    (cond
 
-      ;; enabled; log
+     ;; not enabled; add to backlog
+     ((and (not mistty-log) (> mistty-backlog-size 0))
+      (mistty--backlog-add
+       (or mistty--backlog
+           (setq mistty--backlog (mistty--make-backlog mistty-backlog-size)))
+       (list format-str args event-time)))
+
+     ;; enabled; interactive: log to buffer
+     ((and mistty-log (not noninteractive))
       (with-current-buffer
           (or (and (buffer-live-p mistty-log-buffer) mistty-log-buffer)
               (setq mistty-log-buffer
@@ -160,18 +163,27 @@ exit already."
         (setq-local window-point-insertion-type t)
         (goto-char (point-max))
         (insert-before-markers
-         (propertize
-          (format "[%s] %3.3f "
-                  (buffer-name calling-buffer)
-                  (- event-time
-                     (or mistty--log-start-time
-                         (setq mistty--log-start-time event-time))))
+         (propertize (mistty--log-header event-time calling-buffer))
           'face 'mistty-log-header-face))
         (insert-before-markers
          (propertize
           (apply #'format format-str (mapcar #'mistty--format-log-arg args))
           'face 'mistty-log-message-face))
-        (insert-before-markers "\n")))))
+        (insert-before-markers "\n"))
+
+     ;; enabled; batch: output
+     ((and mistty-log noninteractive)
+      (message "%s %s"
+               (mistty--log-header event-time calling-buffer)
+               (apply #'format format-str (mapcar #'mistty--format-log-arg args)))))))
+
+(defun mistty--log-header (event-time buf)
+  "Format a header for the macro `mistty-log'."
+  (format "[%s] %3.3f "
+          (buffer-name buf)
+          (- event-time
+             (or mistty--log-start-time
+                 (setq mistty--log-start-time event-time)))))
 
 (defun mistty--format-log-arg (arg)
   "Escape special characters in ARG if it is a string.

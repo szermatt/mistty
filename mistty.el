@@ -530,11 +530,8 @@ Returns M or a new marker."
       (move-marker m initial-pos))
     m))
 
-(defun mistty--detach (&optional keep-sync-markers)
-  "Detach the current `mistty-mode' buffer from its process.
-
-If KEEP-SYNC-MARKERS is non-nil, leave `mistty-sync-marker' set
-in both the work and term buffers."
+(defun mistty--detach ()
+  "Detach the current `mistty-mode' buffer from its process."
   (mistty--require-work-buffer)
 
   (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
@@ -554,14 +551,7 @@ in both the work and term buffers."
     (setq mistty-proc nil))
   (when mistty--cmd-start-marker
     (move-marker mistty--cmd-start-marker nil)
-    (setq mistty--cmd-start-marker nil))
-  (unless keep-sync-markers
-    (when mistty-sync-marker
-      (move-marker mistty-sync-marker nil)
-      (setq mistty-sync-marker nil))
-    (mistty--with-live-buffer mistty-term-buffer
-      (move-marker mistty-sync-marker nil)
-      (setq mistty-sync-marker nil))))
+    (setq mistty--cmd-start-marker nil)))
 
 (defun mistty--kill-term-buffer ()
   "Kill-buffer-hook handler that kills `mistty-term-buffer'."
@@ -1573,7 +1563,7 @@ post-command hook."
 
 TERMINAL-SEQUENCE is processed in fullscreen mode."
   (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
-    (mistty--detach 'keep-sync-markers)
+    (mistty--detach)
     (setq mistty-fullscreen t)
     (mistty--with-live-buffer mistty-term-buffer
       (setq mistty-fullscreen t))

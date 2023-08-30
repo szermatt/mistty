@@ -585,7 +585,13 @@ This function returns the newly-created buffer."
   (when (and mistty--term-properties-to-add-alist (> end beg))
     (when-let ((props (apply #'append
                        (mapcar #'cdr mistty--term-properties-to-add-alist))))
-      (add-text-properties beg end props))))
+      (add-text-properties beg end props)))
+
+  ;; Add property to fake newlines so they're not yanked.
+  (while-let ((pos (text-property-any beg end 'term-line-wrap t)))
+    (let ((fake-nl-end (next-single-property-change pos 'term-line-wrap nil end)))
+      (put-text-property pos fake-nl-end 'yank-handler '(nil "" nil nil))
+      (setq beg fake-nl-end))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-skip t to spaces added when just moving."

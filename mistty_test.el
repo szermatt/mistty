@@ -2001,6 +2001,29 @@ waiting for failing test results.")
       (mistty--cursor-skip win)
       (should (equal (mistty-test-pos-after "for ") (window-point win))))))
 
+(ert-deftest mistty-test-yank-handler ()
+  (with-mistty-buffer
+   (mistty--set-process-window-size 20 20)
+
+   (mistty-run-command
+    (insert "echo one two three four five six seven eight nine"))
+   (mistty-wait-for-output :str "nine")
+   (mistty-test-goto "one")
+   (copy-region-as-kill (save-excursion
+                          (mistty-test-goto "one")
+                          (point))
+                        (save-excursion
+                          (mistty-test-goto-after "nine")
+                          (point))))
+
+  (ert-with-test-buffer ()
+    (yank)
+
+    (should
+     (equal "one two three four five six seven eight nine"
+            (mistty-test-content)))))
+   
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

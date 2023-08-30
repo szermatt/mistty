@@ -298,8 +298,8 @@ waiting for failing test results.")
      (mistty-send-text "exit")
      (mistty-send-command)
      (mistty-wait-for-output :str "finished" :start (point-min))
-     (should (equal (point) (point-max)))
-     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc))))
+     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc)
+     (should (equal (point) (point-max))))))
 
 (ert-deftest test-mistty-scroll-with-long-command ()
   (with-mistty-buffer

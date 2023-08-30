@@ -2052,7 +2052,8 @@ waiting for failing test results.")
              "bind \\eOC forward-char; "
              "bind \\eOD backward-char; "
              "bind \\ca beginning-of-line; "
-             "bind \\ce end-of-line; "))
+             "bind \\ce end-of-line; "
+             "bind \\b backward-delete-char; "))
     (mistty-send-and-wait-for-prompt (lambda ())))
    
    ((eq shell 'python)

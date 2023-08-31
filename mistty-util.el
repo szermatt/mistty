@@ -138,22 +138,6 @@ of failing."
   (and (stringp str)
        (length> str 0)))
 
-(defun mistty--distance (beg end)
-  "Compute the number of cursor moves necessary to get from BEG to END.
-
-This function skips over the \\='term-line-wrap newlines as well
-as \\='mistty-skip spaces."
-  (let ((beg (min beg end))
-        (end (max beg end))
-        (sign (if (< end beg) -1 1)))
-    (let ((pos beg) (distance 0))
-      (while (< pos end)
-        (unless (or (get-text-property pos 'term-line-wrap)
-                    (get-text-property pos 'mistty-skip))
-          (setq distance (1+ distance)))
-        (setq pos (1+ pos)))
-      (* sign distance))))
-
 (defun mistty--same-line-p (a b)
   "Return non-nil if positions A and B are on the same line."
   (= (mistty--bol a) (mistty--bol b)))

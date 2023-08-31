@@ -1830,7 +1830,9 @@ position (cursor) in the buffer."
     (mistty--cursor-skip-forward
      (next-single-property-change pos 'mistty-skip nil (point-max))))
    ((and (eq ?\n (char-after pos))
-         (and (< pos (point-max)) (get-text-property (1+ pos) 'mistty-skip)))
+         (or
+          (and (> pos (point-min)) (get-text-property (1- pos) 'mistty-skip))
+          (and (< pos (point-max)) (get-text-property (1+ pos) 'mistty-skip))))
     (mistty--cursor-skip-forward (1+ pos)))
    (t pos)))
 
@@ -1844,6 +1846,31 @@ position (cursor) in the buffer."
          (and (get-text-property pos 'mistty-skip)))
     (mistty--cursor-skip-backward (1- pos)))
    (t pos)))
+
+(defun mistty--distance (beg end)
+  "Compute the number of cursor moves necessary to get from BEG to END.
+
+This function skips over the \\='term-line-wrap newlines as well
+as \\='mistty-skip spaces."
+  (let ((end (max beg end))
+        (sign (if (< end beg) -1 1))
+        (pos (min beg end))
+        (distance 0)
+        next)
+    (while (< pos end)
+      (cond
+       ((get-text-property pos 'term-line-wrap)
+        (setq pos (1+ pos)))
+       ((= pos (setq next (mistty--cursor-skip-forward pos)))
+        ;; the position is not to be skipped over; count it towards
+        ;; distance.
+        (setq distance (1+ distance))
+        (setq pos (1+ pos)))
+       (t
+        ;; we skipped a region; count it as 1 towards distance.
+        (setq distance (1+ distance))
+        (setq pos next))))
+    (* sign distance)))
 
 (provide 'mistty)
 

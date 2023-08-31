@@ -144,7 +144,6 @@ waiting for failing test results.")
 
 (ert-deftest test-mistty-reconcile-large-multiline-delete ()
   (with-mistty-buffer-fish
-   (setq mistty-log t) ; to help figure out why this test is flakey
    (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")
 
    (mistty-run-command
@@ -1885,6 +1884,8 @@ waiting for failing test results.")
     (mistty-test-goto-after "end")
     (insert "#done"))
 
+   (mistty-wait-for-output :str "seq 101" :start (point-min))
+
    (should (equal (concat "$ for i in (seq 101)\n"
                           "      echo BOO:boo LINE:line $i\n"
                           "      end#done<>")
@@ -1909,10 +1910,9 @@ waiting for failing test results.")
     (should (equal (mistty-test-pos "end")
                    (mistty--cursor-skip-forward (mistty-test-pos-after "$i  "))))
 
-    ;; newlines not surrounded by 'mistty-skip are not skipped over
-    (should (equal (1- (mistty-test-pos "extra"))
+    (should (equal (mistty-test-pos "extra")
                    (mistty--cursor-skip-forward (mistty-test-pos-after "end"))))
-    (should (equal (1- (mistty-test-pos "extra"))
+    (should (equal (mistty-test-pos "extra")
                    (mistty--cursor-skip-forward (1- (mistty-test-pos "extra")))))
 
     ;; spaces not marked with 'mistty-skip are not skipped over
@@ -2055,6 +2055,51 @@ waiting for failing test results.")
      (with-temp-buffer
        (yank)
        (should (equal "$ echo hello" (mistty-test-content))))))
+
+(ert-deftest test-mistty-distance-with-fake-nl ()
+  (ert-with-test-buffer ()
+   (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
+     (insert "echo one tw" fake-nl
+             "o three fou" fake-nl
+             "r five six " fake-nl
+             "seven eight" fake-nl
+             "nine")
+
+     (should (equal 4 (mistty--distance (mistty-test-pos "one")
+                                        (mistty-test-pos "tw"))))
+     (should (equal -4 (mistty--distance (mistty-test-pos "tw")
+                                         (mistty-test-pos "one"))))
+
+     (should (equal 4 (mistty--distance (mistty-test-pos "tw")
+                                        (mistty-test-pos "three"))))
+     (should (equal -4 (mistty--distance (mistty-test-pos "three")
+                                         (mistty-test-pos "tw"))))
+
+     (should (equal 19 (mistty--distance (mistty-test-pos "one")
+                                         (mistty-test-pos "five"))))
+
+     (should (equal 0 (mistty--distance (+ 3 (mistty-test-pos "fou"))
+                                        (+ 4 (mistty-test-pos "fou"))))))))
+
+(ert-deftest test-mistty-distance-skipped-spaces ()
+  (ert-with-test-buffer ()
+   (insert "$ for i in (seq 10)" (propertize "  " 'mistty-skip t)"\n"
+           (propertize "      " 'mistty-skip t) "echo line $i\n"
+           (propertize "  " 'mistty-skip t) "end")
+
+   (should (equal 1 (mistty--distance (+ 3 (mistty-test-pos "10)"))
+                                      (mistty-test-pos "echo"))))
+
+   (should (equal 1 (mistty--distance (+ 3 (mistty-test-pos "10)"))
+                                      (1- (mistty-test-pos "echo")))))
+
+   (should (equal 1 (mistty--distance (+ 4 (mistty-test-pos "10)"))
+                                      (mistty-test-pos "echo"))))
+   (should (equal 1 (mistty--distance (+ 4 (mistty-test-pos "10)"))
+                                        (1- (mistty-test-pos "echo")))))
+
+   (should (equal 31 (mistty--distance (mistty-test-pos "for")
+                                       (mistty-test-pos "end"))))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.

@@ -729,7 +729,8 @@ from the ESHELL or SHELL environment variables."
                   (not (accept-process-output proc 0 0 t)))
           (mistty--refresh)
           (mistty--maybe-truncate-when-idle)
-          (mistty--dequeue-with-timer mistty--queue)))))))
+          (mistty--dequeue mistty--queue 'intermediate)
+          (mistty--dequeue-with-timer mistty--queue 'stable)))))))
 
 (defun mistty--process-terminal-seq (proc str)
   "Process STR, sent to PROC, then update MisTTY internal state."
@@ -1273,14 +1274,22 @@ to replay it afterwards."
 
       (mistty--changeset-mark-region cs beg end old-end))))
 
+(defmacro mistty--yield (term-seq func)
+  `(let ((term-seq ,term-seq)
+         (func ,func)
+         (res 'intermediate))
+     (while (and (eq res 'intermediate)
+                 (not (funcall func)))
+       (setq res (iter-yield term-seq))
+       (setq term-seq 'continue))
+     res))
+  
 (iter-defun mistty--replay-generator (cs)
   (let ((backstage (mistty--create-backstage mistty-proc))
         (work-buffer mistty-work-buffer))
     (unwind-protect
         (let ((work-sync-marker (marker-position mistty-sync-marker))
               (proc mistty-proc)
-              (intervals-start (mistty--changeset-beg cs))
-              (intervals-end (mistty--changeset-end cs))
               (modifications (mistty--changeset-modifications cs))
               (beg (make-marker))
               (old-end (make-marker))
@@ -1319,7 +1328,11 @@ to replay it afterwards."
             (when (length> content 0)
               (setq distance (mistty--distance (point) beg))
               (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
-              (iter-yield (mistty--move-horizontally-str distance))
+              (mistty--yield (mistty--move-horizontally-str distance)
+                             (lambda ()
+                               (with-current-buffer backstage
+                                 (mistty--update-backstage backstage proc)
+                                 (= (point) beg))))
               (set-buffer backstage)
               (mistty--update-backstage backstage proc)
               (mistty-log "Got to %s" (point))
@@ -1340,7 +1353,11 @@ to replay it afterwards."
             (when (and is-first (> old-end beg))
               (setq distance (mistty--distance (point) old-end))
               (mistty-log "to old-end: %s -> %s distance: %s" (point) old-end distance)
-              (iter-yield (mistty--move-horizontally-str distance))
+              (mistty--yield (mistty--move-horizontally-str distance)
+                             (lambda ()
+                               (with-current-buffer backstage
+                                 (mistty--update-backstage backstage proc)
+                                 (= (point) old-end))))
               (set-buffer backstage)
               (mistty--update-backstage backstage proc)
               (mistty-log "Got to %s" (point))
@@ -1355,26 +1372,34 @@ to replay it afterwards."
               (move-marker old-end (max beg (min old-end (point)))))
 
             (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
-            (iter-yield
-             (concat
-              ;; move to old-end (except the first time, because then
-              ;; we want to check the result of that move)
-              (when (and (not is-first) (> old-end beg))
-                (mistty-log "MOVE %s -> %s" (point) old-end)
-                (mistty--move-horizontally-str
-                 (mistty--distance (point) old-end) 'no-wait))
-              ;; delete
-              (when (> old-end beg)
-                (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
-                (mistty--repeat-string (mistty--distance beg old-end) "\b"))
-              ;; insert
-              (when (and (>= beg orig-beg) (length> content 0))
-                (let* ((start-idx (min (length content) (max 0 (- beg orig-beg))))
-                       (sub (substring content start-idx)))
+            (let* ((start-idx (if (>= beg orig-beg)
+                                  (min (length content) (max 0 (- beg orig-beg)))
+                                (length content)))
+                   (sub (substring content start-idx))
+                   (end (+ beg (length content) (- start-idx))))
+              (mistty--yield
+               (concat
+                ;; move to old-end (except the first time, because then
+                ;; we want to check the result of that move)
+                (when (and (not is-first) (> old-end beg))
+                  (mistty-log "MOVE %s -> %s" (point) old-end)
+                  (mistty--move-horizontally-str
+                   (mistty--distance (point) old-end) 'no-wait))
+                ;; delete
+                (when (> old-end beg)
+                  (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
+                  (mistty--repeat-string (mistty--distance beg old-end) "\b"))
+                ;; insert
+                (when (length> sub 0)
                   (if (> start-idx 0)
                       (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
                     (mistty-log "INSERT: '%s'" sub))
-                  (mistty--maybe-bracketed-str sub)))))
+                  (mistty--maybe-bracketed-str sub)))
+               (lambda ()
+                 (with-current-buffer backstage
+                   (mistty--update-backstage backstage proc)
+                   (and (= (point) end)
+                        (string= sub (mistty--safe-bufstring beg end)))))))
             (setq is-first nil)
             (set-buffer backstage)
             (mistty--update-backstage backstage proc))
@@ -1535,12 +1560,15 @@ post-command hook."
   "A generator that tries to move the terminal cursor to the point."
   (when (mistty-on-prompt-p (point))
     (let* ((point-on-work (point))
-           (distance (with-current-buffer mistty-term-buffer
-                       (mistty--distance
-                        (process-mark mistty-proc)
-                        (mistty--from-work-pos point-on-work)))))
-      (unless (zerop distance)
-        (iter-yield (mistty--move-horizontally-str distance))))))
+           (point-on-term (mistty--from-work-pos point-on-work))
+           (proc mistty-proc)
+           (distance (mistty--with-live-buffer mistty-term-buffer
+                       (mistty--distance (process-mark proc) point-on-term))))
+      (unless (or (null distance) (zerop distance))
+        (mistty--yield (mistty--move-horizontally-str distance)
+                       (lambda ()
+                         (mistty--with-live-buffer mistty-work-buffer)
+                         (= (process-mark proc) point-on-term)))))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

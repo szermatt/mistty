@@ -1671,31 +1671,6 @@ waiting for failing test results.")
    (should (equal "$ toto\ntoto<>0  toto1  toto2"
                   (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-queue-timeout ()
-  (with-mistty-buffer-zsh
-   ;; Wait long enough to be sure that ZSH isn't doing anything,
-   ;; because sending any kind of output would not trigger the timeout
-   ;; this test wants.
-   (let ((mistty-test-timeout 1))
-     (should-error
-      (mistty-wait-for-output :str "not-found")))
-
-   (let* ((answers nil)
-          (lambda (iter-lambda ()
-                   ;; zsh doesn't answer anything when the left arrow is sent, but
-                   ;; the cursor cannot go left, like here, at the beginning of a
-                   ;; prompt.
-                   (push (iter-yield mistty-left-str) answers)
-                   ;; sending empty sequences is a no-op, not a timeout
-                   (push (iter-yield nil) answers)
-                   (push (iter-yield "") answers)
-                   ;; this is actually displayed
-                   (push (iter-yield "done") answers))))
-     (mistty--enqueue mistty--queue (funcall lambda))
-     (mistty-wait-for-output :test (lambda () (length= answers 4)))
-     (should (equal '(timeout nil nil nil) (nreverse answers)))
-     (should (equal "$ done" (mistty-test-content))))))
-
 (ert-deftest mistty-reset-during-replay ()
   (with-mistty-buffer
    (mistty-send-text "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")

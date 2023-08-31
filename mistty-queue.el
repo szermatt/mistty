@@ -32,6 +32,9 @@
 (require 'mistty-log)
 (require 'mistty-util)
 
+(defvar mistty-timeout-s 0.5)
+(defvar mistty-stable-delay-s 0.1)
+
 ;; A queue of strings to send to the terminal process.
 ;;
 ;; The queue contains a generator, which yields the strings to send to
@@ -125,7 +128,7 @@ If VALUE is set, send that value to the first call to `iter-next'."
                  ((eq 'continue next-value)
                   (setf (mistty--queue-timeout queue)
                         (run-with-timer
-                         0.5 nil #'mistty--timeout-handler
+                         mistty-timeout-s nil #'mistty--timeout-handler
                          (current-buffer) queue))
                   (setq stop t))
                  ;; Fire-and-forget; no need to wait for a response
@@ -138,7 +141,7 @@ If VALUE is set, send that value to the first call to `iter-next'."
                  ((mistty--nonempty-str-p next-value)
                   (setf (mistty--queue-timeout queue)
                         (run-with-timer
-                         0.5 nil #'mistty--timeout-handler
+                         mistty-timeout-s nil #'mistty--timeout-handler
                          (current-buffer) queue))
                   (mistty--send-string proc next-value)
                   (setq stop t))))))
@@ -160,7 +163,7 @@ scheduled."
   (unless (mistty--queue-empty-p queue)
     (setf (mistty--queue-timer queue)
           (run-with-timer
-           0.1 nil #'mistty--queue-timer-handler
+           mistty-stable-delay-s nil #'mistty--queue-timer-handler
            (current-buffer) queue value))))
 
 (defun mistty--cancel-queue (queue)

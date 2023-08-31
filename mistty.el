@@ -132,6 +132,8 @@ Set to 0 to disable truncation."
   :group 'mistty
   :type 'natnum)
 
+(defvar mistty-max-try-count 1)
+
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
@@ -1277,13 +1279,19 @@ to replay it afterwards."
 (defmacro mistty--yield (term-seq func)
   `(let ((term-seq ,term-seq)
          (func ,func)
-         (res 'intermediate))
-     (while (and (eq res 'intermediate)
-                 (not (funcall func)))
-       (setq res (iter-yield term-seq))
-       (setq term-seq 'continue))
-     res))
-  
+         (res 'intermediate)
+         (try-count 0))
+     (while (progn
+              (setq res (iter-yield term-seq))
+              (setq term-seq 'continue)
+              (cond
+               ((and (eq res 'intermediate) (not (funcall func)))
+                'keep-trying)
+               ((and (eq res 'stable) (< try-count mistty-max-try-count) (not (funcall func)))
+                (cl-incf try-count)
+                'keep-trying)
+               (t nil))))))
+
 (iter-defun mistty--replay-generator (cs)
   (let ((backstage (mistty--create-backstage mistty-proc))
         (work-buffer mistty-work-buffer))

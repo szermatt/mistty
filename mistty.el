@@ -751,6 +751,8 @@ from the ESHELL or SHELL environment variables."
   (let ((cursor (mistty--safe-pos (mistty-cursor))))
     (goto-char cursor)
     (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
+      (when (= cursor (window-point win))
+        (set-window-parameter win 'mistty--last-pos 'cursor))
       (mistty--recenter win))))
 
 (defun mistty--recenter (win)
@@ -1801,11 +1803,21 @@ position (cursor) in the buffer."
             (cond
              ((or (null beg) (null end)
                   (= pos beg) (= pos end)) nil)
+
+             ;; always respect a position that's been set by the
+             ;; process cursor, no matter what.
+             ((and
+               (eq last-pos 'cursor)
+               (equal pos (and mistty-proc mistty-term-buffer (mistty-cursor))))
+              ;; keep the point where it is and the window parameter
+              ;; set to 'cursor.
+             'cursor)
+
              ;; horizontal movement from the left, go right
-             ((and last-pos (<= last-pos beg) (mistty--same-line-p last-pos beg))
+             ((and (numberp last-pos) (<= last-pos beg) (mistty--same-line-p last-pos beg))
               end)
              ;; horizontal movement from the right, go left
-             ((and last-pos (>= last-pos end) (mistty--same-line-p last-pos end))
+             ((and (numberp last-pos) (>= last-pos end) (mistty--same-line-p last-pos end))
               beg)
              ;; vertical move; on beg's line, so go to beg
              ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
@@ -1819,7 +1831,7 @@ position (cursor) in the buffer."
              ;; otherwise go to end
              (t
               end))))
-      (when move-to
+      (when (numberp move-to)
         (set-window-point win move-to))
       (set-window-parameter win 'mistty--last-pos
                             (or move-to pos)))))

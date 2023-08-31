@@ -2031,7 +2031,6 @@ waiting for failing test results.")
      (mistty-send-text "echo hello")
      (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
-
 (ert-deftest test-mistty-fish-right-prompt-skip-empty-spaces ()
   (with-mistty-buffer-fish
      (mistty-setup-fish-right-prompt)
@@ -2055,6 +2054,23 @@ waiting for failing test results.")
      (with-temp-buffer
        (yank)
        (should (equal "$ echo hello" (mistty-test-content))))))
+
+(ert-deftest test-mistty-fish-right-prompt-skip-empty-spaces-at-prompt ()
+  (with-mistty-buffer-fish
+     (with-selected-window (display-buffer (current-buffer))
+       (mistty-setup-fish-right-prompt)
+       (let* ((mistty-skip-empty-spaces t)
+              (win (selected-window))
+              (after-refresh (lambda () (mistty--cursor-skip win))))
+         (advice-add 'mistty--refresh :after after-refresh)
+         (unwind-protect
+             (progn
+               ;; skip-empty-space sometimes skips too much; to the end of the line.
+               (mistty-send-and-wait-for-prompt)
+               (should (string-match "\\$ <>" (mistty-test-content :show (point))))
+               (mistty-send-and-wait-for-prompt)
+               (should (string-match "\\$ <>" (mistty-test-content :show (point)))))
+           (advice-remove 'mistty--refresh after-refresh))))))
 
 (ert-deftest test-mistty-distance-with-fake-nl ()
   (ert-with-test-buffer ()

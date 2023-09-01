@@ -2135,6 +2135,24 @@ waiting for failing test results.")
    (should (equal 31 (mistty--distance (mistty-test-pos "for")
                                        (mistty-test-pos "end"))))))
 
+(ert-deftest test-mistty-inserted-regexp ()
+  (should (equal "foobar" (mistty--inserted-regexp "foobar")))
+  (should (string-match (mistty--inserted-regexp "foobar") "foobar"))
+  (should (not (string-match (mistty--inserted-regexp "foobar") "foo bar")))
+
+  (should (equal "foo[[:blank:]]+bar" (mistty--inserted-regexp "foo bar")))
+  (should (string-match (mistty--inserted-regexp "foo bar") "foo bar"))
+  (should (string-match (mistty--inserted-regexp "foo bar") "foo   bar"))
+  (should (not (string-match (mistty--inserted-regexp "foo bar") "foo\nbar")))
+
+  (should (equal "f\\$\\$[[:blank:]]+b\\$\\$" (mistty--inserted-regexp "f$$ b$$")))
+  (should (string-match (mistty--inserted-regexp "f$$ b$$") "f$$ b$$"))
+
+  (should (equal "foo[[:blank:]]*\n[[:blank:]]*bar" (mistty--inserted-regexp "foo\nbar")))
+  (should (string-match (mistty--inserted-regexp "foo\nbar") "foo\nbar"))
+  (should (string-match (mistty--inserted-regexp "foo\nbar") "foo  \nbar"))
+  (should (string-match (mistty--inserted-regexp "foo\nbar") "foo\n   bar")))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

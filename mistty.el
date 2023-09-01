@@ -1385,7 +1385,8 @@ to replay it afterwards."
             (let* ((start-idx (if (>= beg orig-beg)
                                   (min (length content) (max 0 (- beg orig-beg)))
                                 (length content)))
-                   (sub (substring content start-idx)))
+                   (sub (substring content start-idx))
+                   (inserted-regexp (mistty--inserted-regexp sub)))
               (move-marker end old-end)
               (set-marker-insertion-type end t)
               (mistty--yield
@@ -1410,7 +1411,10 @@ to replay it afterwards."
                  (with-current-buffer backstage
                    (mistty--update-backstage backstage proc)
                    (and (= (point) end)
-                        (string= sub (mistty--safe-bufstring beg end)))))))
+                        (string-match-p
+                         inserted-regexp
+                         (mistty--remove-fake-nl
+                          (buffer-substring beg end))))))))
             (setq is-first nil)
             (set-buffer backstage)
             (mistty--update-backstage backstage proc))
@@ -1428,6 +1432,22 @@ to replay it afterwards."
       ;; refresh.
       (mistty--release-changeset cs)
       (mistty--refresh-after-changeset))))
+
+(defun mistty--inserted-regexp (inserted)
+  "Return regexp for detecting whether INSERTED is the terminal.
+
+Ignores spaces added by the terminal between words or at the end
+and beginning of strings."
+  (let ((start 0) (regexp-parts))
+    (setq inserted (string-replace "\n" " \n " inserted))
+    (while (string-match "[[:blank:]]*\\([[:blank:]]\\|\n[[:blank:]]*\\)" inserted start)
+      (push (regexp-quote (substring inserted start (match-beginning 0))) regexp-parts)
+      (if (string-prefix-p "\n" (match-string 1 inserted))
+          (push "[[:blank:]]*\n[[:blank:]]*" regexp-parts)
+        (push "[[:blank:]]+" regexp-parts))
+      (setq start (match-end 0)))
+    (push (regexp-quote (substring inserted start (length inserted))) regexp-parts)
+    (apply #'concat (nreverse regexp-parts))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."

@@ -2423,3 +2423,17 @@ text to be inserted there."
 (defun mistty-ert-explain-string-match (a b)
   `(string-match ,a ,b))
 (put 'equal 'ert-explainer 'mistty-ert-explain-string-match)
+
+(defun mistty-reload-all ()
+  "Force a reload of all mistty .el files.
+
+This is useful after files have changed, such as after checking
+ out a new branch."
+  (interactive)
+  (load "mistty-util.el" nil 'nomessage 'nosuffix)
+  (load "mistty-log.el" nil 'nomessage 'nosuffix)
+  (load "mistty-changeset.el" nil 'nomessage 'nosuffix)
+  (load "mistty-term.el" nil 'nomessage 'nosuffix)
+  (load "mistty-queue.el" nil 'nomessage 'nosuffix)
+  (load "mistty-osc7.el" nil 'nomessage 'nosuffix)
+  (load "mistty.el"nil 'nomessage 'nosuffix))

@@ -1997,21 +1997,24 @@ waiting for failing test results.")
           (win (selected-window)))
 
       ;; skip enabled
-      (set-window-point win (mistty-test-pos-after "a b c"))
+      (set-window-point win (mistty-test-pos "a b c"))
+      (mistty--cursor-skip win)
       (set-window-point win (1+ (mistty-test-pos-after "a b c")))
       (mistty--cursor-skip win)
       (should (equal (mistty-test-pos "echo") (window-point win)))
 
       ;; skip disabled because point is before mistty-sync-marker
       (let ((mistty-sync-marker (point-max)))
-        (set-window-point win (mistty-test-pos-after "a b c"))
+        (set-window-point win (mistty-test-pos "a b c"))
+        (mistty--cursor-skip win)
         (set-window-point win (1+ (mistty-test-pos-after "a b c")))
         (mistty--cursor-skip win)
         (should (equal (1+ (mistty-test-pos-after "a b c")) (window-point win))))
 
       ;; skip disabled because mistty-bracketed-paste is nil
       (let ((mistty-bracketed-paste nil))
-        (set-window-point win (mistty-test-pos-after "a b c"))
+        (set-window-point win (mistty-test-pos "a b c"))
+        (mistty--cursor-skip win)
         (set-window-point win (1+ (mistty-test-pos-after "a b c")))
         (mistty--cursor-skip win)
         (should (equal (1+ (mistty-test-pos-after "a b c")) (window-point win)))))))

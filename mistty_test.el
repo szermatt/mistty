@@ -1903,6 +1903,8 @@ waiting for failing test results.")
 
     ;; go right from "for" to "end"
     (let ((mistty-skip-empty-spaces t)
+          (mistty-bracketed-paste t)
+          (mistty-sync-marker (point-min))
           (win (selected-window)))
       (set-window-point win (mistty-test-pos "for"))
       (mistty--cursor-skip win)
@@ -1925,6 +1927,8 @@ waiting for failing test results.")
 
     ;; go left from "end" to "for"
     (let ((mistty-skip-empty-spaces t)
+          (mistty-bracketed-paste t)
+          (mistty-sync-marker (point-min))
           (win (selected-window)))
       (set-window-point win (mistty-test-pos "end"))
       (mistty--cursor-skip win)
@@ -1947,6 +1951,8 @@ waiting for failing test results.")
 
     ;; go down from "for" to "end"
     (let ((mistty-skip-empty-spaces t)
+          (mistty-bracketed-paste t)
+          (mistty-sync-marker (point-min))
           (win (selected-window)))
       (set-window-point win (mistty-test-pos "for"))
       (mistty--cursor-skip win)
@@ -1966,6 +1972,8 @@ waiting for failing test results.")
 
     ;; go up from "end" to "for"
     (let ((mistty-skip-empty-spaces t)
+          (mistty-bracketed-paste t)
+          (mistty-sync-marker (point-min))
           (win (selected-window)))
       (set-window-point win (mistty-test-pos "end"))
       (mistty--cursor-skip win)
@@ -1975,6 +1983,38 @@ waiting for failing test results.")
       (call-interactively 'previous-line)
       (mistty--cursor-skip win)
       (should (equal (mistty-test-pos-after "for ") (window-point win))))))
+
+(ert-deftest mistty-test-cursor-skip-hook-not-on-a-prompt ()
+  (ert-with-test-buffer-selected ()
+    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
+            (propertize "      " 'mistty-skip t) "echo line $i\n"
+            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
+            "extra stuff goes here")
+
+    (let ((mistty-skip-empty-spaces t)
+          (mistty-bracketed-paste t)
+          (mistty-sync-marker (point-min))
+          (win (selected-window)))
+
+      ;; skip enabled
+      (set-window-point win (mistty-test-pos-after "a b c"))
+      (set-window-point win (1+ (mistty-test-pos-after "a b c")))
+      (mistty--cursor-skip win)
+      (should (equal (mistty-test-pos "echo") (window-point win)))
+
+      ;; skip disabled because point is before mistty-sync-marker
+      (let ((mistty-sync-marker (point-max)))
+        (set-window-point win (mistty-test-pos-after "a b c"))
+        (set-window-point win (1+ (mistty-test-pos-after "a b c")))
+        (mistty--cursor-skip win)
+        (should (equal (1+ (mistty-test-pos-after "a b c")) (window-point win))))
+
+      ;; skip disabled because mistty-bracketed-paste is nil
+      (let ((mistty-bracketed-paste nil))
+        (set-window-point win (mistty-test-pos-after "a b c"))
+        (set-window-point win (1+ (mistty-test-pos-after "a b c")))
+        (mistty--cursor-skip win)
+        (should (equal (1+ (mistty-test-pos-after "a b c")) (window-point win)))))))
 
 (ert-deftest mistty-test-yank-handler ()
   (with-mistty-buffer
@@ -2358,3 +2398,17 @@ text to be inserted there."
 (defun mistty-ert-explain-string-match (a b)
   `(string-match ,a ,b))
 (put 'equal 'ert-explainer 'mistty-ert-explain-string-match)
+
+(defun mistty-reload-all ()
+  "Force a reload of all mistty .el files.
+
+This is useful after files have changed, such as after checking
+ out a new branch."
+  (interactive)
+  (load "mistty-util.el" nil 'nomessage 'nosuffix)
+  (load "mistty-log.el" nil 'nomessage 'nosuffix)
+  (load "mistty-changeset.el" nil 'nomessage 'nosuffix)
+  (load "mistty-term.el" nil 'nomessage 'nosuffix)
+  (load "mistty-queue.el" nil 'nomessage 'nosuffix)
+  (load "mistty-osc7.el" nil 'nomessage 'nosuffix)
+  (load "mistty.el"nil 'nomessage 'nosuffix))

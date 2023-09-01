@@ -1792,7 +1792,10 @@ position (cursor) in the buffer."
     (kill-buffer backstage)))
 
 (defun mistty--cursor-skip (win)
-  (when mistty-skip-empty-spaces
+  (when (and mistty-skip-empty-spaces
+             mistty-sync-marker
+             mistty-bracketed-paste
+             (> (window-point win) mistty-sync-marker))
     (let* ((pos (window-point win))
            (skip-region (cons (mistty--cursor-skip-backward pos)
                               (mistty--cursor-skip-forward pos)))

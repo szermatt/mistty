@@ -752,7 +752,7 @@ from the ESHELL or SHELL environment variables."
     (goto-char cursor)
     (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
       (when (= cursor (window-point win))
-        (set-window-parameter win 'mistty--last-pos 'cursor))
+        (set-window-parameter win 'mistty--last-pos (cons (current-buffer) 'cursor)))
       (mistty--recenter win))))
 
 (defun mistty--recenter (win)
@@ -1795,13 +1795,14 @@ position (cursor) in the buffer."
   (when (and mistty-skip-empty-spaces
              mistty-sync-marker
              mistty-bracketed-paste
-             (> (window-point win) mistty-sync-marker))
+             (>= (window-point win) mistty-sync-marker))
     (let* ((pos (window-point win))
            (skip-region (cons (mistty--cursor-skip-backward pos)
                               (mistty--cursor-skip-forward pos)))
            (beg (car skip-region))
            (end (cdr skip-region))
-           (last-pos (window-parameter win 'mistty--last-pos))
+           (last-pos (when (eq (current-buffer) (car (window-parameter win 'mistty--last-pos)))
+                       (cdr (window-parameter win 'mistty--last-pos))))
            (move-to
             (cond
              ((or (null beg) (null end)
@@ -1837,7 +1838,7 @@ position (cursor) in the buffer."
       (when (numberp move-to)
         (set-window-point win move-to))
       (set-window-parameter win 'mistty--last-pos
-                            (or move-to pos)))))
+                            (cons (current-buffer) (or move-to pos))))))
 
 (defun mistty--cursor-skip-forward (pos)
   (cond

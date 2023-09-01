@@ -1589,16 +1589,11 @@ post-command hook."
 (iter-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."
   (when (mistty-on-prompt-p (point))
-    (let* ((point-on-work (point))
-           (point-on-term (mistty--from-work-pos point-on-work))
-           (proc mistty-proc)
-           (distance (mistty--with-live-buffer mistty-term-buffer
-                       (mistty--distance (process-mark proc) point-on-term))))
-      (unless (or (null distance) (zerop distance))
-        (mistty--yield (mistty--move-horizontally-str distance)
-                       (lambda ()
-                         (mistty--with-live-buffer mistty-work-buffer)
-                         (= (process-mark proc) point-on-term)))))))
+    (let ((goal (point)))
+      (mistty--yield (mistty--move-horizontally-str
+                      (mistty--distance (mistty-cursor) goal))
+                     (lambda ()
+                       (= (mistty-cursor) goal))))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

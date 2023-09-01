@@ -51,21 +51,24 @@ waiting for failing test results.")
      (should mistty-test-bash-exe)
      (ert-with-test-buffer ()
      (mistty-test-setup 'bash)
-     ,@body)))
+     (let ((mistty-debug-strict t))
+       ,@body))))
 
 (defmacro with-mistty-buffer-zsh (&rest body)
   `(progn
      (skip-unless mistty-test-zsh-exe)
      (ert-with-test-buffer ()
      (mistty-test-setup 'zsh)
-     ,@body)))
+     (let ((mistty-debug-strict t))
+       ,@body))))
 
 (defmacro with-mistty-buffer-fish (&rest body)
   `(progn
      (skip-unless mistty-test-fish-exe)
      (ert-with-test-buffer ()
      (mistty-test-setup 'fish)
-     ,@body)))
+     (let ((mistty-debug-strict t))
+       ,@body))))
 
 (defmacro with-mistty-buffer-python (&rest body)
   `(progn
@@ -73,13 +76,16 @@ waiting for failing test results.")
      (ert-with-test-buffer ()
        (let ((mistty-test-prompt ">>> "))
          (mistty-test-setup 'python)
-         ,@body))))
+         (let ((mistty-debug-strict t))
+           ,@body)))))
+
 
 (defmacro with-mistty-buffer-selected (&rest body)
   `(save-window-excursion
      (with-mistty-buffer
       (with-selected-window (display-buffer (current-buffer))
-        ,@body))))
+        (let ((mistty-debug-strict t))
+          ,@body)))))
 
 (defmacro mistty-run-command (&rest body)
   `(progn
@@ -781,9 +787,9 @@ waiting for failing test results.")
    (execute-kbd-macro (kbd "DEL"))
    (mistty-wait-for-output :str "`ec'")
    (should (equal "(reverse-i-search)`ec': echo s<>econd" (mistty-test-content :show (point))))
-   (execute-kbd-macro (kbd "<left>"))
-   (mistty-wait-for-output :str "$ ")
-   (should (equal "second" (mistty-send-and-capture-command-output)))))
+   (should (equal "second" (mistty-send-and-capture-command-output
+                            (lambda ()
+                              (execute-kbd-macro (kbd "RET"))))))))
 
 (ert-deftest test-mistty-skipped-spaces ()
   (with-mistty-buffer-fish
@@ -1377,6 +1383,7 @@ waiting for failing test results.")
    (mistty-send-text "printf 'o\\e[?25lk\\n'")
    (should (equal "ok" (mistty-send-and-capture-command-output)))
    (should (eq nil cursor-type))
+   (mistty-send-text "echo ok")
    (mistty-run-command (goto-char (1- (point))))
    (should (eq t cursor-type))))
 
@@ -1663,13 +1670,18 @@ waiting for failing test results.")
    (mistty-send-and-wait-for-prompt)
    (narrow-to-region (mistty--bol (point)) (point-max))
    (mistty-send-text "toto\t")
-   (mistty-wait-for-output
-    :test (lambda ()
-            (search-forward-regexp "^toto" nil 'noerror)))
-   (mistty-run-command
-    (insert "foobar"))
-   (should (equal "$ toto\ntoto<>0  toto1  toto2"
-                  (mistty-test-content :show (point))))))
+
+   ;; This test goes outside the prompt on purpose.
+   ;; mistty-debug-strict would cause this test to fail, since the
+   ;; cursor cannot be moved to the point.
+   (let ((mistty-debug-strict nil))
+     (mistty-wait-for-output
+      :test (lambda ()
+              (search-forward-regexp "^toto" nil 'noerror)))
+     (mistty-run-command
+      (insert "foobar"))
+     (should (equal "$ toto\ntoto<>0  toto1  toto2"
+                    (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-reset-during-replay ()
   (with-mistty-buffer
@@ -1763,19 +1775,16 @@ waiting for failing test results.")
     (insert "echo 'hello\n  world\n  and all that sort of things.'"))
    ;; indentation might make it think it's a fish multiline prompt.
 
-   (mistty-log "end -> rld")
    (mistty-run-command
     (mistty-test-goto "rld"))
    (should (equal "$ echo 'hello\n  wo<>rld\n  and all that sort of things.'"
                   (mistty-test-content :show (mistty-cursor))))
 
-   (mistty-log "rld -> llo")
    (mistty-run-command
     (mistty-test-goto "llo"))
    (should (equal "$ echo 'he<>llo\n  world\n  and all that sort of things.'"
                   (mistty-test-content :show (mistty-cursor))))
 
-   (mistty-log "llo -> things")
    (mistty-run-command
     (mistty-test-goto "things"))
    (should (equal "$ echo 'hello\n  world\n  and all that sort of <>things.'"
@@ -2134,24 +2143,6 @@ waiting for failing test results.")
 
    (should (equal 31 (mistty--distance (mistty-test-pos "for")
                                        (mistty-test-pos "end"))))))
-
-(ert-deftest test-mistty-inserted-regexp ()
-  (should (equal "foobar" (mistty--inserted-regexp "foobar")))
-  (should (string-match (mistty--inserted-regexp "foobar") "foobar"))
-  (should (not (string-match (mistty--inserted-regexp "foobar") "foo bar")))
-
-  (should (equal "foo[[:blank:]]+bar" (mistty--inserted-regexp "foo bar")))
-  (should (string-match (mistty--inserted-regexp "foo bar") "foo bar"))
-  (should (string-match (mistty--inserted-regexp "foo bar") "foo   bar"))
-  (should (not (string-match (mistty--inserted-regexp "foo bar") "foo\nbar")))
-
-  (should (equal "f\\$\\$[[:blank:]]+b\\$\\$" (mistty--inserted-regexp "f$$ b$$")))
-  (should (string-match (mistty--inserted-regexp "f$$ b$$") "f$$ b$$"))
-
-  (should (equal "foo[[:blank:]]*\n[[:blank:]]*bar" (mistty--inserted-regexp "foo\nbar")))
-  (should (string-match (mistty--inserted-regexp "foo\nbar") "foo\nbar"))
-  (should (string-match (mistty--inserted-regexp "foo\nbar") "foo  \nbar"))
-  (should (string-match (mistty--inserted-regexp "foo\nbar") "foo\n   bar")))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.

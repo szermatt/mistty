@@ -134,6 +134,16 @@ Set to 0 to disable truncation."
 
 (defvar mistty-max-try-count 1)
 
+(defvar mistty-debug-strict nil
+  "Enable strict mode for debugging.
+
+In strict mode, MisTTY fails if sending out a terminal sequence
+doesn't have the expected result. This isn't useful except for
+testing and debugging.
+
+Strict mode is turned on by default in tests. Tests that expect
+timeouts should turn it off temporarily.")
+
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
@@ -1277,20 +1287,67 @@ to replay it afterwards."
       (mistty--changeset-mark-region cs beg end old-end))))
 
 (defmacro mistty--yield (term-seq func)
+  "Yield TERM-SEQ to be sent to the terminal.
+
+FUNC should be a function or lambda that returns non-nil once the
+desired effect of sending TERM-SEQ to the terminal has been
+detected.
+
+This is a wrapper around `iter-yield' that relies on FUNC to
+decide on whether to continue waiting or return."
   `(let ((term-seq ,term-seq)
          (func ,func)
          (res 'intermediate)
-         (try-count 0))
+         (try-count 0)
+         yielded)
+     (mistty--yield-init term-seq func)
+     (setq yielded term-seq)
      (while (progn
-              (setq res (iter-yield term-seq))
-              (setq term-seq 'continue)
-              (cond
-               ((and (eq res 'intermediate) (not (funcall func)))
-                'keep-trying)
-               ((and (eq res 'stable) (< try-count mistty-max-try-count) (not (funcall func)))
-                (cl-incf try-count)
-                'keep-trying)
-               (t nil))))))
+              (setq res (iter-yield yielded))
+              (setq yielded 'continue)
+              (mistty--yield-check-result
+               res func try-count
+               (lambda () (cl-incf try-count)))))))
+
+(defun mistty--yield-init (term-seq func)
+  "Init function for the macro `mistty-yield'.
+
+TERM-SEQ and FUNC is the condition lambda passed to
+`mistty-yield'.
+
+Not to be used outside of that macro."
+  (when (and mistty-debug-strict
+             (mistty--nonempty-str-p term-seq)
+             (funcall func))
+    (error "Condition met prematurely, before sending out '%s'" term-seq)))
+
+(defun mistty--yield-check-result (res func try-count increase-try-count)
+  "Check `iter-yield' results in the macro `mistty-yield'.
+
+RES is the value returned by the last call to `iter-yield'. FUNC
+is the condition lambda passed to `mistty-yield'. TRY-COUNT is
+the number of times \\='stable was received. INCREASE-TRY-COUNT
+is a function that increases TRY-COUNT for next time.
+
+Not to be used outside of that macro.
+
+Returns nil if `mistty-yield' should leave the loop."
+  (cond
+   ((and (eq res 'intermediate)
+         (not (funcall func)))
+    'keep-trying)
+   ((and (eq res 'stable)
+         (< try-count mistty-max-try-count)
+         (not (funcall func)))
+    (funcall increase-try-count)
+    'keep-trying)
+   ((and mistty-debug-strict
+         (eq res 'stable)
+         (> try-count mistty-max-try-count) (not (funcall func)))
+    (error "Expected effect never found in buffer."))
+   ((and mistty-debug-strict (eq res 'timeout))
+    (error "Unexpected timeout waiting for the expected effect."))
+   (t nil)))
 
 (iter-defun mistty--replay-generator (cs)
   (let ((backstage (mistty--create-backstage mistty-proc))
@@ -1301,7 +1358,6 @@ to replay it afterwards."
               (modifications (mistty--changeset-modifications cs))
               (beg (make-marker))
               (old-end (make-marker))
-              (end (make-marker))
               (is-first t)
               lower-limit upper-limit distance)
 
@@ -1319,7 +1375,6 @@ to replay it afterwards."
 
           (pcase-dolist (`(,orig-beg ,content ,old-length) modifications)
             (move-marker beg (max lower-limit orig-beg))
-            (move-marker end nil)
             (move-marker old-end
                          (if (>= old-length 0)
                              (min upper-limit (+ orig-beg old-length))
@@ -1386,9 +1441,8 @@ to replay it afterwards."
                                   (min (length content) (max 0 (- beg orig-beg)))
                                 (length content)))
                    (sub (substring content start-idx))
-                   (inserted-regexp (mistty--inserted-regexp sub)))
-              (move-marker end old-end)
-              (set-marker-insertion-type end t)
+                   (inserted-detector (mistty--make-inserted-detector
+                                       sub beg old-end)))
               (mistty--yield
                (concat
                 ;; move to old-end (except the first time, because then
@@ -1410,10 +1464,7 @@ to replay it afterwards."
                (lambda ()
                  (with-current-buffer backstage
                    (mistty--update-backstage backstage proc)
-                   (and (= (point) end)
-                        (string-match-p
-                         inserted-regexp
-                         (buffer-substring beg end)))))))
+                   (funcall inserted-detector)))))
             (setq is-first nil)
             (set-buffer backstage)
             (mistty--update-backstage backstage proc))
@@ -1432,21 +1483,42 @@ to replay it afterwards."
       (mistty--release-changeset cs)
       (mistty--refresh-after-changeset))))
 
-(defun mistty--inserted-regexp (inserted)
-  "Return regexp for detecting whether INSERTED is the terminal.
+(defun mistty--make-inserted-detector (inserted beg old-end)
+  "Return a function that checks for INSERTED in the buffer.
 
-Ignores spaces added by the terminal between words or at the end
-and beginning of strings."
-  (let ((start 0) (regexp-parts))
-    (setq inserted (string-replace "\n" " \n " inserted))
-    (while (string-match "[[:blank:]]*\\([[:blank:]]\\|\n[[:blank:]]*\\)" inserted start)
-      (push (regexp-quote (substring inserted start (match-beginning 0))) regexp-parts)
-      (if (string-prefix-p "\n" (match-string 1 inserted))
-          (push "[[:blank:]]*\n[[:blank:]]*" regexp-parts)
-        (push "[[:blank:]]+" regexp-parts))
-      (setq start (match-end 0)))
-    (push (regexp-quote (substring inserted start (length inserted))) regexp-parts)
-    (apply #'concat (nreverse regexp-parts))))
+The returned function checks the current buffer for INSERTED
+appearing at position BEG. OLD-END is the position of the text
+that should follow INSERTED, that is, the position of text to be
+deleted. If nothing is deleted, OLD-END is the same as BEG.
+
+The way this function works allows for the shell to make some
+modifications to the inserted text, such as:
+- indent or re-indent it
+- add fake newlines (with text property \\='term-line-wrap)
+- add empty spaces (with text property \\='mistty-skip)
+
+The returned function takes no argument and returns non-nil once
+INSERTED has been detected in the current buffer."
+  (let ((regexp 
+         (let ((start 0)
+               (regexp-parts)
+               (str (concat inserted
+                            (mistty--safe-bufstring
+                             old-end (mistty--eol old-end)))))
+           (setq str (string-replace "\n" " \n " str))
+           (while (string-match "[[:blank:]]*\\([[:blank:]]\\|\n[[:blank:]]*\\)" str start)
+             (push (regexp-quote (substring str start (match-beginning 0))) regexp-parts)
+             (if (string-prefix-p "\n" (match-string 1 str))
+                 (push "[[:blank:]]*\n[[:blank:]]*" regexp-parts)
+               (push "[[:blank:]]+" regexp-parts))
+             (setq start (match-end 0)))
+           (push (regexp-quote (substring str start (length str))) regexp-parts)
+           (push "[[:blank:]]*$" regexp-parts)
+           (apply #'concat (nreverse regexp-parts)))))
+    (lambda ()
+      (save-excursion
+        (goto-char beg)
+        (looking-at-p regexp)))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."

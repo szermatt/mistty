@@ -1301,6 +1301,7 @@ to replay it afterwards."
               (modifications (mistty--changeset-modifications cs))
               (beg (make-marker))
               (old-end (make-marker))
+              (end (make-marker))
               (is-first t)
               lower-limit upper-limit distance)
 
@@ -1318,6 +1319,7 @@ to replay it afterwards."
 
           (pcase-dolist (`(,orig-beg ,content ,old-length) modifications)
             (move-marker beg (max lower-limit orig-beg))
+            (move-marker end nil)
             (move-marker old-end
                          (if (>= old-length 0)
                              (min upper-limit (+ orig-beg old-length))
@@ -1383,8 +1385,9 @@ to replay it afterwards."
             (let* ((start-idx (if (>= beg orig-beg)
                                   (min (length content) (max 0 (- beg orig-beg)))
                                 (length content)))
-                   (sub (substring content start-idx))
-                   (end (+ beg (length content) (- start-idx))))
+                   (sub (substring content start-idx)))
+              (move-marker end old-end)
+              (set-marker-insertion-type end t)
               (mistty--yield
                (concat
                 ;; move to old-end (except the first time, because then

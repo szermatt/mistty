@@ -1413,8 +1413,7 @@ to replay it afterwards."
                    (and (= (point) end)
                         (string-match-p
                          inserted-regexp
-                         (mistty--remove-fake-nl
-                          (buffer-substring beg end))))))))
+                         (buffer-substring beg end)))))))
             (setq is-first nil)
             (set-buffer backstage)
             (mistty--update-backstage backstage proc))
@@ -1843,7 +1842,8 @@ position (cursor) in the buffer."
     (mistty--sync-buffer (process-buffer proc))
     (goto-char
      (mistty--from-pos-of
-      (process-mark proc) (process-buffer proc)))))
+      (process-mark proc) (process-buffer proc)))
+    (mistty--remove-fake-nl)))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."

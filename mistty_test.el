@@ -2064,8 +2064,10 @@ window while BODY is running."
 
 (ert-deftest mistty-test-cursor-skip-hook-not-on-a-prompt ()
   (mistty-with-test-buffer (:shell fish :selected t)
+    (setq mistty-log t)
     (mistty-send-text "for i in a b c\necho line $i\nend")
     (mistty-send-and-wait-for-prompt)
+    (mistty-wait-for-output :str "line c" :start (point-min))
     
     (let ((mistty-skip-empty-spaces t)
           (win (selected-window)))
@@ -2277,8 +2279,6 @@ window while BODY is running."
 
 (ert-deftest test-mistty-quit ()
   (mistty-with-test-buffer ()
-    (setq mistty-log t)
-
     (mistty--enqueue
      mistty--queue
      (funcall

@@ -736,13 +736,10 @@ from the ESHELL or SHELL environment variables."
          mistty-variables-to-copy term-buffer)
 
         (mistty--cancel-timeout mistty--queue)
-        (when (or (and (mistty--queue-empty-p mistty--queue)
-                       (not mistty-bracketed-paste))
-                  (not (accept-process-output proc 0 0 t)))
-          (mistty--refresh)
-          (mistty--maybe-truncate-when-idle)
-          (mistty--dequeue mistty--queue 'intermediate)
-          (mistty--dequeue-with-timer mistty--queue 'stable)))))))
+        (mistty--refresh)
+        (mistty--maybe-truncate-when-idle)
+        (mistty--dequeue mistty--queue 'intermediate)
+        (mistty--dequeue-with-timer mistty--queue 'stable))))))
 
 (defun mistty--process-terminal-seq (proc str)
   "Process STR, sent to PROC, then update MisTTY internal state."

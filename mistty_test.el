@@ -2277,31 +2277,22 @@ window while BODY is running."
 
 (ert-deftest test-mistty-quit ()
   (mistty-with-test-buffer ()
-    ;; Prevent the shell from answering for a while
-    (mistty-send-text "sleep 30\n")
+    (setq mistty-log t)
 
-    ;; Start a replay
-    (mistty--pre-command)
-    (insert "should be cancelled")
-    (mistty--post-command)
-    (ert-run-idle-timers)
+    (mistty--enqueue
+     mistty--queue
+     (funcall
+      (iter-lambda ()
+        (while t
+          (iter-yield ".")))))
     (should (not (mistty--queue-empty-p mistty--queue)))
-
+    
     ;; C-g
     (let ((this-command 'keyboard-quit))
       (mistty--pre-command)
       (mistty--post-command))
 
-    ;; Stop the sleep command
-    (mistty-send-and-wait-for-prompt
-     (lambda () (mistty--send-string mistty-proc "\C-c")))
-
-    (mistty-run-command
-     (insert "done"))
-
-    ;; "should be cancelled" which was cancelled, never appears, but
-    ;; "done" does.
-    (should (equal "$ sleep 30\ndone^C\n$" (mistty-test-content)))))
+    (should (mistty--queue-empty-p mistty--queue))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.

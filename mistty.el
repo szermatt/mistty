@@ -1595,12 +1595,19 @@ force a response from the program."
     (when point-moved
       (setq cursor-type t))
 
+    (ignore-errors
+      (when (and (or (eq this-command 'keyboard-quit)
+                     (eq this-original-command 'keyboard-quit))
+                 (not (mistty--queue-empty-p mistty--queue)))
+        (mistty-log "CANCEL")
+        (message "MisTTY: Canceling replay")
+        (mistty--cancel-queue mistty--queue)))
+
     (run-with-idle-timer
      0 nil #'mistty--post-command-1
-     mistty-work-buffer point-moved (or (eq this-command 'keyboard-quit)
-                                        (eq this-original-command 'keyboard-quit)))))
+     mistty-work-buffer point-moved )))
 
-(defun mistty--post-command-1 (buf point-moved should-quit)
+(defun mistty--post-command-1 (buf point-moved)
   "Function called from `mistty--post-command'.
 
 This is the body of `mistty--post-command', which replays any
@@ -1612,55 +1619,51 @@ post-command hook."
       (widen)
       (when (and (process-live-p mistty-proc)
                  (buffer-live-p mistty-term-buffer))
-        (if should-quit
-            (unless (mistty--queue-empty-p mistty--queue)
-              (message "MisTTY: Canceling replay")
-              (mistty--cancel-queue mistty--queue))
-          (let* ((cs (mistty--active-changeset))
-                 shift replay)
-            (cond
-             ;; nothing to do
-             ((not (mistty--changeset-p cs)))
-             
-             ;; modifications are part of the current prompt; replay them
-             ((mistty-on-prompt-p (mistty-cursor))
-              (setq replay t))
+        (let* ((cs (mistty--active-changeset))
+               shift replay)
+          (cond
+           ;; nothing to do
+           ((not (mistty--changeset-p cs)))
 
-             ;; modifications are part of a possible prompt; realize it, keep the modifications before the
-             ;; new prompt and replay the modifications after the new prompt.
-             ((and (mistty--possible-prompt-p)
-                   (setq shift (mistty--changeset-restrict
-                                cs (nth 0 mistty--possible-prompt))))
-              (mistty--realize-possible-prompt shift)
-              (setq replay t))
+           ;; modifications are part of the current prompt; replay them
+           ((mistty-on-prompt-p (mistty-cursor))
+            (setq replay t))
 
-             ;; leave all modifications if there's enough of an unmodified
-             ;; section at the end. moving the sync mark is only possible
-             ;; as long as the term and work buffers haven't diverged.
-             ((and (< (mistty--changeset-end cs)
-                      ;; modifiable limit
-                      (mistty--bol (point-max) -5))
-                   (not mistty--need-refresh))
-              (mistty--set-sync-mark-from-end
-               (mistty--bol (mistty--changeset-end cs) 3)))
+           ;; modifications are part of a possible prompt; realize it, keep the modifications before the
+           ;; new prompt and replay the modifications after the new prompt.
+           ((and (mistty--possible-prompt-p)
+                 (setq shift (mistty--changeset-restrict
+                              cs (nth 0 mistty--possible-prompt))))
+            (mistty--realize-possible-prompt shift)
+            (setq replay t))
 
-             (t ;; revert everything
+           ;; leave all modifications if there's enough of an unmodified
+           ;; section at the end. moving the sync mark is only possible
+           ;; as long as the term and work buffers haven't diverged.
+           ((and (< (mistty--changeset-end cs)
+                    ;; modifiable limit
+                    (mistty--bol (point-max) -5))
+                 (not mistty--need-refresh))
+            (mistty--set-sync-mark-from-end
+             (mistty--bol (mistty--changeset-end cs) 3)))
 
-              ;; The following forces a call to refresh, in time, even if
-              ;; the process sent nothing new.
-              (setq mistty--need-refresh t)))
+           (t ;; revert everything
 
-            (when replay
-              (mistty--enqueue mistty--queue (mistty--replay-generator cs))
-              (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))
+            ;; The following forces a call to refresh, in time, even if
+            ;; the process sent nothing new.
+            (setq mistty--need-refresh t)))
 
-            ;; Abandon changesets that haven't been picked up for replay.
-            (when (and (not replay) (mistty--changeset-p cs))
-              (mistty--release-changeset cs)
-              (mistty--refresh-after-changeset))
+          (when replay
+            (mistty--enqueue mistty--queue (mistty--replay-generator cs))
+            (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))
 
-            (when (and (not replay) point-moved)
-              (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))))))))
+          ;; Abandon changesets that haven't been picked up for replay.
+          (when (and (not replay) (mistty--changeset-p cs))
+            (mistty--release-changeset cs)
+            (mistty--refresh-after-changeset))
+
+          (when (and (not replay) point-moved)
+            (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator))))))))
 
 (iter-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."

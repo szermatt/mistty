@@ -705,7 +705,6 @@ from the ESHELL or SHELL environment variables."
 
      ;; reset
      ((string-match "\ec" str)
-      (mistty-log "RESET")
       (let ((rs1-before-pos (match-beginning 0))
             (rs1-after-pos (match-end 0)))
         ;; The work buffer must be updated before sending the reset to
@@ -714,6 +713,7 @@ from the ESHELL or SHELL environment variables."
         ;; reset.
         (mistty--with-live-buffer term-buffer
           (mistty--process-terminal-seq proc (substring str 0 rs1-before-pos)))
+        (mistty-log "RESET")
         (mistty--with-live-buffer work-buffer
           (setq mistty--need-refresh t)
           (mistty--cancel-queue mistty--queue) ; might call mistty--refresh

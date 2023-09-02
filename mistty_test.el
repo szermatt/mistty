@@ -153,6 +153,30 @@ window while BODY is running."
    (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest test-mistty-reconcile-delete-on-long-prompt ()
+  (mistty-with-test-buffer ()
+    (mistty--set-process-window-size 20 20)
+
+    (mistty-run-command
+     (insert "echo one two three four five six seven eight nine"))
+    (mistty-wait-for-output :str "nine")
+
+   (mistty-run-command
+    (mistty-test-goto-after "nine"))
+   (mistty-run-command
+    (backward-kill-word 1))
+   (should (equal (concat "$ echo one two three\n"
+                          " four five six seven\n"
+                          " eight <>")
+                  (mistty-test-content :show (point))))
+
+   (mistty-run-command
+    (backward-kill-word 1))
+   (should (equal (concat "$ echo one two three\n"
+                          " four five six seven\n"
+                          " <>")
+                  (mistty-test-content :show (point))))))
+
 (ert-deftest test-mistty-reconcile-large-multiline-delete ()
   (mistty-with-test-buffer (:shell fish)
    (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")

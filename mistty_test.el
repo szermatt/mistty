@@ -1702,13 +1702,10 @@ window while BODY is running."
       mistty--queue
       (funcall (iter-lambda ()
                  (iter-yield "hello")
-                 (while (not (mistty-test-find-p "hello"))
+                 (while (not (mistty-test-find-p "hello" start))
                    (iter-yield 'continue))
                  (iter-yield "\C-m")
-                 (while (not (mistty-test-find-p "will reset"))
-                   (iter-yield 'continue))
-                 (iter-yield "bar")
-                 (while (not (mistty-test-find-p "reset done"))
+                 (while (not (mistty-test-find-p "reset done" start))
                    (iter-yield 'continue))
                  (iter-yield "bar"))))
      (mistty-wait-for-output :str "$ " :start start)
@@ -2160,10 +2157,10 @@ window while BODY is running."
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 
-(defun mistty-test-find-p (str)
+(defun mistty-test-find-p (str &optional start)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion
-    (goto-char (point-min))
+    (goto-char (or start (point-min)))
     (search-forward str nil 'noerror)))
 
 (defun mistty-test-goto (str)

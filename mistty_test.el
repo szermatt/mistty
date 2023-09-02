@@ -1701,8 +1701,14 @@ window while BODY is running."
       mistty--queue
       (funcall (iter-lambda ()
                  (iter-yield "hello")
+                 (while (not (mistty-test-find-p "hello"))
+                   (iter-yield 'continue))
                  (iter-yield "\C-m")
+                 (while (not (mistty-test-find-p "will reset"))
+                   (iter-yield 'continue))
                  (iter-yield "bar")
+                 (while (not (mistty-test-find-p "reset done"))
+                   (iter-yield 'continue))
                  (iter-yield "bar"))))
      (mistty-wait-for-output :str "$ " :start start)
      

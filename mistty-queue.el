@@ -172,7 +172,8 @@ scheduled."
 The queue remains usable, but empty."
   (when (mistty--queue-iter queue)
     (iter-close (mistty--queue-iter queue))
-    (setf (mistty--queue-iter queue) nil))
+    (setf (mistty--queue-iter queue) nil)
+    (setf (mistty--queue-more-iters queue) nil))
   (mistty--cancel-timeout queue)
   (mistty--cancel-timer queue))
 

@@ -1471,7 +1471,6 @@ window while BODY is running."
 
 (ert-deftest test-mistty-python-edit-before-prompt ()
   (mistty-with-test-buffer (:shell python)
-    (setq mistty-log t)
    (mistty-send-text "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output)))
 

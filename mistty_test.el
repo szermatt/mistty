@@ -44,6 +44,22 @@ avoid falkey tests in case the machine running the tests is slow.
 When running tests manually, a smaller value is useful to avoid
 waiting for failing test results.")
 
+(defvar mistty-test-max-try-count
+  (if noninteractive 5 mistty-max-try-count)
+  "Value of `mistty-max-try-count' active in tests.
+
+Tests have by default `mistty-debug-strict' enabled, which means
+that not getting the expected effect is always an error, so
+timing and try counts can be increased to account for slowness in
+batch tests.")
+
+(defvar mistty-test-timeout-s
+  (if noninteractive 3 mistty-test-timeout-s)
+  "Value of `mistty-timeout-s' active in tests.")
+
+(defvar mistty-test-stable-delay-s mistty-stable-delay-s
+  "Value of `mistty-stable-delay-s' active in tests.")
+
 (defvar mistty-test-prompt "$ ")
 
 (cl-defmacro mistty-with-test-buffer
@@ -63,6 +79,9 @@ window while BODY is running."
           `(skip-unless ,exec-var))
        (ert-with-test-buffer ()
          (let ((mistty-debug-strict t)
+               (mistty-max-try-count mistty-test-max-try-count)
+               (mistty-timeout-s mistty-test-timeout-s)
+               (mistty-stable-delay-s mistty-test-stable-delay-s)
                (mistty-test-prompt ,(if (eq shell 'python)
                                         ">>> "
                                       'mistty-test-prompt)))
@@ -1662,7 +1681,10 @@ window while BODY is running."
    ;; This test goes outside the prompt on purpose.
    ;; mistty-debug-strict would cause this test to fail, since the
    ;; cursor cannot be moved to the point.
-   (let ((mistty-debug-strict nil))
+   (let ((mistty-debug-strict nil)
+         (mistty-max-try-count 1)
+         (mistty-stable-delay-s 0.05)
+         (mistty-timeout-s 0.25))
      (mistty-wait-for-output
       :test (lambda ()
               (search-forward-regexp "^toto" nil 'noerror)))

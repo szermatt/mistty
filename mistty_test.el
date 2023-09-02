@@ -55,7 +55,7 @@ timing and try counts can be increased to account for slowness in
 batch tests.")
 
 (defvar mistty-test-timeout-s
-  (if noninteractive 3 mistty-test-timeout-s)
+  (if noninteractive 3 mistty-timeout-s)
   "Value of `mistty-timeout-s' active in tests.")
 
 (defvar mistty-test-stable-delay-s mistty-stable-delay-s

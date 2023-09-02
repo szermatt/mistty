@@ -142,6 +142,12 @@ of failing."
   "Return non-nil if positions A and B are on the same line."
   (= (mistty--bol a) (mistty--bol b)))
 
+(defun mistty--remove-fake-nl ()
+  "Remove fake newlines from the current buffer."
+  (let ((pos (point-min)))
+    (while (setq pos (text-property-any pos (point-max) 'term-line-wrap t))
+      (delete-region pos (1+ pos)))))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

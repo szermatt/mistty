@@ -143,6 +143,14 @@
                   (mistty-test-pos "a")
                   (mistty-test-pos "d"))))))
 
+(ert-deftest mistty-util-test-remove-fake-nl ()
+  (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
+    (insert fake-nl "abc" fake-nl fake-nl "def" fake-nl "ghi\n" fake-nl )
+
+    (mistty--remove-fake-nl)
+    (should (equal "abcdefghi\n"
+                   (mistty--safe-bufstring (point-min) (point-max))))))
+
 (defun mistty-test-pos (text)
   (save-excursion
     (goto-char (point-min))

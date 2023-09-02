@@ -10,7 +10,7 @@ setup_shells="(setq \
   mistty-test-bash-exe \"$(BASH)\" \
   mistty-test-zsh-exe \"$(ZSH)\" \
   mistty-test-fish-exe \"$(FISH)\"\
-  mistty-test-py-exe \"$(PYTHON)\"\
+  mistty-test-python-exe \"$(PYTHON)\"\
 )"
 
 $(CASK_DIR): Cask

@@ -132,6 +132,18 @@ Set to 0 to disable truncation."
   :group 'mistty
   :type 'natnum)
 
+(defvar mistty-max-try-count 1)
+
+(defvar mistty-debug-strict nil
+  "Enable strict mode for debugging.
+
+In strict mode, MisTTY fails if sending out a terminal sequence
+doesn't have the expected result. This isn't useful except for
+testing and debugging.
+
+Strict mode is turned on by default in tests. Tests that expect
+timeouts should turn it off temporarily.")
+
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
@@ -693,7 +705,6 @@ from the ESHELL or SHELL environment variables."
 
      ;; reset
      ((string-match "\ec" str)
-      (mistty-log "RESET")
       (let ((rs1-before-pos (match-beginning 0))
             (rs1-after-pos (match-end 0)))
         ;; The work buffer must be updated before sending the reset to
@@ -702,6 +713,7 @@ from the ESHELL or SHELL environment variables."
         ;; reset.
         (mistty--with-live-buffer term-buffer
           (mistty--process-terminal-seq proc (substring str 0 rs1-before-pos)))
+        (mistty-log "RESET")
         (mistty--with-live-buffer work-buffer
           (setq mistty--need-refresh t)
           (mistty--cancel-queue mistty--queue) ; might call mistty--refresh
@@ -724,12 +736,10 @@ from the ESHELL or SHELL environment variables."
          mistty-variables-to-copy term-buffer)
 
         (mistty--cancel-timeout mistty--queue)
-        (when (or (and (mistty--queue-empty-p mistty--queue)
-                       (not mistty-bracketed-paste))
-                  (not (accept-process-output proc 0 0 t)))
-          (mistty--refresh)
-          (mistty--maybe-truncate-when-idle)
-          (mistty--dequeue-with-timer mistty--queue)))))))
+        (mistty--refresh)
+        (mistty--maybe-truncate-when-idle)
+        (mistty--dequeue mistty--queue 'intermediate)
+        (mistty--dequeue-with-timer mistty--queue 'stable))))))
 
 (defun mistty--process-terminal-seq (proc str)
   "Process STR, sent to PROC, then update MisTTY internal state."
@@ -1273,14 +1283,75 @@ to replay it afterwards."
 
       (mistty--changeset-mark-region cs beg end old-end))))
 
+(defmacro mistty--yield (term-seq func)
+  "Yield TERM-SEQ to be sent to the terminal.
+
+FUNC should be a function or lambda that returns non-nil once the
+desired effect of sending TERM-SEQ to the terminal has been
+detected.
+
+This is a wrapper around `iter-yield' that relies on FUNC to
+decide on whether to continue waiting or return."
+  `(let ((term-seq ,term-seq)
+         (func ,func)
+         (res 'intermediate)
+         (try-count 0)
+         yielded)
+     (mistty--yield-init term-seq func)
+     (setq yielded term-seq)
+     (while (progn
+              (setq res (iter-yield yielded))
+              (setq yielded 'continue)
+              (mistty--yield-check-result
+               res func try-count
+               (lambda () (cl-incf try-count)))))))
+
+(defun mistty--yield-init (term-seq func)
+  "Init function for the macro `mistty-yield'.
+
+TERM-SEQ and FUNC is the condition lambda passed to
+`mistty-yield'.
+
+Not to be used outside of that macro."
+  (when (and mistty-debug-strict
+             (mistty--nonempty-str-p term-seq)
+             (funcall func))
+    (error "Condition met prematurely, before sending out '%s'" term-seq)))
+
+(defun mistty--yield-check-result (res func try-count increase-try-count)
+  "Check `iter-yield' results in the macro `mistty-yield'.
+
+RES is the value returned by the last call to `iter-yield'. FUNC
+is the condition lambda passed to `mistty-yield'. TRY-COUNT is
+the number of times \\='stable was received. INCREASE-TRY-COUNT
+is a function that increases TRY-COUNT for next time.
+
+Not to be used outside of that macro.
+
+Returns nil if `mistty-yield' should leave the loop."
+  (cond
+   ((and (eq res 'intermediate)
+         (not (funcall func)))
+    'keep-trying)
+   ((and (eq res 'stable)
+         (< try-count mistty-max-try-count)
+         (not (funcall func)))
+    (funcall increase-try-count)
+    'keep-trying)
+   ((and mistty-debug-strict
+         (eq res 'stable)
+         (> try-count mistty-max-try-count) (not (funcall func)))
+    (error "Expected effect never found in buffer."))
+   ((and mistty-debug-strict (eq res 'timeout))
+    (error "Unexpected timeout waiting for the expected effect."))
+   (t nil)))
+
 (iter-defun mistty--replay-generator (cs)
   (let ((backstage (mistty--create-backstage mistty-proc))
         (work-buffer mistty-work-buffer))
     (unwind-protect
         (let ((work-sync-marker (marker-position mistty-sync-marker))
               (proc mistty-proc)
-              (intervals-start (mistty--changeset-beg cs))
-              (intervals-end (mistty--changeset-end cs))
               (modifications (mistty--changeset-modifications cs))
               (beg (make-marker))
               (old-end (make-marker))
@@ -1319,7 +1390,11 @@ to replay it afterwards."
             (when (length> content 0)
               (setq distance (mistty--distance (point) beg))
               (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
-              (iter-yield (mistty--move-horizontally-str distance))
+              (mistty--yield (mistty--move-horizontally-str distance)
+                             (lambda ()
+                               (with-current-buffer backstage
+                                 (mistty--update-backstage backstage proc)
+                                 (= (point) beg))))
               (set-buffer backstage)
               (mistty--update-backstage backstage proc)
               (mistty-log "Got to %s" (point))
@@ -1340,7 +1415,11 @@ to replay it afterwards."
             (when (and is-first (> old-end beg))
               (setq distance (mistty--distance (point) old-end))
               (mistty-log "to old-end: %s -> %s distance: %s" (point) old-end distance)
-              (iter-yield (mistty--move-horizontally-str distance))
+              (mistty--yield (mistty--move-horizontally-str distance)
+                             (lambda ()
+                               (with-current-buffer backstage
+                                 (mistty--update-backstage backstage proc)
+                                 (= (point) old-end))))
               (set-buffer backstage)
               (mistty--update-backstage backstage proc)
               (mistty-log "Got to %s" (point))
@@ -1355,26 +1434,34 @@ to replay it afterwards."
               (move-marker old-end (max beg (min old-end (point)))))
 
             (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
-            (iter-yield
-             (concat
-              ;; move to old-end (except the first time, because then
-              ;; we want to check the result of that move)
-              (when (and (not is-first) (> old-end beg))
-                (mistty-log "MOVE %s -> %s" (point) old-end)
-                (mistty--move-horizontally-str
-                 (mistty--distance (point) old-end) 'no-wait))
-              ;; delete
-              (when (> old-end beg)
-                (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
-                (mistty--repeat-string (mistty--distance beg old-end) "\b"))
-              ;; insert
-              (when (and (>= beg orig-beg) (length> content 0))
-                (let* ((start-idx (min (length content) (max 0 (- beg orig-beg))))
-                       (sub (substring content start-idx)))
+            (let* ((start-idx (if (>= beg orig-beg)
+                                  (min (length content) (max 0 (- beg orig-beg)))
+                                (length content)))
+                   (sub (substring content start-idx))
+                   (inserted-detector (mistty--make-inserted-detector
+                                       sub beg old-end)))
+              (mistty--yield
+               (concat
+                ;; move to old-end (except the first time, because then
+                ;; we want to check the result of that move)
+                (when (and (not is-first) (> old-end beg))
+                  (mistty-log "MOVE %s -> %s" (point) old-end)
+                  (mistty--move-horizontally-str
+                   (mistty--distance (point) old-end) 'no-wait))
+                ;; delete
+                (when (> old-end beg)
+                  (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
+                  (mistty--repeat-string (mistty--distance beg old-end) "\b"))
+                ;; insert
+                (when (length> sub 0)
                   (if (> start-idx 0)
                       (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
                     (mistty-log "INSERT: '%s'" sub))
-                  (mistty--maybe-bracketed-str sub)))))
+                  (mistty--maybe-bracketed-str sub)))
+               (lambda ()
+                 (with-current-buffer backstage
+                   (mistty--update-backstage backstage proc)
+                   (funcall inserted-detector)))))
             (setq is-first nil)
             (set-buffer backstage)
             (mistty--update-backstage backstage proc))
@@ -1392,6 +1479,43 @@ to replay it afterwards."
       ;; refresh.
       (mistty--release-changeset cs)
       (mistty--refresh-after-changeset))))
+
+(defun mistty--make-inserted-detector (inserted beg old-end)
+  "Return a function that checks for INSERTED in the buffer.
+
+The returned function checks the current buffer for INSERTED
+appearing at position BEG. OLD-END is the position of the text
+that should follow INSERTED, that is, the position of text to be
+deleted. If nothing is deleted, OLD-END is the same as BEG.
+
+The way this function works allows for the shell to make some
+modifications to the inserted text, such as:
+- indent or re-indent it
+- add fake newlines (with text property \\='term-line-wrap)
+- add empty spaces (with text property \\='mistty-skip)
+
+The returned function takes no argument and returns non-nil once
+INSERTED has been detected in the current buffer."
+  (let ((regexp 
+         (let ((start 0)
+               (regexp-parts)
+               (str (concat inserted
+                            (mistty--safe-bufstring
+                             old-end (mistty--eol old-end)))))
+           (setq str (string-replace "\n" " \n " str))
+           (while (string-match "[[:blank:]]*\\([[:blank:]]\\|\n[[:blank:]]*\\)" str start)
+             (push (regexp-quote (substring str start (match-beginning 0))) regexp-parts)
+             (if (string-prefix-p "\n" (match-string 1 str))
+                 (push "[[:blank:]]*\n[[:blank:]]*" regexp-parts)
+               (push "[[:blank:]]+" regexp-parts))
+             (setq start (match-end 0)))
+           (push (regexp-quote (substring str start (length str))) regexp-parts)
+           (push "[[:blank:]]*$" regexp-parts)
+           (apply #'concat (nreverse regexp-parts)))))
+    (lambda ()
+      (save-excursion
+        (goto-char beg)
+        (looking-at-p regexp)))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."
@@ -1534,13 +1658,11 @@ post-command hook."
 (iter-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."
   (when (mistty-on-prompt-p (point))
-    (let* ((point-on-work (point))
-           (distance (with-current-buffer mistty-term-buffer
-                       (mistty--distance
-                        (process-mark mistty-proc)
-                        (mistty--from-work-pos point-on-work)))))
-      (unless (zerop distance)
-        (iter-yield (mistty--move-horizontally-str distance))))))
+    (let ((goal (point)))
+      (mistty--yield (mistty--move-horizontally-str
+                      (mistty--distance (mistty-cursor) goal))
+                     (lambda ()
+                       (= (mistty-cursor) goal))))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."
@@ -1784,7 +1906,8 @@ position (cursor) in the buffer."
     (mistty--sync-buffer (process-buffer proc))
     (goto-char
      (mistty--from-pos-of
-      (process-mark proc) (process-buffer proc)))))
+      (process-mark proc) (process-buffer proc)))
+    (mistty--remove-fake-nl)))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."

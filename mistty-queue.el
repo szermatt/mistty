@@ -32,6 +32,9 @@
 (require 'mistty-log)
 (require 'mistty-util)
 
+(defvar mistty-timeout-s 0.5)
+(defvar mistty-stable-delay-s 0.1)
+
 ;; A queue of strings to send to the terminal process.
 ;;
 ;; The queue contains a generator, which yields the strings to send to
@@ -45,6 +48,9 @@
 
   ;; A generator that yields strings to send to the terminal or nil.
   iter
+
+  ;; A list of generator to use after iter
+  more-iters
 
   ;; Timer used by mistty--dequeue-with-timer.
   timer
@@ -98,45 +104,53 @@ Does nothing if GEN is nil."
         (progn ; This is the first generator; kick things off.
           (setf (mistty--queue-iter queue) gen)
           (mistty--dequeue queue))
-      (setf (mistty--queue-iter queue)
-            (mistty--iter-chain (mistty--queue-iter queue) gen)))))
+      (setf (mistty--queue-more-iters queue)
+            (append (mistty--queue-more-iters queue) (list gen))))))
 
 (defun mistty--dequeue (queue &optional value)
   "Send the next string from QUEUE to the terminal.
 
 If VALUE is set, send that value to the first call to `iter-next'."
   (cl-assert (mistty--queue-p queue))
-  (mistty--cancel-timeout queue)
-  (unless (mistty--queue-empty-p queue)
-    (condition-case nil
-        (let ((proc (mistty--queue-proc queue))
-              (stop nil)
-              (calling-buffer (current-buffer)))
+  (let ((proc (mistty--queue-proc queue))
+        (stop nil)
+        (calling-buffer (current-buffer)))
+    (mistty--cancel-timeout queue)
+    (while (and (not stop) (mistty--queue-iter queue))
+      (condition-case nil
           (save-excursion
             (while (not stop)
               (let ((next-value (iter-next (mistty--queue-iter queue) value)))
                 (set-buffer calling-buffer)
-                (setq value nil)
+                (setq value 'empty-string)
                 (cond
+                 ;; Wait for more output
+                 ((eq 'continue next-value)
+                  (setf (mistty--queue-timeout queue)
+                        (run-with-timer
+                         mistty-timeout-s nil #'mistty--timeout-handler
+                         (current-buffer) queue))
+                  (setq stop t))
                  ;; Fire-and-forget; no need to wait for a response
                  ((and (listp next-value)
                        (eq (nth 0 next-value) 'fire-and-forget)
                        (mistty--nonempty-str-p (nth 1 next-value)))
                   (mistty--send-string proc (nth 1 next-value)))
-
+                 
                  ;; Normal sequences
                  ((mistty--nonempty-str-p next-value)
                   (setf (mistty--queue-timeout queue)
                         (run-with-timer
-                         0.5 nil #'mistty--timeout-handler
+                         mistty-timeout-s nil #'mistty--timeout-handler
                          (current-buffer) queue))
                   (mistty--send-string proc next-value)
-                  (setq stop t)))))))
-      (iter-end-of-sequence
-       (setf (mistty--queue-iter queue) nil)))))
+                  (setq stop t))))))
+        (iter-end-of-sequence
+         (setf (mistty--queue-iter queue)
+               (pop (mistty--queue-more-iters queue))))))))
 
-(defun mistty--dequeue-with-timer (queue)
-  "Call `mistty--dequeue' on QUEUE on a timer.
+(defun mistty--dequeue-with-timer (queue &optional value)
+  "Call `mistty--dequeue' on QUEUE with VALUE on a timer.
 
 The idea is to accumulate updates that arrive at the same time
 from the process, waiting for it to pause.
@@ -149,8 +163,8 @@ scheduled."
   (unless (mistty--queue-empty-p queue)
     (setf (mistty--queue-timer queue)
           (run-with-timer
-           0.1 nil #'mistty--queue-timer-handler
-           (current-buffer) queue))))
+           mistty-stable-delay-s nil #'mistty--queue-timer-handler
+           (current-buffer) queue value))))
 
 (defun mistty--cancel-queue (queue)
   "Clear QUEUE and cancel all pending actions.
@@ -194,8 +208,10 @@ This function is meant to be use as timer handler."
         (mistty-log "TIMEOUT")
         (mistty--dequeue queue 'timeout)))))
 
-(defun mistty--queue-timer-handler (buf queue)
+(defun mistty--queue-timer-handler (buf queue value)
   "Idle timer callback that calls `mistty--dequeue' on QUEUE.
+
+VALUE is passed to `mistty--dequeue'.
 
 The code is executed inside BUF.
 
@@ -203,24 +219,11 @@ This function is meant to be use as timer handler."
   (cl-assert (mistty--queue-p queue))
   (mistty--with-live-buffer buf
     (setf (mistty--queue-timer queue) nil)
-    (mistty--dequeue queue)))
+    (mistty--dequeue queue value)))
 
 (iter-defun mistty--iter-single (elt)
   "Build a generator that returns ELT and ends."
   (iter-yield elt))
-
-(defmacro mistty--call-iter (iter)
-  "Call ITER from another generator."
-  `(let ((iter ,iter))
-     (unwind-protect
-         (iter-do (value iter)
-           (iter-yield value))
-       (iter-close iter))))
-
-(iter-defun mistty--iter-chain (iter1 iter2)
-  "Build a generator that first calls ITER1, then ITER2."
-  (mistty--call-iter iter1)
-  (mistty--call-iter iter2))
 
 (provide 'mistty-queue)
 

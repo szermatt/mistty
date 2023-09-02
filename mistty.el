@@ -1976,6 +1976,8 @@ position (cursor) in the buffer."
 
 (defun mistty--cursor-skip-forward (pos)
   (cond
+   ((>= pos (point-max)) (point-max))
+   ((<= pos (point-min)) (point-min))
    ((get-text-property pos 'mistty-skip)
     (mistty--cursor-skip-forward
      (next-single-property-change pos 'mistty-skip nil (point-max))))
@@ -1988,6 +1990,8 @@ position (cursor) in the buffer."
 
 (defun mistty--cursor-skip-backward (pos)
   (cond
+   ((>= pos (point-max)) (point-max))
+   ((<= pos (point-min)) (point-min))
    ((and (> pos (point-min))
             (get-text-property (1- pos) 'mistty-skip))
     (mistty--cursor-skip-backward

@@ -1888,158 +1888,178 @@ window while BODY is running."
                           "      end#done<>")
                   (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-cursor-skip-range ()
-  (ert-with-test-buffer ()
-    (insert "$ for i in (seq 10)" (propertize "  " 'mistty-skip t)"\n"
-            (propertize "      " 'mistty-skip t) "echo line $i  \n"
-            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
-            "extra stuff goes here")
-
-    ;; skip over spaces marked with 'mistty-skip and newlines
-    ;; surrounded by such spaces.
-    (should (equal (mistty-test-pos "echo")
-                   (mistty--cursor-skip-forward (mistty-test-pos-after "(seq 10)"))))
-    (should (equal (mistty-test-pos-after "(seq 10)")
-                   (mistty--cursor-skip-backward (mistty-test-pos "echo"))))
-
-    (should (equal (mistty-test-pos-after "$i  ")
-                   (mistty--cursor-skip-backward (mistty-test-pos "end"))))
-    (should (equal (mistty-test-pos "end")
-                   (mistty--cursor-skip-forward (mistty-test-pos-after "$i  "))))
-
-    (should (equal (mistty-test-pos "extra")
-                   (mistty--cursor-skip-forward (mistty-test-pos-after "end"))))
-    (should (equal (mistty-test-pos "extra")
-                   (mistty--cursor-skip-forward (1- (mistty-test-pos "extra")))))
-
-    ;; spaces not marked with 'mistty-skip are not skipped over
-    (should (equal (mistty-test-pos-after "$i")
-                   (mistty--cursor-skip-forward (mistty-test-pos-after "$i"))))))
-
 (ert-deftest mistty-test-cursor-skip-hook-go-right ()
-  (ert-with-test-buffer-selected ()
-    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
-            (propertize "      " 'mistty-skip t) "echo line $i\n"
-            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
-            "extra stuff goes here")
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in a b c\necho line $i\nend")
 
     ;; go right from "for" to "end"
     (let ((mistty-skip-empty-spaces t)
-          (mistty-bracketed-paste t)
-          (mistty-sync-marker (point-min))
           (win (selected-window)))
-      (set-window-point win (mistty-test-pos "for"))
+      (mistty-test-goto-after "a b c")
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (goto-char (mistty-test-pos-after "a b c"))
+      (should (equal (concat "$ for i in a b c<>\n"
+                             "      echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point))))
+      (right-char)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos-after "a b c") (window-point win)))
-      (goto-char (1+ (mistty-test-pos-after "a b c")))
+      (should (equal (concat "$ for i in a b c\n"
+                             "      <>echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point))))
+      (mistty-test-goto-after "$i")
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos "echo") (window-point win)))
-      (goto-char (1+ (mistty-test-pos-after "$i")))
+      (right-char)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos "end") (window-point win))))))
+
+      (should (equal (concat "$ for i in a b c\n"
+                             "      echo line $i\n"
+                             "  <>end")
+                     (mistty-test-content
+                      :show (window-point)))))))
 
 (ert-deftest mistty-test-cursor-skip-hook-go-left ()
-  (ert-with-test-buffer-selected ()
-    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
-            (propertize "      " 'mistty-skip t) "echo line $i\n"
-            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
-            "extra stuff goes here")
-
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in a b c\necho line $i\nend")
+    
     ;; go left from "end" to "for"
     (let ((mistty-skip-empty-spaces t)
-          (mistty-bracketed-paste t)
-          (mistty-sync-marker (point-min))
           (win (selected-window)))
-      (set-window-point win (mistty-test-pos "end"))
+      (mistty-test-goto "end")
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (goto-char (1- (mistty-test-pos "end")))
+      (should (equal (concat "$ for i in a b c\n"
+                             "      echo line $i\n"
+                             "  <>end")
+                     (mistty-test-content
+                      :show (window-point))))
+
+      (left-char)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos-after "$i") (window-point win)))
-      (goto-char (mistty-test-pos "echo"))
+      (should (equal (concat "$ for i in a b c\n"
+                             "      echo line $i<>\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point))))
+
+      (mistty-test-goto "echo")
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos "echo") (window-point win)))
-      (goto-char (1- (mistty-test-pos "echo")))
+      (should (equal (concat "$ for i in a b c\n"
+                             "      <>echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point))))
+      
+      (left-char)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos-after "a b c") (window-point win))))))
+      (should (equal (concat "$ for i in a b c<>\n"
+                             "      echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point)))))))
 
 (ert-deftest mistty-test-cursor-skip-hook-go-down ()
-  (ert-with-test-buffer-selected ()
-    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
-            (propertize "      " 'mistty-skip t) "echo line $i\n"
-            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
-            "extra stuff goes here")
-
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in a b c\necho line $i\nend")
+    
     ;; go down from "for" to "end"
     (let ((mistty-skip-empty-spaces t)
-          (mistty-bracketed-paste t)
-          (mistty-sync-marker (point-min))
           (win (selected-window)))
-      (set-window-point win (mistty-test-pos "for"))
+
+      (mistty-test-goto "for")
+      (set-window-point win (point))
       (mistty--cursor-skip win)
+      (should (equal (concat "$ <>for i in a b c\n"
+                             "      echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point))))
+      
       (vertical-motion 1 win)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos "echo") (window-point win)))
+
+      (should (equal (concat "$ for i in a b c\n"
+                             "      <>echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point))))
+
       (vertical-motion 1 win)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos "end") (window-point win))))))
+
+      (should (equal (concat "$ for i in a b c\n"
+                             "      echo line $i\n"
+                             "  <>end")
+                     (mistty-test-content
+                      :show (window-point)))))))
 
 (ert-deftest mistty-test-cursor-skip-hook-go-up ()
-  (ert-with-test-buffer-selected ()
-    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
-            (propertize "      " 'mistty-skip t) "echo line $i\n"
-            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
-            "extra stuff goes here")
-
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in a b c\necho line $i\nend")
+    
     ;; go up from "end" to "for"
     (let ((mistty-skip-empty-spaces t)
-          (mistty-bracketed-paste t)
-          (mistty-sync-marker (point-min))
           (win (selected-window)))
-      (set-window-point win (mistty-test-pos "end"))
+      (mistty-test-goto "end")
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (call-interactively 'previous-line)
+      (should (equal (concat "$ for i in a b c\n"
+                             "      echo line $i\n"
+                             "  <>end")
+                     (mistty-test-content
+                      :show (window-point))))
+
+      (vertical-motion -1 win)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos "echo") (window-point win)))
-      (call-interactively 'previous-line)
+      (should (equal (concat "$ for i in a b c\n"
+                             "      <>echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point))))
+
+      (vertical-motion -1 win)
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos-after "for ") (window-point win))))))
+      (should (equal (concat "<>$ for i in a b c\n"
+                             "      echo line $i\n"
+                             "  end")
+                     (mistty-test-content
+                      :show (window-point)))))))
 
 (ert-deftest mistty-test-cursor-skip-hook-not-on-a-prompt ()
-  (ert-with-test-buffer-selected ()
-    (insert "$ for i in a b c" (propertize "  " 'mistty-skip t)"\n"
-            (propertize "      " 'mistty-skip t) "echo line $i\n"
-            (propertize "  " 'mistty-skip t) "end" (propertize "  " 'mistty-skip t) "\n"
-            "extra stuff goes here")
-
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in a b c\necho line $i\nend")
+    (mistty-send-and-wait-for-prompt)
+    
     (let ((mistty-skip-empty-spaces t)
-          (mistty-bracketed-paste t)
-          (mistty-sync-marker (point-min))
           (win (selected-window)))
-
-      ;; skip enabled
-      (set-window-point win (mistty-test-pos "a b c"))
+      (mistty-test-goto "echo")
+      (set-window-point win (point))
       (mistty--cursor-skip win)
-      (set-window-point win (1+ (mistty-test-pos-after "a b c")))
+      (left-char)
       (mistty--cursor-skip win)
-      (should (equal (mistty-test-pos "echo") (window-point win)))
 
-      ;; skip disabled because point is before mistty-sync-marker
-      (let ((mistty-sync-marker (point-max)))
-        (set-window-point win (mistty-test-pos "a b c"))
-        (mistty--cursor-skip win)
-        (set-window-point win (1+ (mistty-test-pos-after "a b c")))
-        (mistty--cursor-skip win)
-        (should (equal (1+ (mistty-test-pos-after "a b c")) (window-point win))))
-
-      ;; skip disabled because mistty-bracketed-paste is nil
-      (let ((mistty-bracketed-paste nil))
-        (set-window-point win (mistty-test-pos "a b c"))
-        (mistty--cursor-skip win)
-        (set-window-point win (1+ (mistty-test-pos-after "a b c")))
-        (mistty--cursor-skip win)
-        (should (equal (1+ (mistty-test-pos-after "a b c")) (window-point win)))))))
+      (should (equal (concat "$ for i in a b c\n"
+                             "     <> echo line $i\n"
+                             "  end\n"
+                             "line a\n"
+                             "line b\n"
+                             "line c\n"
+                             "$")
+                     (mistty-test-content
+                      :show (window-point)))))))
 
 (ert-deftest mistty-test-yank-handler ()
   (mistty-with-test-buffer ()
@@ -2135,24 +2155,25 @@ window while BODY is running."
                                         (+ 4 (mistty-test-pos "fou"))))))))
 
 (ert-deftest test-mistty-distance-skipped-spaces ()
-  (ert-with-test-buffer ()
-   (insert "$ for i in (seq 10)" (propertize "  " 'mistty-skip t)"\n"
-           (propertize "      " 'mistty-skip t) "echo line $i\n"
-           (propertize "  " 'mistty-skip t) "end")
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in a b c\necho line $i\nend")
 
-   (should (equal 1 (mistty--distance (+ 3 (mistty-test-pos "10)"))
-                                      (mistty-test-pos "echo"))))
+    (should (equal 1 (mistty--distance (mistty-test-pos-after "a b c")
+                                       (mistty-test-pos "echo"))))
+    (should (equal -1 (mistty--distance (mistty-test-pos "echo")
+                                        (mistty-test-pos-after "a b c"))))
 
-   (should (equal 1 (mistty--distance (+ 3 (mistty-test-pos "10)"))
-                                      (1- (mistty-test-pos "echo")))))
+    (should (equal 10 (mistty--distance (mistty-test-pos "a b c")
+                                        (mistty-test-pos-after "echo"))))
 
-   (should (equal 1 (mistty--distance (+ 4 (mistty-test-pos "10)"))
-                                      (mistty-test-pos "echo"))))
-   (should (equal 1 (mistty--distance (+ 4 (mistty-test-pos "10)"))
-                                        (1- (mistty-test-pos "echo")))))
+    (should (equal 1 (mistty--distance (mistty-test-pos-after "a b c")
+                                       (1- (mistty-test-pos "echo")))))
 
-   (should (equal 31 (mistty--distance (mistty-test-pos "for")
-                                       (mistty-test-pos "end"))))))
+    (should (equal 1 (mistty--distance (1+ (mistty-test-pos-after "a b c"))
+                                       (mistty-test-pos "echo"))))
+
+    (should (equal 28 (mistty--distance (mistty-test-pos "for")
+                                        (mistty-test-pos "end"))))))
 
 (ert-deftest test-mistty-quit ()
   (mistty-with-test-buffer ()

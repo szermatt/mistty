@@ -2104,6 +2104,82 @@ window while BODY is running."
        (should (string-match "^\\$ +< right\n<>$"
                              (mistty-test-content :show (point)))))))
 
+(ert-deftest test-mistty-fish-multiline-dont-skip-empty-lines-forward ()
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in (seq 10)\necho first\n\n\nend")
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+
+      (mistty-test-goto-after "first")
+      (mistty--cursor-skip win)
+      (right-char)
+      (mistty--cursor-skip win)
+      (should (equal (concat "$ for i in (seq 10)\n"
+                             "      echo first\n"
+                             "      <>\n"
+                             "\n"
+                             "  end")
+                            (mistty-test-content
+                             :show (point))))
+
+      (right-char)
+      (mistty--cursor-skip win)
+      (should (equal (concat "$ for i in (seq 10)\n"
+                             "      echo first\n"
+                             "\n"
+                             "      <>\n"
+                             "  end")
+                            (mistty-test-content
+                             :show (point))))
+
+      (right-char)
+      (mistty--cursor-skip win)
+      (should (equal (concat "$ for i in (seq 10)\n"
+                             "      echo first\n"
+                             "\n"
+                             "\n"
+                             "  <>end")
+                            (mistty-test-content
+                             :show (point)))))))
+
+(ert-deftest test-mistty-fish-multiline-dont-skip-empty-lines-backward ()
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in (seq 10)\necho first\n\n\nend")
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+
+      (mistty-test-goto "end")
+      (mistty--cursor-skip win)
+      (left-char)
+      (mistty--cursor-skip win)
+      (should (equal (concat "$ for i in (seq 10)\n"
+                             "      echo first\n"
+                             "\n"
+                             "      <>\n"
+                             "  end")
+                            (mistty-test-content
+                             :show (point))))
+
+      (left-char)
+      (mistty--cursor-skip win)
+      (should (equal (concat "$ for i in (seq 10)\n"
+                             "      echo first\n"
+                             "      <>\n"
+                             "\n"
+                             "  end")
+                            (mistty-test-content
+                             :show (point))))
+
+      (left-char)
+      (mistty--cursor-skip win)
+      (should (equal (concat "$ for i in (seq 10)\n"
+                             "      echo first<>\n"
+                             "\n"
+                             "\n"
+                             "  end")
+                            (mistty-test-content
+                             :show (point)))))))
+
 (ert-deftest test-mistty-fish-right-prompt-yank ()
   (mistty-with-test-buffer (:shell fish)
      (mistty-setup-fish-right-prompt)
@@ -2417,7 +2493,8 @@ Trailing newlines are always stripped out from the output."
     
     (when strip-last-prompt
       (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output)))
-    (setq output (replace-regexp-in-string "[ \t\n]*$" "" output))
+    (setq output (replace-regexp-in-string "[ \t]*$" "" output))
+    (setq output (replace-regexp-in-string "[ \t\n]*\\'" "" output))
     output))
 
 (defun mistty-wait-for-term-buffer-and-proc-to-die (buf proc)

@@ -1931,16 +1931,14 @@ position (cursor) in the buffer."
              mistty-bracketed-paste
              (>= (window-point win) mistty-sync-marker))
     (let* ((pos (window-point win))
-           (skip-region (cons (mistty--cursor-skip-backward pos)
-                              (mistty--cursor-skip-forward pos)))
+           (skip-region (mistty--cursor-skip-range pos))
            (beg (car skip-region))
            (end (cdr skip-region))
            (last-pos (when (eq (current-buffer) (car (window-parameter win 'mistty--last-pos)))
                        (cdr (window-parameter win 'mistty--last-pos))))
            (move-to
             (cond
-             ((or (null beg) (null end)
-                  (= pos beg) (= pos end)) nil)
+             ((or (= pos beg) (= pos end)) nil)
 
              ;; always respect a position that's been set by the
              ;; process cursor, no matter what.
@@ -1970,36 +1968,71 @@ position (cursor) in the buffer."
              (t
               end))))
       (when (numberp move-to)
+        (mistty-log "CURSOR MOVE beg %s end %s pos %s last-pos %s -> %s"
+                    beg end pos last-pos move-to)
         (set-window-point win move-to))
       (set-window-parameter win 'mistty--last-pos
                             (cons (current-buffer) (or move-to pos))))))
 
+(defun mistty--cursor-skip-range (pos)
+  "Return a range of spaces and newlines to skip over.
+
+Return ( BEG . END ) of the range, ( POS . POS ) if POS is not
+inside a skip range."
+  (let ((beg (mistty--cursor-skip-backward pos))
+        (end (mistty--cursor-skip-forward pos)))
+    (save-excursion
+      (goto-char beg)
+      (while (and (> end (point))
+                  (search-forward-regexp "\n *\n" end 'noerror))
+        (let ((cursor (1- (match-end 0))))
+          (cond
+           ((< pos cursor)
+            (setq end cursor))
+           ((> pos cursor)
+            (setq beg cursor)
+            ;; The last \n can be the first \n of the next match.
+            (goto-char (1- (match-end 0))))
+           (t ; (= pos cursor)
+            (setq beg pos)
+            (setq end pos))))))
+    (cons beg end)))
+
 (defun mistty--cursor-skip-forward (pos)
-  (cond
-   ((>= pos (point-max)) (point-max))
-   ((<= pos (point-min)) (point-min))
-   ((get-text-property pos 'mistty-skip)
-    (mistty--cursor-skip-forward
-     (next-single-property-change pos 'mistty-skip nil (point-max))))
-   ((and (eq ?\n (char-after pos))
-         (or
-          (and (> pos (point-min)) (get-text-property (1- pos) 'mistty-skip))
-          (and (< pos (point-max)) (get-text-property (1+ pos) 'mistty-skip))))
-    (mistty--cursor-skip-forward (1+ pos)))
-   (t pos)))
+  "Return the position of next non-skipped char after POS."
+  (let ((stop nil))
+    (while (and (not stop)
+                (< pos (point-max)))
+      (cond 
+       ((and (eq ?\n (char-after pos))
+             (or (and (> pos (point-min))
+                      (get-text-property (1- pos) 'mistty-skip))
+                 (and (< pos (point-max))
+                      (get-text-property (1+ pos) 'mistty-skip))))
+        (cl-incf pos))
+       ((get-text-property pos 'mistty-skip)
+        (setq pos (next-single-property-change
+                   pos 'mistty-skip nil (point-max))))
+       (t
+        (setq stop t)))))
+  pos)
 
 (defun mistty--cursor-skip-backward (pos)
-  (cond
-   ((>= pos (point-max)) (point-max))
-   ((<= pos (point-min)) (point-min))
-   ((and (> pos (point-min))
-            (get-text-property (1- pos) 'mistty-skip))
-    (mistty--cursor-skip-backward
-     (previous-single-property-change pos 'mistty-skip nil (point-min))))
-   ((and (eq ?\n (char-before pos))
-         (and (get-text-property pos 'mistty-skip)))
-    (mistty--cursor-skip-backward (1- pos)))
-   (t pos)))
+  "Return the position of previous non-skipped char before POS."
+  (let ((stop nil))
+    (while (and (not stop) (> pos (point-min)))
+      (cond
+       ((and (eq ?\n (char-before pos))
+             (or (get-text-property pos 'mistty-skip)
+                 (and (>= (- pos 2) (point-min))
+                      (get-text-property (- pos 2) 'mistty-skip))))
+        (cl-decf pos))
+       ((get-text-property (1- pos) 'mistty-skip)
+        (setq pos (previous-single-property-change
+                   pos 'mistty-skip nil (point-min))))
+       (t
+        (setq stop t)))))
+  pos)
 
 (defun mistty--distance (beg end)
   "Compute the number of cursor moves necessary to get from BEG to END.

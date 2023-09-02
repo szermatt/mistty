@@ -98,41 +98,41 @@ window while BODY is running."
      (progn ,@body)
      (mistty-test-after-command)))
 
-(ert-deftest test-mistty-simple-command ()
+(ert-deftest mistty-test-simple-command ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-simple-command-zsh ()
+(ert-deftest mistty-test-simple-command-zsh ()
   (mistty-with-test-buffer (:shell zsh)
    (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-simple-command-fish ()
+(ert-deftest mistty-test-simple-command-fish ()
   (mistty-with-test-buffer (:shell fish)
    (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-keystrokes ()
+(ert-deftest mistty-test-keystrokes ()
   (mistty-with-test-buffer (:selected t)
    (execute-kbd-macro (kbd "e c h o SPC o k"))
    (should (equal "ok" (mistty-send-and-capture-command-output
                         (lambda () (execute-kbd-macro (kbd "RET"))))))))
 
-(ert-deftest test-mistty-keystrokes-backspace ()
+(ert-deftest mistty-test-keystrokes-backspace ()
   (mistty-with-test-buffer (:selected t)
    (execute-kbd-macro (kbd "e c h o SPC f o o DEL DEL DEL o k"))
    (should (equal "ok" (mistty-send-and-capture-command-output
                         (lambda () (execute-kbd-macro (kbd "RET"))))))))
 
-(ert-deftest test-mistty-reconcile-insert ()
+(ert-deftest mistty-test-reconcile-insert ()
   (mistty-with-test-buffer ()
    (mistty-run-command
     (insert "echo hello"))
    (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-reconcile-delete ()
+(ert-deftest mistty-test-reconcile-delete ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello")
    
@@ -143,7 +143,7 @@ window while BODY is running."
    (should (equal "$ echo <>lo" (mistty-test-content :show (point))))
    (should (equal "lo" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-reconcile-delete-last-word ()
+(ert-deftest mistty-test-reconcile-delete-last-word ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello world")
    (mistty-run-command
@@ -153,7 +153,7 @@ window while BODY is running."
    (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
    (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-reconcile-delete-on-long-prompt ()
+(ert-deftest mistty-test-reconcile-delete-on-long-prompt ()
   (mistty-with-test-buffer ()
     (mistty--set-process-window-size 20 20)
 
@@ -177,7 +177,7 @@ window while BODY is running."
                           " <>")
                   (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-reconcile-large-multiline-delete ()
+(ert-deftest mistty-test-reconcile-large-multiline-delete ()
   (mistty-with-test-buffer (:shell fish)
    (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")
 
@@ -194,7 +194,7 @@ window while BODY is running."
                           "  end")
                   (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-reconcile-replace ()
+(ert-deftest mistty-test-reconcile-replace ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello")
    (mistty-run-command
@@ -205,7 +205,7 @@ window while BODY is running."
    (should (equal "$ echo bonjour<>" (mistty-test-content :show (point))))
    (should (equal "bonjour" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-reconcile-replace-with-point-outside-of-change ()
+(ert-deftest mistty-test-reconcile-replace-with-point-outside-of-change ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello, hello")
    (mistty-run-command
@@ -217,7 +217,7 @@ window while BODY is running."
    (should (equal "$ <>echo bonjour, bonjour" (mistty-test-content :show (point))))
    (should (equal "bonjour, bonjour" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-reconcile-replace-with-point-after-change ()
+(ert-deftest mistty-test-reconcile-replace-with-point-after-change ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello, hello world")
    (mistty-run-command
@@ -229,7 +229,7 @@ window while BODY is running."
    (should (equal "$ echo bonjour, bonjour <>world"
                   (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-reconcile-multiple-replace ()
+(ert-deftest mistty-test-reconcile-multiple-replace ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo boo boo, white goat")
    (mistty-run-command
@@ -245,7 +245,7 @@ window while BODY is running."
    (should (equal "baa baa, black sheep"
                   (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-change-before-prompt ()
+(ert-deftest mistty-test-change-before-prompt ()
   (mistty-with-test-buffer ()
    (let (beg end)
      (mistty-send-text "echo hello")
@@ -269,7 +269,7 @@ window while BODY is running."
      (should (equal "$ echo bonjour\nhello\n$ echo world\nworld\n$ <>"
                     (mistty-test-content :show (point)))))))
 
-(ert-deftest test-mistty-send-command-because-at-prompt ()
+(ert-deftest mistty-test-send-command-because-at-prompt ()
   (mistty-with-test-buffer (:selected t)
    (mistty-send-text "echo hello")
    (should (equal "hello" (mistty-send-and-capture-command-output
@@ -277,7 +277,7 @@ window while BODY is running."
                              (execute-kbd-macro (kbd "RET"))))))
    (should (equal "$ echo hello\nhello\n$" (mistty-test-content)))))
 
-(ert-deftest test-mistty-send-newline-because-not-at-prompt ()
+(ert-deftest mistty-test-send-newline-because-not-at-prompt ()
   (mistty-with-test-buffer (:selected t)
    (mistty-send-text "echo hello")
    (mistty-send-and-wait-for-prompt)
@@ -286,7 +286,7 @@ window while BODY is running."
    (execute-kbd-macro (kbd "RET"))
    (should (equal "$ echo\n<>hello\nhello\n$" (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-send-newline-because-not-at-prompt-multiline ()
+(ert-deftest mistty-test-send-newline-because-not-at-prompt-multiline ()
   (mistty-with-test-buffer (:selected t)
    (mistty-run-command
     (insert "echo hello\necho world"))
@@ -296,7 +296,7 @@ window while BODY is running."
    (execute-kbd-macro (kbd "RET"))
    (should (equal "$ echo\n<>hello\necho world\nhello\nworld\n$" (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-send-tab-to-complete  ()
+(ert-deftest mistty-test-send-tab-to-complete  ()
   (mistty-with-test-buffer ()
    (mistty-send-text "ech world")
    ;; Move the point before doing completion, to make sure that
@@ -309,14 +309,14 @@ window while BODY is running."
    (mistty-wait-for-output :str "echo")
    (should (equal "$ echo<> world" (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-kill-term-buffer-when-work-buffer-is-killed ()
+(ert-deftest mistty-test-kill-term-buffer-when-work-buffer-is-killed ()
   (let* ((buffer-and-proc (mistty-with-test-buffer ()
                            (cons mistty-term-buffer mistty-proc)))
          (term-buffer (car buffer-and-proc))
          (term-proc (cdr buffer-and-proc)))
     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
 
-(ert-deftest test-mistty-kill-term-buffer-but-keep-work-buffer ()
+(ert-deftest mistty-test-kill-term-buffer-but-keep-work-buffer ()
   (mistty-with-test-buffer ()
    (let* ((term-buffer mistty-term-buffer)
           (term-proc mistty-proc))
@@ -325,7 +325,7 @@ window while BODY is running."
     (mistty-wait-for-output :str "Terminal killed." :start (point-min))
     (should (equal (point) (point-max))))))
 
-(ert-deftest test-mistty-term-buffer-exits ()
+(ert-deftest mistty-test-term-buffer-exits ()
   (mistty-with-test-buffer ()
    (let ((proc mistty-proc)
          (term-buffer mistty-term-buffer))
@@ -339,7 +339,7 @@ window while BODY is running."
      ;;(should (equal (point) (point-max)))
      )))
 
-(ert-deftest test-mistty-scroll-with-long-command ()
+(ert-deftest mistty-test-scroll-with-long-command ()
   (mistty-with-test-buffer ()
    (let ((loop-command "for i in {0..49}; do echo line $i; done"))
      (mistty-send-text loop-command)
@@ -347,7 +347,7 @@ window while BODY is running."
      (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 49) "\n")
                     (mistty-send-and-capture-command-output))))))
 
-(ert-deftest test-mistty-scroll-with-many-commands ()
+(ert-deftest mistty-test-scroll-with-many-commands ()
   (mistty-with-test-buffer ()
    (let ((loop-command "for i in {0..4}; do echo line $i; done"))
      (dotimes (_ 10)
@@ -355,7 +355,7 @@ window while BODY is running."
        (should (equal (mapconcat (lambda (i) (format "line %d" i)) (number-sequence 0 4) "\n")
                       (mistty-send-and-capture-command-output nil nil 'nopointer)))))))
 
-(ert-deftest test-mistty-bracketed-paste ()
+(ert-deftest mistty-test-bracketed-paste ()
   (mistty-with-test-buffer ()
    (should (equal mistty-bracketed-paste t))
    (mistty-send-text "printf '(%s/%s) ? ' y n && read yesorno && echo answer: $yesorno")
@@ -364,7 +364,7 @@ window while BODY is running."
    (mistty-send-text "no")
    (should (equal "answer: no" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-eol ()
+(ert-deftest mistty-test-eol ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello")
    (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
@@ -381,7 +381,7 @@ window while BODY is running."
     :test (lambda ()
             (equal "$ echo hello<>" (mistty-test-content :show (point)))))))
 
-(ert-deftest test-mistty-eol-empty-prompt ()
+(ert-deftest mistty-test-eol-empty-prompt ()
   (mistty-with-test-buffer ()
    (goto-char (point-min))
    (mistty-run-command
@@ -391,7 +391,7 @@ window while BODY is running."
     (equal "$ <>"
            (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-next-prompt ()
+(ert-deftest mistty-test-next-prompt ()
   (mistty-with-test-buffer ()
    (mistty-run-command
     (insert "echo one"))
@@ -491,7 +491,7 @@ window while BODY is running."
            (mistty-test-content :show (point)
                                 :show-property '(mistty prompt))))))
 
-(ert-deftest test-mistty-next-prompt-zsh ()
+(ert-deftest mistty-test-next-prompt-zsh ()
   (mistty-with-test-buffer (:shell zsh)
    (mistty-run-command
     (insert "echo one"))
@@ -530,7 +530,7 @@ window while BODY is running."
            (mistty-test-content :show (point)
                                 :show-property '(mistty prompt))))))
 
-(ert-deftest test-mistty-next-prompt-fish ()
+(ert-deftest mistty-test-next-prompt-fish ()
   (mistty-with-test-buffer (:shell fish)
    (mistty-run-command
     (insert "echo one"))
@@ -569,7 +569,7 @@ window while BODY is running."
            (mistty-test-content :show (point)
                                 :show-property '(mistty prompt))))))
 
-(ert-deftest test-mistty-next-empty-prompt ()
+(ert-deftest mistty-test-next-empty-prompt ()
   (mistty-with-test-buffer ()
    (mistty-send-and-wait-for-prompt)
    (mistty-send-and-wait-for-prompt)
@@ -635,7 +635,7 @@ window while BODY is running."
            (mistty-test-content :show (point)
                                 :show-property '(mistty prompt))))))
 
-(ert-deftest test-mistty-previous-empty-prompt ()
+(ert-deftest mistty-test-previous-empty-prompt ()
   (mistty-with-test-buffer ()
    (mistty-send-and-wait-for-prompt)
    (mistty-send-and-wait-for-prompt)
@@ -700,7 +700,7 @@ window while BODY is running."
            (mistty-test-content :show (point)
                                 :show-property '(mistty prompt))))))
 
-(ert-deftest test-mistty-next-python-prompt ()
+(ert-deftest mistty-test-next-python-prompt ()
   (mistty-with-test-buffer (:shell python)
    (mistty-send-text "1 + 1")
    (mistty-send-and-wait-for-prompt nil ">>> ")
@@ -720,7 +720,7 @@ window while BODY is running."
                           ">>> <>2 + 2")
                   (mistty-test-content :show (point))))))
 
-(ert-deftest test-mistty-previous-prompt ()
+(ert-deftest mistty-test-previous-prompt ()
   (mistty-with-test-buffer ()
    (mistty-run-command
     (insert "echo one"))
@@ -783,7 +783,7 @@ window while BODY is running."
            (mistty-test-content :show (point)
                                 :show-property '(mistty prompt))))))
 
-(ert-deftest test-mistty-dirtrack ()
+(ert-deftest mistty-test-dirtrack ()
   (mistty-with-test-buffer ()
    (mistty-send-text "cd /")
    (mistty-send-and-wait-for-prompt)
@@ -792,7 +792,7 @@ window while BODY is running."
    (mistty-send-and-wait-for-prompt)
    (should (equal (file-name-as-directory (getenv "HOME")) default-directory))))
 
-(ert-deftest test-mistty-bash-backward-history-search ()
+(ert-deftest mistty-test-bash-backward-history-search ()
   (mistty-with-test-buffer (:selected t)
    (mistty-run-command
     (insert "echo first"))
@@ -820,7 +820,7 @@ window while BODY is running."
                             (lambda ()
                               (execute-kbd-macro (kbd "RET"))))))))
 
-(ert-deftest test-mistty-skipped-spaces ()
+(ert-deftest mistty-test-skipped-spaces ()
   (mistty-with-test-buffer (:shell fish)
    (mistty-send-text "for i in (seq 10)\necho line $i\nend")
 
@@ -831,7 +831,7 @@ window while BODY is running."
                    :strip-last-prompt t
                    :show-property '(mistty-skip t))))))
 
-(ert-deftest test-mistty-insert-long-prompt ()
+(ert-deftest mistty-test-insert-long-prompt ()
   (mistty-with-test-buffer ()
    (mistty--set-process-window-size 20 20)
 
@@ -841,7 +841,7 @@ window while BODY is running."
    (should (equal "$ echo one two three\n four five six seven\n eight nine"
                   (mistty-test-content)))))
 
-(ert-deftest test-mistty-keep-sync-marker-on-long-prompt ()
+(ert-deftest mistty-test-keep-sync-marker-on-long-prompt ()
   (mistty-with-test-buffer ()
    (mistty--set-process-window-size 20 20)
 
@@ -853,7 +853,7 @@ window while BODY is running."
    (should (equal (marker-position mistty-sync-marker) (point-min)))
    (should (equal (marker-position mistty--cmd-start-marker) (mistty-test-goto "echo one")))))
 
-(ert-deftest test-mistty-keep-pointer-on-long-prompt ()
+(ert-deftest mistty-test-keep-pointer-on-long-prompt ()
   (mistty-with-test-buffer ()
    (mistty--set-process-window-size 20 20)
 
@@ -868,7 +868,7 @@ window while BODY is running."
         (setq goal-pos (mistty-test-goto count)))
        (should (equal (mistty-cursor) goal-pos))))))
 
-(ert-deftest test-mistty-enter-fullscreen ()
+(ert-deftest mistty-test-enter-fullscreen ()
   (mistty-with-test-buffer (:selected t)
     (let ((bufname (buffer-name))
           (work-buffer mistty-work-buffer)
@@ -921,26 +921,26 @@ window while BODY is running."
          (not (buffer-local-value 'mistty-fullscreen work-buffer))))
      (should (eq mistty-work-buffer (window-buffer (selected-window))))))
 
-(ert-deftest test-mistty-enter-fullscreen-alternative-code ()
+(ert-deftest mistty-test-enter-fullscreen-alternative-code ()
   (mistty-with-test-buffer (:selected t)
     (mistty-test-enter-fullscreen "[?47h" "[?47l")))
 
-(ert-deftest test-mistty-enter-fullscreen-1047 ()
+(ert-deftest mistty-test-enter-fullscreen-1047 ()
   (mistty-with-test-buffer (:selected t)
     (mistty-test-enter-fullscreen "[?1047h" "[?1047l")))
 
-(ert-deftest test-mistty-enter-fullscreen-1049 ()
+(ert-deftest mistty-test-enter-fullscreen-1049 ()
   (mistty-with-test-buffer (:selected t)
     (mistty-test-enter-fullscreen "[?1049h" "[?1049l")))
 
-(ert-deftest test-mistty-live-buffer-p ()
+(ert-deftest mistty-test-live-buffer-p ()
   (mistty-with-test-buffer ()
    (should (mistty-live-buffer-p mistty-work-buffer))
    (should (not (mistty-live-buffer-p mistty-term-buffer))))
   (with-temp-buffer
     (should (not (mistty-live-buffer-p (current-buffer))))))
 
-(ert-deftest test-mistty-fullscreen-live-buffer-p ()
+(ert-deftest mistty-test-fullscreen-live-buffer-p ()
   (mistty-with-test-buffer ()
    (mistty-send-text
     (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
@@ -955,7 +955,7 @@ window while BODY is running."
    (should (mistty-live-buffer-p mistty-term-buffer))))
 
 
-(ert-deftest test-mistty-kill-fullscreen-buffer-kills-scrollback ()
+(ert-deftest mistty-test-kill-fullscreen-buffer-kills-scrollback ()
   (mistty-with-test-buffer (:selected t)
     (let ((work-buffer mistty-work-buffer)
           (proc mistty-proc))
@@ -966,7 +966,7 @@ window while BODY is running."
       (kill-buffer mistty-term-buffer)
       (mistty-wait-for-term-buffer-and-proc-to-die work-buffer proc))))
 
-(ert-deftest test-mistty-proc-dies-during-fullscreen ()
+(ert-deftest mistty-test-proc-dies-during-fullscreen ()
   (mistty-with-test-buffer (:selected t)
     (let ((bufname (buffer-name))
           (work-buffer mistty-work-buffer)
@@ -986,7 +986,7 @@ window while BODY is running."
       (should (equal bufname (buffer-name work-buffer)))
       (should (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer))))))
 
-(ert-deftest test-mistty-collect-modifications-delete-after-replace ()
+(ert-deftest mistty-test-collect-modifications-delete-after-replace ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1011,7 +1011,7 @@ window while BODY is running."
     ;; region.
     (should (equal '((12 "" 3) (6 "new-value" 3)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
-(ert-deftest test-mistty-collect-modifications-delete-at-end ()
+(ert-deftest mistty-test-collect-modifications-delete-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1028,7 +1028,7 @@ window while BODY is running."
 
     (should (equal '((6 "" -1)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
-(ert-deftest test-mistty-collect-modifications-insert-then-delete-at-end ()
+(ert-deftest mistty-test-collect-modifications-insert-then-delete-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1047,7 +1047,7 @@ window while BODY is running."
 
     (should (equal '((6 "new-value" -1)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
-(ert-deftest test-mistty-collect-modifications-insert-skip-then-delete-at-end ()
+(ert-deftest mistty-test-collect-modifications-insert-skip-then-delete-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1067,7 +1067,7 @@ window while BODY is running."
 
     (should (equal '((15 "" -1) (9 "" 3) (6 "new-value" 0)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
-(ert-deftest test-mistty-collect-modifications-inserts ()
+(ert-deftest mistty-test-collect-modifications-inserts ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1091,7 +1091,7 @@ window while BODY is running."
 
     (should (equal '((12 "NEW" 0) (9 "NEW" 0) (6 "NEW" 0)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
-(ert-deftest test-mistty-collect-modifications-insert-at-end ()
+(ert-deftest mistty-test-collect-modifications-insert-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1109,7 +1109,7 @@ window while BODY is running."
 
     (should (equal '((9 "NEW" 0)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
-(ert-deftest test-mistty-collect-modifications-replaces ()
+(ert-deftest mistty-test-collect-modifications-replaces ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1132,7 +1132,7 @@ window while BODY is running."
 
     (should (equal '((12 "NEW" 3) (6 "NEW" 3)) (mistty--changeset-modifications (mistty--active-changeset)))))))
 
-(ert-deftest test-mistty-restrict-intervals ()
+(ert-deftest mistty-test-restrict-intervals ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1159,7 +1159,7 @@ window while BODY is running."
       (should (equal '((16 shift 0) (18 shift 3)) (mistty--changeset-intervals cs)))
       (should (equal '((18 "" 3)) (mistty--changeset-modifications cs)))))))
 
-(ert-deftest test-mistty-restrict-intervals-before-changes ()
+(ert-deftest mistty-test-restrict-intervals-before-changes ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1179,7 +1179,7 @@ window while BODY is running."
       (should (equal 0 (mistty--changeset-restrict cs 4)))
       (should (equal '((6 inserted) (15 shift -9)) (mistty--changeset-intervals cs)))))))
 
-(ert-deftest test-mistty-restrict-intervals-exactly-before-insert ()
+(ert-deftest mistty-test-restrict-intervals-exactly-before-insert ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1201,7 +1201,7 @@ window while BODY is running."
       (should (equal 0 (mistty--changeset-restrict cs 6)))
       (should (equal '((6 inserted) (15 shift -8)) (mistty--changeset-intervals cs)))))))
 
-(ert-deftest test-mistty-restrict-intervals-exactly-before-shift ()
+(ert-deftest mistty-test-restrict-intervals-exactly-before-shift ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1220,7 +1220,7 @@ window while BODY is running."
       (should (equal 0 (mistty--changeset-restrict cs 6)))
       (should (equal '((6 shift 1)) (mistty--changeset-intervals cs)))))))
 
-(ert-deftest test-mistty-restrict-intervals-starts-within-insert ()
+(ert-deftest mistty-test-restrict-intervals-starts-within-insert ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1245,7 +1245,7 @@ window while BODY is running."
       (should (equal '((10 inserted) (15 shift -5) (18 shift -2)) (mistty--changeset-intervals cs)))
       (should (equal '((13 "" 3) (10 "value" 0)) (mistty--changeset-modifications cs)))))))
 
-(ert-deftest test-mistty-restrict-intervals-starts-within-insert-at-end ()
+(ert-deftest mistty-test-restrict-intervals-starts-within-insert-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1265,7 +1265,7 @@ window while BODY is running."
       (should (equal '((9 inserted)) (mistty--changeset-collect cs)))
       (should (equal nil (mistty--changeset-restrict cs 10)))))))
 
-(ert-deftest test-mistty-restrict-intervals-within-insert-then-delete-at-end ()
+(ert-deftest mistty-test-restrict-intervals-within-insert-then-delete-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
       (insert "$ ")
@@ -1286,7 +1286,7 @@ window while BODY is running."
         (should (equal '((6 inserted) (15 deleted-to-end)) (mistty--changeset-collect cs)))
         (should (equal nil (mistty--changeset-restrict cs 10)))))))
 
-(ert-deftest test-mistty-restrict-intervals-within-delete-at-end ()
+(ert-deftest mistty-test-restrict-intervals-within-delete-at-end ()
   (ert-with-test-buffer ()
     (let ((ov (make-overlay 1 1 nil nil 'rear-advance)))
     (insert "$ ")
@@ -1307,7 +1307,7 @@ window while BODY is running."
       (should (equal '((6 inserted) (15 deleted-to-end)) (mistty--changeset-collect cs)))
       (should (equal nil (mistty--changeset-restrict cs 15)))))))
 
-(ert-deftest test-mistty-osc ()
+(ert-deftest mistty-test-osc ()
   (mistty-with-test-buffer ()
    (let* ((osc-list)
           (mistty-osc-handlers
@@ -1317,7 +1317,7 @@ window while BODY is running."
       (should (equal "Some OSC!" (mistty-send-and-capture-command-output)))
       (should (equal '(("8" . ";http://www.example.com") ("8" . ";")) (nreverse osc-list))))))
 
-(ert-deftest test-mistty-osc-standard-end ()
+(ert-deftest mistty-test-osc-standard-end ()
   (mistty-with-test-buffer ()
    (let* ((osc-list)
           (mistty-osc-handlers
@@ -1327,7 +1327,7 @@ window while BODY is running."
       (should (equal "Some OSC!" (mistty-send-and-capture-command-output)))
       (should (equal '(("8" . ";http://www.example.com") ("8" . ";")) (nreverse osc-list))))))
 
-(ert-deftest test-mistty-osc-add-text-properties ()
+(ert-deftest mistty-test-osc-add-text-properties ()
   (mistty-with-test-buffer ()
    (let* ((start nil)
           (mistty-osc-handlers
@@ -1378,7 +1378,7 @@ window while BODY is running."
      (should (equal "$ foobar" (mistty-test-content)))
      (should (equal '("αβγ") osc-list)))))
 
-(ert-deftest test-mistty-reset ()
+(ert-deftest mistty-test-reset ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo one")
    (mistty-send-and-wait-for-prompt)
@@ -1389,7 +1389,7 @@ window while BODY is running."
    (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo\n$"
                   (mistty-test-content)))))
 
-(ert-deftest test-mistty-clear-screen ()
+(ert-deftest mistty-test-clear-screen ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo one")
    (mistty-send-and-wait-for-prompt)
@@ -1400,7 +1400,7 @@ window while BODY is running."
    (should (equal "$ echo one\none\n$ printf '\\e[2J'\n$ echo two\ntwo"
                   (mistty-test-content :strip-last-prompt t)))))
    
-(ert-deftest test-mistty-hide-cursor ()
+(ert-deftest mistty-test-hide-cursor ()
   (mistty-with-test-buffer ()
    (mistty-send-text "printf 'o\\e[?25lk\\n'")
    (should (equal "ok" (mistty-send-and-capture-command-output)))
@@ -1409,7 +1409,7 @@ window while BODY is running."
    (should (equal "ok" (mistty-send-and-capture-command-output)))
    (should (eq t cursor-type))))
    
-(ert-deftest test-mistty-show-cursor-if-moved ()
+(ert-deftest mistty-test-show-cursor-if-moved ()
   (mistty-with-test-buffer ()
    (mistty-send-text "printf 'o\\e[?25lk\\n'")
    (should (equal "ok" (mistty-send-and-capture-command-output)))
@@ -1418,7 +1418,7 @@ window while BODY is running."
    (mistty-run-command (goto-char (1- (point))))
    (should (eq t cursor-type))))
 
-(ert-deftest test-mistty-detect-possible-prompt ()
+(ert-deftest mistty-test-detect-possible-prompt ()
   (mistty-with-test-buffer ()
    (mistty-send-text
     "printf 'say %s>> ' something; read something; echo something: $something")
@@ -1432,7 +1432,7 @@ window while BODY is running."
              "say something>> ")
             mistty--possible-prompt))))
 
-(ert-deftest test-mistty-python-just-type ()
+(ert-deftest mistty-test-python-just-type ()
   (mistty-with-test-buffer (:shell python)
    (mistty-send-text "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
@@ -1441,7 +1441,7 @@ window while BODY is running."
    (mistty-previous-prompt 1)
    (should (looking-at (regexp-quote "1 + 1")))))
 
-(ert-deftest test-mistty-python-move-and-type ()
+(ert-deftest mistty-test-python-move-and-type ()
   (mistty-with-test-buffer (:shell python)
    (mistty-send-text "10 * 10")
    (mistty-run-command
@@ -1455,14 +1455,14 @@ window while BODY is running."
    (mistty-previous-prompt 1)
    (should (looking-at (regexp-quote "100 * 10")))))
 
-(ert-deftest test-mistty-python-eof ()
+(ert-deftest mistty-test-python-eof ()
   (mistty-with-test-buffer ()
    (should mistty-test-python-exe)
    (mistty-send-text mistty-test-python-exe)
    (mistty-send-and-wait-for-prompt nil ">>> ")
    (mistty-send-and-wait-for-prompt (lambda () (mistty-send-key 1 "\C-d")))))
 
-(ert-deftest test-mistty-python-delchar ()
+(ert-deftest mistty-test-python-delchar ()
   (mistty-with-test-buffer (:shell python)
    (mistty-send-text "11 + 1")
    (mistty-run-command
@@ -1471,7 +1471,7 @@ window while BODY is running."
    ;; deleted the first 1, the command-line is now 1 + 1
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
 
-(ert-deftest test-mistty-python-beginning-of-line ()
+(ert-deftest mistty-test-python-beginning-of-line ()
   (mistty-with-test-buffer (:shell python)
    (mistty-send-text "1 + 1")
    (mistty-send-beginning-of-line)
@@ -1481,7 +1481,7 @@ window while BODY is running."
                    (mistty-test-content
                     :start (mistty--bol (point)) :show (point)))))))
 
-(ert-deftest test-mistty-python-edit-prompt ()
+(ert-deftest mistty-test-python-edit-prompt ()
   (mistty-with-test-buffer (:shell python)
    (let ((start (- (point) 4)))
      (mistty-run-command
@@ -1494,7 +1494,7 @@ window while BODY is running."
      (should (equal ">>> <>10 * 10\n100\n>>>"
                     (mistty-test-content :start start :show (point)))))))
 
-(ert-deftest test-mistty-python-edit-before-prompt ()
+(ert-deftest mistty-test-python-edit-before-prompt ()
   (mistty-with-test-buffer (:shell python)
    (mistty-send-text "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output)))
@@ -1516,7 +1516,7 @@ window while BODY is running."
    (mistty-test-goto "1 * 1")
    (mistty-test-goto "3 * 3")))
 
-(ert-deftest test-mistty-more-edit-before-prompt ()
+(ert-deftest mistty-test-more-edit-before-prompt ()
   (mistty-with-test-buffer (:shell python)
    (mistty-send-text "1 + 1")
    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
@@ -1538,7 +1538,7 @@ window while BODY is running."
    (mistty-test-goto "1 * 1")
    (mistty-test-goto "3 * 3")))
 
-(ert-deftest test-mistty-edit-without-prompt ()
+(ert-deftest mistty-test-edit-without-prompt ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello, world")
    (mistty-send-and-wait-for-prompt)
@@ -1570,7 +1570,7 @@ window while BODY is running."
    (mistty-send-and-wait-for-prompt
     (lambda () (mistty--send-string mistty-proc "q")))))
 
-(ert-deftest test-mistty-python-prompt-too-long ()
+(ert-deftest mistty-test-python-prompt-too-long ()
   (mistty-with-test-buffer (:shell python)
    (let ((line-start (mistty--bol (point))))
      (mistty-send-text "if a > b:")
@@ -1582,7 +1582,7 @@ window while BODY is running."
                     (mistty-test-content :start line-start
                                          :show mistty--cmd-start-marker))))))
 
-(ert-deftest test-mistty-and-hippie-completion ()
+(ert-deftest mistty-test-and-hippie-completion ()
   (mistty-with-test-buffer ()
    (mistty-send-text "echo hello, hullo, hallo, hi")
    (mistty-send-and-wait-for-prompt)
@@ -2109,7 +2109,7 @@ window while BODY is running."
      (equal "one two three four five six seven eight nine"
             (mistty-test-content)))))
    
-(ert-deftest test-mistty-fish-right-prompt-simple-command ()
+(ert-deftest mistty-test-fish-right-prompt-simple-command ()
   (mistty-with-test-buffer (:shell fish)
      (mistty-setup-fish-right-prompt)
 
@@ -2117,7 +2117,7 @@ window while BODY is running."
      (mistty-send-text "echo hello")
      (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest test-mistty-fish-right-prompt-skip-empty-spaces ()
+(ert-deftest mistty-test-fish-right-prompt-skip-empty-spaces ()
   (mistty-with-test-buffer (:shell fish :selected t)
      (mistty-setup-fish-right-prompt)
      (let ((mistty-skip-empty-spaces t)
@@ -2130,7 +2130,7 @@ window while BODY is running."
        (should (string-match "^\\$ +< right\n<>$"
                              (mistty-test-content :show (point)))))))
 
-(ert-deftest test-mistty-fish-multiline-dont-skip-empty-lines-forward ()
+(ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-forward ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-send-text "for i in (seq 10)\necho first\n\n\nend")
     (let ((mistty-skip-empty-spaces t)
@@ -2168,7 +2168,7 @@ window while BODY is running."
                             (mistty-test-content
                              :show (point)))))))
 
-(ert-deftest test-mistty-fish-multiline-dont-skip-empty-lines-backward ()
+(ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-backward ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-send-text "for i in (seq 10)\necho first\n\n\nend")
     (let ((mistty-skip-empty-spaces t)
@@ -2206,7 +2206,7 @@ window while BODY is running."
                             (mistty-test-content
                              :show (point)))))))
 
-(ert-deftest test-mistty-fish-right-prompt-yank ()
+(ert-deftest mistty-test-fish-right-prompt-yank ()
   (mistty-with-test-buffer (:shell fish)
      (mistty-setup-fish-right-prompt)
      (mistty-send-text "echo hello")
@@ -2215,7 +2215,7 @@ window while BODY is running."
        (yank)
        (should (equal "$ echo hello" (mistty-test-content))))))
 
-(ert-deftest test-mistty-fish-right-prompt-skip-empty-spaces-at-prompt ()
+(ert-deftest mistty-test-fish-right-prompt-skip-empty-spaces-at-prompt ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-setup-fish-right-prompt)
     (let* ((mistty-skip-empty-spaces t)
@@ -2231,7 +2231,7 @@ window while BODY is running."
             (should (string-match "\\$ <>" (mistty-test-content :show (point)))))
         (advice-remove 'mistty--refresh after-refresh)))))
 
-(ert-deftest test-mistty-distance-with-fake-nl ()
+(ert-deftest mistty-test-distance-with-fake-nl ()
   (ert-with-test-buffer ()
    (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
      (insert "echo one tw" fake-nl
@@ -2256,7 +2256,7 @@ window while BODY is running."
      (should (equal 0 (mistty--distance (+ 3 (mistty-test-pos "fou"))
                                         (+ 4 (mistty-test-pos "fou"))))))))
 
-(ert-deftest test-mistty-distance-skipped-spaces ()
+(ert-deftest mistty-test-distance-skipped-spaces ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-send-text "for i in a b c\necho line $i\nend")
 
@@ -2277,7 +2277,7 @@ window while BODY is running."
     (should (equal 28 (mistty--distance (mistty-test-pos "for")
                                         (mistty-test-pos "end"))))))
 
-(ert-deftest test-mistty-quit ()
+(ert-deftest mistty-test-quit ()
   (mistty-with-test-buffer ()
     (mistty--enqueue
      mistty--queue

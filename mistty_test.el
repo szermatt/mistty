@@ -35,7 +35,8 @@
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
 
-(defvar mistty-test-timeout (if noninteractive 10 3)
+(defvar mistty-wait-for-output-timeout-s
+  (if noninteractive 10 3)
   "Time, in seconds, to wait for expected output in tests.
 
 When running tests automatically, a larger value is useful to
@@ -2287,13 +2288,13 @@ START to search for the text instead of (point-min)."
 
      (t (error "mistty-wait-for-output: no condition specified")))
     
-    (let ((time-limit (time-add (current-time) mistty-test-timeout)))
+    (let ((time-limit (time-add (current-time) mistty-wait-for-output-timeout-s)))
       (while (not (funcall condition))
         (unless (time-less-p (current-time) time-limit)
           (if on-error
               (funcall on-error)
             (error "condition not met after %ss (wait-for-output %s) buffer<<EOF\n%s\nEOF"
-                   mistty-test-timeout condition-descr
+                   mistty-wait-for-output-timeout-s condition-descr
                    (mistty-test-content :show (point)))))
         (if (process-live-p proc)
             (accept-process-output proc 0 100 t)

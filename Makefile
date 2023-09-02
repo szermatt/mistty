@@ -13,6 +13,8 @@ setup_shells="(setq \
   mistty-test-python-exe \"$(PYTHON)\"\
 )"
 
+tests = $(wildcard *_test.el)
+
 $(CASK_DIR): Cask
 	cask install
 	@touch $(CASK_DIR)
@@ -29,5 +31,5 @@ compile: cask
 
 .PHONY: test
 test: compile
-	cask emacs --batch -L . --eval $(setup_shells) -L test -l mistty_test.el -f ert-run-tests-batch-and-exit
+	cask emacs --batch -L . --eval $(setup_shells) -L test $(foreach f,$(tests),-l $f) -f ert-run-tests-batch-and-exit
 

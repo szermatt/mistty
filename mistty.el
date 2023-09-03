@@ -1997,7 +1997,9 @@ Return a list of ( BEG . END ), sorted by BEG, increasing."
       (goto-char beg)
       (while (and (> end (point))
                   (search-forward-regexp "\n *\n" end 'noerror))
-        (let ((cursor (1- (match-end 0))))
+        (let ((cursor (min (+ (match-beginning 0) 1
+                              (mistty--line-indent beg))
+                           (1- (match-end 0)))))
           (cond
            ((< pos cursor)
             (setq end cursor))
@@ -2012,6 +2014,21 @@ Return a list of ( BEG . END ), sorted by BEG, increasing."
     (unless (= beg end)
       (push (cons beg end) ranges))
     (nreverse ranges)))
+
+(defun mistty--line-indent (pos)
+  "Return the intentation of the line at POS.
+
+If the line contains a prompt, the indentation is the length of
+the prompt from the beginning of the line."
+  (let ((bol (mistty--bol pos))
+        (eol (mistty--eol pos)))
+    (if (and (>= bol mistty-sync-marker)
+             (<= bol mistty--cmd-start-marker)
+             (>= eol mistty--cmd-start-marker))
+        (- mistty--cmd-start-marker bol)
+      (save-excursion
+        (goto-char bol)
+        (skip-chars-forward " ")))))
 
 (defun mistty--cursor-incomplete-skip-forward (pos)
   "Return the position of next non-skipped char after POS.

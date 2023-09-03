@@ -2132,15 +2132,29 @@ window while BODY is running."
 
 (ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-forward ()
   (mistty-with-test-buffer (:shell fish :selected t)
-    (mistty-send-text "for i in (seq 10)\necho first\n\n\nend")
+    (mistty-send-text "for i in (seq 10)\n\necho first\n\n\nend")
     (let ((mistty-skip-empty-spaces t)
           (win (selected-window)))
+
+      (mistty-test-goto-after "(seq 10)")
+      (mistty--cursor-skip win)
+      (right-char)
+      (mistty--cursor-skip win)
+      (should (equal (concat "$ for i in (seq 10)\n"
+                             "  <>\n"
+                             "      echo first\n"
+                             "\n"
+                             "\n"
+                             "  end")
+                            (mistty-test-content
+                             :show (point))))
 
       (mistty-test-goto-after "first")
       (mistty--cursor-skip win)
       (right-char)
       (mistty--cursor-skip win)
       (should (equal (concat "$ for i in (seq 10)\n"
+                             "\n"
                              "      echo first\n"
                              "      <>\n"
                              "\n"
@@ -2151,6 +2165,7 @@ window while BODY is running."
       (right-char)
       (mistty--cursor-skip win)
       (should (equal (concat "$ for i in (seq 10)\n"
+                             "\n"
                              "      echo first\n"
                              "\n"
                              "      <>\n"
@@ -2161,6 +2176,7 @@ window while BODY is running."
       (right-char)
       (mistty--cursor-skip win)
       (should (equal (concat "$ for i in (seq 10)\n"
+                             "\n"
                              "      echo first\n"
                              "\n"
                              "\n"

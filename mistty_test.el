@@ -179,7 +179,6 @@ window while BODY is running."
 
 (ert-deftest mistty-test-reconcile-large-multiline-delete ()
   (mistty-with-test-buffer (:shell fish)
-   (setq mistty-log t)
    (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")
 
    (mistty-run-command
@@ -191,9 +190,9 @@ window while BODY is running."
    (mistty-wait-for-output :str "foo")
 
    (should (equal (concat "$ for i in (seq 10)\n"
-                          "      echo foo<> $i\n"
+                          "      echo foo $i\n"
                           "  end")
-                  (mistty-test-content :show (mistty-cursor))))))
+                  (mistty-test-content)))))
 
 (ert-deftest mistty-test-reconcile-replace ()
   (mistty-with-test-buffer ()
@@ -1774,26 +1773,25 @@ window while BODY is running."
     (mistty-test-goto "sort")
     (insert ":::1"))
    (mistty-wait-for-output :str ":::1" :start (point-min))
-   (should (equal "$ echo 'hello\n  world\n  and all that :::1<>sort of things.'"
-                  (mistty-test-content :show (mistty-cursor))))
+   (should (equal "$ echo 'hello\n  world\n  and all that :::1sort of things.'"
+                  (mistty-test-content)))
 
    (mistty-run-command
     (mistty-test-goto "llo")
     (insert ":::2"))
    (mistty-wait-for-output :str ":::2" :start (point-min))
-   (should (equal "$ echo 'he:::2<>llo\n  world\n  and all that :::1sort of things.'"
-                  (mistty-test-content :show (mistty-cursor))))
+   (should (equal "$ echo 'he:::2llo\n  world\n  and all that :::1sort of things.'"
+                  (mistty-test-content)))
 
    (mistty-run-command
     (mistty-test-goto "rld")
     (insert ":::3"))
    (mistty-wait-for-output :str ":::3" :start (point-min))
-   (should (equal "$ echo 'he:::2llo\n  wo:::3<>rld\n  and all that :::1sort of things.'"
-                  (mistty-test-content :show (mistty-cursor))))))
+   (should (equal "$ echo 'he:::2llo\n  wo:::3rld\n  and all that :::1sort of things.'"
+                  (mistty-test-content)))))
 
 (ert-deftest mistty-test-fish-multiline-indented ()
   (mistty-with-test-buffer (:shell fish)
-   (setq mistty-log t)
    (should mistty-bracketed-paste)
    (mistty-send-text "while i in (seq 10)\necho line $i\nend")
 
@@ -1801,8 +1799,8 @@ window while BODY is running."
     (mistty-test-goto "line")
     (insert ":::"))
    (mistty-wait-for-output :str ":::" :start (point-min))
-   (should (equal "$ while i in (seq 10)\n      echo :::<>line $i\n  end"
-                  (mistty-test-content :show (mistty-cursor))))))
+   (should (equal "$ while i in (seq 10)\n      echo :::line $i\n  end"
+                  (mistty-test-content)))))
 
 (ert-deftest mistty-test-bash-multiline ()
   (mistty-with-test-buffer ()

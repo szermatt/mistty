@@ -2268,10 +2268,14 @@ window while BODY is running."
     (should (equal 10 (mistty--distance (mistty-test-pos "a b c")
                                         (mistty-test-pos-after "echo"))))
 
-    (should (equal 1 (mistty--distance (mistty-test-pos-after "a b c")
+    (should (equal 0 (mistty--distance
+                      (- (mistty-test-pos "end") 2)
+                      (mistty-test-pos "end"))))
+
+    (should (equal 0 (mistty--distance (mistty-test-pos-after "a b c")
                                        (1- (mistty-test-pos "echo")))))
 
-    (should (equal 1 (mistty--distance (1+ (mistty-test-pos-after "a b c"))
+    (should (equal 0 (mistty--distance (1+ (mistty-test-pos-after "a b c"))
                                        (mistty-test-pos "echo"))))
 
     (should (equal 28 (mistty--distance (mistty-test-pos "for")

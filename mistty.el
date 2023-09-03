@@ -2064,21 +2064,31 @@ as \\='mistty-skip spaces."
   (let ((end (max beg end))
         (sign (if (< end beg) -1 1))
         (pos (min beg end))
-        (distance 0)
-        next)
+        (distance 0))
     (while (< pos end)
-      (cond
-       ((get-text-property pos 'term-line-wrap)
-        (setq pos (1+ pos)))
-       ((= pos (setq next (mistty--cursor-skip-forward pos)))
-        ;; the position is not to be skipped over; count it towards
-        ;; distance.
-        (setq distance (1+ distance))
-        (setq pos (1+ pos)))
-       (t
-        ;; we skipped a region; count it as 1 towards distance.
-        (setq distance (1+ distance))
-        (setq pos next))))
+      (if (get-text-property pos 'term-line-wrap)
+          ;; skip fake newlines
+          (setq pos (1+ pos))
+        (pcase-let ((`(,skip-beg . ,skip-end)
+                     (car (last (mistty--cursor-skip-ranges pos)))))
+          (cond
+           ((or (null skip-beg) (null skip-end))
+            ;; the position is not to be skipped over; count it towards
+            ;; distance.
+            (setq pos (1+ pos))
+            (setq distance (1+ distance)))
+           ((= pos skip-end)
+            (setq distance (1+ distance))
+            (setq pos (1+ pos)))
+           ((and (= pos skip-beg) (<= skip-end end))
+            ;; we skipped a whole region; count it as 1 towards
+            ;; distance.
+            (setq pos skip-end)
+            (setq distance (1+ distance)))
+           (t
+            ;; we skipped a partial region; don't count it towards
+            ;; distance at all.
+            (setq pos (1+ skip-end)))))))
     (* sign distance)))
 
 (provide 'mistty)

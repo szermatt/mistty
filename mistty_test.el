@@ -2307,6 +2307,48 @@ window while BODY is running."
     (should (equal -3 (mistty--distance (mistty-test-pos "end")
                                         (mistty-test-pos-after "a b c"))))))
 
+(ert-deftest mistty-test-distance-empty-lines-unreachable-beg-or-end ()
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (setq mistty-log t)
+    (mistty-send-text "for i in a b c\n\necho hello\n\nend")
+
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+
+      (mistty-run-command
+       (mistty-test-goto-after "a b c")
+       (mistty--cursor-skip win))
+
+      (should (equal (concat "$ for i in a b c<>\n"
+                             "\n"
+                             "      echo hello\n"
+                             "\n"
+                             "  end")
+                     (mistty-test-content :show (mistty-cursor))))
+
+      (should (equal 2 (mistty--distance
+                        (mistty-cursor) (mistty-test-pos "echo"))))
+      (should (equal 1 (mistty--distance
+                        (1+ (mistty-cursor)) (mistty-test-pos "echo"))))
+
+      (mistty-run-command
+       (right-char)
+       (mistty--cursor-skip win))
+
+      (should (equal (concat "$ for i in a b c\n"
+                             "  <>\n"
+                             "      echo hello\n"
+                             "\n"
+                             "  end")
+                     (mistty-test-content :show (mistty-cursor))))
+
+      (should (equal 1 (mistty--distance
+                        (mistty-cursor) (mistty-test-pos "echo"))))
+      (should (equal 1 (mistty--distance
+                        (- (mistty-cursor) 1) (mistty-test-pos "echo"))))
+      (should (equal 1 (mistty--distance
+                        (- (mistty-cursor) 2) (mistty-test-pos "echo")))))))
+
 (ert-deftest mistty-test-quit ()
   (mistty-with-test-buffer ()
     (mistty--enqueue

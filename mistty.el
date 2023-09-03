@@ -1675,7 +1675,7 @@ post-command hook."
                  (>= to (point-min))
                  (<= to (point-max)))
         (mistty--yield (mistty--move-horizontally-str
-                        (mistty--distance (mistty-cursor) to))
+                        (mistty--distance from to))
                        (lambda ()
                          (= (mistty-cursor) to)))))))
 
@@ -2105,7 +2105,7 @@ as \\='mistty-skip spaces."
            (t
             ;; we skipped a partial region; don't count it towards
             ;; distance at all.
-            (setq pos (1+ skip-end)))))))
+            (setq pos skip-end))))))
     (* sign distance)))
 
 (provide 'mistty)

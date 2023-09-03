@@ -179,6 +179,7 @@ window while BODY is running."
 
 (ert-deftest mistty-test-reconcile-large-multiline-delete ()
   (mistty-with-test-buffer (:shell fish)
+   (setq mistty-log t)
    (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")
 
    (mistty-run-command
@@ -190,9 +191,9 @@ window while BODY is running."
    (mistty-wait-for-output :str "foo")
 
    (should (equal (concat "$ for i in (seq 10)\n"
-                          "      echo foo $i\n"
+                          "      echo foo<> $i\n"
                           "  end")
-                  (mistty-test-content)))))
+                  (mistty-test-content :show (mistty-cursor))))))
 
 (ert-deftest mistty-test-reconcile-replace ()
   (mistty-with-test-buffer ()
@@ -1792,6 +1793,7 @@ window while BODY is running."
 
 (ert-deftest mistty-test-fish-multiline-indented ()
   (mistty-with-test-buffer (:shell fish)
+   (setq mistty-log t)
    (should mistty-bracketed-paste)
    (mistty-send-text "while i in (seq 10)\necho line $i\nend")
 

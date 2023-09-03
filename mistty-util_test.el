@@ -45,18 +45,6 @@
     (should (equal (list 1 6 11)
                    (mapcar #'marker-position (mistty--lines))))))
 
-(ert-deftest mistty-util-test-line-length ()
-  (ert-with-test-buffer ()
-    (insert "abc\n")
-    (insert "def ghi\n")
-    (insert "j\n")
-    (insert "kl   mno p")
-
-    (should (equal 3 (mistty--line-length (point-min))))
-    (should (equal 7 (mistty--line-length (mistty-test-pos "g"))))
-    (should (equal 1 (mistty--line-length (mistty-test-pos "j"))))
-    (should (equal 10 (mistty--line-length (mistty-test-pos "n"))))))
-
 (ert-deftest mistty-util-test-bol-skipping-fakes ()
   (ert-with-test-buffer ()
     (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
@@ -112,18 +100,6 @@
 
       ;; point must not have been moved after insert
       (should (equal (point-max) (point))))))
-
-(ert-deftest mistty-util-test-indent ()
-  (ert-with-test-buffer ()
-    (insert "   abc\n")
-    (insert "  def\n")
-    (insert " ghi\n")
-    (insert "jkl")
-
-    (should (equal 3 (mistty--line-indent (mistty-test-pos "abc"))))
-    (should (equal 2 (mistty--line-indent (mistty-test-pos "def"))))
-    (should (equal 1 (mistty--line-indent (mistty-test-pos "ghi"))))
-    (should (equal 0 (mistty--line-indent (mistty-test-pos "jkl"))))))
 
 (ert-deftest mistty-util-test-same-line ()
   (ert-with-test-buffer ()

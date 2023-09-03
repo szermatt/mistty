@@ -121,18 +121,6 @@ of failing."
         (setq count (1+ count)))
       count)))
 
-(defun mistty--line-length (pos)
-  "Return the length of the line at POS."
-  (- (mistty--eol pos)
-     (mistty--bol pos)))
-
-(defun mistty--line-indent (pos)
-  "Return the number of spaces at the beginning of the line at POS."
-  (save-excursion
-    (goto-char pos)
-    (goto-char (pos-bol 1))
-    (skip-chars-forward " ")))
-
 (defsubst mistty--nonempty-str-p (str)
   "Returns non-nil if STR is a nonempty string."
   (and (stringp str)

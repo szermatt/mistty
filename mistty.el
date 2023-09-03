@@ -1674,10 +1674,12 @@ post-command hook."
                  (<= from (point-max))
                  (>= to (point-min))
                  (<= to (point-max)))
-        (mistty--yield (mistty--move-horizontally-str
-                        (mistty--distance from to))
-                       (lambda ()
-                         (= (mistty-cursor) to)))))))
+        (let ((distance (mistty--distance from to)))
+          (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
+          (mistty--yield (mistty--move-horizontally-str distance)
+                         (lambda ()
+                           (= (mistty-cursor) to)))
+          (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) to))))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

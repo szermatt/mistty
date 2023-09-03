@@ -972,17 +972,15 @@ window while BODY is running."
           (work-buffer mistty-work-buffer)
           (term-buffer mistty-term-buffer)
           (proc mistty-proc))
-      (should (executable-find "vi"))
-      (execute-kbd-macro (kbd "v i RET"))
-      (mistty-wait-for-output :test (lambda () mistty-fullscreen))
 
-      (signal-process proc 'SIGILL)
+      (mistty-send-text "printf '\\e[47hFullscreen' && exit 99")
+      (mistty-send-command)
 
       (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc)
 
       (should (buffer-live-p work-buffer))
       (should (eq work-buffer (window-buffer (selected-window))))
-      (should (string-match "illegal instruction" (buffer-substring-no-properties (point-min) (point-max))))
+      (should (string-match "exited abnormally" (buffer-substring-no-properties (point-min) (point-max))))
       (should (equal bufname (buffer-name work-buffer)))
       (should (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer))))))
 

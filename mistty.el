@@ -1933,57 +1933,66 @@ position (cursor) in the buffer."
              mistty-sync-marker
              mistty-bracketed-paste
              (>= (window-point win) mistty-sync-marker))
-    (let* ((pos (window-point win))
-           (skip-region (mistty--cursor-skip-range pos))
-           (beg (car skip-region))
-           (end (cdr skip-region))
-           (last-pos (when (eq (current-buffer) (car (window-parameter win 'mistty--last-pos)))
-                       (cdr (window-parameter win 'mistty--last-pos))))
-           (move-to
-            (cond
-             ((or (= pos beg) (= pos end)) nil)
-
-             ;; always respect a position that's been set by the
-             ;; process cursor, no matter what.
-             ((and
-               (eq last-pos 'cursor)
-               (equal pos (and mistty-proc mistty-term-buffer (mistty-cursor))))
-              ;; keep the point where it is and the window parameter
-              ;; set to 'cursor.
+    (let ((pos (window-point win))
+          (last-pos (when (eq (current-buffer) (car (window-parameter win 'mistty--last-pos)))
+                      (cdr (window-parameter win 'mistty--last-pos))))
+          (move-to nil))
+      (pcase-dolist (`(,beg . ,end) (mistty--cursor-skip-ranges pos))
+        (unless move-to 
+          (setq
+           move-to
+           (cond
+            ((or (null beg) (null end) (= pos beg) (= pos end)) nil)
+            
+            ;; always respect a position that's been set by the
+            ;; process cursor, no matter what.
+            ((and
+              (eq last-pos 'cursor)
+              (equal pos (and mistty-proc mistty-term-buffer (mistty-cursor))))
+             ;; keep the point where it is and the window parameter
+             ;; set to 'cursor.
              'cursor)
-
-             ;; horizontal movement from the left, go right
-             ((and (numberp last-pos) (<= last-pos beg) (mistty--same-line-p last-pos beg))
-              end)
-             ;; horizontal movement from the right, go left
-             ((and (numberp last-pos) (>= last-pos end) (mistty--same-line-p last-pos end))
-              beg)
-             ;; vertical move; on beg's line, so go to beg
-             ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
-              beg)
-             ;; vertical move; on end's line, so go to end
-             ((and (mistty--same-line-p pos end) (not (mistty--same-line-p pos beg)))
-              end)
-             ;; closer to beg than to end, go to beg
-             ((< (- pos beg) (- end pos))
-              beg)
+            
+            ;; horizontal movement from the left, go right
+            ((and (numberp last-pos) (<= last-pos beg) (mistty--same-line-p last-pos beg))
+             end)
+            ;; horizontal movement from the right, go left
+            ((and (numberp last-pos) (>= last-pos end) (mistty--same-line-p last-pos end))
+             beg)
+            ;; vertical move; on beg's line, so go to beg
+            ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
+             beg)
+            ;; vertical move; on end's line, so go to end
+            ((and (mistty--same-line-p pos end) (not (mistty--same-line-p pos beg)))
+             end)
+            ;; closer to beg than to end, go to beg
+            ((< (- pos beg) (- end pos))
+             beg)
              ;; otherwise go to end
-             (t
-              end))))
+            (t
+             end)))
+          (when move-to
+            (mistty-log "CURSOR MOVE beg %s end %s pos %s last-pos %s -> %s"
+                        beg end pos last-pos move-to))))
       (when (numberp move-to)
-        (mistty-log "CURSOR MOVE beg %s end %s pos %s last-pos %s -> %s"
-                    beg end pos last-pos move-to)
         (set-window-point win move-to))
       (set-window-parameter win 'mistty--last-pos
                             (cons (current-buffer) (or move-to pos))))))
 
-(defun mistty--cursor-skip-range (pos)
-  "Return a range of spaces and newlines to skip over.
+(defun mistty--cursor-skip-forward (pos)
+  "Return the right end of the skip ranges containing POS.
 
-Return ( BEG . END ) of the range, ( POS . POS ) if POS is not
-inside a skip range."
-  (let ((beg (mistty--cursor-skip-backward pos))
-        (end (mistty--cursor-skip-forward pos)))
+Return POS if not in any skip ranges."
+  (or (cdr (car (last (mistty--cursor-skip-ranges pos)))) pos))
+  
+(defun mistty--cursor-skip-ranges (pos)
+  "Ranges of spaces and newlines to skip over that contain POS.
+
+Return a list of ( BEG . END ), sorted by BEG, increasing."
+  (let ((beg (mistty--cursor-incomplete-skip-backward pos))
+        (end (mistty--cursor-incomplete-skip-forward pos))
+        (ranges nil)
+        )
     (save-excursion
       (goto-char beg)
       (while (and (> end (point))
@@ -1993,16 +2002,23 @@ inside a skip range."
            ((< pos cursor)
             (setq end cursor))
            ((> pos cursor)
-            (setq beg cursor)
-            ;; The last \n can be the first \n of the next match.
-            (goto-char (1- (match-end 0))))
+            (setq beg cursor))
            (t ; (= pos cursor)
-            (setq beg pos)
-            (setq end pos))))))
-    (cons beg end)))
+            (push (cons beg cursor) ranges)
+            (setq beg cursor)))
 
-(defun mistty--cursor-skip-forward (pos)
-  "Return the position of next non-skipped char after POS."
+          ;; The last \n can be the first \n of the next match.
+          (goto-char (1- (match-end 0))))))
+    (unless (= beg end)
+      (push (cons beg end) ranges))
+    (nreverse ranges)))
+
+(defun mistty--cursor-incomplete-skip-forward (pos)
+  "Return the position of next non-skipped char after POS.
+
+This implementation is incomplete. Always call
+`mistty--cursor-skip-ranges' or `mistty--cursor-skip-forward' to
+get correct results."
   (let ((stop nil))
     (while (and (not stop)
                 (< pos (point-max)))
@@ -2020,8 +2036,11 @@ inside a skip range."
         (setq stop t)))))
   pos)
 
-(defun mistty--cursor-skip-backward (pos)
-  "Return the position of previous non-skipped char before POS."
+(defun mistty--cursor-incomplete-skip-backward (pos)
+  "Return the position of previous non-skipped char before POS.
+
+This implementation is incomplete. Always call
+`mistty--cursor-skip-ranges' to get correct results."
   (let ((stop nil))
     (while (and (not stop) (> pos (point-min)))
       (cond

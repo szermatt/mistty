@@ -2277,6 +2277,16 @@ window while BODY is running."
     (should (equal 28 (mistty--distance (mistty-test-pos "for")
                                         (mistty-test-pos "end"))))))
 
+(ert-deftest mistty-test-distance-empty-lines ()
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "for i in a b c\n\n\nend")
+
+    (should (equal 3 (mistty--distance (mistty-test-pos-after "a b c")
+                                       (mistty-test-pos "end"))))
+
+    (should (equal -3 (mistty--distance (mistty-test-pos "end")
+                                        (mistty-test-pos-after "a b c"))))))
+
 (ert-deftest mistty-test-quit ()
   (mistty-with-test-buffer ()
     (mistty--enqueue

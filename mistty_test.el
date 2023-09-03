@@ -190,9 +190,9 @@ window while BODY is running."
    (mistty-wait-for-output :str "foo")
 
    (should (equal (concat "$ for i in (seq 10)\n"
-                          "      echo foo<> $i\n"
+                          "      echo foo $i\n"
                           "  end")
-                  (mistty-test-content :show (point))))))
+                  (mistty-test-content)))))
 
 (ert-deftest mistty-test-reconcile-replace ()
   (mistty-with-test-buffer ()

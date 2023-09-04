@@ -1,4 +1,4 @@
-;;; mistty.el --- One Terminal -*- lexical-binding: t -*-
+;;; mistty.el --- Shell/Comint alternative based on term.el -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2023 Stephane Zermatten
 

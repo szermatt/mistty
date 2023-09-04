@@ -4,7 +4,7 @@
 
 ;; Author: Stephane Zermatten <szermatt@gmx.net>
 ;; Version: 0.9
-;; Package-Requires: ((emacs "29.1"))
+;; Package-Requires: ((emacs "29.1") (iter2 "1.4"))
 ;; Keywords: convenience, unix
 ;; URL: http://github.com/szermatt/mixterm
 
@@ -32,6 +32,7 @@
 (require 'generator)
 (require 'text-property-search)
 (require 'fringe)
+(require 'iter2)
 (eval-when-compile
   (require 'cl-lib))
 
@@ -1346,7 +1347,7 @@ Returns nil if `mistty-yield' should leave the loop."
     (error "Unexpected timeout waiting for the expected effect."))
    (t nil)))
 
-(iter-defun mistty--replay-generator (cs)
+(iter2-defun mistty--replay-generator (cs)
   (let ((backstage (mistty--create-backstage mistty-proc))
         (work-buffer mistty-work-buffer))
     (unwind-protect
@@ -1665,7 +1666,7 @@ post-command hook."
           (when (and (not replay) point-moved)
             (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator))))))))
 
-(iter-defun mistty--cursor-to-point-generator ()
+(iter2-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."
   (when (mistty-on-prompt-p (point))
     (let ((from (mistty-cursor))

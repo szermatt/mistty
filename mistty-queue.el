@@ -113,15 +113,13 @@ Does nothing if GEN is nil."
 If VALUE is set, send that value to the first call to `iter-next'."
   (cl-assert (mistty--queue-p queue))
   (let ((proc (mistty--queue-proc queue))
-        (stop nil)
-        (calling-buffer (current-buffer)))
+        (stop nil))
     (mistty--cancel-timeout queue)
     (while (and (not stop) (mistty--queue-iter queue))
       (condition-case nil
           (save-excursion
             (while (not stop)
               (let ((next-value (iter-next (mistty--queue-iter queue) value)))
-                (set-buffer calling-buffer)
                 (setq value 'empty-string)
                 (cond
                  ;; Wait for more output

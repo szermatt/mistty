@@ -133,6 +133,21 @@ Set to 0 to disable truncation."
   :group 'mistty
   :type 'natnum)
 
+(defcustom mistty-forbid-edit-regexps
+  '( ;; fish:
+    "^search: .*\n\\(►\\|(no matches)\\)"
+    ;; bash:
+    "^(reverse-i-search)"
+    ;; zsh:
+    "^bck-i-search:.*_ *$")
+  "Regexps that turn off replaying of Emacs modifications.
+
+These regexps are meant detects modes in which shells turn off
+line editing in favor of direct interactions. C-r (reverse
+history search) is typically such a mode."
+  :group 'mistty
+  :type '(list regexp))
+
 (defvar mistty-max-try-count 1)
 
 (defvar mistty-debug-strict nil
@@ -420,6 +435,11 @@ cause changes are just ignored by the command.")
   "An idle timer that'll truncate the buffer.
 
 Truncation is configured by `mistty-buffer-maximum-size'.")
+
+(defvar-local mistty--forbid-edit nil
+  "When non-nil, replaying of modifications in turned off.
+
+This is controlled by `mistty-forbid-edit-regexp'.")
 
 (eval-when-compile
   ;; defined in term.el
@@ -947,6 +967,11 @@ Also updates prompt and point."
                           (marker-position mistty--cmd-start-marker) cursor)
               (mistty--set-prompt mistty-sync-marker mistty-sync-marker)))))
 
+      ;; Turn mistty-forbid-edit on or off
+      (mistty--with-live-buffer mistty-work-buffer
+        (setq mistty--forbid-edit
+              (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
+
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.
         (when (< mistty-sync-marker term-home-marker)
@@ -970,6 +995,19 @@ Also updates prompt and point."
             (mistty-goto-cursor))
           (setq mistty-goto-cursor-next-time nil)
           (setq mistty--cursor-after-last-refresh (mistty-cursor)))))))
+
+(defun mistty--match-forbid-edit-regexp-p (beg)
+  "Returns t if `mistty-forbid-edit-regexp' matches.
+
+The region searched is BEG to end of buffer."
+  (let ((regexps mistty-forbid-edit-regexps)
+        (match nil))
+    (while (and (not match) regexps)
+      (save-excursion
+        (goto-char beg)
+        (setq match (search-forward-regexp
+                     (pop regexps) nil 'noerror))))
+    (if match t nil)))
 
 (defun mistty--sync-buffer (source-buffer)
   "Copy the sync region of SOURCE-BUFFER to the current buffer.
@@ -1269,6 +1307,8 @@ This function is called whenever the synced (purple) region of
 the buffer is modified. It creates or extends a
 `mistty-changeset', storing enough information about the change
 to replay it afterwards."
+  (when mistty--forbid-edit
+    (error "Edits disabled. M-x customize-option mistty-forbid-edit-regexps to configure"))
   (when (and is-after
              mistty-sync-marker
              (>= orig-end mistty-sync-marker))
@@ -1612,6 +1652,10 @@ post-command hook."
            ;; nothing to do
            ((not (mistty--changeset-p cs)))
 
+           (mistty--forbid-edit
+            ;; Refresh to erase the changes.
+            (setq mistty--need-refresh t))
+
            ;; modifications are part of the current prompt; replay them
            ((mistty-on-prompt-p (mistty-cursor))
             (setq replay t))
@@ -1825,6 +1869,7 @@ Ignores buffers that don't exist."
 (defun mistty-on-prompt-p (pos)
   "Return non-nil if POS is on a prompt."
   (and (>= pos mistty-sync-marker)
+       (not mistty--forbid-edit)
        (or mistty-bracketed-paste
            (and
             (>= pos mistty--cmd-start-marker)

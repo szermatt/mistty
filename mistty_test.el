@@ -2359,6 +2359,50 @@ window while BODY is running."
 
     (should (mistty--queue-empty-p mistty--queue))))
 
+(ert-deftest mistty-test-forbid-edit ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      ;; following the cursor is disabled
+      (let ((cursor (mistty-cursor)))
+        (mistty-run-command
+         (right-char))
+        (should (equal cursor (mistty-cursor)))
+        (should (not (equal (point) (mistty-cursor)))))
+
+      ;; replay is disabled
+      (mistty-run-command
+       (should-error (delete-region
+                      (mistty-test-pos "search:") (point-max))))
+
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$ echo second\n"
+                             "search:\n"
+                             "► echo second  ► echo first")
+                     (mistty-test-content)))
+
+      ;; leave the mode
+      (mistty-send-command)
+
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (not (search-forward "search:" nil t)))))
+
+      (should (not mistty--forbid-edit)))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

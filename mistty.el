@@ -6,7 +6,7 @@
 ;; Version: 0.9
 ;; Package-Requires: ((emacs "29.1") (iter2 "1.4"))
 ;; Keywords: convenience, unix
-;; URL: http://github.com/szermatt/mixterm
+;; URL: http://github.com/szermatt/mistty
 
 ;; This program is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as

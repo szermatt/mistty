@@ -1,4 +1,4 @@
-# MisTTY, a shell/comint alternative with a real terminal
+# MisTTY, a shell/comint alternative with a fully functional terminal
 
 MisTTY runs a shell interactively under Emacs 29.1 and later, just like
 `M-x shell` does. 

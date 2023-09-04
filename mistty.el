@@ -1919,14 +1919,12 @@ position (cursor) in the buffer."
     (kill-buffer backstage)))
 
 (defun mistty--cursor-skip (win)
-  (when (and mistty-skip-empty-spaces
-             mistty-sync-marker
-             mistty-bracketed-paste
-             (>= (window-point win) mistty-sync-marker))
-    (let ((pos (window-point win))
-          (last-pos (when (eq (current-buffer) (car (window-parameter win 'mistty--last-pos)))
-                      (cdr (window-parameter win 'mistty--last-pos))))
-          (move-to nil))
+  (let (pos last-pos move-to)
+    (when (and mistty-skip-empty-spaces
+               (mistty-on-prompt-p (setq pos (window-point win))))
+      (when-let ((last-state (window-parameter win 'mistty--last-pos)))
+        (when (eq (car last-state) (current-buffer))
+          (setq last-pos (cdr last-state))))
       (pcase-dolist (`(,beg . ,end) (mistty--cursor-skip-ranges pos))
         (unless move-to 
           (setq
@@ -1958,7 +1956,7 @@ position (cursor) in the buffer."
             ;; closer to beg than to end, go to beg
             ((< (- pos beg) (- end pos))
              beg)
-             ;; otherwise go to end
+            ;; otherwise go to end
             (t
              end)))
           (when move-to

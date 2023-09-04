@@ -1848,10 +1848,10 @@ Ignores buffers that don't exist."
 (defun mistty-before-positional ()
   "Prepare the state for executing a positional command.
 
-This:
- - creates any possible prompts that were detected
- - move the cursor to the point, so the command executes
-   at the right position in the buffer."
+This creates any possible prompts that were detected at the last
+minute. If a prompt is created, it also moves the cursor to the
+point, as this is only done by the post-command hook on detected
+prompts."
   (let ((cursor (mistty-cursor)))
     (when (and (not (= cursor (point)))
                (mistty--maybe-realize-possible-prompt))

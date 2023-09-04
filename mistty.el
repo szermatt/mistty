@@ -1479,7 +1479,7 @@ Returns nil if `mistty-yield' should leave the loop."
                   (when (and (not is-first) (> old-end beg))
                     (mistty-log "MOVE %s -> %s" (point) old-end)
                     (mistty--move-horizontally-str
-                     (mistty--distance (point) old-end) 'no-wait))
+                     (mistty--distance (point) old-end)))
                   ;; delete
                   (when (> old-end beg)
                     (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
@@ -1552,30 +1552,20 @@ INSERTED has been detected in the current buffer."
     (when mistty--need-refresh
       (mistty--refresh))))
 
-(defun mistty--move-horizontally-str (direction &optional no-wait)
+(defun mistty--move-horizontally-str (direction)
   "Return a key sequence to move horizontally.
 
 The absolute value of DIRECTION specifies the number of character
 to move and the sign specifies whether to go right (positive) or
-left (negative).
-
-If NO-WAIT is non-til, don't attempt to extend the string to
-force a response from the program."
+left (negative)."
   (if (zerop direction)
       ""
     (let ((distance (abs direction))
           (towards-str
-           (if (< direction 0) mistty-left-str mistty-right-str))
-          (away-from-str
-           (if (< direction 0) mistty-right-str mistty-left-str)))
-      (concat
-       (mistty--repeat-string distance towards-str)
-       ;; Send a no-op right/left pair so that if, for example, it's
-       ;; just not possible to go left anymore, the connected process
-       ;; might still send *something* back and mistty--send-and-wait
-       ;; won't have to time out.
-       (unless no-wait
-         (concat away-from-str towards-str))))))
+           (if (< direction 0)
+               mistty-left-str
+             mistty-right-str)))
+      (mistty--repeat-string distance towards-str))))
 
 (defun mistty-next-prompt (n)
   "Move the point to the Nth next prompt in the buffer."

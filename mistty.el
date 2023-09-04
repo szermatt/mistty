@@ -1858,7 +1858,9 @@ Ignores buffers that don't exist."
 
 (defun mistty-on-prompt-p (pos)
   "Return non-nil if POS is on a prompt."
-  (and (>= pos mistty-sync-marker)
+  (and mistty-sync-marker
+       mistty--cmd-start-marker
+       (>= pos mistty-sync-marker)
        (not mistty--forbid-edit)
        (or mistty-bracketed-paste
            (and

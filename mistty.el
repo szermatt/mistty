@@ -445,7 +445,7 @@ Truncation is configured by `mistty-buffer-maximum-size'.")
         (unless (fringe-bitmap-p 'mistty-bar)
           (define-fringe-bitmap
             'mistty-bar (make-vector 40 7) nil 3 'center))
-      
+
       ;; on a terminal, set margin width, and call set-window-buffer to make
       ;; sure it has taken effect.
       (setq left-margin-width 1)
@@ -772,9 +772,9 @@ from the ESHELL or SHELL environment variables."
     (when (and mistty-proc
                (or (eq (mistty-cursor) (window-point win))
                    (> (window-point win) (mistty--bol (point-max) -3))))
-        (with-selected-window win
-          (recenter (- (1+ (count-lines
-                            (window-point win) (point-max)))) t)))))
+      (with-selected-window win
+        (recenter (- (1+ (count-lines
+                          (window-point win) (point-max)))) t)))))
 
 (defun mistty--detect-possible-prompt (cursor)
   "Look for a new prompt at CURSOR and store its position.
@@ -846,7 +846,7 @@ not yet, if it the work buffer is out of sync with
 (defun mistty--from-pos-of (pos buffer-of-pos)
   "Return the local equivalent to POS defined in BUFFER-OF-POS."
   (+ mistty-sync-marker (with-current-buffer buffer-of-pos
-                         (- pos mistty-sync-marker))))
+                          (- pos mistty-sync-marker))))
 
 (defun mistty--from-term-pos (pos)
   "Convert POS in the terminal to its equivalent in the work buffer.
@@ -946,7 +946,7 @@ Also updates prompt and point."
               (mistty-log "Detected prompt too large %s > %s. RESET."
                           (marker-position mistty--cmd-start-marker) cursor)
               (mistty--set-prompt mistty-sync-marker mistty-sync-marker)))))
-      
+
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.
         (when (< mistty-sync-marker term-home-marker)
@@ -967,7 +967,7 @@ Also updates prompt and point."
           (when (or mistty-goto-cursor-next-time
                     (null mistty--cursor-after-last-refresh)
                     (= old-point mistty--cursor-after-last-refresh))
-              (mistty-goto-cursor))
+            (mistty-goto-cursor))
           (setq mistty-goto-cursor-next-time nil)
           (setq mistty--cursor-after-last-refresh (mistty-cursor)))))))
 
@@ -1200,7 +1200,7 @@ This command is available in fullscreen mode."
   (let* ((key (or key (this-command-keys-vector)))
          (translated-key (mistty-translate-key key n))
          (fire-and-forget (string-match "^[[:graph:]]+$" translated-key)))
-    (cond 
+    (cond
      ((and (buffer-live-p mistty-work-buffer)
            (not (buffer-local-value
                  'mistty-fullscreen mistty-work-buffer)))
@@ -1484,7 +1484,7 @@ modifications to the inserted text, such as:
 
 The returned function takes no argument and returns non-nil once
 INSERTED has been detected in the current buffer."
-  (let ((regexp 
+  (let ((regexp
          (let ((start 0)
                (regexp-parts)
                (str (concat inserted
@@ -1702,7 +1702,7 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
       (save-excursion
         (goto-char (point-max))
         (insert msg)
-      (message msg)))
+        (message msg)))
 
     (let ((bufname (buffer-name)))
       (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
@@ -1726,24 +1726,24 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
   (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
     (save-restriction
       (widen)
-    (setq mistty-fullscreen nil)
-    (mistty--with-live-buffer mistty-term-buffer
-      (setq mistty-fullscreen nil))
+      (setq mistty-fullscreen nil)
+      (mistty--with-live-buffer mistty-term-buffer
+        (setq mistty-fullscreen nil))
 
-    (mistty--attach (process-buffer proc))
+      (mistty--attach (process-buffer proc))
 
-    (let ((bufname (buffer-name mistty-term-buffer)))
+      (let ((bufname (buffer-name mistty-term-buffer)))
+        (with-current-buffer mistty-term-buffer
+          (rename-buffer (generate-new-buffer-name (concat " mistty tty " bufname))))
+        (rename-buffer bufname))
+
+      (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer)
       (with-current-buffer mistty-term-buffer
-        (rename-buffer (generate-new-buffer-name (concat " mistty tty " bufname))))
-      (rename-buffer bufname))
+        (font-lock-mode -1))
 
-    (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer)
-    (with-current-buffer mistty-term-buffer
-      (font-lock-mode -1))
-
-    (mistty--update-mode-lines proc)
-    (when (length> terminal-sequence 0)
-      (funcall (process-filter proc) proc terminal-sequence)))))
+      (mistty--update-mode-lines proc)
+      (when (length> terminal-sequence 0)
+        (funcall (process-filter proc) proc terminal-sequence)))))
 
 (defun mistty--update-mode-lines (&optional proc)
   "Update the mode lines of the work and term buffers of PROC.
@@ -1926,12 +1926,12 @@ position (cursor) in the buffer."
         (when (eq (car last-state) (current-buffer))
           (setq last-pos (cdr last-state))))
       (pcase-dolist (`(,beg . ,end) (mistty--cursor-skip-ranges pos))
-        (unless move-to 
+        (unless move-to
           (setq
            move-to
            (cond
             ((or (null beg) (null end) (= pos beg) (= pos end)) nil)
-            
+
             ;; horizontal movement from the left, go right
             ((and last-pos (<= last-pos beg) (mistty--same-line-p last-pos beg))
              end)
@@ -1963,15 +1963,14 @@ position (cursor) in the buffer."
 
 Return POS if not in any skip ranges."
   (or (cdr (car (last (mistty--cursor-skip-ranges pos)))) pos))
-  
+
 (defun mistty--cursor-skip-ranges (pos)
   "Ranges of spaces and newlines to skip over that contain POS.
 
 Return a list of ( BEG . END ), sorted by BEG, increasing."
   (let ((beg (mistty--cursor-incomplete-skip-backward pos))
         (end (mistty--cursor-incomplete-skip-forward pos))
-        (ranges nil)
-        )
+        (ranges nil))
     (save-excursion
       (goto-char beg)
       (while (and (> end (point))
@@ -2018,7 +2017,7 @@ get correct results."
   (let ((stop nil))
     (while (and (not stop)
                 (< pos (point-max)))
-      (cond 
+      (cond
        ((and (eq ?\n (char-after pos))
              (or (and (> pos (point-min))
                       (get-text-property (1- pos) 'mistty-skip))

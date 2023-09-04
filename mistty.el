@@ -763,7 +763,7 @@ from the ESHELL or SHELL environment variables."
     (goto-char cursor)
     (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
       (when (= cursor (window-point win))
-        (set-window-parameter win 'mistty--last-pos (cons (current-buffer) 'cursor)))
+        (set-window-parameter win 'mistty--last-pos nil))
       (mistty--recenter win))))
 
 (defun mistty--recenter (win)
@@ -1932,20 +1932,11 @@ position (cursor) in the buffer."
            (cond
             ((or (null beg) (null end) (= pos beg) (= pos end)) nil)
             
-            ;; always respect a position that's been set by the
-            ;; process cursor, no matter what.
-            ((and
-              (eq last-pos 'cursor)
-              (equal pos (and mistty-proc mistty-term-buffer (mistty-cursor))))
-             ;; keep the point where it is and the window parameter
-             ;; set to 'cursor.
-             'cursor)
-            
             ;; horizontal movement from the left, go right
-            ((and (numberp last-pos) (<= last-pos beg) (mistty--same-line-p last-pos beg))
+            ((and last-pos (<= last-pos beg) (mistty--same-line-p last-pos beg))
              end)
             ;; horizontal movement from the right, go left
-            ((and (numberp last-pos) (>= last-pos end) (mistty--same-line-p last-pos end))
+            ((and last-pos (>= last-pos end) (mistty--same-line-p last-pos end))
              beg)
             ;; vertical move; on beg's line, so go to beg
             ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
@@ -1962,7 +1953,7 @@ position (cursor) in the buffer."
           (when move-to
             (mistty-log "CURSOR MOVE beg %s end %s pos %s last-pos %s -> %s"
                         beg end pos last-pos move-to))))
-      (when (numberp move-to)
+      (when move-to
         (set-window-point win move-to))
       (set-window-parameter win 'mistty--last-pos
                             (cons (current-buffer) (or move-to pos))))))

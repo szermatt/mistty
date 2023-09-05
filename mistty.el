@@ -441,6 +441,15 @@ Truncation is configured by `mistty-buffer-maximum-size'.")
 
 This is controlled by `mistty-forbid-edit-regexp'.")
 
+(defvar-local mistty--sync-history nil
+  "History of sync markers on the work and term buffers.
+
+It is a list of cons ( WORK-MARKER . TERM-MARKER), ordered from
+least recent to most recent - or from low position values to high
+position values.
+
+The first entry is a copy of the current sync markers.")
+
 (eval-when-compile
   ;; defined in term.el
   (defvar term-home-marker))
@@ -526,9 +535,6 @@ buffer and `mistty-proc' to that buffer's process."
       (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker term-home-marker)))
 
     (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
-    (overlay-put mistty--sync-ov 'modification-hooks (list #'mistty--modification-hook))
-    (overlay-put mistty--sync-ov 'insert-behind-hooks (list #'mistty--modification-hook))
-
     ;; highlight the synced region in the fringe or margin
     (when mistty-fringe-enabled
       (overlay-put
@@ -546,6 +552,7 @@ buffer and `mistty-proc' to that buffer's process."
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
     (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
+    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
     (add-hook 'pre-command-hook #'mistty--pre-command nil t)
     (add-hook 'post-command-hook #'mistty--post-command nil t)
 
@@ -569,6 +576,7 @@ Returns M or a new marker."
 
   (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
+  (remove-hook 'after-change-functions #'mistty--after-change-on-work t)
   (remove-hook 'pre-command-hook #'mistty--pre-command t)
   (remove-hook 'post-command-hook #'mistty--post-command t)
 
@@ -831,12 +839,14 @@ markers have gone out-of-sync."
       (delete-region (mistty--last-non-ws) (point-max))
       (insert "\n"))
     (move-marker mistty-sync-marker (point-max))
-    (move-marker mistty--cmd-start-marker (point-max)))
+    (move-marker mistty--cmd-start-marker (point-max))
+    (setq mistty--sync-history nil))
   (mistty--with-live-buffer mistty-term-buffer
     (save-excursion
       (goto-char term-home-marker)
       (skip-chars-forward mistty--ws)
-      (move-marker mistty-sync-marker (point)))))
+      (move-marker mistty-sync-marker (point))))
+  (mistty--sync-history-push))
 
 (defun mistty--fs-process-filter (proc str)
   "Process filter for MisTTY in fullscreen mode.
@@ -969,13 +979,21 @@ Also updates prompt and point."
 
       ;; Turn mistty-forbid-edit on or off
       (mistty--with-live-buffer mistty-work-buffer
-        (setq mistty--forbid-edit
-              (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
+        (let ((forbid-edit (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
+          (cond
+           ((and forbid-edit (not mistty--forbid-edit))
+            (setq mistty--forbid-edit t)
+            (add-hook 'before-change-functions #'mistty--enforce-forbid-edits nil t))
+           ((and (not forbid-edit) mistty--forbid-edit)
+            (setq mistty--forbid-edit nil)
+            (remove-hook 'before-change-functions #'mistty--enforce-forbid-edits t)))))
 
       (mistty--with-live-buffer mistty-term-buffer
         ;; Next time, only sync the visible portion of the terminal.
         (when (< mistty-sync-marker term-home-marker)
           (mistty--set-sync-mark-from-end term-home-marker))
+
+        (mistty--sync-history-remove-above nil term-home-marker)
 
         ;; Truncate the term buffer, since scrolling back is available on
         ;; the work buffer anyways. This has to be done now, after syncing
@@ -1131,7 +1149,7 @@ there's no prompt, the two positions are the same.
 
 SHIFT specifies the current difference between the sync marker on
 the work buffer and the term buffer. The shift value comes
-from `mistty--modification-hook' tracking the changes."
+from `mistty--after-change-on-work' tracking the changes."
   (let ((diff (- sync-pos mistty-sync-marker)))
     (with-current-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (+ mistty-sync-marker diff shift))))
@@ -1158,7 +1176,8 @@ They are often the same position."
                   (max sync-pos (mistty--bol mistty--cmd-start-marker))
                   mistty--cmd-start-marker)
     (when (> cmd-start-pos sync-pos)
-      (mistty--set-prompt-properties sync-pos cmd-start-pos))))
+      (mistty--set-prompt-properties sync-pos cmd-start-pos))
+    (mistty--sync-history-push)))
 
 (defun mistty--set-prompt-properties (start end)
   "Mark region from START to END as a prompt."
@@ -1300,29 +1319,33 @@ The second time it is called, it behaves like `mistty-goto-cursor'."
       (mistty-goto-cursor)
     (end-of-line n)))
 
-(defun mistty--modification-hook (_ov is-after orig-beg orig-end &optional old-length)
-  "Handler for overlay modification hooks in the synced region.
+(defun mistty--enforce-forbid-edits (_ end)
+  "Forbid edits after the sync marker.
 
-This function is called whenever the synced (purple) region of
-the buffer is modified. It creates or extends a
-`mistty-changeset', storing enough information about the change
-to replay it afterwards."
-  (when mistty--forbid-edit
-    (error "Edits disabled. M-x customize-option mistty-forbid-edit-regexps to configure"))
-  (when (and is-after
-             mistty-sync-marker
-             (>= orig-end mistty-sync-marker))
-    (let ((inhibit-read-only t)
-          (beg (max orig-beg mistty-sync-marker))
-          (end (max orig-end mistty-sync-marker))
-          (old-end (max (+ orig-beg old-length) mistty-sync-marker))
-          (cs (mistty--activate-changeset)))
+This is meant to be added to ==\'before-change-functions."
+  (when (and mistty--forbid-edit
+             mistty-sync-marker mistty-proc (>= end mistty-sync-marker))
+    (error "Edits disabled. M-x customize-option mistty-forbid-edit-regexps to configure")))
 
-      ;; Temporarily stop refreshing the work buffer while collecting
-      ;; modifications.
-      (setq mistty--inhibit-refresh t)
+(defun mistty--after-change-on-work (beg end old-length)
+  "Handler for modifications made to the work buffer.
 
-      (mistty--changeset-mark-region cs beg end old-end))))
+This is meant to be added to ==\'after-change-functions."
+  (if (and mistty-sync-marker (>= end mistty-sync-marker))
+      ;; In sync region
+      (let ((inhibit-read-only t)
+            (beg (max beg mistty-sync-marker))
+            (end (max end mistty-sync-marker))
+            (old-end (max (+ beg old-length) mistty-sync-marker))
+            (cs (mistty--activate-changeset)))
+        ;; Temporarily stop refreshing the work buffer while collecting
+        ;; modifications.
+        (setq mistty--inhibit-refresh t)
+
+        (mistty--changeset-mark-region cs beg end old-end))
+
+   ;; Outside sync region
+  (mistty--sync-history-remove-above end nil)))
 
 (defmacro mistty--yield (term-seq func)
   "Yield TERM-SEQ to be sent to the terminal.
@@ -2122,6 +2145,40 @@ as \\='mistty-skip spaces."
             ;; distance at all.
             (setq pos skip-end))))))
     (* sign distance)))
+
+(defun mistty--sync-history-push ()
+  "Push the current sync marks into the history."
+  (mistty--with-live-buffer mistty-work-buffer
+    (when (or (null mistty--sync-history)
+              (> mistty-sync-marker (car (car (last mistty--sync-history)))))
+      (let ((work-marker (copy-marker mistty-sync-marker))
+            (term-marker (mistty--with-live-buffer mistty-term-buffer
+                           (copy-marker mistty-sync-marker))))
+        (set-marker-insertion-type work-marker t)
+        (set-marker-insertion-type term-marker t)
+        (setq mistty--sync-history
+              (append mistty--sync-history
+                      (list (cons work-marker term-marker))))))))
+
+(defun mistty--sync-history-remove-above (work-pos term-pos)
+  "Remove markers above a certain position from history.
+
+WORK-POS specifies a position on the work buffer. It may be nil
+to remove nothing.
+
+TERM-POS specifies a position on the term buffer. It may be nil
+to remove nothing."
+  (mistty--with-live-buffer mistty-work-buffer
+    (let (head)
+      (while
+          (and
+           (setq head (car mistty--sync-history))
+           (or (null work-pos) (< (car head) work-pos))
+           (or (null term-pos) (< (cdr head) term-pos)))
+        (move-marker (car head) nil)
+        (move-marker (cdr head) nil)
+        (setq mistty--sync-history
+              (cdr mistty--sync-history))))))
 
 (provide 'mistty)
 

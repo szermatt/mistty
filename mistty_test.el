@@ -27,7 +27,9 @@
 
 (eval-when-compile
   ;; defined in term
-  (defvar term-width))
+  (defvar term-width)
+  (defvar term-height)
+  (defvar term-home-marker))
 
 (defvar mistty-test-bash-exe (executable-find "bash"))
 (defvar mistty-test-python-exe (or (executable-find "python3")
@@ -987,8 +989,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 9)
       (goto-char 6)
@@ -1012,8 +1013,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 (point-max))
 
@@ -1029,8 +1029,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 (point-max))
       (goto-char 6)
@@ -1048,8 +1047,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 15 (point-max))
       (delete-region 9 12)
@@ -1068,9 +1066,8 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
-
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+      
       (goto-char 12)
       (insert "NEW")
 
@@ -1092,8 +1089,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdef")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (goto-char 9)
       (insert "NEW")
@@ -1110,8 +1106,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (goto-char 12)
       (delete-region 12 15)
@@ -1133,8 +1128,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 9)
       (goto-char 6)
@@ -1160,8 +1154,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcd<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (goto-char 6)
       (insert "new-value")
@@ -1180,8 +1173,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcd<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 7)
       (goto-char 6)
@@ -1202,8 +1194,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcd<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 7)
 
@@ -1221,8 +1212,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 9)
       (goto-char 6)
@@ -1246,8 +1236,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdef")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (goto-char 9)
       (insert "NEW")
@@ -1266,8 +1255,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 (point-max))
       (goto-char 6)
@@ -1287,8 +1275,7 @@ window while BODY is running."
       (setq mistty-sync-marker (point))
 
       (insert "abcdefghijklmno<<end>>")
-      (overlay-put ov 'modification-hooks (list #'mistty--modification-hook))
-      (overlay-put ov 'insert-behind-hooks (list #'mistty--modification-hook))
+      (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
 
       (delete-region 6 (point-max))
       (goto-char 6)
@@ -2378,6 +2365,15 @@ window while BODY is running."
         (should (equal cursor (mistty-cursor)))
         (should (not (equal (point) (mistty-cursor)))))
 
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$ echo second\n"
+                             "search:\n"
+                             "► echo second  ► echo first")
+                     (mistty-test-content)))
+
       ;; replay is disabled
       (mistty-run-command
        (should-error (delete-region
@@ -2402,6 +2398,69 @@ window while BODY is running."
                  (not (search-forward "search:" nil t)))))
 
       (should (not mistty--forbid-edit)))))
+
+(ert-deftest mistty-test-sync-history ()
+  (mistty-with-test-buffer ()
+    (let ((term-height (with-current-buffer mistty-term-buffer
+                         term-height)))
+      (dotimes (i term-height)
+        (mistty-send-text (format "echo line %d" i))
+        (mistty-send-and-wait-for-prompt))
+
+      ;; Each line on the screen corresponds to an entry. This will
+      ;; fail if the automatic cleanup hasn't cleaned the history as
+      ;; it should.
+      (let ((hist mistty--sync-history))
+        (save-excursion
+          (goto-char (mistty--from-term-pos
+                      (with-current-buffer mistty-term-buffer
+                        term-home-marker)))
+          (while (progn
+                   (beginning-of-line)
+                   (should (equal (car (car hist)) (point-marker)))
+                   (setq hist (cdr hist))
+                   (forward-line 1)
+                   (< (point) (point-max))))
+          (should (null hist))))
+      
+      ;; entries are consistent between work and term buffer
+      (let ((head (car mistty--sync-history))
+            (rest (cdr mistty--sync-history)))
+        (while (and head rest)
+          (should (equal
+                   (mistty--safe-bufstring
+                    (car head)
+                    (car (car rest)))
+                   (with-current-buffer mistty-term-buffer
+                     (mistty--safe-bufstring
+                      (cdr head)
+                      (cdr (car rest))))))
+          (setq head (car rest))
+          (setq rest (cdr rest)))))))
+
+(ert-deftest mistty-test-sync-history-contract-when-modified ()
+  (mistty-with-test-buffer ()
+    (let ((term-height (with-current-buffer mistty-term-buffer
+                         term-height)))
+      (dotimes (i term-height)
+        (mistty-send-text (format "echo line %d" i))
+        (mistty-send-and-wait-for-prompt))
+
+      (mistty-test-goto (format "echo line %d" (- term-height 2)))
+      (beginning-of-line -1)
+      (insert-before-markers "=== modified ===\n")
+
+      ;; everything below the modification should have been removed
+      ;; from history.
+      (should (equal 7 (length mistty--sync-history)))
+
+      (let ((expected-positions nil))
+        (dotimes (i 7)
+          (goto-char (point-max))
+          (beginning-of-line (+ (- i) 1))
+          (push (point-marker) expected-positions))
+
+        (should (equal expected-positions (mapcar #'car mistty--sync-history)))))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.

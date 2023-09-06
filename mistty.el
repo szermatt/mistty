@@ -777,10 +777,12 @@ from the ESHELL or SHELL environment variables."
         (old-last-non-ws (mistty--last-non-ws)))
     (mistty--emulate-terminal proc str mistty-work-buffer)
     (goto-char (process-mark proc))
+    (mistty--sync-history-remove-above nil term-home-marker)
     (when (or (/= mistty-sync-marker old-sync-position)
               (< (point) mistty-sync-marker))
-      (mistty-log "RESET; unexpected change")
-      (mistty--reset-markers))
+      (mistty--with-live-buffer mistty-work-buffer
+        (mistty-log "RESET; unexpected change")
+        (mistty--reset-markers (mistty--sync-history-find))))
     (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
       (mistty--detect-possible-prompt (point)))))
 
@@ -828,25 +830,40 @@ of the terminal buffer has been updated."
                       (nth 1 mistty--possible-prompt)
                       (nth 2 mistty--possible-prompt)))))))
 
-(defun mistty--reset-markers ()
+(defun mistty--reset-markers (&optional new-head)
   "Reset the sync marker on both the term and work buffer.
+
+If NEW-HEAD is non-nil, it should be a cons containing the new
+sync marker (POS-IN-WORK . POS-IN-TERM).
 
 This function should be called to fix a situation where the
 markers have gone out-of-sync."
-  (mistty--with-live-buffer mistty-work-buffer
-    (let ((inhibit-read-only t)
-          (inhibit-modification-hooks t))
-      (delete-region (mistty--last-non-ws) (point-max))
-      (insert "\n"))
-    (move-marker mistty-sync-marker (point-max))
-    (move-marker mistty--cmd-start-marker (point-max))
-    (setq mistty--sync-history nil))
-  (mistty--with-live-buffer mistty-term-buffer
-    (save-excursion
-      (goto-char term-home-marker)
-      (skip-chars-forward mistty--ws)
-      (move-marker mistty-sync-marker (point))))
-  (mistty--sync-history-push))
+  (let ((new-head
+         (or new-head 
+             (cons
+              (mistty--with-live-buffer mistty-work-buffer
+                (let ((inhibit-read-only t)
+                      (inhibit-modification-hooks t))
+                  (delete-region (mistty--last-non-ws) (point-max))
+                  (insert "\n")
+                  (point-max)))
+              (mistty--with-live-buffer mistty-term-buffer
+                (save-excursion
+                  (goto-char term-home-marker)
+                  (skip-chars-forward mistty--ws)
+                  (point)))))))
+    (mistty--with-live-buffer mistty-work-buffer
+      (move-marker mistty-sync-marker (car new-head))
+      (move-marker
+       mistty--cmd-start-marker
+       (if (and (> mistty-sync-marker (point-min))
+                (eq 'prompt (get-text-property mistty-sync-marker 'mistty)))
+           (next-single-property-change mistty-sync-marker 'mistty nil (point-max))
+         (car new-head))))
+    (mistty--with-live-buffer mistty-term-buffer
+      (move-marker mistty-sync-marker (cdr new-head)))
+    (mistty--sync-history-remove-above (car new-head) (cdr new-head))
+    (mistty--sync-history-push)))
 
 (defun mistty--fs-process-filter (proc str)
   "Process filter for MisTTY in fullscreen mode.
@@ -912,33 +929,33 @@ Also updates prompt and point."
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (old-point (point)))
-      (setq mistty--need-refresh nil)
-      (when (timerp mistty--refresh-timer)
-        (cancel-timer mistty--refresh-timer)
-        (setq mistty--refresh-timer nil))
+      (save-restriction
+        (widen)
+        (setq mistty--need-refresh nil)
+        (when (timerp mistty--refresh-timer)
+          (cancel-timer mistty--refresh-timer)
+          (setq mistty--refresh-timer nil))
 
-      (mistty-log "refresh")
-      (mistty--sync-buffer mistty-term-buffer)
-      (when (> mistty--cmd-start-marker mistty-sync-marker)
-        (mistty--set-prompt-properties
-         mistty-sync-marker mistty--cmd-start-marker))
+        (mistty-log "refresh")
+        (mistty--sync-buffer mistty-term-buffer)
+        (when (> mistty--cmd-start-marker mistty-sync-marker)
+          (mistty--set-prompt-properties
+           mistty-sync-marker mistty--cmd-start-marker))
 
+        ;; Right after a mistty-send-command, we're waiting for a line
+        ;; after mistty--end-prompt that's not part of the old prompt.
+        (when mistty--end-prompt
+          (when-let ((command-end
+                      (if (get-text-property mistty-sync-marker 'mistty-prompt-id)
+                          (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
+                        (mistty--bol mistty--cmd-start-marker 2))))
+            (when (and (eq ?\n (char-before command-end))
+                       (> (mistty--last-non-ws) command-end))
+              (mistty--set-sync-mark-from-end command-end))
+            (setq mistty--end-prompt nil)))
 
-      ;; Right after a mistty-send-command, we're waiting for a line
-      ;; after mistty--end-prompt that's not part of the old prompt.
-      (when mistty--end-prompt
-        (when-let ((command-end
-                    (if (get-text-property mistty-sync-marker 'mistty-prompt-id)
-                        (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
-                      (mistty--bol mistty--cmd-start-marker 2))))
-          (when (and (eq ?\n (char-before command-end))
-                     (> (mistty--last-non-ws) command-end))
-            (mistty--set-sync-mark-from-end command-end))
-          (setq mistty--end-prompt nil)))
-
-      ;; detect prompt from bracketed-past region and use that to
-      ;; restrict the sync region.
-      (mistty--with-live-buffer mistty-work-buffer
+        ;; detect prompt from bracketed-past region and use that to
+        ;; restrict the sync region.
         (when (process-live-p mistty-proc)
           (let* ((cursor (mistty-cursor))
                  (prompt-beg
@@ -964,10 +981,9 @@ Also updates prompt and point."
                         (mistty--safe-bufstring
                          (mistty--bol cursor) cursor)))
               (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)
-              (mistty--set-sync-mark-from-end prompt-beg cursor)))))
+              (mistty--set-sync-mark-from-end prompt-beg cursor))))
 
-      ;; Fix detected prompt.
-      (mistty--with-live-buffer mistty-work-buffer
+        ;; Fix detected prompt.
         (when (process-live-p mistty-proc)
           (let ((cursor (mistty-cursor)))
             (when (< cursor mistty--cmd-start-marker)
@@ -975,10 +991,10 @@ Also updates prompt and point."
               ;; prompt that's just missing.
               (mistty-log "Detected prompt too large %s > %s. RESET."
                           (marker-position mistty--cmd-start-marker) cursor)
-              (mistty--set-prompt mistty-sync-marker mistty-sync-marker)))))
+              (mistty--set-prompt mistty-sync-marker mistty-sync-marker))))
 
-      ;; Turn mistty-forbid-edit on or off
-      (mistty--with-live-buffer mistty-work-buffer
+        ;; Turn mistty-forbid-edit on or off
+
         (let ((forbid-edit (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
           (cond
            ((and forbid-edit (not mistty--forbid-edit))
@@ -986,26 +1002,24 @@ Also updates prompt and point."
             (add-hook 'before-change-functions #'mistty--enforce-forbid-edits nil t))
            ((and (not forbid-edit) mistty--forbid-edit)
             (setq mistty--forbid-edit nil)
-            (remove-hook 'before-change-functions #'mistty--enforce-forbid-edits t)))))
+            (remove-hook 'before-change-functions #'mistty--enforce-forbid-edits t))))
 
-      (mistty--with-live-buffer mistty-term-buffer
-        ;; Next time, only sync the visible portion of the terminal.
-        (when (< mistty-sync-marker term-home-marker)
-          (mistty--set-sync-mark-from-end term-home-marker))
+        (mistty--with-live-buffer mistty-term-buffer
+          ;; Next time, only sync the visible portion of the terminal.
+          (when (< mistty-sync-marker term-home-marker)
+            (mistty--set-sync-mark-from-end term-home-marker))
 
-        (mistty--sync-history-remove-above nil term-home-marker)
+          ;; Truncate the term buffer, since scrolling back is available on
+          ;; the work buffer anyways. This has to be done now, after syncing
+          ;; the marker, and not in term-emulate-terminal, which is why
+          ;; term-buffer-maximum-size is set to 0.
+          (save-excursion
+            (goto-char term-home-marker)
+            (forward-line -5)
+            (delete-region (point-min) (point))))
 
-        ;; Truncate the term buffer, since scrolling back is available on
-        ;; the work buffer anyways. This has to be done now, after syncing
-        ;; the marker, and not in term-emulate-terminal, which is why
-        ;; term-buffer-maximum-size is set to 0.
-        (save-excursion
-          (goto-char term-home-marker)
-          (forward-line -5)
-          (delete-region (point-min) (point))))
+        ;; Move the point to the cursor, if necessary.
 
-      ;; Move the point to the cursor, if necessary.
-      (mistty--with-live-buffer mistty-work-buffer
         (when (process-live-p mistty-proc)
           (when (or mistty-goto-cursor-next-time
                     (null mistty--cursor-after-last-refresh)
@@ -2179,6 +2193,56 @@ to remove nothing."
         (move-marker (cdr head) nil)
         (setq mistty--sync-history
               (cdr mistty--sync-history))))))
+
+(defun mistty--sync-history-find ()
+  "Find a replacement sync marker position in the history.
+
+The replacement sync marker that's returned is above any
+divergence between the work and term buffer as well as above the
+current sync markers, the last pair of markers in
+`mistty--sync-history'."
+  (mistty--require-work-buffer)
+  (when (buffer-live-p mistty-term-buffer)
+    (save-restriction
+      (widen)
+      (let ((home-marker (with-current-buffer mistty-term-buffer
+                           term-home-marker)))
+        ;; Make sure the content of the sync history is still valid,
+        ;; in case the buffer contents change drastically.
+        (mistty--sync-history-remove-above (point-max) home-marker)
+        (when mistty--sync-history
+          (let* ((hist mistty--sync-history)
+                 ;; Start with head at the top of the screen;
+                 ;; term-home-marker and its equivalent in the work
+                 ;; buffer.
+                 (top (cons (- (car (car hist))
+                                (- (cdr (car hist)) home-marker))
+                             home-marker))
+                 (head top))
+            (while (and hist (mistty--same-buffer-content-p head (car hist)))
+              (setq head (car hist))
+              (setq hist (cdr hist)))
+            ;; Is there more than just whitespace on the screen after
+            ;; reseting to head? If not just return nil and let normal
+            ;; processing deal with it.
+            (unless (and head (save-excursion
+                                (goto-char (car top))
+                                (skip-chars-forward mistty--ws)
+                                (>= (point) (car head))))
+              head)))))))
+
+(defun mistty--same-buffer-content-p (beg end)
+  "Return non-nil if BEG to END is the same in both buffers.
+
+BEG and END should be cons (WORK-POS . TERM-POS), with WORK-POS a
+position on `mistty-work-buffer' and TERM-POS a position on
+`mistty-term-buffer'. The text from the two regions is extracted
+and compared, ignoring text properties."
+  (equal
+   (mistty--with-live-buffer mistty-work-buffer
+     (mistty--safe-bufstring (car beg) (car end)))
+   (mistty--with-live-buffer mistty-term-buffer
+     (mistty--safe-bufstring (cdr beg) (cdr end)))))
 
 (provide 'mistty)
 

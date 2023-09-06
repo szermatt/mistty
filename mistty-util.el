@@ -40,6 +40,15 @@ buffer."
          (with-current-buffer ,tempvar
            ,@body)))))
 
+(defmacro mistty--inhibit-undo (&rest body)
+  "Execute BUF with undo disabled."
+  (let ((saved (make-symbol "saved-buffer-undo-list")))
+    `(let ((,saved buffer-undo-list))
+       (setq buffer-undo-list t)
+       (unwind-protect
+           (progn ,@body)
+         (setq buffer-undo-list ,saved)))))
+
 (defun mistty--next-id ()
   "Return a unique number value every time.
 

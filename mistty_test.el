@@ -2505,6 +2505,22 @@ window while BODY is running."
          "[$ ]")
         (mistty-test-content :start start :show-property '(mistty prompt)))))))
 
+(ert-deftest mistty-test-kill-long-line ()
+  (mistty-with-test-buffer ()
+    (mistty--set-process-window-size 20 20)
+
+    (mistty-run-command
+     (insert "echo one two three four five six seven eight nine"))
+    (mistty-wait-for-output :str "nine")
+
+    (mistty-run-command
+     (mistty-test-goto "one"))
+    (mistty-run-command
+     (kill-line))
+    (should (equal (concat "$ echo <>")
+                   (mistty-test-content :show (point))))))
+
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

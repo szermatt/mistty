@@ -942,6 +942,18 @@ Also updates prompt and point."
           (mistty--set-prompt-properties
            mistty-sync-marker mistty--cmd-start-marker))
 
+        ;; Make fake newlines invisible. They're not really "visible"
+        ;; to begin with, since they're at the end of the window, but
+        ;; marking them invisible allows kill-line to go "through"
+        ;; them, as it should.
+        (save-excursion
+          (goto-char mistty-sync-marker)
+          (while-let ((prop-match
+                       (text-property-search-forward 'term-line-wrap t t)))
+            (put-text-property (prop-match-beginning prop-match)
+                               (prop-match-end prop-match)
+                               'invisible 'term-line-wrap)))
+
         ;; Right after a mistty-send-command, we're waiting for a line
         ;; after mistty--end-prompt that's not part of the old prompt.
         (when mistty--end-prompt

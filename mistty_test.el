@@ -1628,6 +1628,37 @@ window while BODY is running."
     (execute-kbd-macro (kbd "e c h o SPC C-u 3 a"))
     (should (equal "aaa" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-self-insert ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (mistty-self-insert 1 ?e))
+    (mistty-run-command
+     (mistty-self-insert 1 ?c))
+    (mistty-run-command
+     (mistty-self-insert 1 ?h))
+    (mistty-run-command
+     (mistty-self-insert 1 ?o))
+
+    (mistty-wait-for-output :str "echo")))
+
+(ert-deftest mistty-test-delete-char ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello world")
+    (mistty-run-command
+     (mistty-test-goto-after "hell"))
+
+    (mistty-delete-char)
+    (mistty-wait-for-output :str "echo hell world" :start (point-min))
+
+    (mistty-delete-char -3)
+    (mistty-wait-for-output :str "echo h world" :start (point-min))
+
+    (mistty-backward-delete-char 2)
+    (mistty-wait-for-output :str "echo world" :start (point-min))
+
+    (mistty-backward-delete-char -3)
+    (mistty-wait-for-output :str "echorld" :start (point-min))))
+
 (ert-deftest mistty-test-send-key-from-term-buffer ()
   (mistty-with-test-buffer ()
     (with-current-buffer mistty-term-buffer
@@ -1657,7 +1688,6 @@ window while BODY is running."
       (mistty-send-text "echo ok"))
 
     (should (equal "ok" (mistty-send-and-capture-command-output)))))
-
 
 (ert-deftest mistty-test-send-last-key ()
   (mistty-with-test-buffer (:selected t)

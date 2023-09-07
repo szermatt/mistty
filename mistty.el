@@ -187,8 +187,8 @@ This map is active whenever the current buffer is in MisTTY mode.")
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") 'mistty-send-command)
     (define-key map (kbd "TAB") 'mistty-send-key)
-    (define-key map (kbd "DEL") 'mistty-send-key)
-    (define-key map (kbd "C-d") 'mistty-send-key)
+    (define-key map (kbd "DEL") 'mistty-backward-delete-char)
+    (define-key map (kbd "C-d") 'mistty-delete-char)
     (define-key map (kbd "C-a") 'mistty-send-beginning-of-line)
     (define-key map (kbd "C-e") 'mistty-send-end-of-line)
 
@@ -204,7 +204,7 @@ This map is active whenever the current buffer is in MisTTY mode.")
     ;; Don't bother capturing single key-stroke modifications and
     ;; replaying them; just send them to the terminal. This works even
     ;; when the terminal doesn't accept editing.
-    (define-key map [remap self-insert-command] 'mistty-send-key )
+    (define-key map [remap self-insert-command] 'mistty-self-insert )
     map)
   "Keymap active on the part of `mistty-mode' synced with the terminal.
 
@@ -1256,6 +1256,34 @@ KEY must be a string or vector such as the ones returned by `kbd'."
         (not (string= "Cc"
                       (get-char-code-property (aref key 0)
                                               'general-category))))))
+(defun mistty-self-insert (&optional n c)
+  "Send a self-inserting character to the terminal.
+
+If N is set, send the key that many times. It defaults to 1.
+
+C is the character to send, a single character."
+  (interactive "p")
+  (mistty-send-key n (when c (make-string 1 c)) 'positional))
+
+(defun mistty-backward-delete-char (&optional n)
+  "Send DEL N times to the terminal.
+
+If N is unset, send DEL once. If N is negative, send C-d that
+many times instead."
+  (interactive "p")
+  (if (and (numberp n) (< n 0))
+      (mistty-send-key (abs n) "\C-d" 'positional)
+    (mistty-send-key n "\x7f" 'positional)))
+
+(defun mistty-delete-char (&optional n)
+"Send C-d N times to the terminal.
+
+If N is unset, send C-d once. If N is negative, send DEL that
+many times instead."
+  (interactive "p")
+  (if (and (numberp n) (< n 0))
+      (mistty-send-key (abs n) "\x7f" 'positional)
+    (mistty-send-key n "\C-d" 'positional)))
 
 (defun mistty-send-key (&optional n key positional)
   "Send the current key sequence to the terminal.

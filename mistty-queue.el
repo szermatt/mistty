@@ -125,6 +125,7 @@ If VALUE is set, send that value to the first call to `iter-next'."
            (current-buffer) queue))))
 
 (cl-defun mistty--dequeue-1 (queue value)
+  "Helper for `mistty--dequeue'"
   (let ((proc (mistty--queue-proc queue)))
     (mistty--cancel-timeout queue)
     (while (mistty--queue-iter queue)
@@ -135,31 +136,28 @@ If VALUE is set, send that value to the first call to `iter-next'."
                 (cl-return-from mistty--dequeue-1))
               (setf (mistty--queue-accept-f queue) nil))
             (while t
-              (let ((next-value (iter-next (mistty--queue-iter queue) value)))
-                (pcase next-value
-                  ;; Wait for more output
-                  ('continue
-                   (cl-return-from mistty--dequeue-1))
-                  
-                  ;; Fire-and-forget; no need to wait for a response
-                  ((and `(fire-and-forget ,str)
-                        (guard (mistty--nonempty-str-p str)))
-                   (mistty--send-string proc str)
-                   (setq value 'fire-and-forget))
-                  
-                  ((and `(until ,str ,accept-f)
-                        (guard (mistty--nonempty-str-p str)))
-                   (setf (mistty--queue-accept-f queue) accept-f)
-                   (mistty--send-string proc str)
-                   (cl-return-from mistty--dequeue-1))
-                  
-                  ;; Normal sequences
-                  ((pred mistty--nonempty-str-p)
-                   (mistty--send-string proc next-value)
-                   (cl-return-from mistty--dequeue-1))
-                
-                  (_ (setq value 'empty-string))))))
-        
+              (pcase (iter-next (mistty--queue-iter queue) value)
+                ;; Fire-and-forget; no need to wait for a response
+                ((and `(fire-and-forget ,str)
+                      (guard (mistty--nonempty-str-p str)))
+                 (mistty--send-string proc str)
+                 (setq value 'fire-and-forget))
+
+                ;; Call iter-next only once accept-f returns non-nil.
+                ((and `(until ,str ,accept-f)
+                      (guard (mistty--nonempty-str-p str)))
+                 (setf (mistty--queue-accept-f queue) accept-f)
+                 (mistty--send-string proc str)
+                 (cl-return-from mistty--dequeue-1))
+
+                ;; Normal sequences
+                ((and (pred mistty--nonempty-str-p) str)
+                 (mistty--send-string proc str)
+                 (cl-return-from mistty--dequeue-1))
+
+                (invalid (error "Yielded invalid value: '%s'"
+                                invalid)))))
+
         (iter-end-of-sequence
          (setf (mistty--queue-iter queue)
                (pop (mistty--queue-more-iters queue))))))))

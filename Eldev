@@ -1,0 +1,7 @@
+; -*- mode: emacs-lisp; lexical-binding: t -*-
+
+(eldev-use-package-archive 'melpa)
+
+(setq eldev-test-fileset "*_test.el")
+
+(eldev-use-plugin 'autoloads)

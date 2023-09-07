@@ -40,15 +40,6 @@ buffer."
          (with-current-buffer ,tempvar
            ,@body)))))
 
-(defmacro mistty--inhibit-undo (&rest body)
-  "Execute BUF with undo disabled."
-  (let ((saved (make-symbol "saved-buffer-undo-list")))
-    `(let ((,saved buffer-undo-list))
-       (setq buffer-undo-list t)
-       (unwind-protect
-           (progn ,@body)
-         (setq buffer-undo-list ,saved)))))
-
 (defun mistty--next-id ()
   "Return a unique number value every time.
 
@@ -144,6 +135,14 @@ of failing."
   (let ((pos (point-min)))
     (while (setq pos (text-property-any pos (point-max) 'term-line-wrap t))
       (delete-region pos (1+ pos)))))
+
+(defun mistty-self-insert-p (key)
+  "Return non-nil if KEY is a key that is normally just inserted."
+  (and (length= key 1)
+       (characterp (aref key 0))
+       (not (string= "Cc"
+                     (get-char-code-property (aref key 0)
+                                             'general-category)))))
 
 (provide 'mistty-util)
 

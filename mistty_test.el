@@ -2536,7 +2536,7 @@ window while BODY is running."
         (mistty-test-content :start start :show-property '(mistty prompt)))))))
 
 (ert-deftest mistty-test-undo-insert ()
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer ()
     (setq buffer-undo-list nil)
     (mistty-run-command
      (mistty-send-key 1 "e"))
@@ -2554,7 +2554,7 @@ window while BODY is running."
        (equal "$" (mistty-test-content))))))
 
 (ert-deftest mistty-test-undo-backward-delete ()
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer ()
     (setq buffer-undo-list nil)
     (mistty-send-text "echo test")
     (mistty-run-command
@@ -2567,7 +2567,7 @@ window while BODY is running."
     (mistty-wait-for-output :str "echo test" :start (point-min))))
 
 (ert-deftest mistty-test-undo-delete ()
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer ()
     (setq buffer-undo-list nil)
     (mistty-send-text "echo hello world")
     (mistty-run-command
@@ -2578,31 +2578,32 @@ window while BODY is running."
     (mistty-run-command (undo))
     (mistty-wait-for-output :str "hello world" :start (point-min))))
 
+(ert-deftest mistty-test-undo-delete-eof ()
+  (mistty-with-test-buffer ()
+    (setq buffer-undo-list nil)
+    (mistty-send-text "echo hello world")
+    (mistty-run-command
+     (mistty-test-goto "world"))
+    (mistty-run-command
+     (mistty-delete-char 100)) ;; deletes past EOF
+    (mistty-wait-for-output :regexp "hello $" :start (point-min))
+    (mistty-run-command (undo))
+    (mistty-wait-for-output :str "hello world" :start (point-min))))
+
 (ert-deftest mistty-test-undo-multiple-types ()
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer ()
   (let ((mistty-debug-strict nil))
     (mistty-send-text "echo hello world.")
     ;; replayed command
     (mistty-run-command
      (mistty-test-goto-after "world")
      (backward-kill-word 1))
+    
     ;; insert
     (mistty-run-command
      (mistty-self-insert 1 ?f))
     (mistty-run-command
      (mistty-self-insert 3 ?o))
-
-    ;; To allow typing quickly, mistty-send-key doesn't wait for a key
-    ;; to be reflected in the terminal before sending the next one. The
-    ;; current implementation of undo accounts for that by using the stored
-    ;; position instead of the cursor if the last command was an undoable one.
-    ;;
-    ;; That's not enough for insert followed by delete, since what's deleted
-    ;; might not have been inserted at deletion time. We'd need not just the
-    ;; position, but also what was inserted.
-    ;;
-    ;; TODO: fix the situation above and remove the wait-for-output.
-    (mistty-wait-for-output :str "echo hello fooo." :start (point-min))
     
     ;; delete
     (mistty-run-command
@@ -2917,6 +2918,7 @@ This is useful after files have changed, such as after checking
   (load "mistty-util.el" nil 'nomessage 'nosuffix)
   (load "mistty-log.el" nil 'nomessage 'nosuffix)
   (load "mistty-changeset.el" nil 'nomessage 'nosuffix)
+  (load "mistty-undo.el" nil 'nomessage 'nosuffix)
   (load "mistty-term.el" nil 'nomessage 'nosuffix)
   (load "mistty-queue.el" nil 'nomessage 'nosuffix)
   (load "mistty-osc7.el" nil 'nomessage 'nosuffix)

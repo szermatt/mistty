@@ -41,6 +41,7 @@
 (require 'mistty-util)
 (require 'mistty-log)
 (require 'mistty-queue)
+(require 'mistty-undo)
 
 ;;; Code:
 
@@ -449,12 +450,6 @@ least recent to most recent - or from low position values to high
 position values.
 
 The first entry is a copy of the current sync markers.")
-
-(defvar-local mistty--this-command-for-undo nil
-  "Current command, like `this-command', but modified for undo.")
-
-(defvar-local mistty--last-command-for-undo nil
-  "Previous command, like `last-command', but modified for undo.")
 
 (eval-when-compile
   ;; defined in term.el
@@ -1260,14 +1255,6 @@ KEY must be a string or vector such as the ones returned by `kbd'."
            (characterp (aref key 0))
            (seq-contains-p mistty-positional-keys (aref key 0)))))
 
-(defun mistty-self-insert-p (key)
-  "Return non-nil if KEY is a key that is normally just inserted."
-  (and (length= key 1)
-       (characterp (aref key 0))
-       (not (string= "Cc"
-                     (get-char-code-property (aref key 0)
-                                             'general-category)))))
-
 (defun mistty-self-insert (&optional n c)
   "Send a self-inserting character to the terminal.
 
@@ -1320,7 +1307,7 @@ This command is available in fullscreen mode."
         (setq mistty-goto-cursor-next-time t)
         (when (or positional (mistty-positional-p key))
           (mistty-before-positional))
-        (mistty--maybe-add-key-to-undo n key)
+        (mistty--maybe-add-key-to-undo n key (mistty-cursor))
         (mistty--enqueue-str
          mistty--queue translated-key fire-and-forget)))
 
@@ -1683,12 +1670,12 @@ left (negative)."
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."
-  (setq mistty--this-command-for-undo nil)
+  (mistty--pre-command-for-undo)
   (setq mistty--old-point (point)))
 
 (defun mistty--post-command ()
   "Function called from the `post-command-hook' in `mistty-mode' buffers."
-  (setq mistty--last-command-for-undo mistty--this-command-for-undo)
+  (mistty--post-command-for-undo)
 
   ;; Show cursor again if the command moved the point.
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
@@ -2290,54 +2277,6 @@ and compared, ignoring text properties."
      (mistty--safe-bufstring (car beg) (car end)))
    (mistty--with-live-buffer mistty-term-buffer
      (mistty--safe-bufstring (cdr beg) (cdr end)))))
-
-(defun mistty--maybe-add-key-to-undo (n key)
-  "Add KEY N times to `buffer-undo-list'.
-
-A key that's sent directly to the process connected to the
-terminal isn't automatically added to the undo list. This
-function does that, for self-inserted keys, delete-char, and
-backward-delete-char."
-  (setq mistty--this-command-for-undo
-        (cond
-         ((mistty-self-insert-p key)
-          'mistty-self-insert)
-         ((and (length= key 1) (eq ?\x7f (elt key 0))) ; DEL
-          'mistty-backward-delete-char)
-         ((and (length= key 1) (eq ?\C-d (elt key 0))) ; C-d
-          'mistty-delete-char)))
-  (when mistty--this-command-for-undo
-    (let ((n (or n 1))
-          pos entry)
-      ;; amalgamate
-      (when (and (eq mistty--this-command-for-undo
-                     mistty--last-command-for-undo)
-                 (eq nil (car buffer-undo-list)))
-        (setq buffer-undo-list (cdr buffer-undo-list)))
-
-      ;; Use last pos from undo list instead of cursor, if the last
-      ;; command was one of the supported commands, as when typing
-      ;; fast enough, or on slow connection, cursor might not be
-      ;; up-to-date.
-      (setq pos (mistty-cursor))
-      (when mistty--last-command-for-undo
-        (pcase (car buffer-undo-list)
-          ((and `(,start . ,end) (guard (and (numberp start) (numberp end))))
-           (setq pos end))
-          ((and `(,text . ,start) (guard (and (stringp text) (numberp start))))
-           (setq pos start))))
-
-      (pcase mistty--this-command-for-undo
-        ('mistty-self-insert
-         (setq entry (cons pos (+ pos n))))
-        ('mistty-delete-char
-         (setq entry (cons (mistty--safe-bufstring pos (+ pos n)) pos)))
-        ('mistty-backward-delete-char
-         (let ((del-text (mistty--safe-bufstring (- pos n) pos)))
-           (setq entry (cons del-text (- pos (length del-text)))))))
-
-      (when entry
-        (push entry buffer-undo-list)))))
 
 (provide 'mistty)
 

@@ -96,7 +96,7 @@ window while BODY is running."
 
 (defmacro mistty-run-command (&rest body)
   `(progn
-     (mistty--pre-command)
+     (mistty-test-pre-command)
      (progn ,@body)
      (mistty-test-after-command)))
 
@@ -2535,6 +2535,106 @@ window while BODY is running."
          "[$ ]")
         (mistty-test-content :start start :show-property '(mistty prompt)))))))
 
+(ert-deftest mistty-test-undo-insert ()
+  (mistty-with-test-buffer (:selected t)
+    (setq buffer-undo-list nil)
+    (mistty-run-command
+     (mistty-send-key 1 "e"))
+    (mistty-run-command
+     (mistty-send-key 1 "c"))
+    (mistty-run-command
+     (mistty-send-key 1 "h"))
+    (mistty-run-command
+     (mistty-send-key 1 "o"))
+    (mistty-wait-for-output :str "echo" :start (point-min))
+    (mistty-run-command (undo))
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (equal "$" (mistty-test-content))))))
+
+(ert-deftest mistty-test-undo-backward-delete ()
+  (mistty-with-test-buffer (:selected t)
+    (setq buffer-undo-list nil)
+    (mistty-send-text "echo test")
+    (mistty-run-command
+     (mistty-backward-delete-char 4))
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (equal "$ echo" (mistty-test-content))))
+    (mistty-run-command (undo))
+    (mistty-wait-for-output :str "echo test" :start (point-min))))
+
+(ert-deftest mistty-test-undo-delete ()
+  (mistty-with-test-buffer (:selected t)
+    (setq buffer-undo-list nil)
+    (mistty-send-text "echo hello world")
+    (mistty-run-command
+     (mistty-test-goto "world"))
+    (mistty-run-command
+     (mistty-delete-char 2))
+    (mistty-wait-for-output :str "hello rld" :start (point-min))
+    (mistty-run-command (undo))
+    (mistty-wait-for-output :str "hello world" :start (point-min))))
+
+(ert-deftest mistty-test-undo-multiple-types ()
+  (mistty-with-test-buffer (:selected t)
+  (let ((mistty-debug-strict nil))
+    (mistty-send-text "echo hello world.")
+    ;; replayed command
+    (mistty-run-command
+     (mistty-test-goto-after "world")
+     (backward-kill-word 1))
+    ;; insert
+    (mistty-run-command
+     (mistty-self-insert 1 ?f))
+    (mistty-run-command
+     (mistty-self-insert 3 ?o))
+
+    ;; To allow typing quickly, mistty-send-key doesn't wait for a key
+    ;; to be reflected in the terminal before sending the next one. The
+    ;; current implementation of undo accounts for that by using the stored
+    ;; position instead of the cursor if the last command was an undoable one.
+    ;;
+    ;; That's not enough for insert followed by delete, since what's deleted
+    ;; might not have been inserted at deletion time. We'd need not just the
+    ;; position, but also what was inserted.
+    ;;
+    ;; TODO: fix the situation above and remove the wait-for-output.
+    (mistty-wait-for-output :str "echo hello fooo." :start (point-min))
+    
+    ;; delete
+    (mistty-run-command
+     (mistty-backward-delete-char))
+    (mistty-wait-for-output :str "echo hello foo." :start (point-min))
+
+    ;; undo delete
+    (mistty-run-command
+     (let ((this-command 'undo))
+       (undo)))
+    (mistty-wait-for-output :str "echo hello fooo." :start (point-min))
+
+    ;; undo insert
+    (mistty-run-command
+     (let ((this-command 'undo)
+           (last-command 'undo))
+       (undo)))
+    (mistty-wait-for-output :str "echo hello ." :start (point-min))
+
+    ;; undo replayed insert
+    (mistty-run-command
+     (let ((this-command 'undo)
+           (last-command 'undo))
+       (undo)))
+    (mistty-wait-for-output :str "echo hello world." :start (point-min))
+
+    ;; flakiness in the position might indicate that the building of
+    ;; the position on the last undo sequence isn't correct, as we
+    ;; can't necessarily rely on (mistty-cursor) being up-to-date when
+    ;; inserting keys quickly.
+    )))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 
@@ -2620,6 +2720,11 @@ window while BODY is running."
   (mistty-send-text "function fish_right_prompt; printf '< right'; end")
   (mistty-send-and-wait-for-prompt)
   (narrow-to-region (mistty--bol (point)) (point-max)))
+
+(defun mistty-test-pre-command ()
+  (mistty--pre-command)
+  (when (and buffer-undo-list (car buffer-undo-list))
+    (push nil buffer-undo-list)))
 
 (defun mistty-test-after-command ()
   (mistty--post-command)

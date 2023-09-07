@@ -1414,58 +1414,34 @@ detected.
 This is a wrapper around `iter-yield' that relies on FUNC to
 decide on whether to continue waiting or return."
   `(let ((term-seq ,term-seq)
-         (func ,func)
-         (res 'intermediate)
-         (try-count 0)
-         yielded)
-     (mistty--yield-init term-seq func)
-     (setq yielded term-seq)
-     (while (progn
-              (setq res (iter-yield yielded))
-              (setq yielded 'continue)
-              (mistty--yield-check-result
-               res func try-count
-               (lambda () (cl-incf try-count)))))))
+         (func ,func))
+     (when (mistty--nonempty-str-p term-seq)
+       (iter-yield (list 'until term-seq (mistty--yield-condition func))))))
 
-(defun mistty--yield-init (term-seq func)
-  "Init function for the macro `mistty-yield'.
+(defun mistty--yield-condition (func)
+  "Build a condition for using with iter-yield."
+  (let ((saved-buffer (current-buffer))
+        (try-count 0))
+    (when (and mistty-debug-strict (funcall func))
+      (error "Condition met prematurely"))
+    (lambda (res)
+      (with-current-buffer saved-buffer
+        (cond
+         ((funcall func) t)
 
-TERM-SEQ and FUNC is the condition lambda passed to
-`mistty-yield'.
-
-Not to be used outside of that macro."
-  (when (and mistty-debug-strict
-             (mistty--nonempty-str-p term-seq)
-             (funcall func))
-    (error "Condition met prematurely, before sending out '%s'" term-seq)))
-
-(defun mistty--yield-check-result (res func try-count increase-try-count)
-  "Check `iter-yield' results in the macro `mistty-yield'.
-
-RES is the value returned by the last call to `iter-yield'. FUNC
-is the condition lambda passed to `mistty-yield'. TRY-COUNT is
-the number of times \\='stable was received. INCREASE-TRY-COUNT
-is a function that increases TRY-COUNT for next time.
-
-Not to be used outside of that macro.
-
-Returns nil if `mistty-yield' should leave the loop."
-  (cond
-   ((and (eq res 'intermediate)
-         (not (funcall func)))
-    'keep-trying)
-   ((and (eq res 'stable)
-         (< try-count mistty-max-try-count)
-         (not (funcall func)))
-    (funcall increase-try-count)
-    'keep-trying)
-   ((and mistty-debug-strict
-         (eq res 'stable)
-         (> try-count mistty-max-try-count) (not (funcall func)))
-    (error "Expected effect never found in buffer."))
-   ((and mistty-debug-strict (eq res 'timeout))
-    (error "Unexpected timeout waiting for the expected effect."))
-   (t nil)))
+         ((and (eq res 'stable) (< try-count mistty-max-try-count))
+          (cl-incf try-count)
+          nil)
+         
+         ((eq res 'timeout) 
+          (when mistty-debug-strict
+            (error "Unexpected timeout waiting for the expected effect."))
+          t)
+         
+         ((eq res 'stable)
+          (when mistty-debug-strict
+            (error "Unexpected long time waiting for the expected effect."))
+          t))))))
 
 (iter2-defun mistty--replay-generator (cs)
   (let ((backstage (mistty--create-backstage mistty-proc)))

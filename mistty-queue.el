@@ -58,6 +58,11 @@
   ;; Timer called if the process doesn't not answer after a certain
   ;; time.
   timeout
+
+  ;; A function to call to check whether it's time to call the
+  ;; generator (if it returns a non-nil value) or whether we should
+  ;; keep waiting for output (if it returns nil).
+  accept-f
 )
 
 (defsubst mistty--queue-empty-p (queue)
@@ -124,25 +129,36 @@ If VALUE is set, send that value to the first call to `iter-next'."
     (mistty--cancel-timeout queue)
     (while (mistty--queue-iter queue)
       (condition-case nil
-          (while t
-            (let ((next-value (iter-next (mistty--queue-iter queue) value)))
-              (pcase next-value
-                ;; Wait for more output
-                ('continue
-                 (cl-return-from mistty--dequeue-1))
+          (progn
+            (when-let ((accept-f (mistty--queue-accept-f queue)))
+              (unless (funcall accept-f value)
+                (cl-return-from mistty--dequeue-1))
+              (setf (mistty--queue-accept-f queue) nil))
+            (while t
+              (let ((next-value (iter-next (mistty--queue-iter queue) value)))
+                (pcase next-value
+                  ;; Wait for more output
+                  ('continue
+                   (cl-return-from mistty--dequeue-1))
+                  
+                  ;; Fire-and-forget; no need to wait for a response
+                  ((and `(fire-and-forget ,str)
+                        (guard (mistty--nonempty-str-p str)))
+                   (mistty--send-string proc str)
+                   (setq value 'fire-and-forget))
+                  
+                  ((and `(until ,str ,accept-f)
+                        (guard (mistty--nonempty-str-p str)))
+                   (setf (mistty--queue-accept-f queue) accept-f)
+                   (mistty--send-string proc str)
+                   (cl-return-from mistty--dequeue-1))
+                  
+                  ;; Normal sequences
+                  ((pred mistty--nonempty-str-p)
+                   (mistty--send-string proc next-value)
+                   (cl-return-from mistty--dequeue-1))
                 
-                ;; Fire-and-forget; no need to wait for a response
-                ((and `(fire-and-forget ,str)
-                      (guard (mistty--nonempty-str-p str)))
-                 (mistty--send-string proc (nth 1 next-value))
-                 (setq value 'fire-and-forget))
-                
-                ;; Normal sequences
-                ((pred mistty--nonempty-str-p)
-                 (mistty--send-string proc next-value)
-                 (cl-return-from mistty--dequeue-1))
-                
-                (_ (setq value 'empty-string)))))
+                  (_ (setq value 'empty-string))))))
         
         (iter-end-of-sequence
          (setf (mistty--queue-iter queue)

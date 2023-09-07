@@ -107,18 +107,17 @@ Does nothing if GEN is nil."
       (setf (mistty--queue-more-iters queue)
             (append (mistty--queue-more-iters queue) (list gen))))))
 
-(defun mistty--dequeue (queue &optional value)
+(cl-defun mistty--dequeue (queue &optional value)
   "Send the next string from QUEUE to the terminal.
 
 If VALUE is set, send that value to the first call to `iter-next'."
   (cl-assert (mistty--queue-p queue))
-  (let ((proc (mistty--queue-proc queue))
-        (stop nil))
+  (let ((proc (mistty--queue-proc queue)))
     (mistty--cancel-timeout queue)
-    (while (and (not stop) (mistty--queue-iter queue))
+    (while (mistty--queue-iter queue)
       (condition-case nil
           (save-excursion
-            (while (not stop)
+            (while t
               (let ((next-value (iter-next (mistty--queue-iter queue) value)))
                 (setq value 'empty-string)
                 (cond
@@ -128,7 +127,7 @@ If VALUE is set, send that value to the first call to `iter-next'."
                         (run-with-timer
                          mistty-timeout-s nil #'mistty--timeout-handler
                          (current-buffer) queue))
-                  (setq stop t))
+                  (cl-return-from mistty--dequeue))
                  ;; Fire-and-forget; no need to wait for a response
                  ((and (listp next-value)
                        (eq (nth 0 next-value) 'fire-and-forget)
@@ -142,7 +141,7 @@ If VALUE is set, send that value to the first call to `iter-next'."
                          mistty-timeout-s nil #'mistty--timeout-handler
                          (current-buffer) queue))
                   (mistty--send-string proc next-value)
-                  (setq stop t))))))
+                  (cl-return-from mistty--dequeue))))))
         (iter-end-of-sequence
          (setf (mistty--queue-iter queue)
                (pop (mistty--queue-more-iters queue))))))))

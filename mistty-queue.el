@@ -107,11 +107,19 @@ Does nothing if GEN is nil."
       (setf (mistty--queue-more-iters queue)
             (append (mistty--queue-more-iters queue) (list gen))))))
 
-(cl-defun mistty--dequeue (queue &optional value)
+(defun mistty--dequeue (queue &optional value)
   "Send the next string from QUEUE to the terminal.
 
 If VALUE is set, send that value to the first call to `iter-next'."
   (cl-assert (mistty--queue-p queue))
+  (mistty--dequeue-1 queue value)
+  (unless (mistty--queue-empty-p queue)
+    (setf (mistty--queue-timeout queue)
+          (run-with-timer
+           mistty-timeout-s nil #'mistty--timeout-handler
+           (current-buffer) queue))))
+
+(cl-defun mistty--dequeue-1 (queue value)
   (let ((proc (mistty--queue-proc queue)))
     (mistty--cancel-timeout queue)
     (while (mistty--queue-iter queue)
@@ -122,11 +130,7 @@ If VALUE is set, send that value to the first call to `iter-next'."
               (pcase next-value
                 ;; Wait for more output
                 ('continue
-                 (setf (mistty--queue-timeout queue)
-                       (run-with-timer
-                        mistty-timeout-s nil #'mistty--timeout-handler
-                        (current-buffer) queue))
-                 (cl-return-from mistty--dequeue))
+                 (cl-return-from mistty--dequeue-1))
                 
                 ;; Fire-and-forget; no need to wait for a response
                 ((and `(fire-and-forget ,str)
@@ -135,12 +139,9 @@ If VALUE is set, send that value to the first call to `iter-next'."
                 
                 ;; Normal sequences
                 ((pred mistty--nonempty-str-p)
-                 (setf (mistty--queue-timeout queue)
-                       (run-with-timer
-                        mistty-timeout-s nil #'mistty--timeout-handler
-                        (current-buffer) queue))
                  (mistty--send-string proc next-value)
-                 (cl-return-from mistty--dequeue)))))
+                 (cl-return-from mistty--dequeue-1)))))
+        
         (iter-end-of-sequence
          (setf (mistty--queue-iter queue)
                (pop (mistty--queue-more-iters queue))))))))

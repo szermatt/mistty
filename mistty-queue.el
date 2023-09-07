@@ -126,7 +126,6 @@ If VALUE is set, send that value to the first call to `iter-next'."
       (condition-case nil
           (while t
             (let ((next-value (iter-next (mistty--queue-iter queue) value)))
-              (setq value 'empty-string)
               (pcase next-value
                 ;; Wait for more output
                 ('continue
@@ -135,12 +134,15 @@ If VALUE is set, send that value to the first call to `iter-next'."
                 ;; Fire-and-forget; no need to wait for a response
                 ((and `(fire-and-forget ,str)
                       (guard (mistty--nonempty-str-p str)))
-                 (mistty--send-string proc (nth 1 next-value)))
+                 (mistty--send-string proc (nth 1 next-value))
+                 (setq value 'fire-and-forget))
                 
                 ;; Normal sequences
                 ((pred mistty--nonempty-str-p)
                  (mistty--send-string proc next-value)
-                 (cl-return-from mistty--dequeue-1)))))
+                 (cl-return-from mistty--dequeue-1))
+                
+                (_ (setq value 'empty-string)))))
         
         (iter-end-of-sequence
          (setf (mistty--queue-iter queue)

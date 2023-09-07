@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        emacs_version:
+          - 29.1
+
+    steps:
+    - name: Install zsh
+      run: "sudo apt-get install -y zsh && zsh --version"
+
+    - name: Install fish
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && brew install -q fish && fish --version'
+
+    - name: Set up Emacs
+      uses: jcs090218/setup-emacs@master
+      with:
+        version: ${{matrix.emacs_version}}
+
+    - name: Install Eldev
+      uses: emacs-eldev/setup-eldev@v1
+
+    - name: Check out the source code
+      uses: actions/checkout@v3
+
+    - name: Test the project
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev -p -dtT test'

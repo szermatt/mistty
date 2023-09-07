@@ -3,5 +3,7 @@
 (eldev-use-package-archive 'melpa)
 
 (setq eldev-test-fileset "*_test.el")
+(setq eldev-build-treat-warnings-as-errors t)
+(setf eldev-project-loading-mode 'byte-compiled)
 
 (eldev-use-plugin 'autoloads)

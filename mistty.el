@@ -1404,44 +1404,31 @@ This is meant to be added to ==\'after-change-functions."
    ;; Outside sync region
   (mistty--sync-history-remove-above end nil)))
 
-(defmacro mistty--yield (term-seq func)
-  "Yield TERM-SEQ to be sent to the terminal.
-
-FUNC should be a function or lambda that returns non-nil once the
-desired effect of sending TERM-SEQ to the terminal has been
-detected.
-
-This is a wrapper around `iter-yield' that relies on FUNC to
-decide on whether to continue waiting or return."
-  `(let ((term-seq ,term-seq)
-         (func ,func))
-     (when (mistty--nonempty-str-p term-seq)
-       (iter-yield (list 'until term-seq (mistty--yield-condition func))))))
-
-(defun mistty--yield-condition (func)
+(defun mistty--yield-condition (accept-f)
   "Build a condition for using with iter-yield."
   (let ((saved-buffer (current-buffer))
         (try-count 0))
-    (when (and mistty-debug-strict (funcall func))
+    (when (and mistty-debug-strict (funcall accept-f))
       (error "Condition met prematurely"))
     (lambda (res)
       (with-current-buffer saved-buffer
         (cond
-         ((funcall func) t)
+         ((funcall accept-f) 'accept)
 
          ((and (eq res 'stable) (< try-count mistty-max-try-count))
           (cl-incf try-count)
+          ;; keep waiting
           nil)
          
          ((eq res 'timeout) 
           (when mistty-debug-strict
             (error "Unexpected timeout waiting for the expected effect."))
-          t)
+          'give-up)
          
          ((eq res 'stable)
           (when mistty-debug-strict
             (error "Unexpected long time waiting for the expected effect."))
-          t))))))
+          'give-up))))))
 
 (iter2-defun mistty--replay-generator (cs)
   (let ((backstage (mistty--create-backstage mistty-proc)))
@@ -1482,10 +1469,13 @@ decide on whether to continue waiting or return."
               (when (length> content 0)
                 (setq distance (mistty--distance (point) beg))
                 (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
-                (mistty--yield (mistty--move-horizontally-str distance)
-                               (lambda ()
-                                 (mistty--update-backstage backstage proc)
-                                 (= (point) beg)))
+                (let ((term-seq (mistty--move-horizontally-str distance)))
+                  (when (mistty--nonempty-str-p term-seq)
+                    (iter-yield
+                     `(until ,term-seq ,(mistty--yield-condition
+                                         (lambda ()
+                                           (mistty--update-backstage backstage proc)
+                                           (= (point) beg)))))))
                 (mistty--update-backstage backstage proc)
                 (mistty-log "Got to %s" (point))
 
@@ -1505,10 +1495,14 @@ decide on whether to continue waiting or return."
               (when (and is-first (> old-end beg))
                 (setq distance (mistty--distance (point) old-end))
                 (mistty-log "to old-end: %s -> %s distance: %s" (point) old-end distance)
-                (mistty--yield (mistty--move-horizontally-str distance)
+                (let ((term-seq (mistty--move-horizontally-str distance)))
+                  (when (mistty--nonempty-str-p term-seq)
+                    (iter-yield
+                     `(until ,term-seq
+                             ,(mistty--yield-condition
                                (lambda ()
                                  (mistty--update-backstage backstage proc)
-                                 (= (point) old-end)))
+                                 (= (point) old-end)))))))
                 (mistty--update-backstage backstage proc)
                 (mistty-log "Got to %s" (point))
 
@@ -1527,29 +1521,33 @@ decide on whether to continue waiting or return."
                                   (length content)))
                      (sub (substring content start-idx))
                      (inserted-detector (mistty--make-inserted-detector
-                                         sub beg old-end)))
-                (mistty--yield
-                 (concat
-                  ;; move to old-end (except the first time, because then
-                  ;; we want to check the result of that move)
-                  (when (and (not is-first) (> old-end beg))
-                    (mistty-log "MOVE %s -> %s" (point) old-end)
-                    (mistty--move-horizontally-str
-                     (mistty--distance (point) old-end)))
-                  ;; delete
-                  (when (> old-end beg)
-                    (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
-                    (mistty--repeat-string (mistty--distance beg old-end) "\b"))
-                  ;; insert
-                  (when (length> sub 0)
-                    (if (> start-idx 0)
-                        (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
-                      (mistty-log "INSERT: '%s'" sub))
-                    (mistty--maybe-bracketed-str sub)))
-                 (lambda ()
-                   (mistty--update-backstage backstage proc)
-                   (mistty--remove-fake-nl)
-                   (funcall inserted-detector))))
+                                         sub beg old-end))
+                     (term-seq
+                      (concat
+                       ;; move to old-end (except the first time, because then
+                       ;; we want to check the result of that move)
+                       (when (and (not is-first) (> old-end beg))
+                         (mistty-log "MOVE %s -> %s" (point) old-end)
+                         (mistty--move-horizontally-str
+                          (mistty--distance (point) old-end)))
+                       ;; delete
+                       (when (> old-end beg)
+                         (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
+                         (mistty--repeat-string (mistty--distance beg old-end) "\b"))
+                       ;; insert
+                       (when (length> sub 0)
+                         (if (> start-idx 0)
+                             (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
+                           (mistty-log "INSERT: '%s'" sub))
+                         (mistty--maybe-bracketed-str sub)))))
+                (when (mistty--nonempty-str-p term-seq)
+                  (iter-yield
+                   `(until ,term-seq
+                           ,(mistty--yield-condition
+                             (lambda ()
+                               (mistty--update-backstage backstage proc)
+                               (mistty--remove-fake-nl)
+                               (funcall inserted-detector)))))))
               (setq is-first nil)
               (mistty--update-backstage backstage proc)))
 
@@ -1758,9 +1756,13 @@ post-command hook."
         (let ((distance (mistty--distance from to)))
           (when (/= distance 0)
             (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-            (mistty--yield (mistty--move-horizontally-str distance)
+            (let ((term-seq (mistty--move-horizontally-str distance)))
+              (when (mistty--nonempty-str-p term-seq)
+                (iter-yield
+                 `(until ,term-seq
+                         ,(mistty--yield-condition
                            (lambda ()
-                             (= (mistty-cursor) to)))
+                             (= (mistty-cursor) to)))))))
             (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) to)))))))
 
 (defun mistty--window-size-change (_win)

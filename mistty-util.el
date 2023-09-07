@@ -136,6 +136,14 @@ of failing."
     (while (setq pos (text-property-any pos (point-max) 'term-line-wrap t))
       (delete-region pos (1+ pos)))))
 
+(defun mistty-self-insert-p (key)
+  "Return non-nil if KEY is a key that is normally just inserted."
+  (and (length= key 1)
+       (characterp (aref key 0))
+       (not (string= "Cc"
+                     (get-char-code-property (aref key 0)
+                                             'general-category)))))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

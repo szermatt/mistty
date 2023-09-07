@@ -41,6 +41,7 @@
 (require 'mistty-util)
 (require 'mistty-log)
 (require 'mistty-queue)
+(require 'mistty-undo)
 
 ;;; Code:
 
@@ -187,8 +188,8 @@ This map is active whenever the current buffer is in MisTTY mode.")
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") 'mistty-send-command)
     (define-key map (kbd "TAB") 'mistty-send-key)
-    (define-key map (kbd "DEL") 'mistty-send-key)
-    (define-key map (kbd "C-d") 'mistty-send-key)
+    (define-key map (kbd "DEL") 'mistty-backward-delete-char)
+    (define-key map (kbd "C-d") 'mistty-delete-char)
     (define-key map (kbd "C-a") 'mistty-send-beginning-of-line)
     (define-key map (kbd "C-e") 'mistty-send-end-of-line)
 
@@ -204,7 +205,7 @@ This map is active whenever the current buffer is in MisTTY mode.")
     ;; Don't bother capturing single key-stroke modifications and
     ;; replaying them; just send them to the terminal. This works even
     ;; when the terminal doesn't accept editing.
-    (define-key map [remap self-insert-command] 'mistty-send-key )
+    (define-key map [remap self-insert-command] 'mistty-self-insert )
     map)
   "Keymap active on the part of `mistty-mode' synced with the terminal.
 
@@ -929,116 +930,118 @@ Also updates prompt and point."
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (old-point (point)))
-      (save-restriction
-        (widen)
-        (setq mistty--need-refresh nil)
-        (when (timerp mistty--refresh-timer)
-          (cancel-timer mistty--refresh-timer)
-          (setq mistty--refresh-timer nil))
+      (mistty--inhibit-undo
+       (save-restriction
+         (widen)
+         (setq mistty--need-refresh nil)
+         (when (timerp mistty--refresh-timer)
+           (cancel-timer mistty--refresh-timer)
+           (setq mistty--refresh-timer nil))
 
-        (mistty-log "refresh")
-        (mistty--sync-buffer mistty-term-buffer)
-        (when (> mistty--cmd-start-marker mistty-sync-marker)
-          (mistty--set-prompt-properties
-           mistty-sync-marker mistty--cmd-start-marker))
+         (mistty-log "refresh")
+         (mistty--sync-buffer mistty-term-buffer)
+         (when (> mistty--cmd-start-marker mistty-sync-marker)
+           (mistty--set-prompt-properties
+            mistty-sync-marker mistty--cmd-start-marker))
 
-        ;; Make fake newlines invisible. They're not really "visible"
-        ;; to begin with, since they're at the end of the window, but
-        ;; marking them invisible allows kill-line to go "through"
-        ;; them, as it should.
-        (save-excursion
-          (goto-char mistty-sync-marker)
-          (while-let ((prop-match
-                       (text-property-search-forward 'term-line-wrap t t)))
-            (put-text-property (prop-match-beginning prop-match)
-                               (prop-match-end prop-match)
-                               'invisible 'term-line-wrap)))
+         ;; Make fake newlines invisible. They're not really "visible"
+         ;; to begin with, since they're at the end of the window, but
+         ;; marking them invisible allows kill-line to go "through"
+         ;; them, as it should.
+         (save-excursion
+           (goto-char mistty-sync-marker)
+           (while-let ((prop-match
+                        (text-property-search-forward 'term-line-wrap t t)))
+             (put-text-property (prop-match-beginning prop-match)
+                                (prop-match-end prop-match)
+                                'invisible 'term-line-wrap)))
 
-        ;; Right after a mistty-send-command, we're waiting for a line
-        ;; after mistty--end-prompt that's not part of the old prompt.
-        (when mistty--end-prompt
-          (when-let ((command-end
-                      (if (get-text-property mistty-sync-marker 'mistty-prompt-id)
-                          (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
-                        (mistty--bol mistty--cmd-start-marker 2))))
-            (when (and (eq ?\n (char-before command-end))
-                       (> (mistty--last-non-ws) command-end))
-              (mistty--set-sync-mark-from-end command-end))
-            (setq mistty--end-prompt nil)))
 
-        ;; detect prompt from bracketed-past region and use that to
-        ;; restrict the sync region.
-        (when (process-live-p mistty-proc)
-          (let* ((cursor (mistty-cursor))
-                 (prompt-beg
-                  (let ((pos cursor))
-                    (unless (and (> pos (point-min))
-                                 (get-text-property (1- pos) 'mistty-prompt-id))
-                      (setq pos (previous-single-property-change
-                                 pos 'mistty-prompt-id nil mistty-sync-marker)))
-                    (when (and (> pos (point-min))
-                               (get-text-property (1- pos) 'mistty-prompt-id))
-                      (setq pos (previous-single-property-change
-                                 pos 'mistty-prompt-id nil mistty-sync-marker)))
-                    (when (and (>= pos (point-min)) (< pos (point-max)))
-                      pos))))
-            (when (and prompt-beg
-                       (get-text-property prompt-beg 'mistty-prompt-id)
-                       (or (> prompt-beg mistty-sync-marker)
-                           (and (= prompt-beg mistty-sync-marker)
-                                (= mistty-sync-marker mistty--cmd-start-marker)))
-                       (< prompt-beg cursor)
-                       (string-match
-                        mistty-prompt-re
-                        (mistty--safe-bufstring
-                         (mistty--bol cursor) cursor)))
-              (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)
-              (mistty--set-sync-mark-from-end prompt-beg cursor))))
+         ;; Right after a mistty-send-command, we're waiting for a line
+         ;; after mistty--end-prompt that's not part of the old prompt.
+         (when mistty--end-prompt
+           (when-let ((command-end
+                       (if (get-text-property mistty-sync-marker 'mistty-prompt-id)
+                           (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
+                         (mistty--bol mistty--cmd-start-marker 2))))
+             (when (and (eq ?\n (char-before command-end))
+                        (> (mistty--last-non-ws) command-end))
+               (mistty--set-sync-mark-from-end command-end))
+             (setq mistty--end-prompt nil)))
 
-        ;; Fix detected prompt.
-        (when (process-live-p mistty-proc)
-          (let ((cursor (mistty-cursor)))
-            (when (< cursor mistty--cmd-start-marker)
-              ;; An overly-large prompt causes more issues than a
-              ;; prompt that's just missing.
-              (mistty-log "Detected prompt too large %s > %s. RESET."
-                          (marker-position mistty--cmd-start-marker) cursor)
-              (mistty--set-prompt mistty-sync-marker mistty-sync-marker))))
+         ;; detect prompt from bracketed-past region and use that to
+         ;; restrict the sync region.
+         (when (process-live-p mistty-proc)
+           (let* ((cursor (mistty-cursor))
+                  (prompt-beg
+                   (let ((pos cursor))
+                     (unless (and (> pos (point-min))
+                                  (get-text-property (1- pos) 'mistty-prompt-id))
+                       (setq pos (previous-single-property-change
+                                  pos 'mistty-prompt-id nil mistty-sync-marker)))
+                     (when (and (> pos (point-min))
+                                (get-text-property (1- pos) 'mistty-prompt-id))
+                       (setq pos (previous-single-property-change
+                                  pos 'mistty-prompt-id nil mistty-sync-marker)))
+                     (when (and (>= pos (point-min)) (< pos (point-max)))
+                       pos))))
+             (when (and prompt-beg
+                        (get-text-property prompt-beg 'mistty-prompt-id)
+                        (or (> prompt-beg mistty-sync-marker)
+                            (and (= prompt-beg mistty-sync-marker)
+                                 (= mistty-sync-marker mistty--cmd-start-marker)))
+                        (< prompt-beg cursor)
+                        (string-match
+                         mistty-prompt-re
+                         (mistty--safe-bufstring
+                          (mistty--bol cursor) cursor)))
+               (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)
+               (mistty--set-sync-mark-from-end prompt-beg cursor))))
 
-        ;; Turn mistty-forbid-edit on or off
+         ;; Fix detected prompt.
+         (when (process-live-p mistty-proc)
+           (let ((cursor (mistty-cursor)))
+             (when (< cursor mistty--cmd-start-marker)
+               ;; An overly-large prompt causes more issues than a
+               ;; prompt that's just missing.
+               (mistty-log "Detected prompt too large %s > %s. RESET."
+                           (marker-position mistty--cmd-start-marker) cursor)
+               (mistty--set-prompt mistty-sync-marker mistty-sync-marker))))
 
-        (let ((forbid-edit (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
-          (cond
-           ((and forbid-edit (not mistty--forbid-edit))
-            (setq mistty--forbid-edit t)
-            (add-hook 'before-change-functions #'mistty--enforce-forbid-edits nil t))
-           ((and (not forbid-edit) mistty--forbid-edit)
-            (setq mistty--forbid-edit nil)
-            (remove-hook 'before-change-functions #'mistty--enforce-forbid-edits t))))
+         ;; Turn mistty-forbid-edit on or off
 
-        (mistty--with-live-buffer mistty-term-buffer
-          ;; Next time, only sync the visible portion of the terminal.
-          (when (< mistty-sync-marker term-home-marker)
-            (mistty--set-sync-mark-from-end term-home-marker))
+         (let ((forbid-edit (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
+           (cond
+            ((and forbid-edit (not mistty--forbid-edit))
+             (setq mistty--forbid-edit t)
+             (add-hook 'before-change-functions #'mistty--enforce-forbid-edits nil t))
+            ((and (not forbid-edit) mistty--forbid-edit)
+             (setq mistty--forbid-edit nil)
+             (remove-hook 'before-change-functions #'mistty--enforce-forbid-edits t))))
 
-          ;; Truncate the term buffer, since scrolling back is available on
-          ;; the work buffer anyways. This has to be done now, after syncing
-          ;; the marker, and not in term-emulate-terminal, which is why
-          ;; term-buffer-maximum-size is set to 0.
-          (save-excursion
-            (goto-char term-home-marker)
-            (forward-line -5)
-            (delete-region (point-min) (point))))
+         (mistty--with-live-buffer mistty-term-buffer
+           ;; Next time, only sync the visible portion of the terminal.
+           (when (< mistty-sync-marker term-home-marker)
+             (mistty--set-sync-mark-from-end term-home-marker))
 
-        ;; Move the point to the cursor, if necessary.
+           ;; Truncate the term buffer, since scrolling back is available on
+           ;; the work buffer anyways. This has to be done now, after syncing
+           ;; the marker, and not in term-emulate-terminal, which is why
+           ;; term-buffer-maximum-size is set to 0.
+           (save-excursion
+             (goto-char term-home-marker)
+             (forward-line -5)
+             (delete-region (point-min) (point))))
 
-        (when (process-live-p mistty-proc)
-          (when (or mistty-goto-cursor-next-time
-                    (null mistty--cursor-after-last-refresh)
-                    (= old-point mistty--cursor-after-last-refresh))
-            (mistty-goto-cursor))
-          (setq mistty-goto-cursor-next-time nil)
-          (setq mistty--cursor-after-last-refresh (mistty-cursor)))))))
+         ;; Move the point to the cursor, if necessary.
+
+         (when (process-live-p mistty-proc)
+           (when (or mistty-goto-cursor-next-time
+                     (null mistty--cursor-after-last-refresh)
+                     (= old-point mistty--cursor-after-last-refresh))
+             (mistty-goto-cursor))
+           (setq mistty-goto-cursor-next-time nil)
+           (setq mistty--cursor-after-last-refresh (mistty-cursor))))))))
 
 (defun mistty--match-forbid-edit-regexp-p (beg)
   "Returns t if `mistty-forbid-edit-regexp' matches.
@@ -1260,13 +1263,39 @@ Non-control characters are always positional, since they're
 normally just inserted.
 
 KEY must be a string or vector such as the ones returned by `kbd'."
-  (and (length= key 1)
-       (characterp (aref key 0))
-       (or
-        (seq-contains-p mistty-positional-keys (aref key 0))
-        (not (string= "Cc"
-                      (get-char-code-property (aref key 0)
-                                              'general-category))))))
+  (or (mistty-self-insert-p key)
+      (and (length= key 1)
+           (characterp (aref key 0))
+           (seq-contains-p mistty-positional-keys (aref key 0)))))
+
+(defun mistty-self-insert (&optional n c)
+  "Send a self-inserting character to the terminal.
+
+If N is set, send the key that many times. It defaults to 1.
+
+C is the character to send, a single character."
+  (interactive "p")
+  (mistty-send-key n (when c (make-string 1 c)) 'positional))
+
+(defun mistty-backward-delete-char (&optional n)
+  "Send DEL N times to the terminal.
+
+If N is unset, send DEL once. If N is negative, send C-d that
+many times instead."
+  (interactive "p")
+  (if (and (numberp n) (< n 0))
+      (mistty-send-key (abs n) "\C-d" 'positional)
+    (mistty-send-key n "\x7f" 'positional)))
+
+(defun mistty-delete-char (&optional n)
+"Send C-d N times to the terminal.
+
+If N is unset, send C-d once. If N is negative, send DEL that
+many times instead."
+  (interactive "p")
+  (if (and (numberp n) (< n 0))
+      (mistty-send-key (abs n) "\x7f" 'positional)
+    (mistty-send-key n "\C-d" 'positional)))
 
 (defun mistty-send-key (&optional n key positional)
   "Send the current key sequence to the terminal.
@@ -1291,6 +1320,7 @@ This command is available in fullscreen mode."
         (setq mistty-goto-cursor-next-time t)
         (when (or positional (mistty-positional-p key))
           (mistty-before-positional))
+        (mistty--maybe-add-key-to-undo n key (mistty-cursor))
         (mistty--enqueue-str
          mistty--queue translated-key fire-and-forget)))
 
@@ -1368,7 +1398,8 @@ This is meant to be added to ==\'after-change-functions."
         ;; modifications.
         (setq mistty--inhibit-refresh t)
 
-        (mistty--changeset-mark-region cs beg end old-end))
+        (mistty--inhibit-undo 
+         (mistty--changeset-mark-region cs beg end old-end)))
 
    ;; Outside sync region
   (mistty--sync-history-remove-above end nil)))
@@ -1652,10 +1683,13 @@ left (negative)."
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."
+  (mistty--pre-command-for-undo)
   (setq mistty--old-point (point)))
 
 (defun mistty--post-command ()
   "Function called from the `post-command-hook' in `mistty-mode' buffers."
+  (mistty--post-command-for-undo)
+
   ;; Show cursor again if the command moved the point.
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
     (when point-moved
@@ -1681,59 +1715,60 @@ modifications or cursor movement executed during the command. It
 is run in an idle timer to avoid failures inside of the
 post-command hook."
   (mistty--with-live-buffer buf
-    (save-restriction
-      (widen)
-      (when (and (process-live-p mistty-proc)
-                 (buffer-live-p mistty-term-buffer))
-        (let* ((cs (mistty--active-changeset))
-               shift replay)
-          (cond
-           ;; nothing to do
-           ((not (mistty--changeset-p cs)))
+    (mistty--inhibit-undo
+     (save-restriction
+       (widen)
+       (when (and (process-live-p mistty-proc)
+                  (buffer-live-p mistty-term-buffer))
+         (let* ((cs (mistty--active-changeset))
+                shift replay)
+           (cond
+            ;; nothing to do
+            ((not (mistty--changeset-p cs)))
 
-           (mistty--forbid-edit
-            ;; Refresh to erase the changes.
-            (setq mistty--need-refresh t))
+            (mistty--forbid-edit
+             ;; Refresh to erase the changes.
+             (setq mistty--need-refresh t))
 
-           ;; modifications are part of the current prompt; replay them
-           ((mistty-on-prompt-p (mistty-cursor))
-            (setq replay t))
+            ;; modifications are part of the current prompt; replay them
+            ((mistty-on-prompt-p (mistty-cursor))
+             (setq replay t))
 
-           ;; modifications are part of a possible prompt; realize it, keep the modifications before the
-           ;; new prompt and replay the modifications after the new prompt.
-           ((and (mistty--possible-prompt-p)
-                 (setq shift (mistty--changeset-restrict
-                              cs (nth 0 mistty--possible-prompt))))
-            (mistty--realize-possible-prompt shift)
-            (setq replay t))
+            ;; modifications are part of a possible prompt; realize it, keep the modifications before the
+            ;; new prompt and replay the modifications after the new prompt.
+            ((and (mistty--possible-prompt-p)
+                  (setq shift (mistty--changeset-restrict
+                               cs (nth 0 mistty--possible-prompt))))
+             (mistty--realize-possible-prompt shift)
+             (setq replay t))
 
-           ;; leave all modifications if there's enough of an unmodified
-           ;; section at the end. moving the sync mark is only possible
-           ;; as long as the term and work buffers haven't diverged.
-           ((and (< (mistty--changeset-end cs)
-                    ;; modifiable limit
-                    (mistty--bol (point-max) -5))
-                 (not mistty--need-refresh))
-            (mistty--set-sync-mark-from-end
-             (mistty--bol (mistty--changeset-end cs) 3)))
+            ;; leave all modifications if there's enough of an unmodified
+            ;; section at the end. moving the sync mark is only possible
+            ;; as long as the term and work buffers haven't diverged.
+            ((and (< (mistty--changeset-end cs)
+                     ;; modifiable limit
+                     (mistty--bol (point-max) -5))
+                  (not mistty--need-refresh))
+             (mistty--set-sync-mark-from-end
+              (mistty--bol (mistty--changeset-end cs) 3)))
 
-           (t ;; revert everything
+            (t ;; revert everything
 
-            ;; The following forces a call to refresh, in time, even if
-            ;; the process sent nothing new.
-            (setq mistty--need-refresh t)))
+             ;; The following forces a call to refresh, in time, even if
+             ;; the process sent nothing new.
+             (setq mistty--need-refresh t)))
 
-          (when replay
-            (mistty--enqueue mistty--queue (mistty--replay-generator cs))
-            (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))
+           (when replay
+             (mistty--enqueue mistty--queue (mistty--replay-generator cs))
+             (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))
 
-          ;; Abandon changesets that haven't been picked up for replay.
-          (when (and (not replay) (mistty--changeset-p cs))
-            (mistty--release-changeset cs)
-            (mistty--refresh-after-changeset))
+           ;; Abandon changesets that haven't been picked up for replay.
+           (when (and (not replay) (mistty--changeset-p cs))
+             (mistty--release-changeset cs)
+             (mistty--refresh-after-changeset))
 
-          (when (and (not replay) point-moved)
-            (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator))))))))
+           (when (and (not replay) point-moved)
+             (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))))))))
 
 (iter2-defun mistty--cursor-to-point-generator ()
   "A generator that tries to move the terminal cursor to the point."

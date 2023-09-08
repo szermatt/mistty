@@ -1013,7 +1013,10 @@ Also updates prompt and point."
          ;; Fix detected prompt.
          (when (process-live-p mistty-proc)
            (let ((cursor (mistty-cursor)))
-             (when (< cursor mistty--cmd-start-marker)
+             (when (and (< cursor mistty--cmd-start-marker)
+                        ;; The cursor is often temporarily at the
+                        ;; beginning of the line while redrawing.
+                        (> cursor (mistty--bol cursor)))
                ;; An overly-large prompt causes more issues than a
                ;; prompt that's just missing.
                (mistty-log "Detected prompt too large %s > %s. RESET."

@@ -18,7 +18,8 @@
 (require 'term)
 (require 'ert)
 (require 'ert-x)
-(require 'generator)
+(require 'iter2)
+(require 'seq)
 (eval-when-compile
   (require 'cl-lib))
 
@@ -2848,8 +2849,11 @@ of the beginning of the prompt."
 
 START and END specify the region to extract.
 
-SHOW is a specific position to highlight with <> in the string,
-often just the output of `point' or `mistty-cursor'.
+SHOW might be a specific position to highlight with <> in the
+string, often just the output of `point' or `mistty-cursor'.
+
+SHOW might also be a list of positions to highlight with <INDEX>,
+for example to highlight both the point and the cursor.
 
 STRIP-LAST-PROMPT, if t, removes the last, empty prompt from the
 returned content.
@@ -2859,11 +2863,11 @@ set to VAL within brackets.
 
 Trailing newlines are always stripped out from the output."
   (interactive)
-  (let* ((output (buffer-substring start end))
-         (p (when show (- show start)))
-         (length (- end start)))
-    (when (and p (>= p 0) (<= p length))
-      (setq output (concat (substring output 0 p) "<>" (substring output p))))
+  (let ((output (buffer-substring start end)))
+    (when show
+      (setq output (mistty-show-point
+                    output start end
+                    (if (listp show) show (list show)))))
     (pcase-let ((`(,prop ,val) show-property))
       (when prop
         (setq output (mistty-show-property prop val output))))
@@ -2918,6 +2922,33 @@ text to be inserted there."
       (setq idx (next-single-property-change found prop text len))
       (push (substring text found idx) output)
       (push "]" output))
+    (push (substring text idx len) output)
+    (apply #'concat (nreverse output))))
+
+(defun mistty-show-point (text start end positions)
+  "Highlight positions with mistty-point property with '<>'."
+  (let ((idx 0)
+        (len (length text))
+        (position-alist
+         (seq-map-indexed
+          (lambda (pos idx)
+            (cons (if (zerop idx) "<>" (format "<%d>" idx))
+                  (- pos start)))
+          positions))
+        output)
+    (setq position-alist
+          (seq-filter
+           (lambda (elt)
+             (and (>= (cdr elt) 0) (<= (cdr elt) (- end start))))
+           position-alist))
+    (setq position-alist
+          (sort position-alist
+                (lambda (a b)
+                  (< (cdr a) (cdr b)))))
+    (pcase-dolist (`(,show-str . ,pos) position-alist)
+      (push (substring text idx pos) output)
+      (push show-str output)
+      (setq idx pos))
     (push (substring text idx len) output)
     (apply #'concat (nreverse output))))
 

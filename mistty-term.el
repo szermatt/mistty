@@ -625,14 +625,7 @@ bracketed paste brackets around it."
     (cond
      ((not mistty-bracketed-paste) str)
      ((not (string-match "[[:cntrl:]]" str)) str)
-     (t (concat "\e[200~"
-                str
-                "\e[201~"
-                ;; Moving the cursor just after sending a bracketed
-                ;; sequence is useful do de-activating the paste
-                ;; region, if the process created one.
-                mistty-left-str
-                mistty-right-str)))))
+     (t (concat "\e[200~" str "\e[201~")))))
 
 (defun mistty-translate-key (key &optional n)
   "Generate string to sent to the terminal for KEY.

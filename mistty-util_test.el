@@ -45,62 +45,6 @@
     (should (equal (list 1 6 11)
                    (mapcar #'marker-position (mistty--lines))))))
 
-(ert-deftest mistty-util-test-bol-skipping-fakes ()
-  (ert-with-test-buffer ()
-    (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
-      
-      (insert "abc" fake-nl "def" fake-nl "ghi\n")
-      (insert "jkl" fake-nl "mno" fake-nl "pqr\n")
-      (insert "stu" fake-nl "vwx" fake-nl "yz\n")
-
-      (should
-       (equal
-        (point-min)
-        (mistty--bol-skipping-fakes (mistty-test-pos "b"))))
-
-      (should
-       (equal
-        (point-min)
-        (mistty--bol-skipping-fakes (mistty-test-pos "e"))))
-
-      (should
-       (equal
-        (point-min)
-        (mistty--bol-skipping-fakes (mistty-test-pos "h"))))
-
-      (should
-       (equal
-        (point-min)
-        (mistty--bol-skipping-fakes (mistty-test-pos "h"))))
-
-      (should
-       (equal
-        (point-min) 
-        (mistty--bol-skipping-fakes (1+ (mistty-test-pos "h")))))
-
-      (should
-       (equal
-        (mistty-test-pos "jkl")
-        (mistty--bol-skipping-fakes (mistty-test-pos "j"))))
-
-      (should
-       (equal
-        (mistty-test-pos "jkl")
-        (mistty--bol-skipping-fakes (mistty-test-pos "r"))))
-
-      (should
-       (equal
-        (mistty-test-pos "stu")
-        (mistty--bol-skipping-fakes (mistty-test-pos "t"))))
-
-      (should
-       (equal
-        (mistty-test-pos "stu")
-        (mistty--bol-skipping-fakes (mistty-test-pos "z"))))
-
-      ;; point must not have been moved after insert
-      (should (equal (point-max) (point))))))
-
 (ert-deftest mistty-util-test-same-line ()
   (ert-with-test-buffer ()
     (insert "abc\n")
@@ -123,9 +67,18 @@
   (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
     (insert fake-nl "abc" fake-nl fake-nl "def" fake-nl "ghi\n" fake-nl )
 
-    (mistty--remove-fake-nl)
+    (mistty--remove-text-with-property 'term-line-wrap t)
     (should (equal "abcdefghi\n"
                    (mistty--safe-bufstring (point-min) (point-max))))))
+
+(ert-deftest mistty-util-test-remove-skipped-spaces ()
+  (insert (propertize "   " 'mistty-skip t) "abc "
+          (propertize "   " 'mistty-skip t) "def"
+          (propertize "   " 'mistty-skip t))
+
+  (mistty--remove-text-with-property 'mistty-skip t)
+  (should (equal "abc def"
+                 (mistty--safe-bufstring (point-min) (point-max)))))
 
 (defun mistty-test-pos (text)
   (save-excursion

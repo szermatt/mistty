@@ -59,19 +59,6 @@ only after a rollover."
     (goto-char pos)
     (pos-eol n)))
 
-(defun mistty--bol-skipping-fakes (pos)
-  "Return the bol position at POS, ignoring \\=`term-line-wrap nl.
-
-This function helps pretend that the newlines added by term.el
-when lines are too long for the window just don't exist."
-  (save-excursion
-    (goto-char pos)
-    (while (and (setq pos (pos-bol))
-                (eq ?\n (char-before pos))
-                (get-text-property (1- pos) 'term-line-wrap))
-      (goto-char (1- pos)))
-    pos))
-
 (defun mistty--repeat-string (n segment)
   "Return a string containing SEGMENT N times."
   (let ((segment-len (length segment)))
@@ -130,11 +117,12 @@ of failing."
   "Return non-nil if positions A and B are on the same line."
   (= (mistty--bol a) (mistty--bol b)))
 
-(defun mistty--remove-fake-nl ()
-  "Remove fake newlines from the current buffer."
+(defun mistty--remove-text-with-property (prop val)
+  "Remove spaces with text property PROP set to VAL from the current buffer."
   (let ((pos (point-min)))
-    (while (setq pos (text-property-any pos (point-max) 'term-line-wrap t))
-      (delete-region pos (1+ pos)))))
+    (while (setq pos (text-property-any pos (point-max) prop val))
+      (let ((next-pos (next-single-property-change pos prop nil (point-max))))
+        (delete-region pos next-pos)))))
 
 (defun mistty-self-insert-p (key)
   "Return non-nil if KEY is a key that is normally just inserted."

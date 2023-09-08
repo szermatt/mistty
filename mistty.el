@@ -1531,13 +1531,12 @@ This is meant to be added to ==\'after-change-functions."
                 (move-marker old-end (max beg (min old-end (point)))))
 
               (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
-              (let* ((start-idx (if (>= beg orig-beg)
+              (let ((start-idx (if (>= beg orig-beg)
                                     (min (length content) (max 0 (- beg orig-beg)))
                                   (length content)))
-                     (sub (substring content start-idx))
-                     (inserted-detector (mistty--make-inserted-detector
-                                         sub beg old-end))
-                     (term-seq
+                    sub term-seq inserted-detector)
+                (setq sub (substring content start-idx))
+                (setq term-seq
                       (concat
                        ;; move to old-end (except the first time, because then
                        ;; we want to check the result of that move)
@@ -1554,14 +1553,24 @@ This is meant to be added to ==\'after-change-functions."
                          (if (> start-idx 0)
                              (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
                            (mistty-log "INSERT: '%s'" sub))
-                         (mistty--maybe-bracketed-str sub)))))
+                         (mistty--maybe-bracketed-str sub))))
+
                 (when (mistty--nonempty-str-p term-seq)
+
+                  ;; ignore term-line-wrap and mistty-skip when
+                  ;; building and running the detector.
+                  (mistty--remove-text-with-property 'term-line-wrap t)
+                  (mistty--remove-text-with-property 'mistty-skip t)
+                  (setq inserted-detector (mistty--make-inserted-detector
+                                           sub beg old-end))
+
                   (iter-yield
                    `(until ,term-seq
                            ,(mistty--yield-condition
                              (lambda ()
                                (mistty--update-backstage backstage proc)
-                               (mistty--remove-fake-nl)
+                               (mistty--remove-text-with-property 'term-line-wrap t)
+                               (mistty--remove-text-with-property 'mistty-skip t)
                                (funcall inserted-detector)))))))
               (setq is-first nil)
               (mistty--update-backstage backstage proc)))
@@ -1594,25 +1603,20 @@ modifications to the inserted text, such as:
 The returned function takes no argument and returns non-nil once
 INSERTED has been detected in the current buffer."
   (let ((regexp
-         (let ((start 0)
-               (regexp-parts)
-               (str (concat inserted
-                            (mistty--safe-bufstring
-                             old-end (mistty--eol old-end)))))
-           (setq str (string-replace "\n" " \n " str))
-           (while (string-match "[[:blank:]]*\\([[:blank:]]\\|\n[[:blank:]]*\\)" str start)
-             (push (regexp-quote (substring str start (match-beginning 0))) regexp-parts)
-             (if (string-prefix-p "\n" (match-string 1 str))
-                 (push "[[:blank:]]*\n[[:blank:]]*" regexp-parts)
-               (push "[[:blank:]]+" regexp-parts))
-             (setq start (match-end 0)))
-           (push (regexp-quote (substring str start (length str))) regexp-parts)
-           (push "[[:blank:]]*$" regexp-parts)
-           (apply #'concat (nreverse regexp-parts)))))
+         (concat
+          "^"
+          (regexp-quote (mistty--safe-bufstring
+                         (mistty--bol beg) beg))
+          "\\(" (regexp-quote inserted) "\\)"
+          (regexp-quote (mistty--safe-bufstring
+                         old-end (mistty--eol old-end)))
+          "$")))
+    (mistty-log "RE /%s/" regexp)
     (lambda ()
-      (save-excursion
-        (goto-char beg)
-        (looking-at-p regexp)))))
+      (and (save-excursion
+             (goto-char (mistty--bol beg))
+             (looking-at regexp))
+           (= (match-end 1) (point))))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."

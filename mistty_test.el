@@ -24,6 +24,7 @@
   (require 'cl-lib))
 
 (require 'mistty-changeset)
+(require 'mistty-log)
 (require 'mistty-queue)
 
 (eval-when-compile
@@ -88,12 +89,18 @@ window while BODY is running."
                (mistty-stable-delay-s mistty-test-stable-delay-s)
                (mistty-test-prompt ,(if (eq shell 'python)
                                         ">>> "
-                                      'mistty-test-prompt)))
+                                      'mistty-test-prompt))
+               (mistty-backlog-size 500)
+               (mistty-test-ok nil))
            (mistty-test-setup (quote ,shell))
-           ,(if selected
-                `(with-selected-window (display-buffer (current-buffer))
-                   ,@body)
-              `(progn ,@body)))))))
+           (unwind-protect
+               (prog1
+                 ,(if selected
+                      `(with-selected-window (display-buffer (current-buffer))
+                         ,@body)
+                    `(progn ,@body))
+                 (setq mistty-test-ok 'ok))
+             (unless mistty-test-ok (mistty-start-log))))))))
 
 (defmacro mistty-run-command (&rest body)
   `(progn
@@ -2075,7 +2082,6 @@ window while BODY is running."
 
 (ert-deftest mistty-test-cursor-skip-hook-not-on-a-prompt ()
   (mistty-with-test-buffer (:shell fish :selected t)
-    (setq mistty-log t)
     (mistty-send-text "for i in a b c\necho line $i\nend")
     (mistty-send-and-wait-for-prompt)
     (mistty-wait-for-output :str "line c" :start (point-min))
@@ -2320,7 +2326,6 @@ window while BODY is running."
 
 (ert-deftest mistty-test-distance-empty-lines-unreachable-beg-or-end ()
   (mistty-with-test-buffer (:shell fish :selected t)
-    (setq mistty-log t)
     (mistty-send-text "for i in a b c\n\necho hello\n\nend")
 
     (let ((mistty-skip-empty-spaces t)
@@ -2845,11 +2850,15 @@ of the beginning of the prompt."
 
 This is meant to be assigned to `mistty--report-issue-function'
  as well as called directly from tests."
-  (error "%s: BUF<<EOF%sEOF"
-         issue
-         (mistty-test-content
-          :show-property '(mistty-skip t)
-          :show (list (point) (ignore-errors (mistty-cursor))))))
+  (mistty-start-log)
+  (let ((error-message
+         (format "%s: BUF<<EOF%sEOF"
+                 issue
+                 (mistty-test-content
+                  :show-property '(mistty-skip t)
+                  :show (list (point) (ignore-errors (mistty-cursor)))))))
+    (mistty-log error-message)
+    (error error-message)))
 
 (cl-defun mistty-test-content (&key (start (point-min))
                                     (end (point-max))

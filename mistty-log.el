@@ -105,7 +105,8 @@ If logging is already enabled, just show the buffer."
        (apply #'mistty--log args)))
     (setq mistty--backlog nil)
     (mistty--log "Log enabled" nil)
-    (switch-to-buffer-other-window mistty-log-buffer)))
+    (when (buffer-live-p mistty-log-buffer)
+      (switch-to-buffer-other-window mistty-log-buffer))))
 
 (defun mistty-stop-log ()
   "Disable logging for the current buffer."

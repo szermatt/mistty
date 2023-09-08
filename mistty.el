@@ -151,15 +151,27 @@ history search) is typically such a mode."
 
 (defvar mistty-max-try-count 1)
 
-(defvar mistty-debug-strict nil
-  "Enable strict mode for debugging.
+(defvar mistty--report-issue-function nil
+  "A function that is told about non-fatal issues (debugging).
 
-In strict mode, MisTTY fails if sending out a terminal sequence
-doesn't have the expected result. This isn't useful except for
-testing and debugging.
+This function is called with a single argument describing the
+possible problem:
 
-Strict mode is turned on by default in tests. Tests that expect
-timeouts should turn it off temporarily.")
+ - ==\'hard-timeout ==\'soft-timeout A timeout is reported when
+  some key sequence sent to the terminal hasn't had the expected
+  effect after a certain time.
+
+  A hard timeout is reported when nothing was sent back, a soft
+  timeout when something was sent back, but it didn't satisfy the
+  condition.
+
+  This is to be expected, there are cases where terminal
+  sequences aren't meant to have an effect, such as sequence that
+  attempts to move left through the prompt.
+
+- ==\'already-matching A condition used to detect the effect of
+  a key sequence matches even before the key sequence is sent.
+  This is a sign that the condition is not appropriate.")
 
 (defvar mistty-mode-map
   (let ((map (make-sparse-keymap)))
@@ -1408,8 +1420,8 @@ This is meant to be added to ==\'after-change-functions."
   "Build a condition for using with iter-yield."
   (let ((saved-buffer (current-buffer))
         (try-count 0))
-    (when (and mistty-debug-strict (funcall accept-f))
-      (error "Condition met prematurely"))
+    (when (and mistty--report-issue-function (funcall accept-f))
+      (funcall mistty--report-issue-function 'already-matching))
     (lambda (res)
       (with-current-buffer saved-buffer
         (cond
@@ -1421,13 +1433,13 @@ This is meant to be added to ==\'after-change-functions."
           nil)
          
          ((eq res 'timeout) 
-          (when mistty-debug-strict
-            (error "Unexpected timeout waiting for the expected effect."))
+          (when mistty--report-issue-function
+            (funcall mistty--report-issue-function 'hard-timeout))
           'give-up)
          
          ((eq res 'stable)
-          (when mistty-debug-strict
-            (error "Unexpected long time waiting for the expected effect."))
+          (when mistty--report-issue-function
+            (funcall mistty--report-issue-function 'soft-timeout))
           'give-up))))))
 
 (iter2-defun mistty--replay-generator (cs)

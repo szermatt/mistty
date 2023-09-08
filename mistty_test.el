@@ -52,10 +52,10 @@ waiting for failing test results.")
   (if noninteractive 5 mistty-max-try-count)
   "Value of `mistty-max-try-count' active in tests.
 
-Tests have by default `mistty-debug-strict' enabled, which means
-that not getting the expected effect is always an error, so
-timing and try counts can be increased to account for slowness in
-batch tests.")
+Tests are strict by default, that is, every problem reported to
+`mistty--report-issue-function' is treated as fatal. Tests might
+want to clear or customize this function if they expect specific
+problems.")
 
 (defvar mistty-test-timeout-s
   (if noninteractive 3 mistty-timeout-s)
@@ -82,7 +82,7 @@ window while BODY is running."
             `(should ,exec-var)
           `(skip-unless ,exec-var))
        (ert-with-test-buffer ()
-         (let ((mistty-debug-strict t)
+         (let ((mistty--report-issue-function #'mistty-test-report-issue)
                (mistty-max-try-count mistty-test-max-try-count)
                (mistty-timeout-s mistty-test-timeout-s)
                (mistty-stable-delay-s mistty-test-stable-delay-s)
@@ -1714,9 +1714,9 @@ window while BODY is running."
     (mistty-send-text "toto\t")
 
     ;; This test goes outside the prompt on purpose.
-    ;; mistty-debug-strict would cause this test to fail, since the
-    ;; cursor cannot be moved to the point.
-    (let ((mistty-debug-strict nil)
+    ;; mistty-test-report-issue would cause this test to fail, since
+    ;; the cursor cannot be moved to the point.
+    (let ((mistty--report-issue-function nil)
           (mistty-max-try-count 1)
           (mistty-stable-delay-s 0.05)
           (mistty-timeout-s 0.25))
@@ -2609,7 +2609,7 @@ window while BODY is running."
 
 (ert-deftest mistty-test-undo-multiple-types ()
   (mistty-with-test-buffer ()
-  (let ((mistty-debug-strict nil))
+  (let ((mistty--report-issue-function nil))
     (mistty-send-text "echo hello world.")
     ;; replayed command
     (mistty-run-command
@@ -2794,9 +2794,9 @@ START to search for the text instead of (point-min)."
         (unless (time-less-p (current-time) time-limit)
           (if on-error
               (funcall on-error)
-            (error "condition not met after %ss (wait-for-output %s) buffer<<EOF\n%s\nEOF"
-                   mistty-wait-for-output-timeout-s condition-descr
-                   (mistty-test-content :show (point)))))
+            (mistty-test-report-issue
+             (format "condition not met after %ss (wait-for-output %s)"
+                     mistty-wait-for-output-timeout-s condition-descr))))
         (if (process-live-p proc)
             (accept-process-output proc 0 100 t)
           (accept-process-output nil 0 100))
@@ -2840,6 +2840,17 @@ of the beginning of the prompt."
      :start before-send)
     (match-beginning 0)))
 
+(defun mistty-test-report-issue (issue)
+  "Report ISSUE with extra debugging information.
+
+This is meant to be assigned to `mistty--report-issue-function'
+ as well as called directly from tests."
+  (error "%s: BUF<<EOF%sEOF"
+         issue
+         (mistty-test-content
+          :show-property '(mistty-skip t)
+          :show (list (point) (ignore-errors (mistty-cursor))))))
+
 (cl-defun mistty-test-content (&key (start (point-min))
                                     (end (point-max))
                                     (show nil)
@@ -2850,10 +2861,8 @@ of the beginning of the prompt."
 START and END specify the region to extract.
 
 SHOW might be a specific position to highlight with <> in the
-string, often just the output of `point' or `mistty-cursor'.
-
-SHOW might also be a list of positions to highlight with <INDEX>,
-for example to highlight both the point and the cursor.
+string, often just the output of `point' or `mistty-cursor', or
+a list of such positions. Positions that are nil are ignored.
 
 STRIP-LAST-PROMPT, if t, removes the last, empty prompt from the
 returned content.
@@ -2930,11 +2939,13 @@ text to be inserted there."
   (let ((idx 0)
         (len (length text))
         (position-alist
-         (seq-map-indexed
-          (lambda (pos idx)
-            (cons (if (zerop idx) "<>" (format "<%d>" idx))
-                  (- pos start)))
-          positions))
+         (delq nil
+               (seq-map-indexed
+                (lambda (pos idx)
+                  (when (number-or-marker-p pos)
+                    (cons (if (zerop idx) "<>" (format "<%d>" idx))
+                          (- pos start))))
+                positions)))
         output)
     (setq position-alist
           (seq-filter

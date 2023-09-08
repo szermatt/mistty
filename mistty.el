@@ -1774,8 +1774,8 @@ post-command hook."
                  `(until ,term-seq
                          ,(mistty--yield-condition
                            (lambda ()
-                             (= (mistty-cursor) to)))))))
-            (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) to)))))))
+                             (= (mistty-cursor) (point))))))))
+            (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))))))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

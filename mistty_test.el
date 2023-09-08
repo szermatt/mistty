@@ -947,18 +947,27 @@ window while BODY is running."
 
 (ert-deftest mistty-test-fullscreen-live-buffer-p ()
   (mistty-with-test-buffer ()
-    (mistty-send-text
-     (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
-             "[47h" "[47l"))
-    (mistty-send-command)
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
+    (let ((proc mistty-proc))
+      (mistty-send-text
+       (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
+               "[47h" "[47l"))
+      (mistty-send-command)
+      (mistty-wait-for-output
+       :test
+       (lambda ()
+         (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
 
-    (should (not (mistty-live-buffer-p mistty-work-buffer)))
-    (should (mistty-live-buffer-p mistty-term-buffer))))
+      (should (not (mistty-live-buffer-p mistty-work-buffer)))
+      (should (mistty-live-buffer-p mistty-term-buffer))
 
+      ;; Cleanup. Without this, the term buffer would not be killed
+      ;; when the work buffer is killed since it's in fullscreen mode,
+      ;; and so considered the main buffer.
+      (mistty--send-string proc "\C-m")
+      (mistty-wait-for-output
+       :test
+       (lambda ()
+         (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))))))
 
 (ert-deftest mistty-test-kill-fullscreen-buffer-kills-scrollback ()
   (mistty-with-test-buffer (:selected t)

@@ -2850,7 +2850,7 @@ of the beginning of the prompt."
 
 This is meant to be assigned to `mistty--report-issue-function'
  as well as called directly from tests."
-  (mistty-start-log)
+  (save-excursion (mistty-start-log))
   (let ((error-message
          (format "%s: BUF<<EOF%sEOF"
                  issue

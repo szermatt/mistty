@@ -1449,7 +1449,6 @@ This is meant to be added to ==\'after-change-functions."
   (let ((backstage (mistty--create-backstage mistty-proc)))
     (unwind-protect
         (let ((work-sync-marker (marker-position mistty-sync-marker))
-              (proc mistty-proc)
               (modifications (mistty--changeset-modifications cs))
               (beg (make-marker))
               (old-end (make-marker))
@@ -1489,9 +1488,9 @@ This is meant to be added to ==\'after-change-functions."
                     (iter-yield
                      `(until ,term-seq ,(mistty--yield-condition
                                          (lambda ()
-                                           (mistty--update-backstage backstage proc)
+                                           (mistty--update-backstage)
                                            (= (point) beg)))))))
-                (mistty--update-backstage backstage proc)
+                (mistty--update-backstage)
                 (mistty-log "Got to %s" (point))
 
                 ;; Point is now as close to beg as we can make it
@@ -1516,9 +1515,9 @@ This is meant to be added to ==\'after-change-functions."
                      `(until ,term-seq
                              ,(mistty--yield-condition
                                (lambda ()
-                                 (mistty--update-backstage backstage proc)
+                                 (mistty--update-backstage)
                                  (= (point) old-end)))))))
-                (mistty--update-backstage backstage proc)
+                (mistty--update-backstage)
                 (mistty-log "Got to %s" (point))
 
                 (when (and (> beg (point))
@@ -1532,8 +1531,8 @@ This is meant to be added to ==\'after-change-functions."
 
               (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
               (let ((start-idx (if (>= beg orig-beg)
-                                    (min (length content) (max 0 (- beg orig-beg)))
-                                  (length content)))
+                                   (min (length content) (max 0 (- beg orig-beg)))
+                                 (length content)))
                     sub term-seq inserted-detector)
                 (setq sub (substring content start-idx))
                 (setq term-seq
@@ -1568,12 +1567,12 @@ This is meant to be added to ==\'after-change-functions."
                    `(until ,term-seq
                            ,(mistty--yield-condition
                              (lambda ()
-                               (mistty--update-backstage backstage proc)
+                               (mistty--update-backstage)
                                (mistty--remove-text-with-property 'term-line-wrap t)
                                (mistty--remove-text-with-property 'mistty-skip t)
                                (funcall inserted-detector)))))))
               (setq is-first nil)
-              (mistty--update-backstage backstage proc)))
+              (mistty--update-backstage)))
 
           ;; Force refresh, even if nothing was sent, if only to revert what
           ;; couldn't be replayed.
@@ -2015,21 +2014,24 @@ backstage buffer: mistty-log, mistty-bracketed-paste.
         (calling-buffer (current-buffer)))
     (with-current-buffer backstage
       (setq-local mistty-sync-marker (point-min))
+      (setq-local mistty-proc proc)
       (mistty--copy-buffer-local-variables
-       '(mistty-bracketed-paste mistty-log) calling-buffer))
-    (mistty--update-backstage backstage proc)
+       '(mistty-bracketed-paste mistty-log) calling-buffer)
+      (mistty--update-backstage))
     backstage))
 
-(defun mistty--update-backstage (backstage proc)
-  "Update BACKSTAGE to include the latest updates from PROC.
+(defun mistty--update-backstage ()
+  "Update backstage to include the latest updates from its process.
+
+The current buffer must be a backstage buffer, created by
+`mistty--create-backstage'.
 
 The point is set to the equivalent of proc marker
 position (cursor) in the buffer."
-  (with-current-buffer backstage
-    (mistty--sync-buffer (process-buffer proc))
-    (goto-char
-     (mistty--from-pos-of
-      (process-mark proc) (process-buffer proc)))))
+  (mistty--sync-buffer (process-buffer mistty-proc))
+  (goto-char
+   (mistty--from-pos-of
+    (process-mark mistty-proc) (process-buffer mistty-proc))))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."

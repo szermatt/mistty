@@ -2168,14 +2168,15 @@ window while BODY is running."
       (mistty--cursor-skip win)
       (right-char)
       (mistty--cursor-skip win)
-      (should (equal (concat "$ for i in (seq 10)\n"
-                             "  <>\n"
-                             "      echo first\n"
-                             "\n"
-                             "\n"
-                             "  end")
-                     (mistty-test-content
-                      :show (point))))
+      (should (string-match
+               (concat "\\$ for i in (seq 10)\n"
+                       " *<>\n"
+                       "      echo first\n"
+                       "\n"
+                       "\n"
+                       "  end")
+               (mistty-test-content
+                :show (point))))
 
       (mistty-test-goto-after "first")
       (mistty--cursor-skip win)

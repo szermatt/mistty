@@ -2672,6 +2672,13 @@ window while BODY is running."
     ;; inserting keys quickly.
     )))
 
+(ert-deftest mistty-test-sudo ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo ok")
+    (mistty-run-command
+     (call-interactively 'mistty-sudo))
+    (should (equal "$ sudo echo ok<>" (mistty-test-content :show (point))))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

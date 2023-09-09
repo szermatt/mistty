@@ -179,6 +179,7 @@ possible problem:
     (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
     (define-key map (kbd "C-c C-j") 'mistty-switch-to-fullscreen-buffer)
     (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)
+    (define-key map (kbd "C-c C-s") 'mistty-sudo)
     (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-cursor)
 
     ;; mistty-send-last-key makes here some globally useful keys
@@ -1239,6 +1240,12 @@ They are often the same position."
     (skip-chars-backward mistty--ws)
     (point)))
 
+(defun mistty-send-string (str)
+  "Send STR to the process."
+  (if (process-live-p mistty-proc)
+      (mistty--enqueue-str mistty--queue str)
+    (error "No running process")))
+
 (defun mistty-send-command ()
   "Send the current command to the shell."
   (interactive)
@@ -1950,6 +1957,11 @@ Ignores buffers that don't exist."
            (buffer-local-value 'mistty-fullscreen mistty-work-buffer))
       (switch-to-buffer mistty-work-buffer)
     (error "No scrollback buffer available")))
+
+(defun mistty-sudo ()
+  "Prepend sudo to the current command."
+  (interactive)
+  (mistty-send-string "\C-asudo \C-e"))
 
 (defun mistty-on-prompt-p (pos)
   "Return non-nil if POS is on a prompt."

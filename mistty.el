@@ -2112,7 +2112,13 @@ Return a list of ( BEG . END ), sorted by BEG, increasing."
                   (search-forward-regexp "\n *\n" end 'noerror))
         (let ((cursor (min (+ (match-beginning 0) 1
                               (mistty--line-indent beg))
-                           (1- (match-end 0)))))
+                           (1- (match-end 0))))
+              (actual-cursor (ignore-errors
+                               (mistty-cursor))))
+          (when (and actual-cursor
+                     (> actual-cursor (match-beginning 0))
+                     (< actual-cursor (match-end 0)))
+            (setq cursor actual-cursor))
           (cond
            ((< pos cursor)
             (setq end cursor))

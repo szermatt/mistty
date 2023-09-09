@@ -1771,17 +1771,32 @@ post-command hook."
                  (<= from (point-max))
                  (>= to (point-min))
                  (<= to (point-max)))
-        (let ((distance (mistty--distance from to)))
-          (when (/= distance 0)
+        (let* ((distance (mistty--distance from to))
+               (term-seq (mistty--move-horizontally-str distance)))
+          (when (mistty--nonempty-str-p term-seq)
             (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-            (let ((term-seq (mistty--move-horizontally-str distance)))
-              (when (mistty--nonempty-str-p term-seq)
-                (iter-yield
-                 `(until ,term-seq
-                         ,(mistty--yield-condition
-                           (lambda ()
-                             (= (mistty-cursor) (point))))))))
+            (iter-yield
+             `(until ,term-seq
+                     ,(mistty--yield-condition
+                       (lambda ()
+                         ;; Ignoring skipped spaces is useful as, with
+                         ;; multiline prompts, it's hard to figure out
+                         ;; where the indentation should be without
+                         ;; understanding the language.
+                         (mistty--same-pos-ignoring-skipped
+                          (mistty-cursor) (point))))))
             (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))))))))
+
+(defun mistty--same-pos-ignoring-skipped (posa posb)
+  "Return non-nil if POSA and POSB are the same, skipped spaces.
+
+This returns non-nil if POSA and POSB are equal or if there are
+only spaces with ==\'mistty-skip t between them."
+  (if (= posa posb)
+      t
+    (let ((low (min posa posb))
+          (high (max posa posb)))
+      (not (text-property-not-all low high 'mistty-skip t)))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

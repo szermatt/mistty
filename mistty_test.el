@@ -169,7 +169,7 @@ window while BODY is running."
 
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
-    (mistty-wait-for-output :str "nine")
+    (mistty-wait-for-output :str "nine" :cursor-at-end t)
 
     (mistty-run-command
      (mistty-test-goto-after "nine"))
@@ -842,7 +842,7 @@ window while BODY is running."
 
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
-    (mistty-wait-for-output :str "nine")
+    (mistty-wait-for-output :str "nine" :cursor-at-end t)
     (should (equal "$ echo one two three\n four five six seven\n eight nine"
                    (mistty-test-content)))))
 
@@ -852,7 +852,7 @@ window while BODY is running."
 
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
-    (mistty-wait-for-output :str "nine")
+    (mistty-wait-for-output :str "nine" :cursor-at-end t)
 
     ;; make sure that the newlines didn't confuse the sync marker
     (should (equal (marker-position mistty-sync-marker) (point-min)))
@@ -864,6 +864,7 @@ window while BODY is running."
 
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
+    (mistty-wait-for-output :str "nine" :cursor-at-end t)
 
     ;; make sure that the newlines don't confuse mistty--post-command
     ;; moving the cursor.
@@ -2119,7 +2120,8 @@ window while BODY is running."
 
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
-    (mistty-wait-for-output :str "nine")
+    (mistty-wait-for-output :str "nine" :cursor-at-end t)
+
     (mistty-test-goto "one")
     (copy-region-as-kill (save-excursion
                            (mistty-test-goto "one")
@@ -2513,11 +2515,11 @@ window while BODY is running."
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo two")
     (mistty-send-and-wait-for-prompt)
-    (mistty-send-text "for i in {0..5}; do\n")
-    (mistty-send-text "  echo -n \"$ \"\n")
-    (mistty-send-text "  read\n")
-    (mistty-send-text "  echo \"line $i\"\n")
-    (mistty-send-text "done ; printf \"\\r\\e[6;AMODIFIED\\r\\e[6;BDONE\\n\"")
+    (mistty-send-text "for i in {0..5}; do")
+    (mistty-send-text "\n  echo -n \"$ \"")
+    (mistty-send-text "\n  read")
+    (mistty-send-text "\n  echo \"line $i\"")
+    (mistty-send-text "\ndone ; printf \"\\r\\e[6;AMODIFIED\\r\\e[6;BDONE\\n\"")
     (let ((start (1+ (point)))) ;; skip the above up to the upcoming \n
       (dotimes (_ 7)
         (mistty-send-and-wait-for-prompt)
@@ -2556,7 +2558,7 @@ window while BODY is running."
 
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
-    (mistty-wait-for-output :str "nine")
+    (mistty-wait-for-output :str "nine" :cursor-at-end t)
 
     (mistty-run-command
      (mistty-test-goto "one"))
@@ -2766,7 +2768,9 @@ window while BODY is running."
            (mistty--queue-empty-p mistty--queue))))
 
 (cl-defun mistty-wait-for-output
-    (&key (test nil) (str nil) (regexp nil) (start (point-min)) (proc mistty-proc) (on-error nil))
+    (&key (test nil) (str nil) (regexp nil) (start (point-min))
+          (cursor-at-end nil)
+          (proc mistty-proc) (on-error nil))
   "Wait for process output.
 
 With TEST set to a function, keep waiting for process output
@@ -2778,25 +2782,28 @@ to search for the text instead of (point-min)
 
 With REGEXP set to a string, keep waiting for process output
 until the regexp matches. If START is set, always go back to
-START to search for the text instead of (point-min)."
+START to search for the text instead of (point-min).
+
+When checking STR or REGEXP and CURSOR-AT-END is non-nil, also
+require the cursor to be at the end of the matched string."
   (ert-run-idle-timers)
   (let ((condition nil)
         (condition-descr nil))
+    (when str
+      (setq regexp (regexp-quote str))
+      (setq condition-descr (format ":str \"%s\"" str)))
     (cond
      (regexp
       (setq condition
             (lambda ()
               (save-excursion
                 (when start (goto-char start))
-                (search-forward-regexp regexp nil 'noerror))))
-      (setq condition-descr (format ":regexp \"%s\"" regexp)))
-     (str
-      (setq condition
-            (lambda ()
-              (save-excursion
-                (when start (goto-char start))
-                (search-forward str nil t))))
-      (setq condition-descr (format ":str \"%s\"" str)))
+                (and (search-forward-regexp regexp nil 'noerror)
+                     (or (not cursor-at-end) (= (match-end 0) (mistty-cursor)))))))
+      (unless condition-descr
+        (setq condition-descr (format ":regexp \"%s\"" regexp)))
+      (when cursor-at-end
+        (setq condition-descr (concat condition-descr " :cursor-at-end"))))
      (test
       (setq condition test)
       (setq condition-descr (format ":test %s" test)))
@@ -2932,6 +2939,7 @@ text to be inserted there."
     (mistty--send-string mistty-proc text)
     (mistty-wait-for-output
      :start start
+     :cursor-at-end t
      :regexp (mapconcat #'regexp-quote
                         (split-string text "[ \t\n\r]" 'omit-nulls)
                         "[ \t\n\r]+"))))

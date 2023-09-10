@@ -173,54 +173,30 @@ possible problem:
   a key sequence matches even before the key sequence is sent.
   This is a sign that the condition is not appropriate.")
 
-(defvar mistty-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
-    (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
-    (define-key map (kbd "C-c C-j") 'mistty-toggle-buffers)
-    (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)
-    (define-key map (kbd "C-c C-s") 'mistty-sudo)
-    (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-cursor)
+(defvar-keymap mistty-mode-map
+  :doc "Keymap of `mistty-mode'.
 
-    ;; mistty-send-last-key makes here some globally useful keys
-    ;; available in mistty-mode buffers. More specific keys can be
-    ;; input using C-q while mistty-prompt-map is active.
-    (define-key map (kbd "C-c C-c") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-z") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-\\") 'mistty-send-last-key)
-    (define-key map (kbd "C-c C-g") 'mistty-send-last-key)
-    map)
-  "Keymap of `mistty-mode'.
+This map is active whenever the current buffer is in MisTTY mode."
+  "C-c C-n" #'mistty-next-prompt
+  "C-c C-p" #'mistty-previous-prompt
+  "C-c C-j" #'mistty-toggle-buffers
+  "C-c C-q" #'mistty-send-key-sequence
+  "C-c C-s" #'mistty-sudo
+  "C-e" #'mistty-end-of-line-or-goto-cursor
 
-This map is active whenever the current buffer is in MisTTY mode.")
+  ;; mistty-send-last-key makes here some globally useful keys
+  ;; available in mistty-mode buffers. More specific keys can be
+  ;; input using C-q while mistty-prompt-map is active.
+  "C-c C-c" #'mistty-send-last-key
+  "C-c C-z" #'mistty-send-last-key
+  "C-c C-\\" #'mistty-send-last-key
+  "C-c C-g" #'mistty-send-last-key)
 
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
 
-(defvar mistty-prompt-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") 'mistty-send-command)
-    (define-key map (kbd "TAB") 'mistty-send-key)
-    (define-key map (kbd "DEL") 'mistty-backward-delete-char)
-    (define-key map (kbd "C-d") 'mistty-delete-char)
-    (define-key map (kbd "C-a") 'mistty-send-beginning-of-line)
-    (define-key map (kbd "C-e") 'mistty-send-end-of-line)
-
-    ;; While in a shell, when bracketed paste is on, this allows
-    ;; sending a newline that won't submit the current command. This
-    ;; is handy for editing multi-line commands in bash.
-    (define-key map (kbd "S-<return>") 'newline)
-
-    ;; While on the prompt, "quoted-char" turns into "send the next
-    ;; key directly to the terminal".
-    (define-key map (kbd "C-q") mistty-send-last-key-map)
-
-    ;; Don't bother capturing single key-stroke modifications and
-    ;; replaying them; just send them to the terminal. This works even
-    ;; when the terminal doesn't accept editing.
-    (define-key map [remap self-insert-command] 'mistty-self-insert )
-    map)
-  "Keymap active on the part of `mistty-mode' synced with the terminal.
+(defvar-keymap mistty-prompt-map
+  :doc "Keymap active on the part of `mistty-mode' synced with the terminal.
 
 This map is active only on the portion of a MisTTY mode buffer
 that is kept in sync with the terminal. Modifications made on
@@ -235,34 +211,53 @@ have access to the same bindings on fullscreen mode, so consider
 adding bindings to `mistty-fullscreen-map' as well.
 
 It is used to send most key strokes and some keys directly to the
-terminal.")
+terminal."
+
+  "RET" #'mistty-send-command
+  "TAB" #'mistty-send-key
+  "DEL" #'mistty-backward-delete-char
+  "C-d" #'mistty-delete-char
+  "C-a" #'mistty-send-beginning-of-line
+  "C-e" #'mistty-send-end-of-line
+
+  ;; While in a shell, when bracketed paste is on, this allows
+  ;; sending a newline that won't submit the current command. This
+  ;; is handy for editing multi-line commands in bash.
+  "S-<return>" #'newline
+
+  ;; While on the prompt, "quoted-char" turns into "send the next
+  ;; key directly to the terminal".
+  "C-q" mistty-send-last-key-map
+
+  ;; Don't bother capturing single key-stroke modifications and
+  ;; replaying them; just send them to the terminal. This works even
+  ;; when the terminal doesn't accept editing.
+  "<remap> <self-insert-command>" #'mistty-self-insert)
 
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.
 
 By default, it is bound to C-q in `mistty-prompt-map'.")
 
-(defvar mistty-fullscreen-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map term-raw-map)
-
-    (define-key map (kbd "C-q") mistty-send-last-key-map)
-    (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)
-
-    ;; Disable the "Terminal" menu; nothing that it contains should be
-    ;; used on Term buffers used by MisTTY.
-    (define-key map [menu-bar terminal] nil)
-
-    ;; switching the term buffer to line mode would cause issues.
-    (define-key map [remap term-line-mode] #'mistty-toggle-buffers)
-    map)
-  "Keymap active while in fullscreen mode.
+(defvar-keymap mistty-fullscreen-map
+  :parent term-raw-map
+  :doc "Keymap active while in fullscreen mode.
 
 While in fullscreen mode, the buffer is a `term-mode' with its
 own keymaps (`term-mod-map' and `term-raw-map')
 
 This map is applied in addition to these as a way of making key
-mapping somewhat consistent between fullscreen and normal mode.")
+mapping somewhat consistent between fullscreen and normal mode."
+
+    "C-q" mistty-send-last-key-map
+    "C-c C-q" #'mistty-send-key-sequence
+
+    ;; Disable the "Terminal" menu; nothing that it contains should be
+    ;; used on Term buffers used by MisTTY.
+    "<menu-bar> <terminal>" nil
+
+    ;; switching the term buffer to line mode would cause issues.
+    "<remap> <term-line-mode>" #'mistty-toggle-buffers)
 
 ;; Variables:
 (defvar-local mistty-work-buffer nil
@@ -853,7 +848,7 @@ sync marker (POS-IN-WORK . POS-IN-TERM).
 This function should be called to fix a situation where the
 markers have gone out-of-sync."
   (let ((new-head
-         (or new-head 
+         (or new-head
              (cons
               (mistty--with-live-buffer mistty-work-buffer
                 (let ((inhibit-read-only t)
@@ -1420,7 +1415,7 @@ This is meant to be added to ==\'after-change-functions."
         ;; modifications.
         (setq mistty--inhibit-refresh t)
 
-        (mistty--inhibit-undo 
+        (mistty--inhibit-undo
          (mistty--changeset-mark-region cs beg end old-end)))
 
    ;; Outside sync region
@@ -1441,12 +1436,12 @@ This is meant to be added to ==\'after-change-functions."
           (cl-incf try-count)
           ;; keep waiting
           nil)
-         
-         ((eq res 'timeout) 
+
+         ((eq res 'timeout)
           (when mistty--report-issue-function
             (funcall mistty--report-issue-function 'hard-timeout))
           'give-up)
-         
+
          ((eq res 'stable)
           (when mistty--report-issue-function
             (funcall mistty--report-issue-function 'soft-timeout))

@@ -30,3 +30,15 @@
     (should (equal '("foo bar abcde\342\224\200" . "\342\224")
                    (mistty--split-incomplete-chars
                     "foo bar abcde\342\224\200\342\224")))))
+
+(ert-deftest mistty-term-translate-key ()
+  (should (equal "a" (mistty-translate-key (kbd "a") 1)))
+  (should (equal "aaa" (mistty-translate-key (kbd "a") 3)))
+
+  (should (equal "\C-a" (mistty-translate-key (kbd "C-a") 1)))
+
+  (should (equal "\ea" (mistty-translate-key (kbd "M-a") 1)))
+  (should (equal "\ea\ea\ea" (mistty-translate-key (kbd "M-a") 3)))
+
+  (should (equal mistty-left-str (mistty-translate-key (kbd "<left>") 1)))
+  (should (equal mistty-right-str (mistty-translate-key (kbd "<right>") 1))))

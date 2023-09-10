@@ -639,13 +639,25 @@ The conversion can be configured by modifying
 `mistty-term-key-map'.
 
 If N is specified, the string is repeated N times."
-  (let ((n (or n 1)))
-    (if (and (length= key 1) (characterp (elt key 0)))
-        (make-string n (elt key 0))
-      (if-let ((translated-key (lookup-key mistty-term-key-map key)))
-          (mistty--repeat-string n (concat translated-key))
-        (error "Key unknown in mistty-term-key-map: %s"
-               (key-description key))))))
+  (let ((n (or n 1))
+        (c (and (length= key 1) (elt key 0)))
+        (non-meta)
+        translated-key)
+    (cond
+     ;; Self-inserted characters
+     ((and c (characterp c))
+      (make-string n (elt key 0)))
+     ;; M-char -> ESC char
+     ((and c (numberp c)
+           (characterp
+            (setq non-meta (logand c (lognot #x8000000)))))
+      (mistty--repeat-string n (format "\e%c" non-meta)))
+     ;; Lookup in mistty-term-key-map
+     ((setq translated-key (lookup-key mistty-term-key-map key))
+      (mistty--repeat-string n (concat translated-key)))
+     (t
+      (error "Key unknown in mistty-term-key-map: %s"
+             (key-description key))))))
 
 (provide 'mistty-term)
 

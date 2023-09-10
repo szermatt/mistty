@@ -7,3 +7,32 @@
 (setf eldev-project-loading-mode 'byte-compiled)
 
 (eldev-use-plugin 'autoloads)
+
+(eldev-defoption mistty-test-bash-exe (&optional path)
+  "Tests look for Bash at PATH."
+  :options        (--bash)
+  :optional-value PATH
+  :for-command    test
+  (setq mistty-test-bash-exe (executable-find path)))
+
+(eldev-defoption mistty-test-zsh-exe (&optional path)
+  "Tests look for Zsh at PATH. Empty to skip zsh tests."
+  :options        (--zsh)
+  :optional-value PATH
+  :for-command    test
+  (setq mistty-test-zsh-exe (executable-find path)))
+
+(eldev-defoption mistty-test-fish-exe (&optional path)
+  "Tests look for Fish at PATH. Empty to skip fish tests." 
+  :options        (--fish)
+  :optional-value PATH
+  :for-command    test
+  (setq mistty-test-fish-exe (executable-find path)))
+
+(eldev-defoption mistty-test-python-exe (&optional path)
+  "Tests look for Python at PATH."
+  :options        (--python)
+  :optional-value PATH
+  :for-command    test
+  (setq mistty-test-python-exe (executable-find path)))
+

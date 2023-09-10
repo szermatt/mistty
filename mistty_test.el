@@ -77,7 +77,7 @@ zsh, fish or python.
 If SELECTED is non-nil, make sure the buffer is in a selected
 window while BODY is running."
   (declare (indent 1))
-  (let ((exec-var (concat "mistty-test-" (symbol-name shell) "-exe")))
+  (let ((exec-var (intern (concat "mistty-test-" (symbol-name shell) "-exe"))))
     `(progn
        ,(if (memq shell '(bash python))
             `(should ,exec-var)

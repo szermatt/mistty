@@ -369,28 +369,90 @@ window while BODY is running."
     (mistty-send-text "no")
     (should (equal "answer: no" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest mistty-test-eol ()
+(ert-deftest mistty-test-bol-eol-outside-of-prompt ()
   (mistty-with-test-buffer ()
-    (mistty-send-text "echo hello")
-    (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
+    (mistty-send-text "for i in a b c; do echo line $i; done")
+    (mistty-send-and-wait-for-prompt)
+
+    ;; outside of a prompt, just call beginning of line/end of line
+    (mistty-test-goto "line b")
+    (goto-char (+ 4 (point)))
+    (mistty-run-command
+     (mistty-beginning-of-line))
+    (should (equal (point) (mistty-test-goto "line b")))
 
     (mistty-run-command
-     (mistty-send-beginning-of-line))
-    (mistty-wait-for-output
-     :test (lambda ()
-             (equal "$ <>echo hello" (mistty-test-content  :show (point)))))
+     (mistty-end-of-line-or-goto-cursor))
+    (should (equal (point) (mistty-test-goto-after "line b")))
+
+    ;; the second time it's called, mistty-end-of-line-or-goto-cursor goes
+    ;; to the cursor
+    (mistty-run-command
+     (let ((this-command 'mistty-end-of-line-or-goto-cursor)
+           (last-command 'mistty-end-of-line-or-goto-cursor))
+       (mistty-end-of-line-or-goto-cursor)))
+    (should (equal (point) (mistty-cursor)))))
+
+(ert-deftest mistty-test-bol-eol-in-prompt ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello, world")
+    
+    (mistty-test-goto "hello")
+    (mistty-run-command
+     (call-interactively #'mistty-beginning-of-line))
+    (should (equal (point) (mistty-test-goto "echo")))
 
     (mistty-run-command
-     (mistty-send-end-of-line))
+     (call-interactively #'mistty-end-of-line-or-goto-cursor))
+    (should (equal (point) (mistty-test-goto-after "world")))))
+
+(ert-deftest mistty-test-bol-eol-in-possible-prompt ()
+  (mistty-with-test-buffer (:shell python)
+    (mistty-send-text "print('hello, world %d' % (1+1))")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "2+3+4")
+
+    (mistty-test-goto "world %d")
+    (mistty-run-command
+     (call-interactively #'mistty-end-of-line-or-goto-cursor))
+    (should (equal (point) (mistty-test-goto-after "1+1))")))
+
+    (mistty-run-command
+     (call-interactively #'mistty-beginning-of-line))
+    (should (equal (point) (mistty-test-goto ">>> print")))
+
+    ;; not on any prompt
+    (mistty-test-goto "world 2")
+    (mistty-run-command
+     (call-interactively #'mistty-beginning-of-line))
+    (should (equal (point) (mistty-test-goto "hello, world 2")))
+
+    (mistty-test-goto "world 2")
+    (mistty-run-command
+     (call-interactively #'mistty-end-of-line-or-goto-cursor))
+    (should (equal (point) (mistty-test-goto-after "hello, world 2")))
+
+    ;; on the (new) prompt (sending C-a/C-e, so the BOL position
+    ;; doesn't include the prompt and we must use wait-for-output.)
+    (mistty-test-goto "3")
+    (mistty-run-command
+     (call-interactively #'mistty-beginning-of-line))
     (mistty-wait-for-output
      :test (lambda ()
-             (equal "$ echo hello<>" (mistty-test-content :show (point)))))))
+             (equal (point) (mistty-test-goto "2+3+4"))))
+
+    (mistty-test-goto "3")
+    (mistty-run-command
+     (call-interactively #'mistty-end-of-line-or-goto-cursor))
+    (mistty-wait-for-output
+     :test (lambda ()
+             (equal (point) (mistty-test-goto-after "2+3+4"))))))
 
 (ert-deftest mistty-test-eol-empty-prompt ()
   (mistty-with-test-buffer ()
     (goto-char (point-min))
     (mistty-run-command
-     (mistty-send-end-of-line))
+     (mistty-end-of-line-or-goto-cursor))
 
     (should
      (equal "$ <>"
@@ -1469,16 +1531,6 @@ window while BODY is running."
     ;; deleted the first 1, the command-line is now 1 + 1
     (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
 
-(ert-deftest mistty-test-python-beginning-of-line ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "1 + 1")
-    (mistty-send-beginning-of-line)
-    (mistty-wait-for-output
-     :test (lambda ()
-             (equal ">>> <>1 + 1"
-                    (mistty-test-content
-                     :start (mistty--bol (point)) :show (point)))))))
-
 (ert-deftest mistty-test-python-edit-prompt ()
   (mistty-with-test-buffer (:shell python)
     (let ((start (- (point) 4)))
@@ -1573,7 +1625,7 @@ window while BODY is running."
     (let ((line-start (mistty--bol (point))))
       (mistty-send-text "if a > b:")
       (mistty-run-command
-       (mistty-send-beginning-of-line))
+       (mistty-beginning-of-line))
       (mistty-send-text "foobar" (point-min))
 
       (should (equal ">>> <>foobarif a > b:"

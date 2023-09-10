@@ -217,8 +217,7 @@ terminal."
   "TAB" #'mistty-send-key
   "DEL" #'mistty-backward-delete-char
   "C-d" #'mistty-delete-char
-  "C-a" #'mistty-send-beginning-of-line
-  "C-e" #'mistty-send-end-of-line
+  "C-a" #'mistty-beginning-of-line
 
   ;; While in a shell, when bracketed paste is on, this allows
   ;; sending a newline that won't submit the current command. This
@@ -1359,38 +1358,56 @@ doesn't support, such as a mouse event.."
                            'inherit-input-method)))
     (mistty-send-key 1 (make-vector 1 key))))
 
-(defun mistty-send-beginning-of-line (&optional n)
-  "Send C-a (usually beginnning-of-line) to the terminal.
+(defun mistty-beginning-of-line (&optional n)
+  "Go to the beginning of line, possibly by sending C-a.
 
-Possibly detect a prompt on the current line."
+This command moves the point to the beginning of the line, either
+by calling `beginning-of-line' or by sending C-a to the shell, if
+on a prompt.
+
+With an argument, this command just calls `beginning-of-line' and
+forwards the argument to it."
   (interactive "p")
   ;; While C-a is not, strictly-speaking, a positional, it's a good
   ;; sign that we're on a pointer.
-  (mistty--maybe-realize-possible-prompt)
-  (setq mistty-goto-cursor-next-time t)
-  (mistty-send-key n "\C-a"))
-
-(defun mistty-send-end-of-line (&optional n)
-  "Send C-e (usually end-of-line) to the terminal.
-
-Possibly detect a prompt on the current line."
-  (interactive "p")
-  (mistty--maybe-realize-possible-prompt)
-  (mistty-goto-cursor)
-  (setq mistty-goto-cursor-next-time t)
-  (mistty-send-key n "\C-e"))
+  (let ((n (or n 1)))
+    (if (and (= n 1)
+             (or (mistty--maybe-realize-possible-prompt (point))
+                 (mistty-on-prompt-p (point))))
+        (progn
+          (message "a")
+          (setq mistty-goto-cursor-next-time t)
+          (mistty-send-key 1 "\C-a"))
+      (message "b")
+      (beginning-of-line n))))
 
 (defun mistty-end-of-line-or-goto-cursor (&optional n)
-  "Move the point first to the end of the line, then to the cursor.
+  "Move the point to the end of the line, then to the cursor.
 
-The first time this command is called, or if it is called with an
-argument, it behaves like `end-of-line' and forwards N to it.
+The first time this command is called, it moves the point to the
+end of the line, either using `end-of-line' or, if on a prompt,
+by sending C-e to the shell.
 
-The second time it is called, it behaves like `mistty-goto-cursor'."
+The second time this command is called, it moves the point to the
+cursor.
+
+With an argument, this command just calls `end-of-line' and
+forwards the argument to it."
   (interactive "p")
-  (if (and (= 1 n) (eq last-command this-command) (/= (point) (mistty-cursor)))
+  (let ((n (or n 1)))
+    (cond
+     ((and (= 1 n)
+           (eq last-command this-command)
+           (/= (point) (mistty-cursor)))
+      (mistty-goto-cursor))
+     ((and (= 1 n)
+           (or (mistty--maybe-realize-possible-prompt (point))
+               (mistty-on-prompt-p (point))))
       (mistty-goto-cursor)
-    (end-of-line n)))
+      (setq mistty-goto-cursor-next-time t)
+      (mistty-send-key n "\C-e"))
+     (t
+      (end-of-line n)))))
 
 (defun mistty--enforce-forbid-edits (_ end)
   "Forbid edits after the sync marker.

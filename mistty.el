@@ -177,7 +177,7 @@ possible problem:
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-n") 'mistty-next-prompt)
     (define-key map (kbd "C-c C-p") 'mistty-previous-prompt)
-    (define-key map (kbd "C-c C-j") 'mistty-switch-to-fullscreen-buffer)
+    (define-key map (kbd "C-c C-j") 'mistty-toggle-buffers)
     (define-key map (kbd "C-c C-q") 'mistty-send-key-sequence)
     (define-key map (kbd "C-c C-s") 'mistty-sudo)
     (define-key map (kbd "C-e") 'mistty-end-of-line-or-goto-cursor)
@@ -254,7 +254,7 @@ By default, it is bound to C-q in `mistty-prompt-map'.")
     (define-key map [menu-bar terminal] nil)
 
     ;; switching the term buffer to line mode would cause issues.
-    (define-key map [remap term-line-mode] #'mistty-switch-to-scrollback-buffer )
+    (define-key map [remap term-line-mode] #'mistty-toggle-buffers)
     map)
   "Keymap active while in fullscreen mode.
 
@@ -275,7 +275,7 @@ bottom.
 In normal mode, this is the buffer that's displayed to the user.
 In fullscreen mode, this buffer is kept as historical scrollback
 buffer that can be independently switched to with
-`mistty-switch-to-scrollback-buffer'.
+`mistty-toggle-buffers'.
 
 While there is normally a terminal buffer, available as
 `mistty-term-buffer' as well as a process, available as
@@ -1833,8 +1833,7 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
     (mistty--with-live-buffer mistty-term-buffer
       (setq mistty-fullscreen t))
 
-    (let ((msg
-           "Fullscreen mode ON. C-c C-j switches between the tty and scrollback buffer."))
+    (let ((msg (mistty--fullscreen-message)))
       (save-excursion
         (goto-char (point-max))
         (insert msg)
@@ -1854,6 +1853,28 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
     (mistty--update-mode-lines proc)
     (when (length> terminal-sequence 0)
       (funcall (process-filter proc) proc terminal-sequence))))
+
+(defun mistty--fullscreen-message ()
+  (let ((from-work (where-is-internal
+                    'mistty-toggle-buffers mistty-mode-map
+                    'firstonly 'noindirect))
+        (from-term (where-is-internal
+                    'mistty-toggle-buffers mistty-fullscreen-map
+                    'firstonly 'noindirect))
+        (keybinding-descr nil))
+    (cond
+     ((and from-work from-term (equal from-work from-term))
+      (setq keybinding-descr
+            (format "%s switches between terminal and scrollback buffers."
+                    (key-description from-work))))
+     ((and from-work from-term)
+      (setq keybinding-descr
+            (format "%s goes to terminal, %s to scrollback."
+                    (key-description from-work)
+                    (key-description from-term)))))
+    (concat "Fullscreen mode ON"
+            (when keybinding-descr ". ")
+            keybinding-descr)))
 
 (defun mistty--leave-fullscreen (proc terminal-sequence)
   "Leave fullscreen mode for PROC.
@@ -1899,7 +1920,7 @@ Ignores buffers that don't exist."
                         'local-map '(keymap
                                      (mode-line
                                       keymap
-                                      (down-mouse-1 . mistty-switch-to-fullscreen-buffer))))))
+                                      (down-mouse-1 . mistty-toggle-buffers))))))
      (mistty-proc
       (setq mode-line-process (format ":%s" (process-status mistty-proc))))
      (t
@@ -1916,7 +1937,7 @@ Ignores buffers that don't exist."
                          'local-map '(keymap
                                       (mode-line
                                        keymap
-                                       (down-mouse-1 . mistty-switch-to-scrollback-buffer)))) ":%s")))
+                                       (down-mouse-1 . mistty-toggle-buffers)))) ":%s")))
      (t
       (setq mode-line-process "misTTY:%s"))))
   (force-mode-line-update))
@@ -1943,12 +1964,18 @@ Ignores buffers that don't exist."
        (when modified
          (set-window-prev-buffers win prev-buffers))))))
 
-(defun mistty-switch-to-fullscreen-buffer ()
-  "Switch to the fullscreen buffer, from the scrollback buffer."
+(defun mistty-toggle-buffers ()
+  "Toggle between the fullscreen buffer and the scrollback buffer."
   (interactive)
-  (if (and mistty-fullscreen (buffer-live-p mistty-term-buffer))
-      (switch-to-buffer mistty-term-buffer)
-    (error "No fullscreen buffer available")))
+  (unless mistty-fullscreen
+    (error "Not in fullscreen mode."))
+  (let* ((from-buf (current-buffer))
+         (to-buf (cond
+                  ((eq from-buf mistty-work-buffer) mistty-term-buffer)
+                  ((eq from-buf mistty-term-buffer) mistty-work-buffer))))
+    (unless (buffer-live-p to-buf)
+      (error "Buffer not available"))
+    (switch-to-buffer to-buf)))
 
 (defun mistty-switch-to-scrollback-buffer ()
   "Switch to the scrollback buffer, from the fullscreen buffer."

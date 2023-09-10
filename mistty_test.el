@@ -2679,6 +2679,23 @@ window while BODY is running."
      (call-interactively 'mistty-sudo))
     (should (equal "$ sudo echo ok<>" (mistty-test-content :show (point))))))
 
+(ert-deftest mistty-test-fullscreen-message ()
+  (let ((mistty-mode-map (make-sparse-keymap))
+        (mistty-fullscreen-map (make-sparse-keymap)))
+    (should (equal "Fullscreen mode ON" (mistty--fullscreen-message)))
+
+    (keymap-set mistty-mode-map "C-c C-a" #'mistty-toggle-buffers)
+    (keymap-set mistty-fullscreen-map "C-c C-a" #'mistty-toggle-buffers)
+
+    (should (equal
+             "Fullscreen mode ON. C-c C-a switches between terminal and scrollback buffers."
+             (mistty--fullscreen-message)))
+
+    (keymap-set mistty-fullscreen-map "C-c C-b" #'mistty-toggle-buffers)
+    (should (equal
+             "Fullscreen mode ON. C-c C-a goes to terminal, C-c C-b to scrollback."
+             (mistty--fullscreen-message)))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

@@ -347,6 +347,9 @@ kept in sync.
 This variable is available in both the work buffer and the term
 buffer.")
 
+(defvar-local mistty--has-active-prompt nil
+  "Non-nil there is a prompt at `mistty-sync-marker'.")
+  
 (defvar-local mistty--cmd-start-marker nil
   "Mark the end of the prompt; the beginning of the command line.
 
@@ -1199,6 +1202,7 @@ They are often the same position."
   (let ((cmd-start-pos (max sync-pos cmd-start-pos))
         (inhibit-read-only t)
         (inhibit-modification-hooks t))
+    (setq mistty--has-active-prompt (> cmd-start-pos sync-pos))
     (mistty-log "MOVE SYNC MARKER %s to %s (%s)"
                 mistty-sync-marker
                 sync-pos
@@ -1974,15 +1978,11 @@ Ignores buffers that don't exist."
 (defun mistty-on-prompt-p (pos)
   "Return non-nil if POS is on a prompt."
   (and mistty-sync-marker
-       mistty--cmd-start-marker
+       mistty--has-active-prompt
        (>= pos mistty-sync-marker)
        (not mistty--forbid-edit)
        (or mistty-bracketed-paste
-           (and
-            (>= pos mistty--cmd-start-marker)
-            (> mistty--cmd-start-marker mistty-sync-marker)
-            (>= pos mistty--cmd-start-marker)
-            (<= pos (mistty--eol mistty--cmd-start-marker))))))
+           (<= pos (mistty--eol mistty-sync-marker)))))
 
 (defun mistty-before-positional ()
   "Prepare the state for executing a positional command.

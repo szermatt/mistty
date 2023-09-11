@@ -458,6 +458,160 @@ window while BODY is running."
      (equal "$ <>"
             (mistty-test-content :show (point))))))
 
+(ert-deftest mistty-test-next-input ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo two"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo three"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo current"))
+
+    (goto-char (point-min))
+    (mistty-next-input 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "<>$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-next-input 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "<>$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-next-input 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "<>$ echo current")
+            (mistty-test-content :show (point))))
+
+    (should-error (mistty-next-input 1))
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "<>$ echo current")
+            (mistty-test-content :show (point))))
+
+    (goto-char (point-min))
+    (mistty-next-input 2)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "<>$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (goto-char (point-min))
+    (mistty-next-input 3)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "<>$ echo current")
+            (mistty-test-content :show (point))))))
+(ert-deftest mistty-test-previous-input ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo two"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo three"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo current"))
+
+    (mistty-test-goto "current")
+
+    (mistty-previous-input 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "<>$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-previous-input 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "<>$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-previous-input 1)
+    (should
+     (equal (concat "<>$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (should-error (mistty-previous-input 1))
+    (should
+     (equal (concat "<>$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-test-goto "current")
+    (mistty-previous-input 2)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "<>$ echo two\n"
+                    "two\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-next-prompt ()
   (mistty-with-test-buffer ()
     (mistty-run-command
@@ -1497,9 +1651,9 @@ window while BODY is running."
     (mistty-send-text "1 + 1")
     (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
-    ;; the prompt was identified and labelled
-    (mistty-previous-prompt 1)
-    (should (looking-at (regexp-quote "1 + 1")))))
+    ;; the input was identified and labelled
+    (mistty-previous-input 1)
+    (should (looking-at (regexp-quote ">>> 1 + 1")))))
 
 (ert-deftest mistty-test-python-move-and-type ()
   (mistty-with-test-buffer (:shell python)
@@ -1511,9 +1665,9 @@ window while BODY is running."
      (mistty-send-key 1 "0"))
     (should (equal "1000" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
-    ;; the prompt was identified and labelled
-    (mistty-previous-prompt 1)
-    (should (looking-at (regexp-quote "100 * 10")))))
+    ;; the input was identified and labelled
+    (mistty-previous-input 1)
+    (should (looking-at (regexp-quote ">>> 100 * 10")))))
 
 (ert-deftest mistty-test-python-eof ()
   (mistty-with-test-buffer ()
@@ -1539,9 +1693,9 @@ window while BODY is running."
 
       (should (equal "100" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
 
-      ;; the prompt was identified and labelled
-      (mistty-previous-prompt 1)
-      (should (equal ">>> <>10 * 10\n100\n>>>"
+      ;; the input was identified and labelled
+      (mistty-previous-input 1)
+      (should (equal "<>>>> 10 * 10\n100\n>>>"
                      (mistty-test-content :start start :show (point)))))))
 
 (ert-deftest mistty-test-python-edit-before-prompt ()

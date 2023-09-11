@@ -973,6 +973,9 @@ Also updates prompt and point."
                          (mistty--bol mistty-sync-marker 2))))
              (when (and (eq ?\n (char-before command-end))
                         (> (mistty--last-non-ws) command-end))
+               (unless (get-text-property mistty-sync-marker 'mistty-input-id)
+                 (put-text-property mistty-sync-marker command-end
+                                    'mistty-input-id (mistty--next-id)))
                (mistty--set-sync-mark-from-end command-end)
                (setq mistty--end-prompt nil))))
 
@@ -1653,6 +1656,27 @@ left (negative)."
                mistty-left-str
              mistty-right-str)))
       (mistty--repeat-string distance towards-str))))
+
+(defun mistty-next-input (n)
+  "Move the point to the Nth next input in the buffer."
+  (interactive "p")
+  (let ((search-start (point)))
+    (dotimes (_ n)
+      (if-let ((prop-match (save-excursion
+                            (goto-char search-start)
+                            (text-property-search-forward 'mistty-input-id nil nil 'not-current))))
+          (progn
+            (goto-char (prop-match-beginning prop-match))
+            (setq search-start (prop-match-end prop-match)))
+        (error "No next input")))))
+
+(defun mistty-previous-input (n)
+  "Move the point to the Nth previous input in the buffer."
+  (interactive "p")
+  (dotimes (_ n)
+    (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil nil 'not-current)))
+        (goto-char (prop-match-beginning prop-match))
+      (error "No previous input"))))
 
 (defun mistty-next-prompt (n)
   "Move the point to the Nth next prompt in the buffer."

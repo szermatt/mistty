@@ -2565,10 +2565,10 @@ window while BODY is running."
          "<3>$ ^A\n"
          "<4>line 4\n"
          "<5>$ ^A\n"
-         "line 5\n" ;; TODO: why is this not detected as an output?
+         "<6>line 5\n"
          ;; Next prompt after recovery (a real one.)
          "DONE\n"
-         "<6>$")
+         "<7>$")
         (mistty-test-content
          :start start
          :show (mapcar #'car mistty--sync-history)))))))

@@ -120,12 +120,6 @@ You can turn this off completely by setting
 `mistty-fringe-enabled'."
   :group 'mistty)
 
-(defface mistty-prompt-face nil
-  "Face that highlights the current, detected prompt.
-
-This is generally only set when debugging prompt detection."
-  :group 'mistty)
-
 (defcustom mistty-buffer-maximum-size 8192
   "The maximum size in lines for MisTTY buffers
 
@@ -374,9 +368,6 @@ is on this overlay.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--prompt-ov nil
-  "An overlay that covers the current detected prompt, if any.")
-
 (defvar-local mistty--old-point nil
   "The position of the point captured in `pre-command-hook'.
 
@@ -536,7 +527,6 @@ buffer and `mistty-proc' to that buffer's process."
     (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker (point-max)))
     (setq mistty--cmd-start-marker (copy-marker mistty-sync-marker))
     (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
-    (setq mistty--prompt-ov (make-overlay mistty-sync-marker mistty--cmd-start-marker))
     (setq mistty--queue (mistty--make-queue proc))
 
     (with-current-buffer term-buffer
@@ -555,7 +545,6 @@ buffer and `mistty-proc' to that buffer's process."
                    (if (window-system)
                        '(left-fringe mistty-bar mistty-fringe-face)
                      `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face))))))
-    (overlay-put mistty--prompt-ov 'face 'mistty-prompt-face)
 
     (when proc
       (set-process-filter proc #'mistty--process-filter)
@@ -1210,9 +1199,6 @@ They are often the same position."
     (move-marker mistty-sync-marker sync-pos)
     (move-marker mistty--cmd-start-marker cmd-start-pos)
     (move-overlay mistty--sync-ov sync-pos (point-max))
-    (move-overlay mistty--prompt-ov
-                  (max sync-pos (mistty--bol mistty--cmd-start-marker))
-                  mistty--cmd-start-marker)
     (mistty--sync-history-push)))
 
 (defun mistty--last-non-ws ()

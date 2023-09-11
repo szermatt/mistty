@@ -540,6 +540,7 @@ window while BODY is running."
                     "three\n"
                     "<>$ echo current")
             (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-previous-input ()
   (mistty-with-test-buffer ()
     (mistty-run-command
@@ -612,107 +613,7 @@ window while BODY is running."
                     "$ echo current")
             (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-next-prompt ()
-  (mistty-with-test-buffer ()
-    (mistty-run-command
-     (insert "echo one"))
-    (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo two"))
-    (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo three"))
-    (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo current"))
-
-    (goto-char (point-min))
-    (mistty-next-prompt 1)
-    (should
-     (equal (concat "[$ ]<>echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (mistty-next-prompt 1)
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]<>echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (mistty-next-prompt 1)
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]<>echo three\n"
-                    "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (mistty-next-prompt 1)
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]<>echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (should-error (mistty-next-prompt 1))
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]<>echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (goto-char (point-min))
-    (mistty-next-prompt 2)
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]<>echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (mistty-next-prompt 2)
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]<>echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))))
-
-(ert-deftest mistty-test-next-prompt-zsh ()
+(ert-deftest mistty-test-next-input-zsh ()
   (mistty-with-test-buffer (:shell zsh)
     (mistty-run-command
      (insert "echo one"))
@@ -727,31 +628,29 @@ window while BODY is running."
      (insert "echo current"))
 
     (goto-char (point-min))
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should
-     (equal (concat "[$ ]<>echo one\n"
+     (equal (concat "$ echo one\n"
                     "one\n"
-                    "[$ ]echo two\n"
+                    "<>$ echo two\n"
                     "two\n"
-                    "[$ ]echo three\n"
+                    "$ echo three\n"
                     "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should
-     (equal (concat "[$ ]echo one\n"
+     (equal (concat "$ echo one\n"
                     "one\n"
-                    "[$ ]<>echo two\n"
+                    "$ echo two\n"
                     "two\n"
-                    "[$ ]echo three\n"
+                    "<>$ echo three\n"
                     "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))))
+                    "$ echo current")
+            (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-next-prompt-fish ()
+(ert-deftest mistty-test-next-input-fish ()
   (mistty-with-test-buffer (:shell fish)
     (mistty-run-command
      (insert "echo one"))
@@ -766,31 +665,29 @@ window while BODY is running."
      (insert "echo current"))
 
     (goto-char (point-min))
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should
-     (equal (concat "[$ ]<>echo one\n"
+     (equal (concat "$ echo one\n"
                     "one\n"
-                    "[$ ]echo two\n"
+                    "<>$ echo two\n"
                     "two\n"
-                    "[$ ]echo three\n"
+                    "$ echo three\n"
                     "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should
-     (equal (concat "[$ ]echo one\n"
+     (equal (concat "$ echo one\n"
                     "one\n"
-                    "[$ ]<>echo two\n"
+                    "$ echo two\n"
                     "two\n"
-                    "[$ ]echo three\n"
+                    "<>$ echo three\n"
                     "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))))
+                    "$ echo current")
+            (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-next-empty-prompt ()
+(ert-deftest mistty-test-next-input-empty-prompt ()
   (mistty-with-test-buffer ()
     (mistty-send-and-wait-for-prompt)
     (mistty-send-and-wait-for-prompt)
@@ -799,129 +696,95 @@ window while BODY is running."
      (insert "echo current"))
 
     (goto-char (point-min))
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should
-     (equal (concat "[$ ]<>\n"
-                    "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "$\n"
+                    "<>$\n"
+                    "$\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]<>\n"
-                    "[$ ]\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "$\n"
+                    "$\n"
+                    "<>$\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]<>\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "$\n"
+                    "$\n"
+                    "$\n"
+                    "<>$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-next-prompt 1)
-    (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]<>echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (should-error (mistty-next-prompt 1))
+    (should-error (mistty-next-input 1))
 
     (goto-char (point-min))
-    (mistty-next-prompt 2)
+    (mistty-next-input 2)
     (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]<>\n"
-                    "[$ ]\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "$\n"
+                    "$\n"
+                    "<>$\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-next-prompt 2)
+    (goto-char (point-min))
+    (mistty-next-input 3)
     (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]<>echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))))
+     (equal (concat "$\n"
+                    "$\n"
+                    "$\n"
+                    "<>$ echo current")
+            (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-previous-empty-prompt ()
+(ert-deftest mistty-test-previous-input-empty-prompt ()
   (mistty-with-test-buffer ()
     (mistty-send-and-wait-for-prompt)
     (mistty-send-and-wait-for-prompt)
     (mistty-send-and-wait-for-prompt)
     (mistty-run-command
      (insert "echo current"))
-
-    (mistty-previous-prompt 1)
+    
+    (mistty-test-goto "current")
+    (mistty-previous-input 1)
     (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]<>echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "$\n"
+                    "$\n"
+                    "<>$\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-previous-prompt 1)
+    (mistty-previous-input 1)
     (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]<>\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "$\n"
+                    "<>$\n"
+                    "$\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-previous-prompt 1)
+    (mistty-previous-input 1)
     (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]<>\n"
-                    "[$ ]\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "<>$\n"
+                    "$\n"
+                    "$\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
 
-    (mistty-previous-prompt 1)
+    (should-error (mistty-previous-input 1))
+
+    (mistty-test-goto "current")
+    (mistty-previous-input 2)
     (should
-     (equal (concat "[$ ]<>\n"
-                    "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
+     (equal (concat "$\n"
+                    "<>$\n"
+                    "$\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))))
 
-    (should-error (mistty-previous-prompt 1))
-
-    (goto-char (point-max))
-    (mistty-previous-prompt 2)
-    (should
-     (equal (concat "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]<>\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (mistty-previous-prompt 2)
-    (should
-     (equal (concat "[$ ]<>\n"
-                    "[$ ]\n"
-                    "[$ ]\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))))
-
-(ert-deftest mistty-test-next-python-prompt ()
+(ert-deftest mistty-test-next-input-python ()
   (mistty-with-test-buffer (:shell python)
     (mistty-send-text "1 + 1")
     (mistty-send-and-wait-for-prompt nil ">>> ")
@@ -929,80 +792,17 @@ window while BODY is running."
     (mistty-send-text "2 + 2")
 
     (goto-char (point-min))
-    (mistty-next-prompt 1)
-    (should (equal (concat ">>> <>1 + 1\n"
-                           "2\n"
-                           ">>> 2 + 2")
-                   (mistty-test-content :show (point))))
-
-    (mistty-next-prompt 1)
+    (mistty-next-input 1)
     (should (equal (concat ">>> 1 + 1\n"
                            "2\n"
-                           ">>> <>2 + 2")
+                           "<>>>> 2 + 2")
+                   (mistty-test-content :show (point))))
+
+    (mistty-previous-input 1)
+    (should (equal (concat "<>>>> 1 + 1\n"
+                           "2\n"
+                           ">>> 2 + 2")
                    (mistty-test-content :show (point))))))
-
-(ert-deftest mistty-test-previous-prompt ()
-  (mistty-with-test-buffer ()
-    (mistty-run-command
-     (insert "echo one"))
-    (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo two"))
-    (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo three"))
-    (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo current"))
-
-    (mistty-previous-prompt 1)
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]<>echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (mistty-previous-prompt 1)
-    (should
-     (equal (concat "[$ ]echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]<>echo three\n"
-                    "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (mistty-previous-prompt 2)
-    (should
-     (equal (concat "[$ ]<>echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))
-
-    (should-error (mistty-previous-prompt 1))
-
-    (should
-     (equal (concat "[$ ]<>echo one\n"
-                    "one\n"
-                    "[$ ]echo two\n"
-                    "two\n"
-                    "[$ ]echo three\n"
-                    "three\n"
-                    "[$ ]echo current")
-            (mistty-test-content :show (point)
-                                 :show-property '(mistty prompt))))))
 
 (ert-deftest mistty-test-dirtrack ()
   (mistty-with-test-buffer ()

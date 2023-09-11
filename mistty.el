@@ -177,8 +177,8 @@ possible problem:
   :doc "Keymap of `mistty-mode'.
 
 This map is active whenever the current buffer is in MisTTY mode."
-  "C-c C-n" #'mistty-next-prompt
-  "C-c C-p" #'mistty-previous-prompt
+  "C-c C-n" #'mistty-next-input
+  "C-c C-p" #'mistty-previous-input
   "C-c C-j" #'mistty-toggle-buffers
   "C-c C-q" #'mistty-send-key-sequence
   "C-c C-s" #'mistty-sudo
@@ -862,12 +862,7 @@ markers have gone out-of-sync."
                   (point)))))))
     (mistty--with-live-buffer mistty-work-buffer
       (move-marker mistty-sync-marker (car new-head))
-      (move-marker
-       mistty--cmd-start-marker
-       (if (and (> mistty-sync-marker (point-min))
-                (eq 'prompt (get-text-property mistty-sync-marker 'mistty)))
-           (next-single-property-change mistty-sync-marker 'mistty nil (point-max))
-         (car new-head))))
+      (move-marker mistty--cmd-start-marker (car new-head)))
     (mistty--with-live-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (cdr new-head)))
     (mistty--sync-history-remove-above (car new-head) (cdr new-head))
@@ -947,10 +942,7 @@ Also updates prompt and point."
 
          (mistty-log "refresh")
          (mistty--sync-buffer mistty-term-buffer)
-         (when (> mistty--cmd-start-marker mistty-sync-marker)
-           (mistty--set-prompt-properties
-            mistty-sync-marker mistty--cmd-start-marker))
-
+         
          ;; Make fake newlines invisible. They're not really "visible"
          ;; to begin with, since they're at the end of the window, but
          ;; marking them invisible allows kill-line to go "through"
@@ -1217,16 +1209,7 @@ They are often the same position."
     (move-overlay mistty--prompt-ov
                   (max sync-pos (mistty--bol mistty--cmd-start-marker))
                   mistty--cmd-start-marker)
-    (when (> cmd-start-pos sync-pos)
-      (mistty--set-prompt-properties sync-pos cmd-start-pos))
     (mistty--sync-history-push)))
-
-(defun mistty--set-prompt-properties (start end)
-  "Mark region from START to END as a prompt."
-  (add-text-properties
-   start end
-   (append
-    '(mistty prompt rear-nonsticky t))))
 
 (defun mistty--last-non-ws ()
   "Return the position of the last non-whitespace in the buffer."
@@ -1660,14 +1643,14 @@ left (negative)."
 (defun mistty-next-input (n)
   "Move the point to the Nth next input in the buffer."
   (interactive "p")
-  (let ((search-start (point)))
-    (dotimes (_ n)
-      (if-let ((prop-match (save-excursion
-                            (goto-char search-start)
-                            (text-property-search-forward 'mistty-input-id nil nil 'not-current))))
-          (progn
-            (goto-char (prop-match-beginning prop-match))
-            (setq search-start (prop-match-end prop-match)))
+  (dotimes (_ n)
+    (if-let ((prop-match (text-property-search-forward 'mistty-input-id nil nil 'not-current)))
+        (goto-char (prop-match-beginning prop-match))
+      (if (and (process-live-p mistty-proc)
+               (< (point) mistty-sync-marker)
+               (or (mistty--maybe-realize-possible-prompt (mistty-cursor))
+                   (mistty-on-prompt-p (mistty-cursor))))
+          (goto-char (mistty--bol (mistty-cursor)))
         (error "No next input")))))
 
 (defun mistty-previous-input (n)
@@ -1677,40 +1660,6 @@ left (negative)."
     (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil nil 'not-current)))
         (goto-char (prop-match-beginning prop-match))
       (error "No previous input"))))
-
-(defun mistty-next-prompt (n)
-  "Move the point to the Nth next prompt in the buffer."
-  (interactive "p")
-  (let (found)
-    (dotimes (_ n)
-      (cond
-       ((setq found (text-property-any (point) (point-max) 'mistty 'prompt))
-        (goto-char (next-single-property-change found 'mistty nil (point-max))))
-
-       ((mistty--maybe-realize-possible-prompt (mistty-cursor))
-        (mistty-next-prompt 1))
-
-       (t (error "No next prompt"))))))
-
-(defun mistty-previous-prompt (n)
-  "Move the point to the Nth previous prompt in the buffer."
-  (interactive "p")
-  (let ((pos (point)))
-    (dotimes (_ n)
-      ;; skip current
-      (cond
-       ((and (> (point) (point-min))
-             (eq 'prompt (get-text-property (1- (point)) 'mistty)))
-        (setq pos (1- (previous-single-property-change (point) 'mistty nil (point-min)))))
-       (t (setq pos (point))))
-
-      ;; find another prompt
-      (while (and (> pos (point-min))
-                  (not (eq 'prompt (get-text-property (1- pos) 'mistty))))
-        (setq pos (previous-single-property-change pos 'mistty nil (point-min))))
-      (if (> pos (point-min))
-          (goto-char pos)
-        (error "No previous prompt")))))
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."

@@ -2901,7 +2901,7 @@ This is meant to be assigned to `mistty--report-issue-function'
                   :show-property '(mistty-skip t)
                   :show (list (point) (ignore-errors (mistty-cursor)))))))
     (mistty-log error-message)
-    (error error-message)))
+    (error "%s" error-message)))
 
 (cl-defun mistty-test-content (&key (start (point-min))
                                     (end (point-max))

@@ -168,7 +168,9 @@ exit already."
                      'face 'mistty-log-header-face))
         (insert-before-markers
          (propertize
-          (apply #'format format-str (mapcar #'mistty--format-log-arg args))
+          (if args
+              (apply #'format format-str (mapcar #'mistty--format-log-arg args))
+            format-str)
           'face 'mistty-log-message-face))
         (insert-before-markers "\n")))
 

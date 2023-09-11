@@ -344,16 +344,6 @@ buffer.")
 (defvar-local mistty--has-active-prompt nil
   "Non-nil there is a prompt at `mistty-sync-marker'.")
   
-(defvar-local mistty--cmd-start-marker nil
-  "Mark the end of the prompt; the beginning of the command line.
-
-The region [`mistty-sync-marker', `mistty--cmd-start-marker']
-marks the prompt of the command line, if one was detected. If no
-prompt was detected, this marker points to the same position as
-`mistty-sync-marker'.
-
-This variable is available in the work buffer.")
-
 (defvar-local mistty--sync-ov nil
   "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
 
@@ -525,7 +515,6 @@ buffer and `mistty-proc' to that buffer's process."
     (setq mistty-proc proc)
     (setq mistty-term-buffer term-buffer)
     (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker (point-max)))
-    (setq mistty--cmd-start-marker (copy-marker mistty-sync-marker))
     (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
     (setq mistty--queue (mistty--make-queue proc))
 
@@ -589,10 +578,7 @@ Returns M or a new marker."
   (when mistty-proc
     (set-process-filter mistty-proc #'term-emulate-terminal)
     (set-process-sentinel mistty-proc #'term-sentinel)
-    (setq mistty-proc nil))
-  (when mistty--cmd-start-marker
-    (move-marker mistty--cmd-start-marker nil)
-    (setq mistty--cmd-start-marker nil)))
+    (setq mistty-proc nil)))
 
 (defun mistty--kill-term-buffer ()
   "Kill-buffer-hook handler that kills `mistty-term-buffer'."
@@ -853,8 +839,7 @@ markers have gone out-of-sync."
                   (skip-chars-forward mistty--ws)
                   (point)))))))
     (mistty--with-live-buffer mistty-work-buffer
-      (move-marker mistty-sync-marker (car new-head))
-      (move-marker mistty--cmd-start-marker (car new-head)))
+      (move-marker mistty-sync-marker (car new-head)))
     (mistty--with-live-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (cdr new-head)))
     (mistty--sync-history-remove-above (car new-head) (cdr new-head))
@@ -983,7 +968,7 @@ Also updates prompt and point."
                         (get-text-property prompt-beg 'mistty-input-id)
                         (or (> prompt-beg mistty-sync-marker)
                             (and (= prompt-beg mistty-sync-marker)
-                                 (= mistty-sync-marker mistty--cmd-start-marker)))
+                                 (not mistty--has-active-prompt)))
                         (< prompt-beg cursor)
                         (string-match
                          mistty-prompt-re
@@ -992,21 +977,7 @@ Also updates prompt and point."
                (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)
                (mistty--set-sync-mark-from-end prompt-beg cursor))))
 
-         ;; Fix detected prompt.
-         (when (process-live-p mistty-proc)
-           (let ((cursor (mistty-cursor)))
-             (when (and (< cursor mistty--cmd-start-marker)
-                        ;; The cursor is often temporarily at the
-                        ;; beginning of the line while redrawing.
-                        (> cursor (mistty--bol cursor)))
-               ;; An overly-large prompt causes more issues than a
-               ;; prompt that's just missing.
-               (mistty-log "Detected prompt too large %s > %s. RESET."
-                           (marker-position mistty--cmd-start-marker) cursor)
-               (mistty--set-prompt mistty-sync-marker mistty-sync-marker))))
-
          ;; Turn mistty-forbid-edit on or off
-
          (let ((forbid-edit (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
            (cond
             ((and forbid-edit (not mistty--forbid-edit))
@@ -1149,8 +1120,7 @@ This is the reverse operation of `mistty--save-properties'."
 (defun mistty--set-sync-mark-from-end (sync-pos &optional cmd-pos)
   "Set the sync marker to SYNC-POS, assuming buffer ends are the same.
 
-This function sets the `mistty-sync-marker' SYNC-POS and optionally
-`mistty--cmd-start-marker' to CMD-POS.
+This function sets the `mistty-sync-marker' SYNC-POS.
 
 For this to work, the term and work buffer starting with SYNC-POS
 must have the same content, which is only true when SYNC-POS is
@@ -1186,7 +1156,7 @@ from `mistty--after-change-on-work' tracking the changes."
   "Set the sync and command start position.
 
 SYNC-POS is used to initialize `mistty-sync-marker' and
-CMD-START-POS is used to initialize `mistty--cmd-start-marker'.
+CMD-START-POS is used to initialize `mistty--has-active-prompt'.
 They are often the same position."
   (let ((cmd-start-pos (max sync-pos cmd-start-pos))
         (inhibit-read-only t)
@@ -1197,7 +1167,6 @@ They are often the same position."
                 sync-pos
                 (- sync-pos mistty-sync-marker))
     (move-marker mistty-sync-marker sync-pos)
-    (move-marker mistty--cmd-start-marker cmd-start-pos)
     (move-overlay mistty--sync-ov sync-pos (point-max))
     (mistty--sync-history-push)))
 

@@ -871,8 +871,7 @@ window while BODY is running."
     (mistty-wait-for-output :str "nine" :cursor-at-end t)
 
     ;; make sure that the newlines didn't confuse the sync marker
-    (should (equal (marker-position mistty-sync-marker) (point-min)))
-    (should (equal (marker-position mistty--cmd-start-marker) (mistty-test-goto "echo one")))))
+    (should (equal (marker-position mistty-sync-marker) (point-min)))))
 
 (ert-deftest mistty-test-keep-pointer-on-long-prompt ()
   (mistty-with-test-buffer ()
@@ -1573,18 +1572,6 @@ window while BODY is running."
     ;; quit more and go back to the normal prompt
     (mistty-send-and-wait-for-prompt
      (lambda () (mistty--send-string mistty-proc "q")))))
-
-(ert-deftest mistty-test-python-prompt-too-long ()
-  (mistty-with-test-buffer (:shell python)
-    (let ((line-start (mistty--bol (point))))
-      (mistty-send-text "if a > b:")
-      (mistty-run-command
-       (mistty-beginning-of-line))
-      (mistty-send-text "foobar" (point-min))
-
-      (should (equal ">>> <>foobarif a > b:"
-                     (mistty-test-content :start line-start
-                                          :show mistty--cmd-start-marker))))))
 
 (ert-deftest mistty-test-and-hippie-completion ()
   (mistty-with-test-buffer ()
@@ -2565,10 +2552,10 @@ window while BODY is running."
          "<3>$ ^A\n"
          "<4>line 4\n"
          "<5>$ ^A\n"
-         "<6>line 5\n"
+         "line 5\n"
          ;; Next prompt after recovery (a real one.)
          "DONE\n"
-         "<7>$")
+         "<6>$")
         (mistty-test-content
          :start start
          :show (mapcar #'car mistty--sync-history)))))))

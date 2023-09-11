@@ -975,7 +975,8 @@ Also updates prompt and point."
                          (mistty--safe-bufstring
                           (mistty--bol cursor) cursor)))
                (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)
-               (mistty--set-sync-mark-from-end prompt-beg cursor))))
+               (mistty--set-sync-mark-from-end prompt-beg)
+               (setq mistty--has-active-prompt (> cursor prompt-beg)))))
 
          ;; Turn mistty-forbid-edit on or off
          (let ((forbid-edit (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
@@ -1117,55 +1118,55 @@ This is the reverse operation of `mistty--save-properties'."
   (pcase-dolist (`(,beg ,end ,props) intervals)
     (set-text-properties (+ beg start) (+ end start) props)))
 
-(defun mistty--set-sync-mark-from-end (sync-pos &optional cmd-pos)
+(defun mistty--set-sync-mark-from-end (sync-pos)
   "Set the sync marker to SYNC-POS, assuming buffer ends are the same.
 
-This function sets the `mistty-sync-marker' SYNC-POS.
+This function sets the `mistty-sync-marker' on both the term and
+the work buffer.
+
+SYNC-POS is a position on the current buffer, which might be
+either the work or the term buffer.
 
 For this to work, the term and work buffer starting with SYNC-POS
 must have the same content, which is only true when SYNC-POS is
 bigger than `mistty-sync-marker' and `mistty--refresh' was
 called recently enough."
-  (let ((chars-from-end (- (point-max) sync-pos))
-        (prompt-length (if (and cmd-pos (> cmd-pos sync-pos))
-                           (- cmd-pos sync-pos)
-                         0)))
+  (let ((chars-from-end (- (point-max) sync-pos)))
     (with-current-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (- (point-max) chars-from-end)))
-    (with-current-buffer mistty-work-buffer
-      (let ((work-sync-pos (- (point-max) chars-from-end)))
-        (mistty--set-prompt work-sync-pos (+ work-sync-pos prompt-length))))))
+    (mistty--with-live-buffer mistty-work-buffer
+      (mistty--set-work-sync-mark (- (point-max) chars-from-end)))))
 
-(defun mistty--move-sync-mark-with-shift (sync-pos cmd-start-pos shift)
+(defun mistty--move-sync-mark-with-shift (sync-pos shift)
   "Move the sync marker on the work buffer to SYNC-POS.
 
-This function moves the sync marker to SYNC-POS on the work
-buffer, the command-line start marker to CMD-START-POS. If
-there's no prompt, the two positions are the same.
+SYNC-POS must be a position on the work buffer, which must be the
+current buffer.
 
 SHIFT specifies the current difference between the sync marker on
 the work buffer and the term buffer. The shift value comes
 from `mistty--after-change-on-work' tracking the changes."
+  (mistty--require-work-buffer)
   (let ((diff (- sync-pos mistty-sync-marker)))
     (with-current-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (+ mistty-sync-marker diff shift))))
-  (with-current-buffer mistty-work-buffer
-    (mistty--set-prompt sync-pos cmd-start-pos)))
+  (mistty--set-work-sync-mark sync-pos))
 
-(defun mistty--set-prompt (sync-pos cmd-start-pos)
-  "Set the sync and command start position.
+(defun mistty--set-work-sync-mark (sync-pos)
+  "Set sync mark in the work buffer and init some related vars.
 
-SYNC-POS is used to initialize `mistty-sync-marker' and
-CMD-START-POS is used to initialize `mistty--has-active-prompt'.
-They are often the same position."
-  (let ((cmd-start-pos (max sync-pos cmd-start-pos))
-        (inhibit-read-only t)
-        (inhibit-modification-hooks t))
-    (setq mistty--has-active-prompt (> cmd-start-pos sync-pos))
-    (mistty-log "MOVE SYNC MARKER %s to %s (%s)"
+The caller is responsible for setting the sync mark on the term
+buffer.
+
+In most cases, this is the wrong function to call. Consider
+instead `mistty--move-sync-mark-with-shift' or
+`mistty--set-sync-mark-from-end'."
+  (mistty--require-work-buffer)
+  (unless (= sync-pos mistty-sync-marker)
+    (mistty-log "MOVE SYNC MARKER %s to %s"
                 mistty-sync-marker
-                sync-pos
-                (- sync-pos mistty-sync-marker))
+                sync-pos)
+    (setq mistty--has-active-prompt nil)
     (move-marker mistty-sync-marker sync-pos)
     (move-overlay mistty--sync-ov sync-pos (point-max))
     (mistty--sync-history-push)))
@@ -1967,10 +1968,11 @@ prompts."
 If SHIFT is non-nil, it specifies a position difference between
 the sync markers in the work and term buffer at the beginning of
 the prompt."
-  (pcase-let ((`(,start ,end ,_ ) mistty--possible-prompt))
+  (pcase-let ((`(,start ,_ ,_ ) mistty--possible-prompt))
     (if shift
-        (mistty--move-sync-mark-with-shift start end shift)
-      (mistty--set-sync-mark-from-end start end)))
+        (mistty--move-sync-mark-with-shift start shift)
+      (mistty--set-sync-mark-from-end start)))
+  (setq mistty--has-active-prompt t)
   (setq mistty--possible-prompt nil))
 
 (defun mistty--possible-prompt-p ()

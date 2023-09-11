@@ -969,13 +969,13 @@ Also updates prompt and point."
          ;; after mistty--end-prompt that's not part of the old prompt.
          (when mistty--end-prompt
            (when-let ((command-end
-                       (if (get-text-property mistty-sync-marker 'mistty-prompt-id)
+                       (if (get-text-property mistty--cmd-start-marker 'mistty-prompt-id)
                            (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
                          (mistty--bol mistty--cmd-start-marker 2))))
              (when (and (eq ?\n (char-before command-end))
                         (> (mistty--last-non-ws) command-end))
-               (mistty--set-sync-mark-from-end command-end))
-             (setq mistty--end-prompt nil)))
+               (mistty--set-sync-mark-from-end command-end)
+               (setq mistty--end-prompt nil))))
 
          ;; detect prompt from bracketed-past region and use that to
          ;; restrict the sync region.

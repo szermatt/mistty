@@ -1794,6 +1794,18 @@ window while BODY is running."
       "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n"
       (mistty--safe-bufstring mistty-sync-marker (point-max))))))
 
+(ert-deftest mistty-test-end-prompt-python ()
+  (mistty-with-test-buffer (:shell python)
+    (mistty-send-text "print('hello, world')")
+    (mistty-send-and-wait-for-prompt)
+    (should (equal
+             (concat
+              ">>> print('hello, world')\n"
+              "<>hello, world\n"
+              ">>>")
+             (mistty-test-content
+              :show mistty-sync-marker)))))
+
 (ert-deftest mistty-test-fish-multiline ()
   (mistty-with-test-buffer (:shell fish)
     (should mistty-bracketed-paste)
@@ -2537,20 +2549,20 @@ window while BODY is running."
          ;; The new sync marker is set here after reset and the prompt
          ;; recovered, which is why there's a prompt here, but not
          ;; below, after MODIFIED.
-         "<>$ ^A\n"
-         "line 2\n"
+         "$ ^A\n"
+         "<>line 2\n"
          ;; Inserting MODIFIED caused a reset, but the reset didn't
          ;; need to go back to the top of the screen, as that would
          ;; have repeated many prompts.
          "MODIFIED<1>\n"
-         "line 3\n"
-         "<2>$ ^A\n"
-         "line 4\n"
+         "<2>line 3\n"
          "<3>$ ^A\n"
-         "line 5\n"
+         "<4>line 4\n"
+         "<5>$ ^A\n"
+         "<6>line 5\n"
          ;; Next prompt after recovery (a real one.)
          "DONE\n"
-         "<4>$")
+         "<7>$")
         (mistty-test-content
          :start start
          :show (mapcar #'car mistty--sync-history)))))))

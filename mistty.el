@@ -2159,15 +2159,9 @@ Return a list of ( BEG . END ), sorted by BEG, increasing."
 
 If the line contains a prompt, the indentation is the length of
 the prompt from the beginning of the line."
-  (let ((bol (mistty--bol pos))
-        (eol (mistty--eol pos)))
-    (if (and (>= bol mistty-sync-marker)
-             (<= bol mistty--cmd-start-marker)
-             (>= eol mistty--cmd-start-marker))
-        (- mistty--cmd-start-marker bol)
-      (save-excursion
-        (goto-char bol)
-        (skip-chars-forward " ")))))
+  (save-excursion
+    (goto-char (mistty--bol pos))
+    (skip-chars-forward " ")))
 
 (defun mistty--cursor-incomplete-skip-forward (pos)
   "Return the position of next non-skipped char after POS.

@@ -968,9 +968,9 @@ Also updates prompt and point."
          ;; after mistty--end-prompt that's not part of the old prompt.
          (when mistty--end-prompt
            (when-let ((command-end
-                       (if (get-text-property mistty--cmd-start-marker 'mistty-prompt-id)
-                           (next-single-property-change mistty-sync-marker 'mistty-prompt-id nil)
-                         (mistty--bol mistty--cmd-start-marker 2))))
+                       (if (get-text-property mistty-sync-marker 'mistty-input-id)
+                           (next-single-property-change mistty-sync-marker 'mistty-input-id nil)
+                         (mistty--bol mistty-sync-marker 2))))
              (when (and (eq ?\n (char-before command-end))
                         (> (mistty--last-non-ws) command-end))
                (mistty--set-sync-mark-from-end command-end)
@@ -983,17 +983,17 @@ Also updates prompt and point."
                   (prompt-beg
                    (let ((pos cursor))
                      (unless (and (> pos (point-min))
-                                  (get-text-property (1- pos) 'mistty-prompt-id))
+                                  (get-text-property (1- pos) 'mistty-input-id))
                        (setq pos (previous-single-property-change
-                                  pos 'mistty-prompt-id nil mistty-sync-marker)))
+                                  pos 'mistty-input-id nil mistty-sync-marker)))
                      (when (and (> pos (point-min))
-                                (get-text-property (1- pos) 'mistty-prompt-id))
+                                (get-text-property (1- pos) 'mistty-input-id))
                        (setq pos (previous-single-property-change
-                                  pos 'mistty-prompt-id nil mistty-sync-marker)))
+                                  pos 'mistty-input-id nil mistty-sync-marker)))
                      (when (and (>= pos (point-min)) (< pos (point-max)))
                        pos))))
              (when (and prompt-beg
-                        (get-text-property prompt-beg 'mistty-prompt-id)
+                        (get-text-property prompt-beg 'mistty-input-id)
                         (or (> prompt-beg mistty-sync-marker)
                             (and (= prompt-beg mistty-sync-marker)
                                  (= mistty-sync-marker mistty--cmd-start-marker)))
@@ -1223,9 +1223,7 @@ They are often the same position."
   (add-text-properties
    start end
    (append
-    '(mistty prompt rear-nonsticky t)
-    (unless (get-text-property start 'mistty-prompt-id)
-      `(mistty-prompt-id ,(mistty--next-id))))))
+    '(mistty prompt rear-nonsticky t))))
 
 (defun mistty--last-non-ws ()
   "Return the position of the last non-whitespace in the buffer."

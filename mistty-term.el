@@ -457,7 +457,8 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
           (cond
            ((equal ext "[?2004h") ; enable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
-            (let ((props `(mistty-prompt-id ,(mistty--next-id))))
+            (let* ((id (mistty--next-id))
+                   (props `(mistty-input-id ,id)))
               ;; zsh enables bracketed paste only after having printed
               ;; the prompt.
               (unless (eq ?\n (char-before (point)))

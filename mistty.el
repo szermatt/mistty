@@ -1375,10 +1375,8 @@ forwards the argument to it."
              (or (mistty--maybe-realize-possible-prompt (point))
                  (mistty-on-prompt-p (point))))
         (progn
-          (message "a")
           (setq mistty-goto-cursor-next-time t)
           (mistty-send-key 1 "\C-a"))
-      (message "b")
       (beginning-of-line n))))
 
 (defun mistty-end-of-line-or-goto-cursor (&optional n)

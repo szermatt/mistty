@@ -50,7 +50,7 @@
   "Shell/Comint alternative with a real terminal."
   :group 'shell)
 
-(defcustom mistty-prompt-re
+(defcustom mistty-prompt-regexp
   "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
   "Regexp used to identify prompts.
 
@@ -802,7 +802,7 @@ of the terminal buffer has been updated."
     (when (and (> cursor bol)
                (>= cursor (mistty--last-non-ws))
                (string-match
-                mistty-prompt-re
+                mistty-prompt-regexp
                 (mistty--safe-bufstring bol cursor)))
       (let ((end (+ bol (match-end 0)))
             (content (mistty--safe-bufstring bol (+ bol (match-end 0)))))
@@ -971,7 +971,7 @@ Also updates prompt and point."
                                  (not mistty--has-active-prompt)))
                         (< prompt-beg cursor)
                         (string-match
-                         mistty-prompt-re
+                         mistty-prompt-regexp
                          (mistty--safe-bufstring
                           (mistty--bol cursor) cursor)))
                (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)

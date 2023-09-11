@@ -2023,7 +2023,9 @@ the prompt."
   (when mistty--possible-prompt
     (pcase-let ((`(,start ,end ,content) mistty--possible-prompt))
       (let ((cursor (mistty-cursor)))
-        (and (>= end mistty--cmd-start-marker)
+        (and (or (> start mistty-sync-marker)
+                 (and (= start mistty-sync-marker)
+                      (not mistty--has-active-prompt)))
              (>= cursor end)
              (or (> cursor (point-max))
                  (<= cursor (mistty--bol start 2)))

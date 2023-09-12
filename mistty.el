@@ -173,6 +173,7 @@ possible problem:
 This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-n" #'mistty-next-output
   "C-c C-p" #'mistty-previous-output
+  "C-c C-r" #'mistty-create-buffer-with-output
   "C-c C-j" #'mistty-toggle-buffers
   "C-c C-q" #'mistty-send-key-sequence
   "C-c C-s" #'mistty-sudo
@@ -1622,26 +1623,52 @@ left (negative)."
       (error "No previous input"))))
 
 (defun mistty-next-output (n)
-  "Move the point to the beginning of the Nth next output in the buffer."
+  "Move the point to the beginning of the Nth next output in the buffer.
+
+In addition to moving the point, this function also returns a
+cons, (START . END) containing the start and end position of the
+output."
   (interactive "p")
-  (dotimes (_ n)
-    (if-let ((prop-match (text-property-search-forward 'mistty-input-id nil t 'not-current))
-             (pos (prop-match-beginning prop-match)))
-        (if (or (not mistty-sync-marker)
-                (not mistty--has-active-prompt)
-                (< pos mistty-sync-marker))
-            (goto-char pos)
-          (error "No next output"))
-      (error "No next output"))))
+  (let (end)
+    (dotimes (_ n)
+      (if-let ((prop-match (text-property-search-forward 'mistty-input-id nil t 'not-current))
+               (pos (prop-match-beginning prop-match)))
+          (if (or (not mistty-sync-marker)
+                  (not mistty--has-active-prompt)
+                  (< pos mistty-sync-marker))
+              (progn
+                (goto-char pos)
+                (setq end (prop-match-end prop-match)))
+            (error "No next output"))
+        (error "No next output")))
+    (cons (point) end)))
 
 (defun mistty-previous-output (n)
-  "Move the point to the beginning of the Nth previous output in the buffer."
+  "Move the point to the beginning of the Nth previous output in the buffer.
+
+In addition to moving the point, this function also returns a
+cons, (START . END) containing the start and end position of the
+output."
   (interactive "p")
-  (dotimes (_ n)
-    (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil t 'not-current))
-             (pos (prop-match-beginning prop-match)))
-        (goto-char pos)
-      (error "No previous output"))))
+  (let (end)
+    (dotimes (_ n)
+      (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil t 'not-current))
+               (pos (prop-match-beginning prop-match)))
+          (progn (goto-char pos)
+                 (setq end (prop-match-end prop-match)))
+        (error "No previous output")))
+    (cons (point) end)))
+
+(defun mistty-create-buffer-with-output (buffer-name &optional n)
+  "Create the new buffer BUFFER-NAME with the N'th last output."
+  (interactive "BNew buffer name: \np")
+  (let ((range (save-excursion (mistty-previous-output (or n 1))))
+        (buffer (generate-new-buffer buffer-name)))
+    (copy-to-buffer buffer (car range) (cdr range))
+    (with-current-buffer buffer
+      (set-auto-mode 'keep-mode-if-sane))
+    (pop-to-buffer buffer)
+    buffer))
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."

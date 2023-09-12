@@ -819,70 +819,74 @@ window while BODY is running."
     (mistty-run-command
      (insert "echo current"))
 
-    (goto-char (point-min))
-    (mistty-next-output 1)
-    (should
-     (equal (concat "$ echo one\n"
-                    "<>one\n"
-                    "$ echo two\n"
-                    "two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+    (let ((range))
+      (goto-char (point-min))
+      (setq range (mistty-next-output 1))
+      (should
+       (equal (concat "$ echo one\n"
+                      "<>one\n<1>"
+                      "$ echo two\n"
+                      "two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "three\n"
+                      "$ echo current")
+              (mistty-test-content :show (list (point) (cdr range)))))
+      (should (equal (point) (car range)))
 
-    (mistty-next-output 1)
-    (should
-     (equal (concat "$ echo one\n"
-                    "one\n"
-                    "$ echo two\n"
-                    "<>two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+      (setq range (mistty-next-output 1))
+      (should
+       (equal (concat "$ echo one\n"
+                      "one\n"
+                      "$ echo two\n"
+                      "<>two\n<1>"
+                      "$\n"
+                      "$ echo three\n"
+                      "three\n"
+                      "$ echo current")
+              (mistty-test-content :show (list (point) (cdr range)))))
+      (should (equal (point) (car range)))
 
-    (mistty-next-output 1)
-    (should
-     (equal (concat "$ echo one\n"
-                    "one\n"
-                    "$ echo two\n"
-                    "two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "<>three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+      (setq range (mistty-next-output 1))
+      (should
+       (equal (concat "$ echo one\n"
+                      "one\n"
+                      "$ echo two\n"
+                      "two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "<>three\n<1>"
+                      "$ echo current")
+              (mistty-test-content :show (list (point) (cdr range)))))
+      (should (equal (point) (car range)))
 
-    (should-error (mistty-next-output 1))
+      (should-error (mistty-next-output 1))
 
-    (goto-char (point-min))
-    (mistty-next-output 2)
-    (should
-     (equal (concat "$ echo one\n"
-                    "one\n"
-                    "$ echo two\n"
-                    "<>two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+      (goto-char (point-min))
+      (mistty-next-output 2)
+      (should
+       (equal (concat "$ echo one\n"
+                      "one\n"
+                      "$ echo two\n"
+                      "<>two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "three\n"
+                      "$ echo current")
+              (mistty-test-content :show (point))))
 
-    (goto-char (point-min))
-    (mistty-next-output 3)
-    (should
-     (equal (concat "$ echo one\n"
-                    "one\n"
-                    "$ echo two\n"
-                    "two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "<>three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))))
+      (goto-char (point-min))
+      (mistty-next-output 3)
+      (should
+       (equal (concat "$ echo one\n"
+                      "one\n"
+                      "$ echo two\n"
+                      "two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "<>three\n"
+                      "$ echo current")
+              (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-previous-output ()
   (mistty-with-test-buffer ()
@@ -901,66 +905,71 @@ window while BODY is running."
 
     (mistty-test-goto "current")
 
-    (mistty-previous-output 1)
-    (should
-     (equal (concat "$ echo one\n"
-                    "one\n"
-                    "$ echo two\n"
-                    "two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "<>three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+    (let (range)
 
-    (mistty-previous-output 1)
-    (should
-     (equal (concat "$ echo one\n"
-                    "one\n"
-                    "$ echo two\n"
-                    "<>two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+      (setq range (mistty-previous-output 1))
+      (should
+       (equal (concat "$ echo one\n"
+                      "one\n"
+                      "$ echo two\n"
+                      "two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "<>three\n<1>"
+                      "$ echo current")
+              (mistty-test-content :show (list (point) (cdr range)))))
+      (should (equal (point) (car range)))
 
-    (mistty-previous-output 1)
-    (should
-     (equal (concat "$ echo one\n"
-                    "<>one\n"
-                    "$ echo two\n"
-                    "two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+      (setq range (mistty-previous-output 1))
+      (should
+       (equal (concat "$ echo one\n"
+                      "one\n"
+                      "$ echo two\n"
+                      "<>two\n<1>"
+                      "$\n"
+                      "$ echo three\n"
+                      "three\n"
+                      "$ echo current")
+              (mistty-test-content :show (list (point) (cdr range)))))
+      (should (equal (point) (car range)))
 
-    (should-error (mistty-previous-output 1))
-    (should
-     (equal (concat "$ echo one\n"
-                    "<>one\n"
-                    "$ echo two\n"
-                    "two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))
+      (setq range (mistty-previous-output 1))
+      (should
+       (equal (concat "$ echo one\n"
+                      "<>one\n<1>"
+                      "$ echo two\n"
+                      "two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "three\n"
+                      "$ echo current")
+              (mistty-test-content :show (list (point) (cdr range)))))
+      (should (equal (point) (car range)))
 
-    (mistty-test-goto "current")
-    (mistty-previous-output 2)
-    (should
-     (equal (concat "$ echo one\n"
-                    "one\n"
-                    "$ echo two\n"
-                    "<>two\n"
-                    "$\n"
-                    "$ echo three\n"
-                    "three\n"
-                    "$ echo current")
-            (mistty-test-content :show (point))))))
+      (should-error (mistty-previous-output 1))
+      (should
+       (equal (concat "$ echo one\n"
+                      "<>one\n"
+                      "$ echo two\n"
+                      "two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "three\n"
+                      "$ echo current")
+              (mistty-test-content :show (point))))
+
+      (mistty-test-goto "current")
+      (mistty-previous-output 2)
+      (should
+       (equal (concat "$ echo one\n"
+                      "one\n"
+                      "$ echo two\n"
+                      "<>two\n"
+                      "$\n"
+                      "$ echo three\n"
+                      "three\n"
+                      "$ echo current")
+              (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-dirtrack ()
   (mistty-with-test-buffer ()
@@ -2861,6 +2870,21 @@ window while BODY is running."
     (should (equal
              "Fullscreen mode ON. C-c C-a goes to terminal, C-c C-b to scrollback."
              (mistty--fullscreen-message)))))
+
+(ert-deftest mistty-test-create-buffer-with-output ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "printf '#!/bin/bash\\necho ok\\n'")
+    (mistty-send-and-wait-for-prompt)
+    (let* ((bufname (concat "new buffer for %s" (buffer-name)))
+           (newbuf (mistty-create-buffer-with-output bufname)))
+      (unwind-protect
+          (with-current-buffer newbuf
+            (should (equal bufname (buffer-name)))
+            (should (equal "#!/bin/bash\necho ok\n"
+                           (buffer-substring-no-properties (point-min) (point-max))))
+            ;; mode should be recognized thanks to the shebang
+            (should (equal 'sh-mode major-mode)))
+        (kill-buffer newbuf)))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.

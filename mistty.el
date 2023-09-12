@@ -171,8 +171,8 @@ possible problem:
   :doc "Keymap of `mistty-mode'.
 
 This map is active whenever the current buffer is in MisTTY mode."
-  "C-c C-n" #'mistty-next-input
-  "C-c C-p" #'mistty-previous-input
+  "C-c C-n" #'mistty-next-output
+  "C-c C-p" #'mistty-previous-output
   "C-c C-j" #'mistty-toggle-buffers
   "C-c C-q" #'mistty-send-key-sequence
   "C-c C-s" #'mistty-sudo
@@ -1620,6 +1620,28 @@ left (negative)."
     (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil nil 'not-current)))
         (goto-char (prop-match-beginning prop-match))
       (error "No previous input"))))
+
+(defun mistty-next-output (n)
+  "Move the point to the beginning of the Nth next output in the buffer."
+  (interactive "p")
+  (dotimes (_ n)
+    (if-let ((prop-match (text-property-search-forward 'mistty-input-id nil t 'not-current))
+             (pos (prop-match-beginning prop-match)))
+        (if (or (not mistty-sync-marker)
+                (not mistty--has-active-prompt)
+                (< pos mistty-sync-marker))
+            (goto-char pos)
+          (error "No next output"))
+      (error "No next output"))))
+
+(defun mistty-previous-output (n)
+  "Move the point to the beginning of the Nth previous output in the buffer."
+  (interactive "p")
+  (dotimes (_ n)
+    (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil t 'not-current))
+             (pos (prop-match-beginning prop-match)))
+        (goto-char pos)
+      (error "No previous output"))))
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."

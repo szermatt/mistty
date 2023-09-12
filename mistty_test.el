@@ -804,6 +804,164 @@ window while BODY is running."
                            ">>> 2 + 2")
                    (mistty-test-content :show (point))))))
 
+(ert-deftest mistty-test-next-output ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo two"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo three"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo current"))
+
+    (goto-char (point-min))
+    (mistty-next-output 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "<>one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-next-output 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "<>two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-next-output 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "<>three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (should-error (mistty-next-output 1))
+
+    (goto-char (point-min))
+    (mistty-next-output 2)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "<>two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (goto-char (point-min))
+    (mistty-next-output 3)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "<>three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-previous-output ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo two"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo three"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo current"))
+
+    (mistty-test-goto "current")
+
+    (mistty-previous-output 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "<>three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-previous-output 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "<>two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-previous-output 1)
+    (should
+     (equal (concat "$ echo one\n"
+                    "<>one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (should-error (mistty-previous-output 1))
+    (should
+     (equal (concat "$ echo one\n"
+                    "<>one\n"
+                    "$ echo two\n"
+                    "two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))
+
+    (mistty-test-goto "current")
+    (mistty-previous-output 2)
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ echo two\n"
+                    "<>two\n"
+                    "$\n"
+                    "$ echo three\n"
+                    "three\n"
+                    "$ echo current")
+            (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-dirtrack ()
   (mistty-with-test-buffer ()
     (mistty-send-text "cd /")

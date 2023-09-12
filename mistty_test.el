@@ -2964,7 +2964,10 @@ window while BODY is running."
 
 (defun mistty-test-set-ps1 ()
   (mistty-wait-for-output :test (lambda () (= (point-min) (point-max))))
-  (mistty-send-text (concat "PS1='" mistty-test-prompt "'"))
+  ;; Sending the PS1 might happen too early for mistty-send-text,
+  ;; which expects the text it sends to appear after the text that's
+  ;; already there. It's enough to wait for the prompt anyways.
+  (mistty--send-string mistty-proc (concat "PS1='" mistty-test-prompt "'"))
   (narrow-to-region (mistty-send-and-wait-for-prompt) (point-max)))
 
 (defun mistty-setup-fish-right-prompt ()

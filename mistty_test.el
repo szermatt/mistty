@@ -971,6 +971,25 @@ window while BODY is running."
                       "$ echo current")
               (mistty-test-content :show (point)))))))
 
+(ert-deftest mistty-test-mistty-clear ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo two"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo three"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-clear 2)
+
+    (should (equal "$\n$ echo three\nthree\n$" (mistty-test-content)))
+
+    (mistty-clear 1)
+    (should (equal "$" (mistty-test-content)))))
+
 (ert-deftest mistty-test-dirtrack ()
   (mistty-with-test-buffer ()
     (mistty-send-text "cd /")
@@ -3001,7 +3020,7 @@ window while BODY is running."
 
 (defun mistty-test-pre-command ()
   (mistty--pre-command)
-  (when (and buffer-undo-list (car buffer-undo-list))
+  (when (and (listp buffer-undo-list) (car buffer-undo-list))
     (push nil buffer-undo-list)))
 
 (defun mistty-test-after-command ()

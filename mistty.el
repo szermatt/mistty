@@ -173,6 +173,7 @@ possible problem:
 This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-n" #'mistty-next-output
   "C-c C-p" #'mistty-previous-output
+  "C-c C-l" #'mistty-clear
   "C-c C-r" #'mistty-create-buffer-with-output
   "C-c C-j" #'mistty-toggle-buffers
   "C-c C-q" #'mistty-send-key-sequence
@@ -1089,15 +1090,27 @@ Copies values from SOURCE-BUFFER to the current buffer."
                                    (- mistty-buffer-maximum-size))))
           (when (and (> cutoff (point-min))
                      (< cutoff mistty-sync-marker))
-            ;; In most cases, the solution to deal with a buffer being
-            ;; truncated is to use markers, but it won't work with
-            ;; possible-prompt, as it often points to locations that
-            ;; don't yet exist in the work buffer.
-            (when mistty--possible-prompt
-              (let ((diff (- cutoff (point-min))))
-                (cl-decf (nth 0 mistty--possible-prompt) diff)
-                (cl-decf (nth 1 mistty--possible-prompt) diff)))
-            (delete-region (point-min) cutoff)))))))
+            (mistty-truncate cutoff)))))))
+
+(defun mistty-truncate (cutoff)
+  "Delete everything int the MisTTY buffer until CUTOFF.
+
+Fails if CUTOFF is inside the synced region."
+  (mistty--require-work-buffer)
+  (save-restriction
+    (widen)
+    (when (> cutoff mistty-sync-marker)
+      (error "Cutoff must be outside the synced region [%s-]"
+             (marker-position mistty-sync-marker)))
+    ;; In most cases, the solution to deal with a buffer being
+    ;; truncated is to use markers, but it won't work with
+    ;; possible-prompt, as it often points to locations that
+    ;; don't yet exist in the work buffer.
+    (when mistty--possible-prompt
+      (let ((diff (- cutoff (point-min))))
+        (cl-decf (nth 0 mistty--possible-prompt) diff)
+        (cl-decf (nth 1 mistty--possible-prompt) diff)))
+    (delete-region (point-min) cutoff)))
 
 (defun mistty--save-properties (start)
   "Extracts the properties from START in the current buffer.
@@ -1663,6 +1676,14 @@ output."
                  (setq end (prop-match-end prop-match)))
         (error "No previous output")))
     (cons (point) end)))
+
+(defun mistty-clear (n)
+  "Clear the MisTTY buffer until the end of the last output.
+
+With an argument, clear from the end of the last Nth output."
+  (interactive "p")
+  (let ((range (save-excursion (mistty-previous-output (or n 1)))))
+    (mistty-truncate (min mistty-sync-marker (cdr range)))))
 
 (defun mistty-create-buffer-with-output (buffer-name &optional n)
   "Create the new buffer BUFFER-NAME with the N'th last output."

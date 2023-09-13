@@ -1,5 +1,6 @@
 /.eldev
 /Eldev-local
+/docs/build
 .cask
 *-autoloads.el*
 *.elc

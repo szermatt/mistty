@@ -48,10 +48,14 @@ Launching
     M-x mistty-create
     M-x mistty
 
-.. _vs:
+.. _term-vs-scroll:
 
 Terminal vs. Scrollback
 -----------------------
+
+.. _send-keys:
+
+M-x send-key ...
 
 .. _navigation:
 

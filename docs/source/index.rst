@@ -19,10 +19,9 @@ command-line programs, such as :program:`python`.
 
 .. note::
 
-   MisTTY should be considered Beta software! It might not work in all
-   configuration and all situations. If you try it out and encounter
-   issues, please take the time to file a bug describing what you did
-   and what happened.
+   MisTTY is Beta software! It might not work with your setup our your
+   tools. If you try it out and encounter issues, please take the time
+   to file a bug describing what you did and what happened.
 
 Contents
 --------

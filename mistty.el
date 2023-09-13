@@ -110,7 +110,7 @@ spaces, such as the indentation spaces fish adds."
   :type '(boolean)
   :group 'mistty)
 
-(defface mistty-fringe-face '((t (:foreground "purple")))
+(defface mistty-fringe-face '((t (:foreground "#1b345a")))
   "Color of the left fringe or margin that highlights the synced region.
 
 On the terminal, a margin is created instead of a fringe. This

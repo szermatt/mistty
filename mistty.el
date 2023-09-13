@@ -1993,14 +1993,6 @@ Ignores buffers that don't exist."
       (error "Buffer not available"))
     (switch-to-buffer to-buf)))
 
-(defun mistty-switch-to-scrollback-buffer ()
-  "Switch to the scrollback buffer, from the fullscreen buffer."
-  (interactive)
-  (if (and (buffer-live-p mistty-work-buffer)
-           (buffer-local-value 'mistty-fullscreen mistty-work-buffer))
-      (switch-to-buffer mistty-work-buffer)
-    (error "No scrollback buffer available")))
-
 (defun mistty-sudo ()
   "Prepend sudo to the current command."
   (interactive)

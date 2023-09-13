@@ -614,7 +614,7 @@ term-mode buffer, not the scrollback buffer."
         (lambda (a b) (string< (buffer-name a) (buffer-name b)))))
 
 ;;;###autoload
-(defun mistty ()
+(defun mistty (&optional other-window)
   "Go to the next MisTTY buffer, or create a new one.
 
 The first time this command is called, it creates a new MisTTY
@@ -622,7 +622,9 @@ buffer. Afterwards, this command goes to a MisTTY buffer. If
 already on a MisTTY buffer, go to the next one or create another
 one.
 
-To create a new buffer unconditionally, call `mistty-create'."
+To create a new buffer unconditionally, call `mistty-create'.
+
+If OTHER-WINDOW is non-nil, put the buffer into another window."
   (interactive)
   (let ((existing (mistty-list-live-buffers)))
     (if (or current-prefix-arg         ; command prefix was given
@@ -630,31 +632,61 @@ To create a new buffer unconditionally, call `mistty-create'."
             (and (null (cdr existing)) ; the current buffer is the only mistty buffer
                  (eq (current-buffer) (car existing))))
         ;; create a new one
-        (mistty-create)
-      (mistty--goto-next existing))))
+        (mistty-create other-window)
+      (mistty--goto-next existing other-window))))
 
-(defun mistty--goto-next (existing)
-  "Go to the next buffer in EXISTING, skipping the current one."
+;;;###autoload
+(defun mistty-other-window ()
+  "Go to the next MisTTY buffer in another window.
+
+See the documentation of the function `mistty' for details..
+
+If OTHER-WINDOW is non-nil, put the buffer into another window."
+  (interactive)
+  (mistty 'other-window))
+
+(defun mistty--goto-next (existing &optional other-window)
+  "Go to the next buffer in EXISTING, skipping the current one.
+
+If OTHER-WINDOW is non-nil, put the buffer into another window."
   (let ((existing-tail (or (cdr (member (current-buffer) existing))
                            existing)))
     (if existing-tail
-        (switch-to-buffer (car existing-tail))
+        (if other-window
+            (switch-to-buffer-other-window (car existing-tail))
+          (switch-to-buffer (car existing-tail)))
       (error "No next mistty buffer"))))
 
 ;;;###autoload
-(defun mistty-create ()
+(defun mistty-create (&optional command other-window)
   "Create a new MisTTY buffer, running a shell.
 
 The shell that is run can be configured by setting
 `explicit-shell-file-name', `shell-file-name' or come implicitly
-from the ESHELL or SHELL environment variables."
+from the ESHELL or SHELL environment variables.
+
+Set COMMAND to specify instead the command to run just for the
+current call.
+
+If OTHER-WINDOW is non-nil, put the buffer into another window."
   (interactive)
   (with-current-buffer (generate-new-buffer "*mistty*")
-    (mistty--exec (or explicit-shell-file-name
+    (mistty--exec (or command
+                      explicit-shell-file-name
                       shell-file-name
                       (getenv "ESHELL")
                       (getenv "SHELL")))
-    (switch-to-buffer (current-buffer))))
+    (if other-window
+        (switch-to-buffer-other-window (current-buffer))
+      (switch-to-buffer (current-buffer)))))
+
+;;;###autoload
+(defun mistty-create-other-window (&optional command)
+  "Create a new MisTTY buffer, running a shell, in another window.
+
+See the documentation of `mistty-create' for details."
+  (interactive)
+  (mistty-create command 'other-window))
 
 (defun mistty--process-sentinel (proc msg)
   "Process sentinel for MisTTY shell processes."

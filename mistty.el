@@ -1356,11 +1356,23 @@ With an argument, this command just calls `end-of-line' and
 forwards the argument to it."
   (interactive "p")
   (let ((n (or n 1)))
+    (if (and (= 1 n)
+             (eq last-command this-command)
+             (/= (point) (mistty-cursor)))
+        (mistty-goto-cursor)
+      (mistty-end-of-line n))))
+
+(defun mistty-end-of-line (&optional n)
+  "Move the point to the end of the line.
+
+This command moves the point to the end of the line, either using
+`end-of-line' or, if on a prompt, by sending C-e to the shell.
+
+With an argument, this command just calls `end-of-line' and
+forwards the argument to it."
+  (interactive "p")
+  (let ((n (or n 1)))
     (cond
-     ((and (= 1 n)
-           (eq last-command this-command)
-           (/= (point) (mistty-cursor)))
-      (mistty-goto-cursor))
      ((and (= 1 n)
            (or (mistty--maybe-realize-possible-prompt (point))
                (mistty-on-prompt-p (point))))

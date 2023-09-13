@@ -944,6 +944,8 @@ Also updates prompt and point."
              (when (and (eq ?\n (char-before command-end))
                         (> (mistty--last-non-ws) command-end))
                (unless (get-text-property mistty-sync-marker 'mistty-input-id)
+                 (mistty-log "End prompt. Mark input range: [%s-%s]"
+                             (marker-position mistty-sync-marker) command-end)
                  (put-text-property mistty-sync-marker command-end
                                     'mistty-input-id (mistty--next-id)))
                (mistty--set-sync-mark-from-end command-end)
@@ -1189,8 +1191,11 @@ instead `mistty--move-sync-mark-with-shift' or
   "Send the current command to the shell."
   (interactive)
   (mistty--maybe-realize-possible-prompt)
-  (setq mistty-goto-cursor-next-time t
-        mistty--end-prompt t)
+  (setq mistty-goto-cursor-next-time t)
+  (when (and mistty-proc
+             (mistty-on-prompt-p (point))
+             (mistty-on-prompt-p (mistty-cursor)))
+    (setq mistty--end-prompt t))
   (mistty--enqueue-str mistty--queue "\C-m"))
 
 (defun mistty-send-last-key (&optional n)
@@ -2007,7 +2012,8 @@ prompts."
   (let ((pos (or pos (point))))
     (when (and (not (mistty-on-prompt-p pos))
                (mistty--possible-prompt-p)
-               (mistty--possible-prompt-contains pos))
+               (mistty--possible-prompt-contains pos)
+               (mistty--possible-prompt-contains (mistty-cursor)))
       (mistty--realize-possible-prompt)
       t)))
 

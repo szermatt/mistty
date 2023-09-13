@@ -2730,6 +2730,30 @@ window while BODY is running."
          :start start
          :show (mapcar #'car mistty--sync-history)))))))
 
+(ert-deftest mistty-test-eof-on-possible-but-outdated-prompt ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "p=prompt")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "printf \"output;\\n\\$ non-$p\\ncontinue\"; read; echo .")
+    (let ((start (1+ (mistty-cursor))))
+      (mistty-send-and-wait-for-prompt)
+
+      (mistty-test-goto "non-prompt")
+      (mistty-beginning-of-line)
+      (mistty-end-of-line-or-goto-cursor)
+      (mistty-send-and-wait-for-prompt)
+
+      (should (equal
+               (concat
+                "[output;\n"
+                "$ non-prompt\n"
+                "continue\n"
+                ".\n"
+                "]$")
+             (mistty-test-content
+              :start start
+              :show-property '(mistty-input-id nil)))))))
+
 (ert-deftest mistty-test-kill-long-line ()
   (mistty-with-test-buffer ()
     (mistty--set-process-window-size 20 20)

@@ -51,17 +51,21 @@ regularly, you'll want to bind either of these to a global shortcut.
 
   - :kbd:`M-x mistty-create` launches a new interactive shell in a
     MisTTY buffer. The shell that is launched is the one that's
-    configured by :kbd:`M-x configure-option explicit-shell-file-name`
-    If this is unset, MisTTY falls back to :code:`shell-file-name`,
-    the environment variables :envvar:`ESHELL` or :envvar:`SHELL`.
-    :kbd:`M-x mistty-create-other-window` does the same, but opens the
+    configured on :kbd:`M-x configure-option explicit-shell-file-name`
+    
+    If :code:`explicit-shell-file-name` is unset, MisTTY falls back to
+    :code:`shell-file-name`, then the environment variables
+    :envvar:`ESHELL` and :envvar:`SHELL`.
+
+  - :kbd:`M-x mistty-create-other-window` does the same, but opens the
     buffer in another window.
 
-  - :kbd:`M-x mistty` behaves the same way the first time it is
-    called. Afterwards, it tries to do the right thing, either jumping
-    to an existing MisTTY buffer or creating a new one. :kbd:`M-x
-    mistty-other-window` does the same, but opens a buffer in another
-    window.
+  - :kbd:`M-x mistty` also creates a new MisTTY buffer the first time
+    it is called. Afterwards, it'll to an existing MisTTY buffer or
+    creating a new one, trying to guess what's most appropriate.
+
+  - :kbd:`M-x mistty-other-window` does the same, but opens a buffer
+    in another window.
 
 .. _term-vs-scroll:
 
@@ -70,30 +74,30 @@ Terminal vs. Scrollback
 
 MisTTY buffers are split into two zones, with different behaviors:
 
- - The :dfn:`terminal zone`, where you can type command and interact
-   with the terminal. In this zone, :kbd:`TAB` triggers the shell
-   completion, if available. With some shells, you'll see
-   autosuggestions as you type. The terminal zone is marked by a
-   purple line on the left of the window.
+ - The :dfn:`terminal zone`, marked by a purple line on the left of
+   the window, is where you can type command and interact with the
+   terminal. In this zone, :kbd:`TAB` triggers the shell completion,
+   if available. With some shells, you'll see autosuggestions as you
+   type.
 
- - The :dfn:`scrollback zone`, where you can see commands that have
+ - The :dfn:`scrollback zone`, is where you can see commands that have
    been executed and their output.
 
 The scrollback zone behaves as a normal Emacs buffer. You can modify
-it as you see fit without interference.
+it as you see fit.
 
-The terminal zone limits what you can do, as a terminal application
-would. When a shell is attached to the terminal, you can edit the
-command you're about to run, but you can't edit the prompt - or
-rather, if you edit the prompt, your change will soon be undone.
+The terminal zone limits what you can do. When a shell is attached to
+the terminal, you can edit the command you're about to run. You can't
+edit the prompt itself, on the other hand - or rather, if you do
+change the prompt, your change will be undone by the shell.
 
 The terminal zone is where the magic happens, where you can a mix of
-Emacs and shell key bindings to edit the command. The trickiest part
-is choosing which key bindings you want Emacs to handle and which key
-bindings you want the shell to handle.
+Emacs and shell key bindings to edit the command line. The trickiest
+part is choosing which key bindings you want Emacs to handle and which
+key bindings you want the shell to handle.
 
-By default, a few key bindings are sent directly to the terminal,
-bypassing Emacs:
+By default, Emacs handles everything but a few key bindings that are
+sent directly to the terminal, bypassing Emacs:
 
 - :kbd:`RET`, to ask the shell to run the command
 - :kbd:`TAB`, to ask the shell to run command completion,
@@ -107,18 +111,18 @@ In addition, :kbd:`C-c C-c` sends the TERM signal to the terminal.
 
 The program attached to the terminal decides what the actual effect of
 these shortcuts is. Most shells and command-line editing tools
-supports these by default, but they might not work everywhere as
-expected.
+supports the shortcuts above by default, but they might not work
+everywhere as expected.
 
 .. warning::
 
-    MisTTY will not work if you've configured your shell to turn on VI
-    mode by default. Please turn it off before trying out MisTTY, for
-    details on how to turn off VI mode only of MisTTY buffers and
-    leave it on otherwise, if that's what you prefer. Checkout the
-    instructions in :ref:`shells` for details. You need to do that for
-    MisTTY to work at all, even if you'll just end up controlling it
-    with VI commands using Evil.
+    MisTTY will not work if you've configured your shell to turn on
+    **VI mode** by default. Please **turn it off** before trying out
+    MisTTY, for details on how to turn off VI mode only of MisTTY
+    buffers and leave it on otherwise, if that's what you prefer.
+    Checkout the instructions in :ref:`shells` for details. You need
+    to do that for MisTTY to work at all, even if you'll just end up
+    controlling it with VI commands using Evil.
 
 To get the most out of MisTTY, it's worth it to take the time to
 configure it forward the shell key bindings that you actually use to
@@ -149,6 +153,7 @@ configuration.
     .. code-block:: elisp
                     
        (defun my-mistty-M-s ()
+         (interactive)
          (mistty-send-key (kbd "M-s")))
        (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
                     
@@ -166,9 +171,8 @@ right arrow key press to the terminal instead of moving the cursor.
 
 If that's not enough:
 
-  - :kbd:`C-c C-q`, :kbd:`M-x mistty-send-key-sequence` sends all
-    keys you press to the terminal until there's an error or you press
-    :kbd:`C-g`.
+  - :kbd:`C-c C-q`, :kbd:`M-x mistty-send-key-sequence` sends all keys
+    you press to the terminal until you press :kbd:`C-g`.
 
 
 .. _navigation:

@@ -109,7 +109,7 @@ of failing."
       count)))
 
 (defsubst mistty--nonempty-str-p (str)
-  "Returns non-nil if STR is a nonempty string."
+  "Return non-nil if STR is a nonempty string."
   (and (stringp str)
        (length> str 0)))
 

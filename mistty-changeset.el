@@ -19,8 +19,8 @@
 ;; This file contains helper utilities for mistty.el for collecting
 ;; buffer modifications and forward them to the terminal.
 ;;
-;; It defines `mistty--changesets' a list of `mistty--changeset' struct
-;; instances.
+;; It defines `mistty--changesets' a list of `mistty--changeset'
+;; struct instances.
 ;;
 ;; Each `mistty--changeset' tracks of a set of buffer modifications to
 ;; be replayed, some of which might be kept in the buffer as text with
@@ -29,7 +29,7 @@
 ;; `mistty--active-changeset'.
 ;;
 ;; New buffer modifications are reported and linked to the active
-;; changeset by `mistty-changeset-mark-region'. They are then kept in
+;; changeset by `mistty-changeset-mark-region'.  They are then kept in
 ;; the buffer until they're collected and eventually transformed into
 ;; a set of modifications to be replayed by
 ;; `mistty--changeset-modifications'.
@@ -167,7 +167,7 @@ The second time this is called, this just returns
   (mistty--changeset-intervals changeset))
 
 (defun mistty--changeset-restrict (changeset min-pos)
-  "Restrict the changes in CHANGESET to the range [MIN-POS,].
+  "Restrict the content of CHANGESET to the range [MIN-POS,].
 
 The function returns the difference between the work buffer and
 term buffer at MIN-POS (shift), or nil if a restriction isn't

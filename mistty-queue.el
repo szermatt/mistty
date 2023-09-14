@@ -62,8 +62,7 @@
   ;; A function to call to check whether it's time to call the
   ;; generator (if it returns a non-nil value) or whether we should
   ;; keep waiting for output (if it returns nil).
-  accept-f
-)
+  accept-f)
 
 (defsubst mistty--queue-empty-p (queue)
   "Return t if QUEUE generator hasn't finished yet."
@@ -125,7 +124,10 @@ If VALUE is set, send that value to the first call to `iter-next'."
            (current-buffer) queue))))
 
 (cl-defun mistty--dequeue-1 (queue value)
-  "Helper for `mistty--dequeue'"
+  "Internal helper for `mistty--dequeue'.
+
+This function does all the work of `mistty-dequeue'. See its
+description for the meaning of QUEUE and VALUE."
   (let ((proc (mistty--queue-proc queue)))
     (mistty--cancel-timeout queue)
     (while (mistty--queue-iter queue)
@@ -223,7 +225,7 @@ This function is meant to be use as timer handler."
         (mistty--dequeue queue 'timeout)))))
 
 (defun mistty--queue-timer-handler (buf queue value)
-  "Idle timer callback that calls `mistty--dequeue' on QUEUE.
+  "Call `mistty--dequeue' on QUEUE in an idle timer.
 
 VALUE is passed to `mistty--dequeue'.
 

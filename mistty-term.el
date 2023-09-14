@@ -582,7 +582,9 @@ This function returns the newly-created buffer."
     term-buffer))
 
 (defun mistty--after-change-on-term (beg end _old-length)
-  "Function registered to `after-change-functions' by `mistty--create-term'."
+  "Function registered to `after-change-functions' by `mistty--create-term'.
+
+BEG and END define the region that was modified."
   (when (and mistty--term-properties-to-add-alist (> end beg))
     (when-let ((props (apply #'append
                        (mapcar #'cdr mistty--term-properties-to-add-alist))))
@@ -606,7 +608,10 @@ This function returns the newly-created buffer."
       (add-text-properties beg end '(mistty-skip t yank-handler (nil "" nil nil))))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
-  "Add property \\='mistty-skip t to spaces added when just moving."
+  "Add property \\='mistty-skip t to spaces added when just moving.
+
+ORIG-FUN is the original `move-to-column' function that's being
+advised and ARGS are its arguments."
   (if (eq 'term-mode major-mode)
     (let ((initial-end (line-end-position)))
       (apply orig-fun args)

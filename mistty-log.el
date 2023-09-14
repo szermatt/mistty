@@ -181,7 +181,9 @@ exit already."
                (apply #'format format-str (mapcar #'mistty--format-log-arg args)))))))
 
 (defun mistty--log-header (event-time buf)
-  "Format a header for the macro `mistty-log'."
+  "Format a header for the macro `mistty-log'.
+
+The header include EVENT-TIME and the name of BUF."
   (format "[%s] %3.3f "
           (buffer-name buf)
           (- event-time

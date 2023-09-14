@@ -33,7 +33,7 @@
   ;; the position of the beginning of a chain of undoable keys, never nil
   start
 
-  ;; what was inserted so far after start, may be empty but never nil 
+  ;; what was inserted so far after start, may be empty but never nil
   inserted
 
   ;; The type of the last key that was sent, if the last command was a
@@ -47,7 +47,7 @@
 (defvar-local mistty--last-undo-data nil)
 
 (defmacro mistty--inhibit-undo (&rest body)
-  "Execute BUF with undo disabled."
+  "Execute BODY with undo disabled."
   (let ((saved (make-symbol "saved-buffer-undo-list")))
     `(let ((,saved buffer-undo-list))
        (setq buffer-undo-list t)
@@ -56,9 +56,15 @@
          (setq buffer-undo-list ,saved)))))
 
 (defun mistty--pre-command-for-undo ()
+  "Prepare undo data before a command.
+
+This is meant to be called from the pre-command hook."
   (setq mistty--this-undo-data nil))
 
 (defun mistty--post-command-for-undo ()
+  "Finish undo data after a command.
+
+This is meant to be called from the post-command hook."
   (setq mistty--last-undo-data mistty--this-undo-data))
 
 (defun mistty--maybe-add-key-to-undo (n key cursor)
@@ -66,10 +72,10 @@
 
 A key that's sent directly to the process connected to the
 terminal isn't automatically added to the undo list. This
-function does that, for self-inserted keys, delete-char, and
-backward-delete-char."
+function does that, for `self-inserted keys', `delete-char', and
+`backward-delete-char'."
   (when-let ((c (and (length= key 1) (elt key 0)))
-             (key-type 
+             (key-type
               (cond
                ((mistty-self-insert-p key)
                 'self-insert)

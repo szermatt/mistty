@@ -128,7 +128,7 @@ You can turn this off completely by setting
   :group 'mistty)
 
 (defcustom mistty-buffer-maximum-size 8192
-  "The maximum size in lines for MisTTY buffers
+  "The maximum size in lines for MisTTY buffers.
 
 Buffers that grow larger than the given size might be truncated.
 Set to 0 to disable truncation."
@@ -144,9 +144,9 @@ Set to 0 to disable truncation."
     "^bck-i-search:.*_ *$")
   "Regexps that turn off replaying of Emacs modifications.
 
-These regexps are meant detects modes in which shells turn off
-line editing in favor of direct interactions. C-r (reverse
-history search) is typically such a mode."
+These regexps are meant to detect modes in which shells turn off
+line editing in favor of direct interactions. The shell's reverse
+history search are typically such a mode."
   :group 'mistty
   :type '(list regexp))
 
@@ -237,9 +237,7 @@ terminal."
   "<remap> <self-insert-command>" #'mistty-self-insert)
 
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
-  "Keymap that sends everything to the terminal using `mistty-send-last-key'.
-
-By default, it is bound to C-q in `mistty-prompt-map'.")
+  "Keymap that forwards everything to`mistty-send-last-key'.")
 
 (defvar-keymap mistty-fullscreen-map
   :parent term-raw-map
@@ -590,7 +588,7 @@ Returns M or a new marker."
     (setq mistty-proc nil)))
 
 (defun mistty--kill-term-buffer ()
-  "Kill-buffer-hook handler that kills `mistty-term-buffer'."
+  "Kill-buffer-hook handler for `mistty-term-buffer'."
   (let ((term-buffer mistty-term-buffer))
     (mistty--detach)
     (mistty--update-mode-lines)
@@ -691,12 +689,18 @@ If OTHER-WINDOW is non-nil, put the buffer into another window."
 (defun mistty-create-other-window (&optional command)
   "Create a new MisTTY buffer, running a shell, in another window.
 
+COMMAND, if specified, is the command to execute instead of the
+shell.
+
 See the documentation of `mistty-create' for details."
   (interactive)
   (mistty-create command 'other-window))
 
 (defun mistty--process-sentinel (proc msg)
-  "Process sentinel for MisTTY shell processes."
+  "Process sentinel for MisTTY shell processes.
+
+PROC is the process, which might not be live anymore, and MSG is
+a special string describing the new process state."
   (mistty--update-mode-lines proc)
 
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
@@ -728,7 +732,10 @@ See the documentation of `mistty-create' for details."
       (kill-buffer term-buffer)))))
 
 (defun mistty--fs-process-sentinel (proc msg)
-  "Process sentinel for MisTTY shell processes in fullscreen mode."
+  "Process sentinel for MisTTY shell processes in fullscreen mode.
+
+PROC is the process, which might not be live anymore, and MSG is a
+special string describing the new process state."
   (mistty--update-mode-lines proc)
 
   (let ((process-dead (memq (process-status proc) '(signal exit)))
@@ -745,7 +752,9 @@ See the documentation of `mistty-create' for details."
      (t (term-sentinel proc msg)))))
 
 (defun mistty--process-filter (proc str)
-  "Process filter for MisTTY shell processes."
+  "Process filter for MisTTY shell processes.
+
+PROC is the calling shell process and STR the string it sent."
   (let ((work-buffer (process-get proc 'mistty-work-buffer))
         (term-buffer (process-get proc 'mistty-term-buffer)))
     (cond
@@ -1056,7 +1065,7 @@ Also updates prompt and point."
            (setq mistty--cursor-after-last-refresh (mistty-cursor))))))))
 
 (defun mistty--match-forbid-edit-regexp-p (beg)
-  "Returns t if `mistty-forbid-edit-regexp' matches.
+  "Return t if `mistty-forbid-edit-regexp' matches, nil otherwise.
 
 The region searched is BEG to end of buffer."
   (let ((regexps mistty-forbid-edit-regexps)
@@ -1208,7 +1217,7 @@ from `mistty--after-change-on-work' tracking the changes."
   (mistty--set-work-sync-mark sync-pos))
 
 (defun mistty--set-work-sync-mark (sync-pos)
-  "Set sync mark in the work buffer and init some related vars.
+  "Set sync mark to SYNC-POS in the work buffer and init some vars.
 
 The caller is responsible for setting the sync mark on the term
 buffer.
@@ -1298,18 +1307,18 @@ C is the character to send, a single character."
 (defun mistty-backward-delete-char (&optional n)
   "Send DEL N times to the terminal.
 
-If N is unset, send DEL once. If N is negative, send C-d that
-many times instead."
+If N is unset, send DEL once. If N is negative, send Control d
+that many times instead."
   (interactive "p")
   (if (and (numberp n) (< n 0))
       (mistty-send-key (abs n) "\C-d" 'positional)
     (mistty-send-key n "\x7f" 'positional)))
 
 (defun mistty-delete-char (&optional n)
-"Send C-d N times to the terminal.
+"Send Control D N times to the terminal.
 
-If N is unset, send C-d once. If N is negative, send DEL that
-many times instead."
+If N is unset, send Control d once. If N is negative, send DEL
+that many times instead."
   (interactive "p")
   (if (and (numberp n) (< n 0))
       (mistty-send-key (abs n) "\x7f" 'positional)
@@ -1361,11 +1370,11 @@ doesn't support, such as a mouse event.."
     (mistty-send-key 1 (make-vector 1 key))))
 
 (defun mistty-beginning-of-line (&optional n)
-  "Go to the beginning of line, possibly by sending C-a.
+  "Go to the Nth beginning of line, possibly by sending Control a.
 
 This command moves the point to the beginning of the line, either
-by calling `beginning-of-line' or by sending C-a to the shell, if
-on a prompt.
+by calling `beginning-of-line' or by sending Control a to the
+shell, if on a prompt.
 
 With an argument, this command just calls `beginning-of-line' and
 forwards the argument to it."
@@ -1382,11 +1391,11 @@ forwards the argument to it."
       (beginning-of-line n))))
 
 (defun mistty-end-of-line-or-goto-cursor (&optional n)
-  "Move the point to the end of the line, then to the cursor.
+  "Move the point to the end of the Nth line, then to the cursor.
 
 The first time this command is called, it moves the point to the
 end of the line, either using `end-of-line' or, if on a prompt,
-by sending C-e to the shell.
+by sending Control e to the shell.
 
 The second time this command is called, it moves the point to the
 cursor.
@@ -1402,10 +1411,11 @@ forwards the argument to it."
       (mistty-end-of-line n))))
 
 (defun mistty-end-of-line (&optional n)
-  "Move the point to the end of the line.
+  "Move the point to the end of the Nth line.
 
 This command moves the point to the end of the line, either using
-`end-of-line' or, if on a prompt, by sending C-e to the shell.
+`end-of-line' or, if on a prompt, by sending Control e to the
+shell.
 
 With an argument, this command just calls `end-of-line' and
 forwards the argument to it."
@@ -1421,16 +1431,20 @@ forwards the argument to it."
      (t
       (end-of-line n)))))
 
-(defun mistty--enforce-forbid-edits (_ end)
+(defun mistty--enforce-forbid-edits (_beg end)
   "Forbid edits after the sync marker.
 
-This is meant to be added to ==\'before-change-functions."
+This is meant to be added to ==\'before-change-functions after
+the region _BEG to END has been modified."
   (when (and mistty--forbid-edit
              mistty-sync-marker mistty-proc (>= end mistty-sync-marker))
     (error "Edits disabled. M-x customize-option mistty-forbid-edit-regexps to configure")))
 
 (defun mistty--after-change-on-work (beg end old-length)
   "Handler for modifications made to the work buffer.
+
+BEG and END are the changed region and OLD-LENGTH the length of
+that region before the change.
 
 This is meant to be added to ==\'after-change-functions."
   (if (and mistty-sync-marker (>= end mistty-sync-marker))
@@ -1451,7 +1465,10 @@ This is meant to be added to ==\'after-change-functions."
   (mistty--sync-history-remove-above end nil)))
 
 (defun mistty--yield-condition (accept-f)
-  "Build a condition for using with iter-yield."
+  "Build a condition for using with iter-yield.
+
+ACCEPT-F is a function that returns non-nil once the state is
+acceptable. It is always run in the calling buffer."
   (let ((saved-buffer (current-buffer))
         (try-count 0))
     (when (and mistty--report-issue-function (funcall accept-f))
@@ -1617,7 +1634,7 @@ This is meant to be added to ==\'after-change-functions."
       (mistty--refresh-after-changeset))))
 
 (defun mistty--make-inserted-detector (inserted beg old-end)
-  "Return a function that checks for INSERTED in the buffer.
+  "Return a function for checking for INSERTED in the buffer.
 
 The returned function checks the current buffer for INSERTED
 appearing at position BEG. OLD-END is the position of the text
@@ -1776,6 +1793,9 @@ With an argument, clear from the end of the last Nth output."
 (defun mistty--post-command-1 (buf point-moved)
   "Function called from `mistty--post-command'.
 
+BUF is the buffer to work in. POINT-MOVED is non-nil if the point
+was moved by the last command.
+
 This is the body of `mistty--post-command', which replays any
 modifications or cursor movement executed during the command. It
 is run in an idle timer to avoid failures inside of the
@@ -1922,11 +1942,15 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
       (funcall (process-filter proc) proc terminal-sequence))))
 
 (defun mistty--fullscreen-message ()
+  "Build a user message when entering fullscreen mode.
+
+This function looks into the maps to find the key bindings for
+`mistty-toggle-buffers' to include into the message."
   (let ((from-work (where-is-internal
-                    'mistty-toggle-buffers mistty-mode-map
+                    #'mistty-toggle-buffers mistty-mode-map
                     'firstonly 'noindirect))
         (from-term (where-is-internal
-                    'mistty-toggle-buffers mistty-fullscreen-map
+                    #'mistty-toggle-buffers mistty-fullscreen-map
                     'firstonly 'noindirect))
         (keybinding-descr nil))
     (cond
@@ -2035,7 +2059,7 @@ Ignores buffers that don't exist."
   "Toggle between the fullscreen buffer and the scrollback buffer."
   (interactive)
   (unless mistty-fullscreen
-    (error "Not in fullscreen mode."))
+    (error "Not in fullscreen mode"))
   (let* ((from-buf (current-buffer))
          (to-buf (cond
                   ((eq from-buf mistty-work-buffer) mistty-term-buffer)
@@ -2117,12 +2141,11 @@ the prompt."
   "Create a backstage buffer for PROC.
 
 A backstage buffer is a partial copy of PROC's buffer that's kept
-up-to-date with replace-buffer-contents, so markers can be used
+up-to-date with `replace-buffer-contents', so markers can be used
 to keep positions stable while the buffer is being modified.
 
 The value of some buffer-local variables are carried over to the
-backstage buffer: mistty-log, mistty-bracketed-paste.
-"
+backstage buffer: mistty-log, mistty-bracketed-paste."
   (let ((backstage (generate-new-buffer " *mistty-backstage" t))
         (calling-buffer (current-buffer)))
     (with-current-buffer backstage
@@ -2134,7 +2157,7 @@ backstage buffer: mistty-log, mistty-bracketed-paste.
     backstage))
 
 (defun mistty--update-backstage ()
-  "Update backstage to include the latest updates from its process.
+  "Update backstage to catch up to its process output.
 
 The current buffer must be a backstage buffer, created by
 `mistty--create-backstage'.
@@ -2152,6 +2175,12 @@ position (cursor) in the buffer."
     (kill-buffer backstage)))
 
 (defun mistty--cursor-skip (win)
+  "Move WIN point to skip fake spaces and newlines.
+
+This function skips spaces marked with ==\'mistty-skip, depending
+on the direction of the last move.
+
+This is meant to be added to `pre-redisplay-functions'"
   (let (pos last-pos move-to)
     (when (and mistty-skip-empty-spaces
                (mistty-on-prompt-p (setq pos (window-point win))))
@@ -2285,14 +2314,14 @@ This implementation is incomplete. Always call
   pos)
 
 (defun mistty--distance (beg end)
-  "Compute the number of cursor moves necessary to get from BEG to END.
+  "Compute the number left/right key presses to get from BEG to END.
 
 This function skips over the \\='term-line-wrap newlines as well
 as \\='mistty-skip spaces."
   (let ((end (max beg end))
         (sign (if (< end beg) -1 1))
         (pos (min beg end))
-        (distance 0))
+        (count 0))
     (while (< pos end)
       (if (get-text-property pos 'term-line-wrap)
           ;; skip fake newlines
@@ -2302,25 +2331,25 @@ as \\='mistty-skip spaces."
           (cond
            ((or (null skip-beg) (null skip-end))
             ;; the position is not to be skipped over; count it towards
-            ;; distance.
+            ;; count.
             (setq pos (1+ pos))
-            (setq distance (1+ distance)))
+            (setq count (1+ count)))
            ((= pos skip-end)
-            (setq distance (1+ distance))
+            (setq count (1+ count))
             (setq pos (1+ pos)))
            ((and (= pos skip-beg) (<= skip-end end))
             ;; we skipped a whole region; count it as 1 towards
-            ;; distance.
+            ;; count.
             (setq pos skip-end)
-            (setq distance (1+ distance)))
+            (setq count (1+ count)))
            (t
             ;; we skipped a partial region; don't count it towards
-            ;; distance at all.
+            ;; count at all.
             (setq pos skip-end))))))
-    (* sign distance)))
+    (* sign count)))
 
 (defun mistty--sync-history-push ()
-  "Push the current sync marks into the history."
+  "Push the current sync markers into the history."
   (mistty--with-live-buffer mistty-work-buffer
     (when (or (null mistty--sync-history)
               (> mistty-sync-marker (car (car (last mistty--sync-history)))))

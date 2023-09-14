@@ -4,6 +4,7 @@
 
 (setq eldev-build-treat-warnings-as-errors t)
 (setf eldev-project-loading-mode 'byte-compiled)
+(setq sentence-end-double-space nil)
 
 (eldev-use-plugin 'autoloads)
 

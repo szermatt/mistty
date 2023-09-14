@@ -14,8 +14,18 @@
 ;; along with this program.  If not, see
 ;; `http://www.gnu.org/licenses/'.
 
+
+;;; Commentary:
+;;
+;; This is a development utility for changing or updating
+;; `mistty-term-key-map', defined in mistty-term.el.
+;;
+;; This is not part of MisTTY's distribution.
+
 (require 'seq)
 (require 'help-fns)
+
+;;; Code:
 
 ;;;###autoload
 (defun mistty-reverse-input-decode-map (map)
@@ -40,7 +50,7 @@ of keys from a different terminal than xterm."
                                       (symbol-value sym)))))
                (if (keymapp resolved) resolved))))
      (setq choice
-           (completing-read 
+           (completing-read
             (format-prompt "Reverse map " (funcall accept def))
             #'help--symbol-completion-table
             accept
@@ -65,6 +75,19 @@ of keys from a different terminal than xterm."
     (goto-char (point-min))))
 
 (defun mistty--reverse-input-decode-map-1 (event-type binding prefix exists-table)
+  "Recursive function to follow BINDINGS and output statements.
+
+This function goes into a map, recursively, if necessary, until
+it gets to a leaf binding, a binding of a key to a string.
+
+EVENT-TYPE is the key of BINDING, BINDING is the current binding,
+which can be a sequence to reverse or a map to enter. PREFIX
+tracks the current key binding context when going into maps
+recursively.
+
+EXISTS-TABLE is a table of key bindings that have already been
+output. If a decoder map contains more than one control sequence
+that corresponds to a key, only the first one is output."
   (let ((full-event (vconcat prefix (vector event-type))))
     (cond
      ((keymapp binding)
@@ -83,6 +106,7 @@ of keys from a different terminal than xterm."
                    (seq-mapcat #'mistty--char-string full-event 'string)))))))))
 
 (defun mistty--char-string (c)
+  "Format C for inclusion into a nice elisp string."
   (cond
    ((= c ?\e) "\\e")
    ((= c ?\t) "\\t")
@@ -91,4 +115,6 @@ of keys from a different terminal than xterm."
    ((and (>= c ?\ ) (<= c 126) (make-string 1 c)))
    (t (format "\\x%2.2x" c))))
 
-(provide 'mistty-reverse-map)
+(provide 'mistty-reverse-input-decode-map)
+
+;;; mistty-reverse-input-decode-map.el ends here

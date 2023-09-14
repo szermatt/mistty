@@ -12,9 +12,10 @@ To use MisTTY, first install its package.
 
     (package-vc-install "https://github.com/szermatt/mistty")
 
-You can then call it, as described in :ref:`launching`, but you'll
-likely want to configure it and add some key bindings you use often in
-shells, for example:
+You can then call it, as described in :ref:`launching`.
+
+However, you'll likely want to configure it and add some key bindings
+you use often in shells, for example:
 
 .. code-block:: elisp
 
@@ -47,7 +48,7 @@ Launching
 
 To create a new interactive shell buffer in MisTTY mode, call
 :kbd:`M-x mistty` or :kbd:`M-x mistty-create`. If you use MisTTY
-regularly, you'll want to bind either of these to a global shortcut.
+regularly, you'll want to bind some of these to global shortcuts:
 
   - :kbd:`M-x mistty-create` launches a new interactive shell in a
     MisTTY buffer. The shell that is launched is the one that's
@@ -74,30 +75,29 @@ Terminal vs. Scrollback
 
 MisTTY buffers are split into two zones, with different behaviors:
 
- - The :dfn:`terminal zone`, marked by a purple line on the left of
-   the window, is where you can type command and interact with the
-   terminal. In this zone, :kbd:`TAB` triggers the shell completion,
-   if available. With some shells, you'll see autosuggestions as you
-   type.
+The :dfn:`terminal zone`, marked by a purple line on the left of the
+window, is where you can type command and interact with the
+terminal. In this zone, :kbd:`TAB` triggers the shell completion, if
+available. With some shells, you'll see autosuggestions as you type.
 
- - The :dfn:`scrollback zone`, is where you can see commands that have
-   been executed and their output.
+The :dfn:`scrollback zone`, is where you can see commands that have
+been executed and their output.
 
 The scrollback zone behaves as a normal Emacs buffer. You can modify
 it as you see fit.
 
-The terminal zone limits what you can do. When a shell is attached to
-the terminal, you can edit the command you're about to run. You can't
-edit the prompt itself, on the other hand - or rather, if you do
-change the prompt, your change will be undone by the shell.
+The terminal zone, on the other hand, limits what you can do: When a
+shell is attached to the terminal, you can edit the command you're
+about to run, but you can't edit the prompt itself - or rather, if you
+do change the prompt, your change will be undone by the shell.
 
-The terminal zone is where the magic happens, where you can a mix of
-Emacs and shell key bindings to edit the command line. The trickiest
-part is choosing which key bindings you want Emacs to handle and which
-key bindings you want the shell to handle.
+The terminal zone is where the magic happens: this is where you can
+use a mix of Emacs and shell key bindings to edit the command
+line. The trickiest part is choosing which key bindings you want Emacs
+to handle and which key bindings you want the shell to handle.
 
-By default, Emacs handles everything but a few key bindings that are
-sent directly to the terminal, bypassing Emacs:
+By default, Emacs handles everything but a few key bindings are sent
+directly to the terminal, bypassing Emacs:
 
 - :kbd:`RET`, to ask the shell to run the command
 - :kbd:`TAB`, to ask the shell to run command completion,
@@ -119,19 +119,18 @@ everywhere as expected.
     MisTTY will not work if you've configured your shell to turn on
     **VI mode** by default. Please **turn it off** before trying out
     MisTTY, for details on how to turn off VI mode only of MisTTY
-    buffers and leave it on otherwise, if that's what you prefer.
-    Checkout the instructions in :ref:`shells` for details. You need
-    to do that for MisTTY to work at all, even if you'll just end up
-    controlling it with VI commands using Evil.
+    buffers and leave it on otherwise, check out the instructions in
+    :ref:`shells` for details. VI mode must be turned off even if you
+    just end up controlling it with VI commands using Evil.
 
 To get the most out of MisTTY, it's worth it to take the time to
 configure it forward the shell key bindings that you actually use to
 the terminal and keep everything else behaving as usual for your Emacs
-configuration.
+configuration using the following commands:
 
-  - The interactive function :code:`mistty-send-key` forwards the key
-    it was called from. It is meant to be bound to the shell key
-    bindings you want to work in the terminal zone map,
+  - The command :code:`mistty-send-key`, called interactively,
+    forwards the key it was called from. It is meant to be bound to
+    the shell key bindings you want to work in the terminal zone map,
     :code:`mistty-prompt-map`.
 
     For example, moving up the shell's command history is usually
@@ -158,18 +157,18 @@ configuration.
        (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
                     
 
-  - The interactive function :code:`mistty-send-last-key` forwards the
-    last key combination of a sequence it was called from to the
-    terminal. For example, :kbd:`C-c C-c` is bound to
-    :code:`mistty-send-last-key` so that the terminal eventually just
-    gets :kbd:`C-c`.
+  - The command :code:`mistty-send-last-key` forwards the last key
+    combination of a sequence it was called from to the terminal. For
+    example, :kbd:`C-c C-c` is bound to :code:`mistty-send-last-key`
+    so that the terminal eventually just gets :kbd:`C-c`.
 
 To just try things out, or for shell shortcuts you don't use
-regularly, use the :kbd:`C-q` prefix, which sends the next key
-directly to the terminal. For example, :kbd:`C-q <right>` sends a
-right arrow key press to the terminal instead of moving the cursor.
+regularly, you can use the :kbd:`C-q` prefix to bypass Emacs key
+bindings and send keys directly to the terminal. For example,
+:kbd:`C-q <right>` sends a right arrow key press to the terminal
+instead of moving the cursor.
 
-If that's not enough:
+If that's not enough,
 
   - :kbd:`C-c C-q`, :kbd:`M-x mistty-send-key-sequence` sends all keys
     you press to the terminal until you press :kbd:`C-g`.
@@ -212,8 +211,8 @@ Fullscreen Mode
 MisTTY detects when a program such as :program:`less` or :program:`vi`
 asks to run full screen and splits the MisTTY buffers into:
 
-- a terminal buffer, which shows the program output and lets you interact
-  with it. This is a normal term-mode buffer.
+- a terminal buffer, which shows the program output and lets you
+  interact with it. This is a term-mode buffer.
 - a scrollback buffer, which shows the previous command lines and
   their output.
 
@@ -228,27 +227,25 @@ the output of the full screen app isn't available in the scrollback.
 Command History
 ---------------
 
-MisTTY doesn't track command history. It relies on being able to
-access the history of the different interactive command-line tools.
+MisTTY doesn't track command history. It relies instead on being able
+to access the history of the different interactive command-line tools.
 
 The command history available in most shells and command-line editing tools is
 available in MisTTY using the following shortcuts:
 
-- :kbd:`C-q C-p` Move up command history
-- :kbd:`C-q C-n` Move down command history
-- :kbd:`C-q C-r` Backward search command history
+- :kbd:`C-q C-p` moves up command history
+- :kbd:`C-q C-n` moves down command history
+- :kbd:`C-q C-r` triggers a backward search in command history
 
-If you can do without :kbd:`C-p`, :kbd:`C-n`, or :kbd:`C-r` in the
-terminal zone of the MisTTY buffer, it's worth sending them directly
-to the shell, doing, for example:
+You can shorten these if you bind :kbd:`C-p`, :kbd:`C-n`, or
+:kbd:`C-r` to :code:`mistty-send-key` in the terminal zone of the
+MisTTY buffer. For example:
 
 .. code-block:: elisp
 
     (keymap-set mistty-prompt-map "C-p" #'mistty-send-key)
     (keymap-set mistty-prompt-map "C-n" #'mistty-send-key)
     (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
-
-Or by calling :code:`use-package` as shown in :ref:`installation`.
 
 .. _dirtrack:
 
@@ -260,8 +257,9 @@ has to tell MisTTY about it. This is usually done from the prompt.
 
 :program:`Bash` does it by default, for local shells, when it detects
 a terminal of type :code:`TERM=eterm-color` run from inside Emacs.
-Other shells can be configured to do the same. See the :ref:`bash`,
-:ref:`zsh` or :ref:`fish` section for details.
+
+Other shells need to be configured to do the same. For more details,
+see :ref:`shells`.
 
 If you have configured TRAMP and know that the hosts you ssh into are
 accessible with the default TRAMP method, you might consider allowing

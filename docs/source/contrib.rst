@@ -15,27 +15,27 @@ the issue. Such as:
 - the version of Emacs you're running, taken, for example, from :kbd:`M-x about-emacs`
 - whether you're running Emacs in a window environment or a terminal
 
-**If you can reproduce reliably**, please include the content of the
+If you can reproduce reliably, please include the content of the
 buffer :code:`*mistty-log*` into your report, as follows:
 
-  - Enable logging with :kbd:`M-x mistty-start-log`
-  - Reproduce the issue
-  - Go to the buffer :code:`*mistty-log*`, copy its content and paste
-    it into the issue. The log includes everything that you write to
-    the terminal and everything that you get back from the terminal.
-    Please make sure you're not including any private information,
-    such as password - remove them if necessary...
+- Enable logging with :kbd:`M-x mistty-start-log`
+- Reproduce the issue
+- Go to the buffer :code:`*mistty-log*`, copy its content and paste it
+  into the issue. The log includes everything that you write to the
+  terminal and everything that you get back from the terminal.  Please
+  make sure you're not including any private information, such as
+  password - remove them if necessary...
 
-**If you cannot reproduce reliably**,
+If you cannot reproduce reliably,
 
-  - go to :kbd:`M-x customize-option mistty-backlog-size` to set the
-    backlog size to a large value, such as 50
-  - use MisTTY normally, until the issue comes back
-  - once it has happened again, immediately call :kbd:`M-x
-    mistty-start-log`. The log will then contain entries for events
-    that happened just *before* you called the command.
-  - copy the content of the :code:`*mistty-log*` buffer, strip out
-    anything private, and include it into the issue.
+- go to :kbd:`M-x customize-option mistty-backlog-size` to set the
+  backlog size to a large value, such as 50
+- use MisTTY normally, until the issue comes back
+- once it has happened again, immediately call :kbd:`M-x
+  mistty-start-log`. The log will then contain entries for events that
+  happened just *before* you called the command.
+- copy the content of the :code:`*mistty-log*` buffer, strip out
+  anything private, and include it into the issue.
 
 .. _Issue tracker: https://github.com/szermatt/mistty/issues
 

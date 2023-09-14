@@ -17,14 +17,14 @@ To add more, register handlers to :code:`mistty-osc-handlers`. The
 format is the same as the handlers supported for
 :code:`ansi-osc-handlers` and can usually be used interchangeably.
 
-One thing is important to keep in mind when working on OSC handlers
-for MisTTY, however: MisTTY separate buffers for the terminal (a
-:code:`term-mode` buffer) and for MisTTY itself.
+When working on OSC handlers for MisTTY, it's important to keep the
+following in mind: MisTTY separate buffers for the terminal (a
+:code:`term-mode` buffer) and for MisTTY itself. The OSC handlers run
+in the term-mode buffer.
 
-One consequence to keep in mind is that if you set a buffer-local
-variable in a handler, it won't be available in the MisTTY buffer
-unless you register it to :kbd:`M-x configure-option
-mistty-variables-to-copy`
+One consequence of this is that if you set a buffer-local variable in
+a handler, it won't be available in the MisTTY buffer unless you
+register it to :kbd:`M-x configure-option mistty-variables-to-copy`
 
 MisTTY provides helpers for writing OSC handlers that set text
 properties:
@@ -32,7 +32,7 @@ properties:
 - The function :code:`mistty-register-text-properties` registers a set
   of text properties to set on any text written to the terminal until
   :code:`mistty-unregister-text-properties` is called with the
-  same ID.
+  same argument.
 
 .. _custom-commands:
 
@@ -43,16 +43,10 @@ You might find the following functions useful if you'd like to write
 commands that extend MisTTY's behavior:
 
 - :code:`mistty-send-string` sends a string to the terminal,
-  unmodified. When you use that, remember the effect of the string
-  will appear only after the function return, and might not appear at
-  all, depending on the program attached to the terminal. It is used
-  to implement :code:`mistty-sudo` for example.
-
-- :code:`mistty-on-prompt-p` returns true if the given position is
-  inside of a prompt MisTTY is aware of. This is useful for writing
-  commands that behave differently on a prompt than on program output,
-  even while inside of the terminal zone. It is used to implement
-  :code:`mistty-beginning-of-line` for example.
+  unmodified. The string that is sent appear only after the function
+  return - and it might not ever appear at all depending on the
+  application attached to the terminal. This is used to implement
+  :code:`mistty-sudo` for example.
 
 - :code:`mistty-on-prompt-p` returns non-nil if the given position is
   inside of a prompt MisTTY is aware of. This is useful for writing
@@ -68,14 +62,13 @@ commands that extend MisTTY's behavior:
   prompt at the position, but also attempt to move the terminal cursor
   to that position.
 
-
 .. _term-keymap:
 
 Terminal Keymap
 ---------------
 
 To forward a key binding to the application attached to the terminal
-`mistty-send-key` first need to convert that key binding to something
+`mistty-send-key` first needs to convert that key binding to something
 applications will understand. The translation is done by
 :code:`mistty-translate-key`.
 
@@ -109,4 +102,6 @@ keymap that simulates rxvt, you might do:
    (load-library "term/rxvt.el")
    (mistty-reverse-input-decode-map rxvt-function-map)
    
-    
+:file:`mistty-reverse-input-decode-map.el` is not included into the
+distribution; it's only available on `github
+<https://github.com/szermatt/mistty/tree/master/extras>`_.

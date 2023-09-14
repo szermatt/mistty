@@ -6,13 +6,15 @@ a shell inside of a buffer, similarly to comint mode. It is built on
 top of :file:`term.el`.
 
 :kbd:`M-x mistty` creates a buffer with an interactive shell. Inside
-that buffer, you can move freely and use your usual Emacs command and
+that buffer, you can move freely and use the usual Emacs commands and
 editing tools to run shell command and work with their output.
 
-You also have access to your shell's native command and editing tools,
-including TAB-completion and autosuggestions. You can safely run
-commands that take over the :ref:`entire screen<fullscreen>`, such as
-:command:`less` or :command:`vi`.
+In addition to these, you also have access to your shell's native
+command and editing tools, including TAB-completion and
+autosuggestions.
+
+Commands that take over the :ref:`entire screen<fullscreen>`, such as
+:command:`less` or :command:`vi` are also available.
 
 MisTTY` is known to work with :program:`bash`, :program:`zsh` and
 :program:`fish` on Linux and MacOS. It also supports non-shell

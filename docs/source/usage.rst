@@ -143,6 +143,16 @@ configuration.
     If you'd prefer to have the key available in both the scrollback
     and terminal zones, bind it :code:`mistty-mode-map` instead.
 
+    You can also pass arbitrary keys to :code:`mistty-send-key`, for
+    example:
+
+    .. code-block:: elisp
+                    
+       (defun my-mistty-M-s ()
+         (mistty-send-key (kbd "M-s")))
+       (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
+                    
+
   - The interactive function :code:`mistty-send-last-key` forwards the
     last key combination of a sequence it was called from to the
     terminal. For example, :kbd:`C-c C-c` is bound to
@@ -159,6 +169,7 @@ If that's not enough:
   - :kbd:`C-c C-q`, :kbd:`M-x mistty-send-key-sequence` sends all
     keys you press to the terminal until there's an error or you press
     :kbd:`C-g`.
+
 
 .. _navigation:
 

@@ -30,7 +30,6 @@ Contents
 
    usage
    shells
+   extensions
    faq
-   devel
    contrib
-

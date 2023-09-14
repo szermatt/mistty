@@ -24,9 +24,6 @@ You can get the same effect if you yank a multi-line command while in
 a prompt or go up the command history to a previous multi-line
 command.
 
-VI mode
-^^^^^^^
-
 Directory tracking
 ^^^^^^^^^^^^^^^^^^
 
@@ -44,6 +41,32 @@ do that, you might add the following to :file:`~/.bashrc`:
 
 such sequence are either ignored or understood by most terminals. You
 might already have it set up.
+
+VI mode
+^^^^^^^
+
+To communicate with :program:`bash`, MisTTY requires the shell to be
+in its default editing mode, that is, the emacs mode. Please make sure
+you haven't put readline or bash in vi mode before trying out MisTTY.
+
+To turn on vi mode in readline everywhere but in MisTTY, you can add
+something like the following in :file:`~/.inputrc`:
+
+.. code-block::
+
+    $if term=eterm
+      set editing-mode emacs
+    $else
+      set editing-mode vi
+    $endif
+
+Or, in bash :file:`~/.bashrc`:
+
+.. code-block:: bash
+
+   if [ "$TERM" != "eterm-color" ]; then
+     set -o vi
+   fi
 
 
 .. _fish:
@@ -118,6 +141,19 @@ mistty-skip-empty-spaces` allows you to turn that on or off.
 VI mode
 ^^^^^^^
 
+To communicate with :program:`fish`, MisTTY requires the shell to be
+in its default editing mode, that is, the emacs mode. Please make sure
+you haven't put readline or bash in vi mode before trying out MisTTY.
+
+To turn on vi mode in readline everywhere but in MisTTY, you can add
+something like the following in :file:`~/.zshrc`:
+
+.. code-block:: fish
+
+   if [ "$TERM" != "eterm-color" ]
+     fish_vi_key_bindings
+   end
+
 .. _zsh:
 
 Zsh
@@ -167,6 +203,15 @@ command.
 VI mode
 ^^^^^^^
 
+To communicate with :program:`zsh`, MisTTY requires the shell to be
+in its default editing mode, that is, the emacs mode. Please make sure
+you haven't put readline or bash in vi mode before trying out MisTTY.
 
+To turn on vi mode in readline everywhere but in MisTTY, you can add
+something like the following in :file:`~/.zshrc`:
 
+.. code-block:: zsh
 
+   if [ "$TERM" != "eterm-color" ]; then
+     bindkey -v
+   fi

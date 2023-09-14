@@ -89,7 +89,7 @@ bindings. You might extend it or change it by changing the map
 :code:`mistty-term-key-map`.
 
 For example, you can change the string that correspond to the first
-function keys from their default ("\eOP" - "\eOS") as follows:
+function keys from their default ("\\eOP" - "\\eOS") as follows:
 
 .. code-block:: elisp
                 

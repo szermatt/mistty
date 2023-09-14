@@ -1,5 +1,9 @@
 # MisTTY, a shell/comint alternative with a fully functional terminal
 
+[![CI Status](https://github.com/szermatt/mistty/actions/workflows/CI.yml/badge.svg)](https://github.com/emacs-eldev/eldev/actions/workflows/test.yml)
+[![Documentation Status](https://readthedocs.org/projects/mistty/badge/?version=latest)](https://mistty.readthedocs.io/en/latest/?badge=latest)
+
+
 MisTTY runs a shell interactively under Emacs 29.1 and later, just like
 `M-x shell` does. 
 
@@ -15,6 +19,8 @@ completion in full colors. Here's what the end result might look like:
 ![screen grab](https://github.com/szermatt/mistty/blob/master/screengrab.gif?raw=true)
 
 ## INSTALLATION
+
+> **The following is just a short introduction. Read the full documentation at https://mistty.readthedocs.io/en/latest/**
 
 Here's one way of installing MisTTY and binding it to the key `C-c s`:
 
@@ -69,45 +75,10 @@ If you call `M-x mistty` another time, you'll be taken back to any
 existing MisTTY buffer - see its documentation. If you don't like this
 behavior, use `M-x mistty-create` instead.
 
-### Configuration
-
-You'll very likely want to enable directory tracking, so Emacs knows
-what directory you're currently visiting. If you SSH into other
-machines, you'll want to also enable TRAMP paths.
-
-If you only run bash locally inside of a MisTTY buffer, you don't have
-to do anything. It'll just work. Otherwise, read on.
-
-The best way of enabling directory tracking is to configure your shell
-to send out OSC 7 sequence as part of the prompt. 
-
-You might add the following to your `~/.bashrc` (for Bash) or
-`~/.zshrc` (for ZSH):
-
-```bash
-PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
-```
-
-Or from a function called from PROMPT_COMMAND:
-```bash
-PROMPT_COMMAND=my_prompt
-
-function my_prompt {
-  printf "\e]7;file://%s%s\e\\\\" "$HOSTNAME" "$PWD"
-  ...
-```
-
-If you prefer the fish shell, add the following to `~/.local/config/fish/config.fish`
-```fish
-    function osc7_send_pwd --on-event fish_prompt
-      printf "\e]7;file://%s%s\e\\\\" (hostname) "$PWD"
-    end
-```
-
-If you know TRAMP works and you often SSH into hosts, consider
-enabling such remote paths reported by the shell `M-x
-customize-option` `mistty-allow-tramp-paths`
-
 ## COMPATIBILITY
 
 MisTTY requires Emacs 29.1 or later.
+
+## CONTRIBUTING
+
+[Contribution guidelines for this project](https://mistty.readthedocs.io/en/latest/contrib.html)

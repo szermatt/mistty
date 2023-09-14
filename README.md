@@ -1,6 +1,6 @@
 # MisTTY, a shell/comint alternative with a fully functional terminal
 
-[![CI Status](https://github.com/szermatt/mistty/actions/workflows/CI.yml/badge.svg)](https://github.com/emacs-eldev/eldev/actions/workflows/test.yml)
+[![CI Status](https://github.com/szermatt/mistty/actions/workflows/CI.yml/badge.svg)](https://github.com/szermatt/mistty/actions/workflows/test.yml)
 [![Documentation Status](https://readthedocs.org/projects/mistty/badge/?version=latest)](https://mistty.readthedocs.io/en/latest/?badge=latest)
 
 

@@ -36,3 +36,28 @@
   :for-command    test
   (setq mistty-test-python-exe (executable-find path)))
 
+(eldev-defbuilder mistty-builder-build-info (source target)
+  :short-name     "SPHINX"
+  :message        source-and-target
+  :type           many-to-one
+  :source-files   "docs/source/*.rst"
+  :targets        ("mistty.texi")
+  :collect        ":default"
+  :define-cleaner (mistty-cleaner-texi :default t)
+  (eldev-call-process "sphinx-build" '("-M" "texinfo" "docs/source" "docs/build")
+                      :forward-output t
+                      :die-on-error t)
+  (copy-file "docs/build/texinfo/mistty.texi" "mistty.texi"))
+
+(eldev-defcommand mistty-html-doc (&rest parameters)
+  "Generate documentation HTML into docs/build/html."
+  :command        documentation
+  :aliases        (html)
+  (eldev-call-process "sphinx-build" '("-M" "html" "docs/source" "docs/build")
+  :forward-output t
+  :die-on-error t))
+
+(eldev-defcleaner mistty-cleaner-docs ()
+  "Delete Sphinx build dir"
+  :default t
+  '("docs/build"))

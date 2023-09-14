@@ -81,4 +81,5 @@ MisTTY requires Emacs 29.1 or later.
 
 ## CONTRIBUTING
 
-[Contribution guidelines for this project](https://mistty.readthedocs.io/en/latest/contrib.html)
+See the [Contributing](https://mistty.readthedocs.io/en/latest/contrib.html) 
+section of the documentation.

@@ -1235,7 +1235,7 @@ instead `mistty--move-sync-mark-with-shift' or
 (defun mistty-send-command ()
   "Send the current command to the shell."
   (interactive)
-  (mistty--maybe-realize-possible-prompt)
+  (mistty-maybe-realize-possible-prompt)
   (setq mistty-goto-cursor-next-time t)
   (when (and mistty-proc
              (mistty-on-prompt-p (point))
@@ -1367,7 +1367,7 @@ forwards the argument to it."
   ;; sign that we're on a pointer.
   (let ((n (or n 1)))
     (if (and (= n 1)
-             (or (mistty--maybe-realize-possible-prompt (point))
+             (or (mistty-maybe-realize-possible-prompt (point))
                  (mistty-on-prompt-p (point))))
         (progn
           (setq mistty-goto-cursor-next-time t)
@@ -1406,7 +1406,7 @@ forwards the argument to it."
   (let ((n (or n 1)))
     (cond
      ((and (= 1 n)
-           (or (mistty--maybe-realize-possible-prompt (point))
+           (or (mistty-maybe-realize-possible-prompt (point))
                (mistty-on-prompt-p (point))))
       (mistty-goto-cursor)
       (setq mistty-goto-cursor-next-time t)
@@ -1671,7 +1671,7 @@ left (negative)."
         (goto-char (prop-match-beginning prop-match))
       (if (and (process-live-p mistty-proc)
                (< (point) mistty-sync-marker)
-               (or (mistty--maybe-realize-possible-prompt (mistty-cursor))
+               (or (mistty-maybe-realize-possible-prompt (mistty-cursor))
                    (mistty-on-prompt-p (mistty-cursor))))
           (goto-char (mistty--bol (mistty-cursor)))
         (error "No next input")))))
@@ -2060,11 +2060,11 @@ point, as this is only done by the post-command hook on detected
 prompts."
   (let ((cursor (mistty-cursor)))
     (when (and (not (= cursor (point)))
-               (mistty--maybe-realize-possible-prompt))
+               (mistty-maybe-realize-possible-prompt))
       (mistty--enqueue
        mistty--queue (mistty--cursor-to-point-generator)))))
 
-(defun mistty--maybe-realize-possible-prompt (&optional pos)
+(defun mistty-maybe-realize-possible-prompt (&optional pos)
   "If a possible prompt was detected at POS, create it now."
   (let ((pos (or pos (point))))
     (when (and (not (mistty-on-prompt-p pos))

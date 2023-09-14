@@ -113,10 +113,10 @@ expected.
 .. warning::
 
     MisTTY will not work if you've configured your shell to turn on VI
-    mode by default. Please turn it off before trying out MisTTY. See
-    the :ref:`bash`, :ref:`zsh` or :ref:`fish` section for details on
-    how to turn off VI mode only of MisTTY buffers and leave it on
-    otherwise, if that's what you prefer. You need to do that for
+    mode by default. Please turn it off before trying out MisTTY, for
+    details on how to turn off VI mode only of MisTTY buffers and
+    leave it on otherwise, if that's what you prefer. Checkout the
+    instructions in :ref:`shells` for details. You need to do that for
     MisTTY to work at all, even if you'll just end up controlling it
     with VI commands using Evil.
 

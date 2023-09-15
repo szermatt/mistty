@@ -37,5 +37,22 @@ jobs:
     - name: Check out the source code
       uses: actions/checkout@v3
 
+    - name: Build the package
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev package'
+
+    - name: Update mistty.info
+      # Only run on main branch push (e.g. after pull request merge).
+      if: github.event_name == 'push'
+      run: |
+        if git diff -s --exit-code mistty.info; then
+          echo "mistty.info not modified by this commit"
+        else
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mistty.info
+          git commit -m "Auto-update mistty.info" --author "${{ env.CI_COMMIT_AUTHOR }}"
+          git push
+        fi
+
     - name: Test the project
       run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev -p -dtT test'

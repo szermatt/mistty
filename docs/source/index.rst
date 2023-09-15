@@ -3,7 +3,8 @@ MisTTY
 
 **MisTTY** is a major mode for :program:`Emacs` 29.1 and up that runs
 a shell inside of a buffer, similarly to comint mode. It is built on
-top of :file:`term.el`.
+top of :file:`term.el`. Check out its project page at
+https://github.com/szermatt/mistty.
 
 :kbd:`M-x mistty` creates a buffer with an interactive shell. Inside
 that buffer, you can move freely and use the usual Emacs commands and
@@ -19,6 +20,11 @@ Commands that take over the :ref:`entire screen<fullscreen>`, such as
 MisTTY` is known to work with :program:`bash`, :program:`zsh` and
 :program:`fish` on Linux and MacOS. It also supports non-shell
 command-line programs, such as :program:`python`.
+
+The latest version of this documentation is available at
+https://mistty.readthedocs.io/en/latest/.  Once MisTTY is installed,
+this documentation can be accessed from inside Emacs using :kbd:`M-x
+info gmistty`
 
 .. note::
 

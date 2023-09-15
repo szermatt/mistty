@@ -1954,6 +1954,17 @@ window while BODY is running."
       (should (null mistty--changesets))
       (should (not mistty--need-refresh)))))
 
+(ert-deftest mistty-error-in-until-function ()
+  (mistty-with-test-buffer ()
+    (mistty--enqueue
+     mistty--queue
+     (funcall (iter-lambda ()
+                (iter-yield `(until "foo"
+                                    ,(lambda (_res)
+                                       (error "fake error"))))
+                (iter-yield "bar"))))
+    (mistty-wait-for-output :str "foobar" :start (point-min))))
+
 (ert-deftest mistty-test-end-prompt ()
   (mistty-with-test-buffer ()
     (mistty-send-text "for i in {1..10} ; do echo line $i; done && read l")

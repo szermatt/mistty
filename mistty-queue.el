@@ -134,8 +134,11 @@ description for the meaning of QUEUE and VALUE."
       (condition-case nil
           (progn
             (when-let ((accept-f (mistty--queue-accept-f queue)))
-              (unless (funcall accept-f value)
-                (cl-return-from mistty--dequeue-1))
+              (condition-case err
+                  (unless (funcall accept-f value)
+                    (cl-return-from mistty--dequeue-1))
+                (error
+                 (mistty-log "Accept function failed; giving up: %s" err)))
               (setf (mistty--queue-accept-f queue) nil))
             (while t
               (pcase (iter-next (mistty--queue-iter queue) value)
@@ -185,10 +188,12 @@ scheduled."
   "Clear QUEUE and cancel all pending actions.
 
 The queue remains usable, but empty."
+  (setf (mistty--queue-accept-f queue) nil)
   (when (mistty--queue-iter queue)
     (iter-close (mistty--queue-iter queue))
-    (setf (mistty--queue-iter queue) nil)
-    (setf (mistty--queue-more-iters queue) nil))
+    (setf (mistty--queue-iter queue) nil))
+  (while (mistty--queue-more-iters queue)
+    (iter-close (pop (mistty--queue-more-iters queue))))
   (mistty--cancel-timeout queue)
   (mistty--cancel-timer queue))
 

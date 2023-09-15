@@ -35,7 +35,7 @@ jobs:
       uses: emacs-eldev/setup-eldev@v1
 
     - name: Check out the source code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Build the package
       run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev package'
@@ -47,8 +47,8 @@ jobs:
         if git diff -s --exit-code mistty.info; then
           echo "mistty.info not modified by this commit"
         else
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           git add mistty.info
           git commit -m "Auto-update mistty.info" --author "${{ env.CI_COMMIT_AUTHOR }}"
           git push

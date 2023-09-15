@@ -28,7 +28,8 @@ MisTTY
 
 ‘MisTTY’ is a major mode for ‘Emacs’ 29.1 and up that runs a shell
 inside of a buffer, similarly to comint mode.  It is built on top of
-‘term.el’.
+‘term.el’.  Check out its project page at
+‘https://github.com/szermatt/mistty’.
 
 ‘M-x mistty’ creates a buffer with an interactive shell.  Inside that
 buffer, you can move freely and use the usual Emacs commands and editing
@@ -43,6 +44,11 @@ Commands that take over the *note entire screen: 1, such as ‘less’ or
 MisTTY‘ is known to work with ‘bash’, ‘zsh’ and ‘fish’ on Linux and
 MacOS. It also supports non-shell command-line programs, such as
 ‘python’.
+
+The latest version of this documentation is available at
+‘https://mistty.readthedocs.io/en/latest/’.  Once MisTTY is installed,
+this documentation can be accessed from inside Emacs using ‘M-x info
+gmistty’
 
      Note: MisTTY is Beta software!  It might not work with your setup
      our your tools.  If you try it out and encounter issues, please
@@ -1008,167 +1014,167 @@ Tag Table:
 Node: Top334
 Ref: index doc511
 Ref: 0511
-Node: Contents2514
-Ref: index contents2588
-Ref: 22588
-Ref: index mistty2588
-Ref: 32588
-Node: Usage2690
-Ref: usage doc2755
-Ref: 42755
-Ref: usage usage2755
-Ref: 52755
-Node: Installation2976
-Ref: usage id13048
-Ref: 63048
-Ref: usage installation3048
-Ref: 73048
-Node: Launching4120
-Ref: usage id24223
-Ref: 94223
-Ref: usage launching4223
-Ref: 84223
-Node: Terminal vs Scrollback5306
-Ref: usage term-vs-scroll5427
-Ref: a5427
-Ref: usage terminal-vs-scrollback5427
-Ref: b5427
-Node: Navigating the scrollback zone9828
-Ref: usage navigating-the-scrollback-zone9955
-Ref: d9955
-Ref: usage navigation9955
-Ref: e9955
-Node: Fullscreen Mode11309
-Ref: usage fullscreen11429
-Ref: 111429
-Ref: usage fullscreen-mode11429
-Ref: 1011429
-Node: Command History12025
-Ref: usage command-history12143
-Ref: 1112143
-Ref: usage history12143
-Ref: f12143
-Node: Directory tracking and TRAMP12955
-Ref: usage directory-tracking-and-tramp13049
-Ref: 1213049
-Ref: usage dirtrack13049
-Ref: 1313049
-Node: Shells13709
-Ref: shells doc13801
-Ref: 1413801
-Ref: shells id113801
-Ref: 1513801
-Ref: shells shells13801
-Ref: c13801
-Node: Bash13860
-Ref: shells bash13920
-Ref: 1613920
-Ref: shells id213920
-Ref: 1713920
-Node: Multi-line prompts14011
-Ref: shells multi-line-prompts14097
-Ref: 1814097
-Node: Directory tracking14736
-Ref: shells directory-tracking14838
-Ref: 1914838
-Node: VI mode15555
-Ref: shells vi-mode15630
-Ref: 1a15630
-Node: Fish16197
-Ref: shells fish16269
-Ref: 1b16269
-Ref: shells id316269
-Ref: 1c16269
-Node: Autosuggestions16474
-Ref: shells autosuggestions16557
-Ref: 1d16557
-Node: Command History<2>16935
-Ref: shells command-history17048
-Ref: 1e17048
-Node: Directory tracking<2>18044
-Ref: shells id418163
-Ref: 1f18163
-Node: Multi-line prompts<2>18691
-Ref: shells id518802
-Ref: 2018802
-Node: VI mode<2>19209
-Ref: shells id619290
-Ref: 2119290
-Node: Zsh19731
-Ref: shells id719790
-Ref: 2219790
-Ref: shells zsh19790
-Ref: 2319790
-Node: Autosuggestions<2>19973
-Ref: shells id820061
-Ref: 2420061
-Node: Directory tracking<3>20487
-Ref: shells id920605
-Ref: 2520605
-Node: Multi-line prompts<3>21007
-Ref: shells id1021117
-Ref: 2621117
-Node: VI mode<3>21754
-Ref: shells id1121834
-Ref: 2721834
-Node: Writing Extensions22269
-Ref: extensions doc22359
-Ref: 2822359
-Ref: extensions writing-extensions22359
-Ref: 2922359
-Node: OSC Sequences22484
-Ref: extensions osc22586
-Ref: 2a22586
-Ref: extensions osc-sequences22586
-Ref: 2b22586
-Node: Writing Your Own Commands23872
-Ref: extensions custom-commands23998
-Ref: 2c23998
-Ref: extensions writing-your-own-commands23998
-Ref: 2d23998
-Node: Terminal Keymap25168
-Ref: extensions term-keymap25272
-Ref: 2e25272
-Ref: extensions terminal-keymap25272
-Ref: 2f25272
-Ref: Terminal Keymap-Footnote-126823
-Node: FAQ26885
-Ref: faq doc26981
-Ref: 3026981
-Ref: faq faq26981
-Ref: 3126981
-Node: Contributing28708
-Ref: contrib doc28777
-Ref: 3228777
-Ref: contrib contributing28777
-Ref: 3328777
-Node: Reporting issues28943
-Ref: contrib reporting-issues29036
-Ref: 3429036
-Ref: Reporting issues-Footnote-130690
-Node: Suggesting features30740
-Ref: contrib issue-tracker30858
-Ref: 3530858
-Ref: contrib suggesting-features30858
-Ref: 3630858
-Ref: Suggesting features-Footnote-131004
-Node: Asking questions31054
-Ref: contrib asking-questions31174
-Ref: 3731174
-Ref: Asking questions-Footnote-131316
-Node: Code contributions31366
-Ref: contrib code-contributions31494
-Ref: 3831494
-Ref: Code contributions-Footnote-132088
-Ref: Code contributions-Footnote-232152
-Node: Documentation contributions32197
-Ref: contrib documentation-contributions32300
-Ref: 3932300
-Ref: contrib eldev32300
-Ref: 3a32300
-Ref: Documentation contributions-Footnote-132788
-Ref: Documentation contributions-Footnote-232852
-Node: Index32887
+Node: Contents2802
+Ref: index contents2876
+Ref: 22876
+Ref: index mistty2876
+Ref: 32876
+Node: Usage2978
+Ref: usage doc3043
+Ref: 43043
+Ref: usage usage3043
+Ref: 53043
+Node: Installation3264
+Ref: usage id13336
+Ref: 63336
+Ref: usage installation3336
+Ref: 73336
+Node: Launching4408
+Ref: usage id24511
+Ref: 94511
+Ref: usage launching4511
+Ref: 84511
+Node: Terminal vs Scrollback5594
+Ref: usage term-vs-scroll5715
+Ref: a5715
+Ref: usage terminal-vs-scrollback5715
+Ref: b5715
+Node: Navigating the scrollback zone10116
+Ref: usage navigating-the-scrollback-zone10243
+Ref: d10243
+Ref: usage navigation10243
+Ref: e10243
+Node: Fullscreen Mode11597
+Ref: usage fullscreen11717
+Ref: 111717
+Ref: usage fullscreen-mode11717
+Ref: 1011717
+Node: Command History12313
+Ref: usage command-history12431
+Ref: 1112431
+Ref: usage history12431
+Ref: f12431
+Node: Directory tracking and TRAMP13243
+Ref: usage directory-tracking-and-tramp13337
+Ref: 1213337
+Ref: usage dirtrack13337
+Ref: 1313337
+Node: Shells13997
+Ref: shells doc14089
+Ref: 1414089
+Ref: shells id114089
+Ref: 1514089
+Ref: shells shells14089
+Ref: c14089
+Node: Bash14148
+Ref: shells bash14208
+Ref: 1614208
+Ref: shells id214208
+Ref: 1714208
+Node: Multi-line prompts14299
+Ref: shells multi-line-prompts14385
+Ref: 1814385
+Node: Directory tracking15024
+Ref: shells directory-tracking15126
+Ref: 1915126
+Node: VI mode15843
+Ref: shells vi-mode15918
+Ref: 1a15918
+Node: Fish16485
+Ref: shells fish16557
+Ref: 1b16557
+Ref: shells id316557
+Ref: 1c16557
+Node: Autosuggestions16762
+Ref: shells autosuggestions16845
+Ref: 1d16845
+Node: Command History<2>17223
+Ref: shells command-history17336
+Ref: 1e17336
+Node: Directory tracking<2>18332
+Ref: shells id418451
+Ref: 1f18451
+Node: Multi-line prompts<2>18979
+Ref: shells id519090
+Ref: 2019090
+Node: VI mode<2>19497
+Ref: shells id619578
+Ref: 2119578
+Node: Zsh20019
+Ref: shells id720078
+Ref: 2220078
+Ref: shells zsh20078
+Ref: 2320078
+Node: Autosuggestions<2>20261
+Ref: shells id820349
+Ref: 2420349
+Node: Directory tracking<3>20775
+Ref: shells id920893
+Ref: 2520893
+Node: Multi-line prompts<3>21295
+Ref: shells id1021405
+Ref: 2621405
+Node: VI mode<3>22042
+Ref: shells id1122122
+Ref: 2722122
+Node: Writing Extensions22557
+Ref: extensions doc22647
+Ref: 2822647
+Ref: extensions writing-extensions22647
+Ref: 2922647
+Node: OSC Sequences22772
+Ref: extensions osc22874
+Ref: 2a22874
+Ref: extensions osc-sequences22874
+Ref: 2b22874
+Node: Writing Your Own Commands24160
+Ref: extensions custom-commands24286
+Ref: 2c24286
+Ref: extensions writing-your-own-commands24286
+Ref: 2d24286
+Node: Terminal Keymap25456
+Ref: extensions term-keymap25560
+Ref: 2e25560
+Ref: extensions terminal-keymap25560
+Ref: 2f25560
+Ref: Terminal Keymap-Footnote-127111
+Node: FAQ27173
+Ref: faq doc27269
+Ref: 3027269
+Ref: faq faq27269
+Ref: 3127269
+Node: Contributing28996
+Ref: contrib doc29065
+Ref: 3229065
+Ref: contrib contributing29065
+Ref: 3329065
+Node: Reporting issues29231
+Ref: contrib reporting-issues29324
+Ref: 3429324
+Ref: Reporting issues-Footnote-130978
+Node: Suggesting features31028
+Ref: contrib issue-tracker31146
+Ref: 3531146
+Ref: contrib suggesting-features31146
+Ref: 3631146
+Ref: Suggesting features-Footnote-131292
+Node: Asking questions31342
+Ref: contrib asking-questions31462
+Ref: 3731462
+Ref: Asking questions-Footnote-131604
+Node: Code contributions31654
+Ref: contrib code-contributions31782
+Ref: 3831782
+Ref: Code contributions-Footnote-132376
+Ref: Code contributions-Footnote-232440
+Node: Documentation contributions32485
+Ref: contrib documentation-contributions32588
+Ref: 3932588
+Ref: contrib eldev32588
+Ref: 3a32588
+Ref: Documentation contributions-Footnote-133076
+Ref: Documentation contributions-Footnote-233140
+Node: Index33175
 
 End Tag Table
 

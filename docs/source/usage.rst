@@ -195,6 +195,9 @@ Navigating the scrollback zone
   - :kbd:`C-c C-n` or :kbd:`M-x mistty-goto-next-output` does the
     reverse, that is, it goes to the next command output.
 
+  - :kbd:`C-c C-r` or :kbd:`M-x create-buffer-with-output` creates
+    a new buffer containing the last command output.
+
   - :kbd:`M-x mistty-goto-previous-input` goes to the beginning of the
     previous command input, that is, the previous prompt. While this
     is a way of going back the command you've previously input, it's

@@ -40,17 +40,17 @@ jobs:
     - name: Build the package
       run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev package'
 
-    - name: Update mistty.info
+    - name: Update mistty.texi
       # Only run on main branch push (e.g. after pull request merge).
       if: github.event_name == 'push'
       run: |
-        if git diff -s --exit-code mistty.info; then
-          echo "mistty.info not modified by this commit"
+        if git diff -s --exit-code mistty.texi; then
+          echo "mistty.texi not modified by this commit"
         else
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add mistty.info
-          git commit -m "Auto-update mistty.info" --author "${{ env.CI_COMMIT_AUTHOR }}"
+          git add mistty.texi
+          git commit -m "Auto-update mistty.texi" --author "${{ env.CI_COMMIT_AUTHOR }}"
           git push
         fi
 

@@ -2,7 +2,7 @@
 /Eldev-local
 /docs/build
 /dist
-mistty.texi
+mistty.info
 .cask
 *-autoloads.el*
 *.elc

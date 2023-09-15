@@ -590,7 +590,8 @@ Returns M or a new marker."
 (defun mistty--kill-term-buffer ()
   "Kill-buffer-hook handler for `mistty-term-buffer'."
   (let ((term-buffer mistty-term-buffer))
-    (mistty--detach)
+    (when (buffer-live-p mistty-work-buffer) ;; might be nil
+      (mistty--detach))
     (mistty--update-mode-lines)
     (when (buffer-live-p term-buffer)
       (let ((kill-buffer-query-functions nil))

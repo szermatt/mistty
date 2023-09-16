@@ -37,8 +37,8 @@ jobs:
     - name: Install Sphinx
       run: 'pip3 install -r docs/requirements.txt'
 
-    - name: Build the package
-      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev package'
+    - name: Re-build mistty.texi
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev build --force mistty.texi'
 
     - name: Update mistty.texi
       # Only run on main branch push (e.g. after pull request merge).

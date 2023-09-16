@@ -50,20 +50,31 @@ To create a new interactive shell buffer in MisTTY mode, call
 :kbd:`M-x mistty` or :kbd:`M-x mistty-create`. If you use MisTTY
 regularly, you'll want to bind some of these to global shortcuts:
 
+  .. index::
+     pair: command; mistty-create
+     pair: variable; explicit-shell-file-name
+     pair: variable; shell-file-name
+
   - :kbd:`M-x mistty-create` launches a new interactive shell in a
     MisTTY buffer. The shell that is launched is the one that's
     configured on :kbd:`M-x configure-option explicit-shell-file-name`
-    
+
     If :code:`explicit-shell-file-name` is unset, MisTTY falls back to
     :code:`shell-file-name`, then the environment variables
     :envvar:`ESHELL` and :envvar:`SHELL`.
 
+  .. index:: pair: command; mistty-create-other-window
+
   - :kbd:`M-x mistty-create-other-window` does the same, but opens the
     buffer in another window.
+
+  .. index:: pair: command; mistty
 
   - :kbd:`M-x mistty` also creates a new MisTTY buffer the first time
     it is called. Afterwards, it'll to an existing MisTTY buffer or
     creating a new one, trying to guess what's most appropriate.
+
+  .. index:: pair: command; mistty-other-window
 
   - :kbd:`M-x mistty-other-window` does the same, but opens a buffer
     in another window.
@@ -75,13 +86,13 @@ Terminal vs. Scrollback
 
 MisTTY buffers are split into two zones, with different behaviors:
 
+The :dfn:`scrollback zone`, is where you can see commands that have
+been executed and their output.
+
 The :dfn:`terminal zone`, marked by a purple line on the left of the
 window, is where you can type command and interact with the
 terminal. In this zone, :kbd:`TAB` triggers the shell completion, if
 available. With some shells, you'll see autosuggestions as you type.
-
-The :dfn:`scrollback zone`, is where you can see commands that have
-been executed and their output.
 
 The scrollback zone behaves as a normal Emacs buffer. You can modify
 it as you see fit.
@@ -126,7 +137,21 @@ everywhere as expected.
 To get the most out of MisTTY, it's worth it to take the time to
 configure it forward the shell key bindings that you actually use to
 the terminal and keep everything else behaving as usual for your Emacs
-configuration using the following commands:
+configuration.
+
+.. index::
+   pair: map; mistty-prompt-map
+   pair: map; mistty-mode-map
+
+To bind keys only in the terminal zone, bind them to
+:code`mistty-prompt-map`. To bind keys in both zones, bind them to
+:code:`mistty-mode-map`. See examples below.
+
+
+The following commands are useful to send key sequences to the current
+shell or program controlling the terminal:
+
+  .. index:: pair: command; mistty-send-key
 
   - The command :code:`mistty-send-key`, called interactively,
     forwards the key it was called from. It is meant to be bound to
@@ -150,12 +175,13 @@ configuration using the following commands:
     example:
 
     .. code-block:: elisp
-                    
+
        (defun my-mistty-M-s ()
          (interactive)
          (mistty-send-key (kbd "M-s")))
        (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
-                    
+
+  .. index:: pair: command; mistty-send-last-key
 
   - The command :code:`mistty-send-last-key` forwards the last key
     combination of a sequence it was called from to the terminal. For
@@ -170,6 +196,8 @@ instead of moving the cursor.
 
 If that's not enough,
 
+  .. index:: pair: command; mistty-send-key-sequence
+
   - :kbd:`C-c C-q`, :kbd:`M-x mistty-send-key-sequence` sends all keys
     you press to the terminal until you press :kbd:`C-g`.
 
@@ -179,30 +207,44 @@ If that's not enough,
 Navigating the scrollback zone
 ------------------------------
 
+  .. index:: pair: command; mistty-end-of-line-goto-cursor
+
   - :kbd:`C-e C-e` moves the point back inside the prompt. This is
     handled by the interactive function
     :code:`mistty-end-of-line-or-goto-cursor`
 
+  .. index:: pair: command; mistty-goto-cursor
+
   - :kbd:`M-x mistty-goto-cursor` also moves the point back inside the
     prompt. You can bind it to a custom shortcut if you don't like
     overloading C-e.
+
+  .. index:: pair: command; mistty-previous-output
 
   - :kbd:`C-c C-p` or :kbd:`M-x mistty-goto-previous-output` goes to
     the beginning of the previous command output. This is useful to if
     the buffer has scrolled too far and you want to see it from the
     beginning.
 
+  .. index:: pair: command; mistty-next-output
+
   - :kbd:`C-c C-n` or :kbd:`M-x mistty-goto-next-output` does the
     reverse, that is, it goes to the next command output.
 
-  - :kbd:`C-c C-r` or :kbd:`M-x create-buffer-with-output` creates
+  .. index:: pair: command; mistty-create-buffer-with-output
+
+  - :kbd:`C-c C-r` or :kbd:`M-x mistty-create-buffer-with-output` creates
     a new buffer containing the last command output.
+
+  .. index:: pair: command; mistty-goto-previous-input
 
   - :kbd:`M-x mistty-goto-previous-input` goes to the beginning of the
     previous command input, that is, the previous prompt. While this
     is a way of going back the command you've previously input, it's
     best to use the shell native command history, as discussed in
     :ref:`history`.
+
+  .. index:: pair: command; mistty-goto-next-input
 
   - :kbd:`M-x mistty-goto-next-input` goes to the next command input.
 
@@ -218,6 +260,8 @@ asks to run full screen and splits the MisTTY buffers into:
   interact with it. This is a term-mode buffer.
 - a scrollback buffer, which shows the previous command lines and
   their output.
+
+.. index:: pair: command; mistty-toggle-buffers
 
 :kbd:`C-c C-j` or :kbd:`M-x mistty-toggle-buffers` switches between
 these two.
@@ -264,8 +308,9 @@ a terminal of type :code:`TERM=eterm-color` run from inside Emacs.
 Other shells need to be configured to do the same. For more details,
 see :ref:`shells`.
 
+.. index:: pair: variable; mistty-allow-tramp-path
+
 If you have configured TRAMP and know that the hosts you ssh into are
 accessible with the default TRAMP method, you might consider allowing
 MisTTY to report remote paths on :kbd:`M-x configure-option
 mistty-allow-tramp-paths`
-

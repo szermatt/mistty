@@ -15,16 +15,22 @@ the issue. Such as:
 - the version of Emacs you're running, taken, for example, from :kbd:`M-x about-emacs`
 - whether you're running Emacs in a window environment or a terminal
 
+.. index::
+   pair: command; mistty-start-log
+   pair: command; mistty-stop-log
+
 If you can reproduce reliably, please include the content of the
 buffer :code:`*mistty-log*` into your report, as follows:
 
 - Enable logging with :kbd:`M-x mistty-start-log`
 - Reproduce the issue
-- Go to the buffer :code:`*mistty-log*`, copy its content and paste it
-  into the issue. The log includes everything that you write to the
-  terminal and everything that you get back from the terminal.  Please
-  make sure you're not including any private information, such as
-  password - remove them if necessary...
+- Go to the buffer :code:`*mistty-log*`
+- call :kbd:`M-x mistty-stop-log`
+- copy the buffer content and paste it into the issue. The log
+  includes everything that you write to the terminal and everything
+  that you get back from the terminal. Please make sure you're not
+  including any private information, such as password - remove them if
+  necessary...
 
 If you cannot reproduce reliably,
 
@@ -34,6 +40,7 @@ If you cannot reproduce reliably,
 - once it has happened again, immediately call :kbd:`M-x
   mistty-start-log`. The log will then contain entries for events that
   happened just *before* you called the command.
+- call :kbd:`M-x mistty-stop-log`
 - copy the content of the :code:`*mistty-log*` buffer, strip out
   anything private, and include it into the issue.
 
@@ -55,7 +62,7 @@ Code contributions
 To contribute code to the project, open a `Pull Request`_.
 
 Before you do that, please make sure the any new features is covered
-by tests and that the tests pass. 
+by tests and that the tests pass.
 
 To run the tests, install and setup `eldev`_ then run :command:`eldev
 test`.
@@ -82,7 +89,6 @@ install `Sphinx <https://www.sphinx-doc.org>`_ to build it:
 
    pip install sphinx sphinx-rtd-theme
 
-Then run :command:`eldev html` to build the documentation.   
+Then run :command:`eldev html` to build the documentation.
 
 .. _Pull Request: https://github.com/szermatt/emacs-bash-completion/pulls
-

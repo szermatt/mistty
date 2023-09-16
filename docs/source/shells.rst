@@ -141,6 +141,8 @@ Multi-line prompts
 when you type :kbd:`RET` and launches a multi-line prompt, which
 MisTTY knows to navigate.
 
+.. index:: pair: variable; mistty-skip-empty-spaces
+
 The cursor jumps over indent space while on such a prompt, just like
 in a normal terminal. :kbd:`M-x customize-option
 mistty-skip-empty-spaces` allows you to turn that on or off in a

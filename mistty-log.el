@@ -124,7 +124,8 @@ If logging is already enabled, just show the buffer."
       (when mistty-log
         (setq mistty-log nil))))
   (when (buffer-live-p mistty-log-buffer)
-    (kill-buffer mistty-log-buffer)))
+    (kill-buffer mistty-log-buffer))
+  (setq mistty-log-buffer nil))
 
 (defun mistty--log (format-str args &optional event-time)
   "Append FORMAT-STR and ARGS to the log.

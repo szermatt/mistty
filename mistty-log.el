@@ -26,6 +26,7 @@
 
 ;;; Code:
 
+(require 'ring)
 (eval-when-compile
   (require 'cl-lib))
 
@@ -49,24 +50,12 @@ Setting this value allows turning on logging once something wrong
 has happened.")
 
 (defvar-local mistty--backlog nil
-  "If non-nil, a mistty--backlog struct of `mistty--log' arguments.")
+  "If non-nil, a ring of `mistty--log' arguments.")
 
 (defvar-local mistty--log-start-time nil
   "Base for logged times.
 
 This is also the time the log buffer was created.")
-
-(cl-defstruct (mistty--backlog
-               (:constructor mistty--make-backlog
-                             (size &aux (idx 0) (array (make-vector size nil))))
-               (:conc-name mistty--backlog-)
-               (:copier nil))
-  ;; number of slots in array
-  size
-  ;; index of the first element in array
-  idx
-  ;; the array containing argument list for mistty-log
-  array)
 
 (defface mistty-log-header-face '((t (:italic t)))
   "Face applied to the headers in `mistty-log' buffer.
@@ -99,10 +88,9 @@ If logging is already enabled, just show the buffer."
   (if (and mistty-log (buffer-live-p mistty-log-buffer))
       (switch-to-buffer-other-window mistty-log-buffer)
     (setq mistty-log t)
-    (mistty--backlog-foreach
-     mistty--backlog
-     (lambda (args)
-       (apply #'mistty--log args)))
+    (when (ring-p mistty--backlog)
+      (dolist (args (nreverse (ring-elements mistty--backlog)))
+        (apply #'mistty--log args)))
     (setq mistty--backlog nil)
     (mistty--log "Log enabled" nil)
     (when (buffer-live-p mistty-log-buffer)
@@ -150,9 +138,9 @@ exit already."
 
      ;; not enabled; add to backlog
      ((and (not mistty-log) (> mistty-backlog-size 0))
-      (mistty--backlog-add
+      (ring-insert
        (or mistty--backlog
-           (setq mistty--backlog (mistty--make-backlog mistty-backlog-size)))
+           (setq mistty--backlog (make-ring mistty-backlog-size)))
        (list format-str args event-time)))
 
      ;; enabled; interactive: log to buffer
@@ -206,34 +194,6 @@ Return ARG unmodified if it's not a string."
          arg
          'string))
     arg))
-
-(defun mistty--backlog-add (backlog elt)
-  "Add ELT to the BACKLOG."
-  (aset (mistty--backlog-array backlog)
-        (mistty--backlog-idx backlog)
-        elt)
-  (cl-incf (mistty--backlog-idx backlog))
-  (when (>= (mistty--backlog-idx backlog)
-            (mistty--backlog-size backlog))
-    (setf (mistty--backlog-idx backlog) 0)))
-
-(defun mistty--backlog-foreach (backlog func)
-  "Apply FUNC to each non-nil element of the BACKLOG."
-  (when backlog
-    (let ((arr (mistty--backlog-array backlog))
-          (size (mistty--backlog-size backlog))
-          (idx (mistty--backlog-idx backlog))
-          (i (mistty--backlog-idx backlog)))
-      (while (< i size)
-        (when-let ((elt (aref arr i)))
-          (funcall func elt))
-        (setq i (1+ i)))
-      (setq i 0)
-      (while (< i idx)
-        (when-let ((elt (aref arr i)))
-          (funcall func elt))
-        (setq i (1+ i))))))
-
 
 (provide 'mistty-log)
 

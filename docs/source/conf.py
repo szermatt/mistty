@@ -19,6 +19,8 @@ extensions = [
     'sphinx.ext.intersphinx',
 ]
 
+root_doc = "index"
+
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'sphinx': ('https://www.sphinx-doc.org/en/master/', None),
@@ -33,3 +35,26 @@ html_theme = 'sphinx_rtd_theme'
 
 # -- Options for EPUB output
 epub_show_urls = 'footnote'
+
+# -- Options for Texinfo output
+
+texinfo_documents = [
+    (
+        # startdocname
+        root_doc,
+        # targetname
+        "mistty",
+        # title
+        "MisTTY",
+        # author
+        "Stephane Zermatten",
+        # dir_entry
+        "MisTTY",
+        # description
+        "Comint alternative with a fully-functional terminal",
+        # category
+        "Emacs",
+        # toctree_only
+        False,
+    )
+]

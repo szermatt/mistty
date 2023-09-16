@@ -10,9 +10,9 @@
 @paragraphindent 0
 @exampleindent 4
 @finalout
-@dircategory Miscellaneous
+@dircategory Emacs
 @direntry
-* mistty: (mistty.info). One line description of project
+* MisTTY: (mistty.info). Comint alternative with a fully-functional terminal
 @end direntry
 
 @c %**end of header

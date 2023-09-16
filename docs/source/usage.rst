@@ -178,7 +178,7 @@ shell or program controlling the terminal:
 
        (defun my-mistty-M-s ()
          (interactive)
-         (mistty-send-key (kbd "M-s")))
+         (mistty-send-key 1 (kbd "M-s")))
        (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
 
   .. index:: pair: command; mistty-send-last-key

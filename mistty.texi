@@ -12,7 +12,8 @@
 @finalout
 @dircategory Emacs
 @direntry
-* MisTTY: (mistty.info). Comint alternative with a fully-functional terminal
+* MisTTY: (mistty.info). Shell/comint alternative with a fully-functional
+                        terminal
 @end direntry
 
 @c %**end of header

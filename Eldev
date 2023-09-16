@@ -37,7 +37,7 @@
   (setq mistty-test-python-exe (executable-find path)))
 
 (eldev-defbuilder mistty-builder-build-info (source target)
-  :short-name     "SPHINX"
+  :short-name     "SPHINX-TEXI"
   :message        source-and-target
   :type           many-to-one
   :source-files   "docs/source/*.rst"

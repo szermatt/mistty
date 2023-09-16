@@ -2,6 +2,7 @@
 /Eldev-local
 /docs/build
 /dist
+/dir
 mistty.info
 .cask
 *-autoloads.el*

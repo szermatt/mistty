@@ -23,9 +23,6 @@ jobs:
     - name: Install fish
       run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && brew install -q fish && fish --version'
 
-    - name: Install Sphinx
-      run: 'pip3 install sphinx sphinx-rtd-theme'
-
     - name: Set up Emacs
       uses: jcs090218/setup-emacs@master
       with:
@@ -36,6 +33,9 @@ jobs:
 
     - name: Check out the source code
       uses: actions/checkout@v4
+
+    - name: Install Sphinx
+      run: 'pip3 install -r docs/requirements.txt'
 
     - name: Build the package
       run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev package'

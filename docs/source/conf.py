@@ -51,7 +51,7 @@ texinfo_documents = [
         # dir_entry
         "MisTTY",
         # description
-        "Comint alternative with a fully-functional terminal",
+        "Shell/comint alternative with a fully-functional terminal",
         # category
         "Emacs",
         # toctree_only

@@ -934,14 +934,6 @@ not yet, if it the work buffer is out of sync with
 `mistty-term-buffer'."
   (mistty--from-pos-of pos mistty-term-buffer))
 
-(defun mistty--from-work-pos (pos)
-  "Convert POS in the work buffer to its equivalent in the terminal.
-
-Note that the position might not exist in `mistty-term-buffer',
-not anymore, if it the term buffer is out of sync with
-`mistty-work-buffer'."
-  (mistty--from-pos-of pos mistty-work-buffer))
-
 (defun mistty--refresh ()
   "Copy the end of the term buffer to the work buffer.
 

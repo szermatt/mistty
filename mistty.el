@@ -496,15 +496,16 @@ The first entry is a copy of the current sync markers.")
 
 The buffer is switched to `mistty-mode'."
   (mistty-mode)
-  (mistty--attach
-   (mistty--create-term
-    (concat " mistty tty " (buffer-name)) program args
-    ;; local-map
-    mistty-fullscreen-map
-    ;; width
-    (- (window-max-chars-per-line) left-margin-width)
-    ;; height
-    (floor (window-screen-lines))))
+  (let ((win (or (get-buffer-window (current-buffer)) (selected-window))))
+    (mistty--attach
+     (mistty--create-term
+      (concat " mistty tty " (buffer-name)) program args
+      ;; local-map
+      mistty-fullscreen-map
+      ;; width
+      (- (window-max-chars-per-line win) left-margin-width)
+      ;;height
+      (floor (with-selected-window win (window-screen-lines))))))
   (mistty--update-mode-lines))
 
 (defun mistty--attach (term-buffer)
@@ -674,17 +675,21 @@ from the ESHELL or SHELL environment variables.
 Set COMMAND to specify instead the command to run just for the
 current call.
 
-If OTHER-WINDOW is non-nil, put the buffer into another window."
+If OTHER-WINDOW is non-nil, put the buffer into another window.
+
+Upon success, the function returns  the newly-created buffer."
   (interactive)
-  (with-current-buffer (generate-new-buffer "*mistty*")
-    (mistty--exec (or command
-                      explicit-shell-file-name
-                      shell-file-name
-                      (getenv "ESHELL")
-                      (getenv "SHELL")))
+  (let ((buf (generate-new-buffer "*mistty*")))
     (if other-window
-        (switch-to-buffer-other-window (current-buffer))
-      (switch-to-buffer (current-buffer)))))
+        (switch-to-buffer-other-window buf)
+      (switch-to-buffer buf))
+    (with-current-buffer buf
+      (mistty--exec (or command
+                        explicit-shell-file-name
+                        shell-file-name
+                        (getenv "ESHELL")
+                        (getenv "SHELL")))
+      buf)))
 
 ;;;###autoload
 (defun mistty-create-other-window (&optional command)
@@ -1887,15 +1892,18 @@ only spaces with ==\'mistty-skip t between them."
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."
-  (when (process-live-p mistty-proc)
+  (when (and (process-live-p mistty-proc)
+             (eq mistty-work-buffer (current-buffer)))
     (let* ((adjust-func (or (process-get mistty-proc 'adjust-window-size-function)
                             window-adjust-process-window-size-function))
            (size (funcall adjust-func mistty-proc
                           (get-buffer-window-list mistty-work-buffer nil t))))
       (when size
-        (mistty--set-process-window-size (car size) (- (cdr size) left-margin-width)))))
-  (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
-    (mistty--recenter win)))
+        (let ((width (- (car size) left-margin-width))
+              (height (cdr size)))
+        (mistty--set-process-window-size width height))))
+    (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
+      (mistty--recenter win))))
 
 (defun mistty--set-process-window-size (width height)
   "Set the process terminal size to WIDTH x HEIGHT."

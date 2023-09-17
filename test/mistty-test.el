@@ -2979,6 +2979,34 @@ window while BODY is running."
             (should (equal 'sh-mode major-mode)))
         (kill-buffer newbuf)))))
 
+(ert-deftest mistty-test-create ()
+  (let* ((buf (mistty-create mistty-test-bash-exe)))
+    (unwind-protect
+        (with-current-buffer buf
+          (should (equal 'mistty-mode major-mode))
+          (should (equal buf mistty-work-buffer))
+          (should (process-live-p mistty-proc)))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf)))))
+
+(ert-deftest mistty-test-window-size ()
+  (let* ((buf (mistty-create mistty-test-bash-exe)))
+    (unwind-protect
+        (with-current-buffer buf
+          (let ((win (get-buffer-window buf)))
+            ;; initial window size
+            (should (equal (- (window-max-chars-per-line win) left-margin-width)
+                           (buffer-local-value 'term-width mistty-term-buffer)))
+            (should (equal (floor (window-screen-lines))
+                           (buffer-local-value 'term-height mistty-term-buffer)))
+            (split-window-horizontally nil win)
+            ;; window size changed
+            (mistty--window-size-change win)
+            (should (equal (- (window-max-chars-per-line win) left-margin-width)
+                           (buffer-local-value 'term-width mistty-term-buffer)))))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf)))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

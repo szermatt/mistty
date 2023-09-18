@@ -44,7 +44,7 @@
     ("8" . ansi-osc-hyperlink-handler))
   "Hook run when unknown OSC sequences have been received.
 
-This hook is run on the term-mode buffer. It is passed the
+This hook is run on the `term-mode' buffer. It is passed the
 content of OSC sequence - everything between OSC (ESC ]) and
 ST (ESC \\ or \\a) and may choose to handle them.
 

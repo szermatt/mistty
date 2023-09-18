@@ -155,7 +155,7 @@ The second time this is called, this just returns
                    (setq last-at-point at-point)
                    (setq last-point (point))
                    (goto-char (next-single-property-change (point) 'mistty-change (current-buffer) (point-max)))
-                   (< (point) (point-max))))
+                   (not (eobp))))
           (when last-at-point
             (push `(,last-point . ,last-at-point) intervals))
           (when (mistty--changeset-deleted-point-max changeset)

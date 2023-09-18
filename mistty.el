@@ -604,7 +604,7 @@ Returns M or a new marker."
 The process attached to the buffer must be live.
 
 When in fullscreen mode, the main MisTTY buffer is actually a
-term-mode buffer, not the scrollback buffer."
+`term-mode' buffer, not the scrollback buffer."
   (and
    (buffer-live-p buffer)
    (pcase (buffer-local-value 'major-mode buffer)
@@ -1463,7 +1463,7 @@ This is meant to be added to ==\'after-change-functions."
   (mistty--sync-history-remove-above end nil)))
 
 (defun mistty--yield-condition (accept-f)
-  "Build a condition for using with iter-yield.
+  "Build a condition for using with `iter-yield'.
 
 ACCEPT-F is a function that returns non-nil once the state is
 acceptable. It is always run in the calling buffer."
@@ -2145,8 +2145,9 @@ A backstage buffer is a partial copy of PROC's buffer that's kept
 up-to-date with `replace-buffer-contents', so markers can be used
 to keep positions stable while the buffer is being modified.
 
-The value of some buffer-local variables are carried over to the
-backstage buffer: mistty-log, mistty-bracketed-paste."
+The value of the following buffer-local variables are carried
+over to the backstage buffer: `mistty-log',
+`mistty-bracketed-paste'."
   (let ((backstage (generate-new-buffer " *mistty-backstage" t))
         (calling-buffer (current-buffer)))
     (with-current-buffer backstage

@@ -20,31 +20,11 @@ completion in full colors. Here's what the end result might look like:
 
 ## INSTALLATION
 
-> **The following is just a short introduction. Read the full documentation at https://mistty.readthedocs.io/en/latest/**
+> **The following is just a quick introduction. Read the full documentation at https://mistty.readthedocs.io/en/latest/**
 
-Here's one way of installing MisTTY and binding it to the key `C-c s`:
-
-```elisp
-(package-vc-install "https://github.com/szermatt/mistty")
-(use-package mistty
-  :bind (("C-c s" . mistty)
-  
-         ;; bind here the shortcuts you'd like the 
-         ;; shell to handle instead of Emacs.
-         :map mistty-prompt-map
-         ;; all shells: go up/down in the shell history
-         ("C-p" . mistty-send-key)
-         ("C-r" . mistty-send-key)
-         ;; bash: history-token-search-backward
-         ("M-." . mistty-send-key)
-         ;; fish: dir history, more history manipulation
-         ("M-<up>" . mistty-send-key)
-         ("M-<down>" . mistty-send-key)
-         ("M-<left>" . mistty-send-key)
-         ("M-<right>" . mistty-send-key)))
-```
-
-Keys bound to `mistty-send-key` are sent to the terminal, so the action is executed by the shell. Bind the keys you actually use in a shell and leave Emacs handle everything else.
+You can install MisTTY:
+- from [MELPA](https://melpa.org/#/getting-started), by typing `M-x package-install mistty`
+- from source, by executing `(package-vc-install "https://github.com/szermatt/mistty")`
 
 ## USAGE
 
@@ -71,9 +51,38 @@ It'll send all key strokes directly to the terminal until you exit
 the mode by pressing `C-g`. To send a single key to the terminal 
 you can also press `C-q <key>` instead.
 
-If you call `M-x mistty` another time, you'll be taken back to any
-existing MisTTY buffer - see its documentation. If you don't like this
-behavior, use `M-x mistty-create` instead.
+You will very likely want to send some keys you use often directly 
+to the terminal. This is done by binding keys to `mistty-send-key` 
+in `mistty-prompt-map`. For example:
+
+```elisp
+(use-package mistty
+  :bind (("C-c s" . mistty)
+  
+         ;; bind here the shortcuts you'd like the 
+         ;; shell to handle instead of Emacs.
+         :map mistty-prompt-map
+         ;; most shells: backward history search
+         ("C-r" . mistty-send-key)
+
+         ;; go up/down in the shell history
+         ;; uncomment if you normally use arrows to move the cursor:
+         ;; ("C-p" . mistty-send-key)
+         ;; ("C-n" . mistty-send-key)
+         ;; uncomment if, instead, you normally use C-n/C-p:
+         ;; ("<up>" . mistty-send-key)
+         ;; ("<down>" . mistty-send-key)
+
+         ;; bash: history-token-search-backward
+         ("M-." . mistty-send-key)
+         ;; fish: dir history, more history manipulation
+         ("M-<up>" . mistty-send-key)
+         ("M-<down>" . mistty-send-key)
+         ("M-<left>" . mistty-send-key)
+         ("M-<right>" . mistty-send-key)))
+```
+
+See also [the documentation](https://mistty.readthedocs.io/en/latest/) for more details on configuring MisTTY [for different shells](https://mistty.readthedocs.io/en/latest/shells.html). 
 
 ## COMPATIBILITY
 

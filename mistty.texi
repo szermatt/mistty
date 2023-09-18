@@ -54,13 +54,14 @@ top of @code{term.el}. Check out its project page at
 
 @code{M-x mistty} creates a buffer with an interactive shell. Inside
 that buffer, you can move freely and use the usual Emacs commands and
-editing tools to run shell command and work with their output.
+editing tools to run shell command and work with their output. See
+@ref{1,,Launching} for details.
 
 In addition to these, you also have access to your shell’s native
 command and editing tools, including TAB-completion and
 autosuggestions.
 
-Commands that take over the @ref{1,,entire screen}, such as
+Commands that take over the @ref{2,,entire screen}, such as
 @code{less} or @code{vi} are also available.
 
 MisTTY` is known to work with @code{bash}, @code{zsh} and
@@ -150,7 +151,7 @@ Contributing
 @end menu
 
 @node Contents,Index,Top,Top
-@anchor{index contents}@anchor{2}@anchor{index mistty}@anchor{3}
+@anchor{index contents}@anchor{3}@anchor{index mistty}@anchor{4}
 @chapter Contents
 
 
@@ -164,7 +165,7 @@ Contributing
 @end menu
 
 @node Usage,Shells,,Contents
-@anchor{usage doc}@anchor{4}@anchor{usage usage}@anchor{5}
+@anchor{usage doc}@anchor{5}@anchor{usage usage}@anchor{6}
 @section Usage
 
 
@@ -180,7 +181,7 @@ Contributing
 @end menu
 
 @node Installation,Launching,,Usage
-@anchor{usage id1}@anchor{6}@anchor{usage installation}@anchor{7}
+@anchor{usage id1}@anchor{7}@anchor{usage installation}@anchor{8}
 @subsection Installation
 
 
@@ -190,7 +191,7 @@ To use MisTTY, first install its package.
 (package-vc-install "https://github.com/szermatt/mistty")
 @end example
 
-You can then call it, as described in @ref{8,,Launching}.
+You can then call it, as described in @ref{1,,Launching}.
 
 However, you’ll likely want to configure it and add some key bindings
 you use often in shells, for example:
@@ -203,13 +204,6 @@ you use often in shells, for example:
          ;; shell to handle instead of Emacs.
          :map mistty-prompt-map
 
-         ;; all shells: go up/down in the shell history
-         ("C-p" . mistty-send-key)
-         ("C-r" . mistty-send-key)
-
-         ;; bash: history-token-search-backward
-         ("M-." . mistty-send-key)
-
          ;; fish: dir history, more history manipulation
          ("M-<up>" . mistty-send-key)
          ("M-<down>" . mistty-send-key)
@@ -220,7 +214,7 @@ you use often in shells, for example:
 Read on for details on the commands and key bindings configured above.
 
 @node Launching,Terminal vs Scrollback,Installation,Usage
-@anchor{usage id2}@anchor{9}@anchor{usage launching}@anchor{8}
+@anchor{usage id2}@anchor{9}@anchor{usage launching}@anchor{1}
 @subsection Launching
 
 
@@ -334,6 +328,21 @@ line, and
 @item 
 @code{C-d} to ask it to either delete the next character or exit the
 program.
+
+@item 
+@code{M-p} to ask it to go up, or up the command history, sending
+@code{C-p} to the terminal.
+
+@item 
+@code{M-n} to ask it to go down, or down the command history,
+sending @code{C-n} to the terminal.
+
+@item 
+@code{M-r} to ask it to do backward history search, sending
+@code{C-r} to the terminal.
+
+@item 
+@code{M-.} to ask the shell to insert the last history argument.
 @end itemize
 
 In addition, @code{C-c C-c} sends the TERM signal to the terminal.
@@ -382,13 +391,12 @@ forwards the key it was called from. It is meant to be bound to
 the shell key bindings you want to work in the terminal zone map,
 @code{mistty-prompt-map}.
 
-For example, moving up the shell’s command history is usually
-bound to @code{C-p} and searching in the shell command history to
-@code{C-r}, so if you’d like to access these from a MisTTY buffer,
-you’d do the following:
+For example, searching in the shell command history is usually
+bound to @code{C-r}, MisTTY binds that to @code{M-r}, like comint
+does, but if you’d like it to be accessible using the original key
+binding, you can do:
 
 @example
-(keymap-set mistty-prompt-map "C-p" #'mistty-send-key)
 (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
 @end example
 
@@ -399,9 +407,9 @@ You can also pass arbitrary keys to @code{mistty-send-key}, for
 example:
 
 @example
-(defun my-mistty-M-s ()
-  (interactive)
-  (mistty-send-key 1 (kbd "M-s")))
+(defun my-mistty-M-s (n)
+  (interactive "p")
+  (mistty-send-key n (kbd "M-s")))
 (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
 @end example
 @end itemize
@@ -525,7 +533,7 @@ best to use the shell native command history, as discussed in
 @end quotation
 
 @node Fullscreen Mode,Command History,Navigating the scrollback zone,Usage
-@anchor{usage fullscreen}@anchor{1}@anchor{usage fullscreen-mode}@anchor{10}
+@anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{10}
 @subsection Fullscreen Mode
 
 
@@ -567,18 +575,21 @@ available in MisTTY using the following shortcuts:
 @itemize -
 
 @item 
-@code{C-q C-p} moves up command history
+@code{M-p} moves up command history
 
 @item 
-@code{C-q C-n} moves down command history
+@code{M-n} moves down command history
 
 @item 
-@code{C-q C-r} triggers a backward search in command history
+@code{M-r} triggers a backward search in command history
+
+@item 
+@code{M-.} insert the last argument from command history.
 @end itemize
 
-You can shorten these if you bind @code{C-p}, @code{C-n}, or
-@code{C-r} to @code{mistty-send-key} in the terminal zone of the
-MisTTY buffer. For example:
+To get the same key bindings you’d get in a normal terminal, you can
+bind @code{C-p}, @code{C-n}, or @code{C-r} to @code{mistty-send-key}
+in the terminal zone of the MisTTY buffer. For example:
 
 @example
 (keymap-set mistty-prompt-map "C-p" #'mistty-send-key)
@@ -737,9 +748,6 @@ To make full use of @code{fish} command history, you’ll want to
 forward some additional shortcuts to fish:
 
 @example
-(keymap-set mistty-prompt-map "C-p" #'mistty-send-key)
-(keymap-set mistty-prompt-map "C-n" #'mistty-send-key)
-(keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
 (keymap-set mistty-prompt-map "M-<up>" #'mistty-send-key)
 (keymap-set mistty-prompt-map "M-<down>" #'mistty-send-key)
 (keymap-set mistty-prompt-map "M-<left>" #'mistty-send-key)
@@ -747,13 +755,14 @@ forward some additional shortcuts to fish:
 @end example
 
 This can also be done by calling @code{use-package} as shown in
-@ref{7,,Installation}.
+@ref{8,,Installation}.
 
 When in reverse history search mode, @code{fish} enters a mode
-that lets you select an option using the arrow keys. You can use
-@code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}
-to send arrow keys directly to @code{fish} or @code{C-c C-q} to
-temporarily send all send key presses to @code{fish}.
+that lets you select an option using the arrow keys. To send
+up/down/left/right directly to @code{fish}, you can:
+- use @code{M-p} to go up and @code{M-n} to go down, or, if you prefer
+- use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or even
+- @code{C-c C-q} to temporarily send all send key presses to @code{fish}
 
 @node Directory tracking<2>,Multi-line prompts<2>,Command History<2>,Fish
 @anchor{shells id4}@anchor{1f}

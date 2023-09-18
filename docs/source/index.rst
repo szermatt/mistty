@@ -8,7 +8,8 @@ https://github.com/szermatt/mistty.
 
 :kbd:`M-x mistty` creates a buffer with an interactive shell. Inside
 that buffer, you can move freely and use the usual Emacs commands and
-editing tools to run shell command and work with their output.
+editing tools to run shell command and work with their output. See
+:ref:`launching` for details.
 
 In addition to these, you also have access to your shell's native
 command and editing tools, including TAB-completion and

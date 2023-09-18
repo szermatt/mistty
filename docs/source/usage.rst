@@ -26,13 +26,6 @@ you use often in shells, for example:
              ;; shell to handle instead of Emacs.
              :map mistty-prompt-map
 
-             ;; all shells: go up/down in the shell history
-             ("C-p" . mistty-send-key)
-             ("C-r" . mistty-send-key)
-
-             ;; bash: history-token-search-backward
-             ("M-." . mistty-send-key)
-
              ;; fish: dir history, more history manipulation
              ("M-<up>" . mistty-send-key)
              ("M-<down>" . mistty-send-key)
@@ -117,6 +110,13 @@ directly to the terminal, bypassing Emacs:
 - :kbd:`C-e` to ask it to move the cursor to the end of the line.
 - :kbd:`C-d` to ask it to either delete the next character or exit the
   program.
+- :kbd:`M-p` to ask it to go up, or up the command history, sending
+  :kbd:`C-p` to the terminal.
+- :kbd:`M-n` to ask it to go down, or down the command history, 
+  sending :kbd:`C-n` to the terminal.
+- :kbd:`M-r` to ask it to do backward history search, sending
+  :kbd:`C-r` to the terminal.
+- :kbd:`M-.` to ask the shell to insert the last history argument. 
 
 In addition, :kbd:`C-c C-c` sends the TERM signal to the terminal.
 
@@ -147,7 +147,6 @@ To bind keys only in the terminal zone, bind them to
 :code`mistty-prompt-map`. To bind keys in both zones, bind them to
 :code:`mistty-mode-map`. See examples below.
 
-
 The following commands are useful to send key sequences to the current
 shell or program controlling the terminal:
 
@@ -158,14 +157,13 @@ shell or program controlling the terminal:
     the shell key bindings you want to work in the terminal zone map,
     :code:`mistty-prompt-map`.
 
-    For example, moving up the shell's command history is usually
-    bound to :kbd:`C-p` and searching in the shell command history to
-    :kbd:`C-r`, so if you'd like to access these from a MisTTY buffer,
-    you'd do the following:
+    For example, searching in the shell command history is usually
+    bound to :kbd:`C-r`, MisTTY binds that to :kbd:`M-r`, like comint
+    does, but if you'd like it to be accessible using the original key
+    binding, you can do:
 
     .. code-block:: elisp
 
-        (keymap-set mistty-prompt-map "C-p" #'mistty-send-key)
         (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
 
     If you'd prefer to have the key available in both the scrollback
@@ -176,9 +174,9 @@ shell or program controlling the terminal:
 
     .. code-block:: elisp
 
-       (defun my-mistty-M-s ()
-         (interactive)
-         (mistty-send-key 1 (kbd "M-s")))
+       (defun my-mistty-M-s (n)
+         (interactive "p")
+         (mistty-send-key n (kbd "M-s")))
        (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
 
   .. index:: pair: command; mistty-send-last-key
@@ -280,13 +278,14 @@ to access the history of the different interactive command-line tools.
 The command history available in most shells and command-line editing tools is
 available in MisTTY using the following shortcuts:
 
-- :kbd:`C-q C-p` moves up command history
-- :kbd:`C-q C-n` moves down command history
-- :kbd:`C-q C-r` triggers a backward search in command history
+- :kbd:`M-p` moves up command history
+- :kbd:`M-n` moves down command history
+- :kbd:`M-r` triggers a backward search in command history
+- :kbd:`M-.` insert the last argument from command history.
 
-You can shorten these if you bind :kbd:`C-p`, :kbd:`C-n`, or
-:kbd:`C-r` to :code:`mistty-send-key` in the terminal zone of the
-MisTTY buffer. For example:
+To get the same key bindings you'd get in a normal terminal, you can
+bind :kbd:`C-p`, :kbd:`C-n`, or :kbd:`C-r` to :code:`mistty-send-key`
+in the terminal zone of the MisTTY buffer. For example:
 
 .. code-block:: elisp
 

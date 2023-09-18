@@ -193,7 +193,16 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-c" #'mistty-send-last-key
   "C-c C-z" #'mistty-send-last-key
   "C-c C-\\" #'mistty-send-last-key
-  "C-c C-g" #'mistty-send-last-key)
+  "C-c C-g" #'mistty-send-last-key
+
+  ;; Bind history search backward, previous history and next history
+  ;; to meta keys, like comint does.
+  "M-r" #'mistty-send-C-r
+  "M-p" #'mistty-send-C-p
+  "M-n" #'mistty-send-C-n
+  "M-<up>" #'mistty-send-C-p
+  "M-<down>" #'mistty-send-C-n
+  "M-." #'mistty-send-key)
 
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
@@ -1353,6 +1362,27 @@ This command is available in fullscreen mode."
       (mistty--send-string mistty-proc translated-key))
 
      (t (error "No live process")))))
+
+(defun mistty-send-C-r (n)
+  "Send Control r to the terminal, usually backward history search.
+
+If an argument is specified, repeat it N time."
+  (interactive "p")
+  (mistty-send-key n (kbd "C-r")))
+
+(defun mistty-send-C-p (n)
+  "Send Control p to the terminal, usually move up or prev history.
+
+If an argument is specified, repeat it N time."
+  (interactive "p")
+  (mistty-send-key n (kbd "C-p")))
+
+(defun mistty-send-C-n (n)
+  "Send Control n to the terminal, usually move down or next history.
+
+If an argument is specified, repeat it N time."
+  (interactive "p")
+  (mistty-send-key n (kbd "C-n")))
 
 (defun mistty-send-key-sequence ()
   "Send all keys to terminal until interrupted.

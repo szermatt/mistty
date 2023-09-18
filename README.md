@@ -62,27 +62,17 @@ in `mistty-prompt-map`. For example:
          ;; bind here the shortcuts you'd like the 
          ;; shell to handle instead of Emacs.
          :map mistty-prompt-map
-         ;; most shells: backward history search
-         ("C-r" . mistty-send-key)
 
-         ;; go up/down in the shell history
-         ;; uncomment if you normally use arrows to move the cursor:
-         ;; ("C-p" . mistty-send-key)
-         ;; ("C-n" . mistty-send-key)
-         ;; uncomment if, instead, you normally use C-n/C-p:
-         ;; ("<up>" . mistty-send-key)
-         ;; ("<down>" . mistty-send-key)
-
-         ;; bash: history-token-search-backward
-         ("M-." . mistty-send-key)
-         ;; fish: dir history, more history manipulation
+         ;; fish: directory history
          ("M-<up>" . mistty-send-key)
          ("M-<down>" . mistty-send-key)
          ("M-<left>" . mistty-send-key)
          ("M-<right>" . mistty-send-key)))
 ```
 
-See also [the documentation](https://mistty.readthedocs.io/en/latest/) for more details on configuring MisTTY [for different shells](https://mistty.readthedocs.io/en/latest/shells.html). 
+See also [the documentation](https://mistty.readthedocs.io/en/latest/)
+for more details on configuring MisTTY [for different
+shells](https://mistty.readthedocs.io/en/latest/shells.html).
 
 ## COMPATIBILITY
 

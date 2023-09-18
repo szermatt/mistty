@@ -760,9 +760,19 @@ This can also be done by calling @code{use-package} as shown in
 When in reverse history search mode, @code{fish} enters a mode
 that lets you select an option using the arrow keys. To send
 up/down/left/right directly to @code{fish}, you can:
-- use @code{M-p} to go up and @code{M-n} to go down, or, if you prefer
-- use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or even
-- @code{C-c C-q} to temporarily send all send key presses to @code{fish}
+
+
+@itemize -
+
+@item 
+use @code{M-p} to go up and @code{M-n} to go down, or, if you prefer
+
+@item 
+use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or even
+
+@item 
+@code{C-c C-q} to temporarily send all send key presses to @code{fish}
+@end itemize
 
 @node Directory tracking<2>,Multi-line prompts<2>,Command History<2>,Fish
 @anchor{shells id4}@anchor{1f}

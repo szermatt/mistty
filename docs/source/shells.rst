@@ -108,8 +108,11 @@ This can also be done by calling :code:`use-package` as shown in
 When in reverse history search mode, :program:`fish` enters a mode
 that lets you select an option using the arrow keys. To send
 up/down/left/right directly to :program:`fish`, you can:
+
 - use :kbd:`M-p` to go up and :kbd:`M-n` to go down, or, if you prefer
+
 - use :kbd:`C-q <up>` :kbd:`C-q <down>` :kbd:`C-q <left>` :kbd:`C-q <right>`, or even
+
 - :kbd:`C-c C-q` to temporarily send all send key presses to :program:`fish`
 
 

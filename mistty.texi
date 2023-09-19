@@ -75,9 +75,8 @@ info gmistty}
 
 @cartouche
 @quotation Note 
-MisTTY is Beta software! It might not work with your setup our your
-tools. If you try it out and encounter issues, please take the time
-to file a bug describing what you did and what happened.
+If you encounter issues, please take the time to file a bug. See
+@ref{3,,Reporting issues} for details.
 @end quotation
 @end cartouche
 
@@ -151,7 +150,7 @@ Contributing
 @end menu
 
 @node Contents,Index,Top,Top
-@anchor{index contents}@anchor{3}@anchor{index mistty}@anchor{4}
+@anchor{index contents}@anchor{4}@anchor{index mistty}@anchor{5}
 @chapter Contents
 
 
@@ -165,7 +164,7 @@ Contributing
 @end menu
 
 @node Usage,Shells,,Contents
-@anchor{usage doc}@anchor{5}@anchor{usage usage}@anchor{6}
+@anchor{usage doc}@anchor{6}@anchor{usage usage}@anchor{7}
 @section Usage
 
 
@@ -181,7 +180,7 @@ Contributing
 @end menu
 
 @node Installation,Launching,,Usage
-@anchor{usage id1}@anchor{7}@anchor{usage installation}@anchor{8}
+@anchor{usage id1}@anchor{8}@anchor{usage installation}@anchor{9}
 @subsection Installation
 
 
@@ -214,7 +213,7 @@ you use often in shells, for example:
 Read on for details on the commands and key bindings configured above.
 
 @node Launching,Terminal vs Scrollback,Installation,Usage
-@anchor{usage id2}@anchor{9}@anchor{usage launching}@anchor{1}
+@anchor{usage id2}@anchor{a}@anchor{usage launching}@anchor{1}
 @subsection Launching
 
 
@@ -279,7 +278,7 @@ in another window.
 @end quotation
 
 @node Terminal vs Scrollback,Navigating the scrollback zone,Launching,Usage
-@anchor{usage term-vs-scroll}@anchor{a}@anchor{usage terminal-vs-scrollback}@anchor{b}
+@anchor{usage term-vs-scroll}@anchor{b}@anchor{usage terminal-vs-scrollback}@anchor{c}
 @subsection Terminal vs. Scrollback
 
 
@@ -358,7 +357,7 @@ MisTTY will not work if you’ve configured your shell to turn on
 `VI mode' by default. Please `turn it off' before trying out
 MisTTY, for details on how to turn off VI mode only of MisTTY
 buffers and leave it on otherwise, check out the instructions in
-@ref{c,,Shells} for details. VI mode must be turned off even if you
+@ref{d,,Shells} for details. VI mode must be turned off even if you
 just end up controlling it with VI commands using Evil.
 @end quotation
 @end cartouche
@@ -449,7 +448,7 @@ you press to the terminal until you press @code{C-g}.
 @end quotation
 
 @node Navigating the scrollback zone,Fullscreen Mode,Terminal vs Scrollback,Usage
-@anchor{usage navigating-the-scrollback-zone}@anchor{d}@anchor{usage navigation}@anchor{e}
+@anchor{usage navigating-the-scrollback-zone}@anchor{e}@anchor{usage navigation}@anchor{f}
 @subsection Navigating the scrollback zone
 
 
@@ -519,7 +518,7 @@ a new buffer containing the last command output.
 previous command input, that is, the previous prompt. While this
 is a way of going back the command you’ve previously input, it’s
 best to use the shell native command history, as discussed in
-@ref{f,,Command History}.
+@ref{10,,Command History}.
 @end itemize
 
 @geindex command; mistty-goto-next-input
@@ -533,7 +532,7 @@ best to use the shell native command history, as discussed in
 @end quotation
 
 @node Fullscreen Mode,Command History,Navigating the scrollback zone,Usage
-@anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{10}
+@anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{11}
 @subsection Fullscreen Mode
 
 
@@ -561,7 +560,7 @@ When the program exits, the two buffers are again merged. Note that
 the output of the full screen app isn’t available in the scrollback.
 
 @node Command History,Directory tracking and TRAMP,Fullscreen Mode,Usage
-@anchor{usage command-history}@anchor{11}@anchor{usage history}@anchor{f}
+@anchor{usage command-history}@anchor{12}@anchor{usage history}@anchor{10}
 @subsection Command History
 
 
@@ -598,7 +597,7 @@ in the terminal zone of the MisTTY buffer. For example:
 @end example
 
 @node Directory tracking and TRAMP,,Command History,Usage
-@anchor{usage directory-tracking-and-tramp}@anchor{12}@anchor{usage dirtrack}@anchor{13}
+@anchor{usage directory-tracking-and-tramp}@anchor{13}@anchor{usage dirtrack}@anchor{14}
 @subsection Directory tracking and TRAMP
 
 
@@ -609,7 +608,7 @@ has to tell MisTTY about it. This is usually done from the prompt.
 a terminal of type @code{TERM=eterm-color} run from inside Emacs.
 
 Other shells need to be configured to do the same. For more details,
-see @ref{c,,Shells}.
+see @ref{d,,Shells}.
 
 @geindex variable; mistty-allow-tramp-path
 
@@ -619,7 +618,7 @@ MisTTY to report remote paths on @code{M-x configure-option
 mistty-allow-tramp-paths}
 
 @node Shells,Writing Extensions,Usage,Contents
-@anchor{shells doc}@anchor{14}@anchor{shells id1}@anchor{15}@anchor{shells shells}@anchor{c}
+@anchor{shells doc}@anchor{15}@anchor{shells id1}@anchor{16}@anchor{shells shells}@anchor{d}
 @section Shells
 
 
@@ -631,7 +630,7 @@ mistty-allow-tramp-paths}
 @end menu
 
 @node Bash,Fish,,Shells
-@anchor{shells bash}@anchor{16}@anchor{shells id2}@anchor{17}
+@anchor{shells bash}@anchor{17}@anchor{shells id2}@anchor{18}
 @subsection Bash
 
 
@@ -643,7 +642,7 @@ mistty-allow-tramp-paths}
 @end menu
 
 @node Multi-line prompts,Directory tracking,,Bash
-@anchor{shells multi-line-prompts}@anchor{18}
+@anchor{shells multi-line-prompts}@anchor{19}
 @subsubsection Multi-line prompts
 
 
@@ -660,7 +659,7 @@ You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
 @node Directory tracking,VI mode,Multi-line prompts,Bash
-@anchor{shells directory-tracking}@anchor{19}
+@anchor{shells directory-tracking}@anchor{1a}
 @subsubsection Directory tracking
 
 
@@ -685,7 +684,7 @@ Such sequence are either ignored or understood by most terminals, so
 you don’t absolutely need to check TERM.
 
 @node VI mode,,Directory tracking,Bash
-@anchor{shells vi-mode}@anchor{1a}
+@anchor{shells vi-mode}@anchor{1b}
 @subsubsection VI mode
 
 
@@ -714,7 +713,7 @@ fi
 @end example
 
 @node Fish,Zsh,Bash,Shells
-@anchor{shells fish}@anchor{1b}@anchor{shells id3}@anchor{1c}
+@anchor{shells fish}@anchor{1c}@anchor{shells id3}@anchor{1d}
 @subsection Fish
 
 
@@ -728,7 +727,7 @@ fi
 @end menu
 
 @node Autosuggestions,Command History<2>,,Fish
-@anchor{shells autosuggestions}@anchor{1d}
+@anchor{shells autosuggestions}@anchor{1e}
 @subsubsection Autosuggestions
 
 
@@ -740,7 +739,7 @@ The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
 @node Command History<2>,Directory tracking<2>,Autosuggestions,Fish
-@anchor{shells command-history}@anchor{1e}
+@anchor{shells command-history}@anchor{1f}
 @subsubsection Command History
 
 
@@ -755,7 +754,7 @@ forward some additional shortcuts to fish:
 @end example
 
 This can also be done by calling @code{use-package} as shown in
-@ref{8,,Installation}.
+@ref{9,,Installation}.
 
 When in reverse history search mode, @code{fish} enters a mode
 that lets you select an option using the arrow keys. To send
@@ -775,7 +774,7 @@ use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or e
 @end itemize
 
 @node Directory tracking<2>,Multi-line prompts<2>,Command History<2>,Fish
-@anchor{shells id4}@anchor{1f}
+@anchor{shells id4}@anchor{20}
 @subsubsection Directory tracking
 
 
@@ -796,7 +795,7 @@ such sequence are either ignored or understood by most terminals. You
 might already have it set up.
 
 @node Multi-line prompts<2>,VI mode<2>,Directory tracking<2>,Fish
-@anchor{shells id5}@anchor{20}
+@anchor{shells id5}@anchor{21}
 @subsubsection Multi-line prompts
 
 
@@ -812,7 +811,7 @@ mistty-skip-empty-spaces} allows you to turn that on or off in a
 MisTTY buffer.
 
 @node VI mode<2>,,Multi-line prompts<2>,Fish
-@anchor{shells id6}@anchor{21}
+@anchor{shells id6}@anchor{22}
 @subsubsection VI mode
 
 
@@ -831,7 +830,7 @@ end
 @end example
 
 @node Zsh,,Fish,Shells
-@anchor{shells id7}@anchor{22}@anchor{shells zsh}@anchor{23}
+@anchor{shells id7}@anchor{23}@anchor{shells zsh}@anchor{24}
 @subsection Zsh
 
 
@@ -844,7 +843,7 @@ end
 @end menu
 
 @node Autosuggestions<2>,Directory tracking<3>,,Zsh
-@anchor{shells id8}@anchor{24}
+@anchor{shells id8}@anchor{25}
 @subsubsection Autosuggestions
 
 
@@ -857,7 +856,7 @@ The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
 @node Directory tracking<3>,Multi-line prompts<3>,Autosuggestions<2>,Zsh
-@anchor{shells id9}@anchor{25}
+@anchor{shells id9}@anchor{26}
 @subsubsection Directory tracking
 
 
@@ -874,7 +873,7 @@ fi
 such sequence are either ignored or understood by most terminals.
 
 @node Multi-line prompts<3>,VI mode<3>,Directory tracking<3>,Zsh
-@anchor{shells id10}@anchor{26}
+@anchor{shells id10}@anchor{27}
 @subsubsection Multi-line prompts
 
 
@@ -891,7 +890,7 @@ You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
 @node VI mode<3>,,Multi-line prompts<3>,Zsh
-@anchor{shells id11}@anchor{27}
+@anchor{shells id11}@anchor{28}
 @subsubsection VI mode
 
 
@@ -910,7 +909,7 @@ fi
 @end example
 
 @node Writing Extensions,FAQ,Shells,Contents
-@anchor{extensions doc}@anchor{28}@anchor{extensions writing-extensions}@anchor{29}
+@anchor{extensions doc}@anchor{29}@anchor{extensions writing-extensions}@anchor{2a}
 @section Writing Extensions
 
 
@@ -922,7 +921,7 @@ fi
 @end menu
 
 @node OSC Sequences,Writing Your Own Commands,,Writing Extensions
-@anchor{extensions osc}@anchor{2a}@anchor{extensions osc-sequences}@anchor{2b}
+@anchor{extensions osc}@anchor{2b}@anchor{extensions osc-sequences}@anchor{2c}
 @subsection OSC Sequences
 
 
@@ -930,7 +929,7 @@ OSC are “operating system command” control sequences. MisTTY supports
 some of these sequences and ignores the others.
 
 By default, the supported sequences are OSC 2 (set window title), 7
-(directory tracking, already mentioned in @ref{13,,Directory tracking and TRAMP}) and 8
+(directory tracking, already mentioned in @ref{14,,Directory tracking and TRAMP}) and 8
 (hyperlinks), thanks to @code{ansi-osc.el}.
 
 @geindex variable; mistty-osc-handlers
@@ -967,7 +966,7 @@ same argument.
 @end itemize
 
 @node Writing Your Own Commands,Terminal Keymap,OSC Sequences,Writing Extensions
-@anchor{extensions custom-commands}@anchor{2c}@anchor{extensions writing-your-own-commands}@anchor{2d}
+@anchor{extensions custom-commands}@anchor{2d}@anchor{extensions writing-your-own-commands}@anchor{2e}
 @subsection Writing Your Own Commands
 
 
@@ -1023,7 +1022,7 @@ to that position.
 @end itemize
 
 @node Terminal Keymap,,Writing Your Own Commands,Writing Extensions
-@anchor{extensions term-keymap}@anchor{2e}@anchor{extensions terminal-keymap}@anchor{2f}
+@anchor{extensions term-keymap}@anchor{2f}@anchor{extensions terminal-keymap}@anchor{30}
 @subsection Terminal Keymap
 
 
@@ -1073,7 +1072,7 @@ keymap that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node FAQ,Contributing,Writing Extensions,Contents
-@anchor{faq doc}@anchor{30}@anchor{faq faq}@anchor{31}
+@anchor{faq doc}@anchor{31}@anchor{faq faq}@anchor{32}
 @section FAQ
 
 
@@ -1104,7 +1103,7 @@ Write a regexp that identifies the situation and add it to
 @code{M-x customize-option mistty-forbid-edit-regexps}.
 @end itemize
 
-See the section @ref{a,,Terminal vs. Scrollback} for more details.
+See the section @ref{b,,Terminal vs. Scrollback} for more details.
 @end quotation
 
 `Why is the cursor jumping around when I move it?'
@@ -1129,14 +1128,14 @@ terminal, meaning that it is not fully editable and that some
 shortcuts, such as @code{TAB} are sent directly to the program
 controlling the terminal.
 
-This is covered in depth in the section @ref{a,,Terminal vs. Scrollback}.
+This is covered in depth in the section @ref{b,,Terminal vs. Scrollback}.
 
 If you just don’t want to see that line, turn it off with
 @code{M-x customize-option mistty-fring-enabled}
 @end quotation
 
 @node Contributing,,FAQ,Contents
-@anchor{contrib doc}@anchor{32}@anchor{contrib contributing}@anchor{33}
+@anchor{contrib doc}@anchor{33}@anchor{contrib contributing}@anchor{34}
 @section Contributing
 
 
@@ -1150,7 +1149,7 @@ If you just don’t want to see that line, turn it off with
 @end menu
 
 @node Reporting issues,Suggesting features,,Contributing
-@anchor{contrib reporting-issues}@anchor{34}
+@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{35}
 @subsection Reporting issues
 
 
@@ -1229,21 +1228,21 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib issue-tracker}@anchor{35}@anchor{contrib suggesting-features}@anchor{36}
+@anchor{contrib issue-tracker}@anchor{36}@anchor{contrib suggesting-features}@anchor{37}
 @subsection Suggesting features
 
 
 Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
-@anchor{contrib asking-questions}@anchor{37}
+@anchor{contrib asking-questions}@anchor{38}
 @subsection Asking questions
 
 
 Open an issue on the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} with your question.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
-@anchor{contrib code-contributions}@anchor{38}
+@anchor{contrib code-contributions}@anchor{39}
 @subsection Code contributions
 
 
@@ -1261,7 +1260,7 @@ tests passing reliably when run using @code{eldev test} is what
 matters.
 
 @node Documentation contributions,,Code contributions,Contributing
-@anchor{contrib documentation-contributions}@anchor{39}@anchor{contrib eldev}@anchor{3a}
+@anchor{contrib documentation-contributions}@anchor{3a}@anchor{contrib eldev}@anchor{3b}
 @subsection Documentation contributions
 
 

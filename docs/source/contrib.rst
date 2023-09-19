@@ -1,6 +1,8 @@
 Contributing
 ============
 
+.. _reporting:
+
 Reporting issues
 ----------------
 

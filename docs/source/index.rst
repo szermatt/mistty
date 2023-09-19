@@ -29,9 +29,8 @@ info gmistty`
 
 .. note::
 
-   MisTTY is Beta software! It might not work with your setup our your
-   tools. If you try it out and encounter issues, please take the time
-   to file a bug describing what you did and what happened.
+   If you encounter issues, please take the time to file a bug. See
+   :ref:`reporting` for details.
 
 Contents
 --------

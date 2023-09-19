@@ -1884,30 +1884,54 @@ post-command hook."
            (when (and (not replay) point-moved)
              (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))))))))
 
-(iter2-defun mistty--cursor-to-point-generator ()
-  "A generator that tries to move the terminal cursor to the point."
-  (when (mistty-on-prompt-p (point))
-    (let ((from (mistty-cursor))
-          (to (point)))
-      (when (and (>= from (point-min))
-                 (<= from (point-max))
-                 (>= to (point-min))
-                 (<= to (point-max)))
-        (let* ((distance (mistty--distance from to))
-               (term-seq (mistty--move-horizontally-str distance)))
-          (when (mistty--nonempty-str-p term-seq)
-            (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-            (iter-yield
-             `(until ,term-seq
-                     ,(mistty--yield-condition
-                       (lambda ()
-                         ;; Ignoring skipped spaces is useful as, with
-                         ;; multiline prompts, it's hard to figure out
-                         ;; where the indentation should be without
-                         ;; understanding the language.
-                         (mistty--same-pos-ignoring-skipped
-                          (mistty-cursor) (point))))))
-            (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))))))))
+(defun mistty--cursor-to-point-generator ()
+  (let (start-f after-move-f done-f current-f)
+    (setq
+     start-f
+     (lambda (&optional _)
+       (or
+        (when (mistty-on-prompt-p (point))
+          (let ((from (mistty-cursor))
+                (to (point)))
+            (when (and (>= from (point-min))
+                       (<= from (point-max))
+                       (>= to (point-min))
+                       (<= to (point-max)))
+              (let* ((distance (mistty--distance from to))
+                     (term-seq (mistty--move-horizontally-str distance)))
+                (when (mistty--nonempty-str-p term-seq)
+                  (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
+                  (setq current-f after-move-f)
+                  `(until ,term-seq
+                          ,(mistty--yield-condition
+                            (lambda ()
+                              ;; Ignoring skipped spaces is useful as, with
+                              ;; multiline prompts, it's hard to figure out
+                              ;; where the indentation should be without
+                              ;; understanding the language.
+                              (mistty--same-pos-ignoring-skipped
+                               (mistty-cursor) (point))))))))))
+        (funcall done-f))))
+    (setq
+     after-move-f
+     (lambda (&optional _)
+       (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
+       (funcall done-f)))
+    (setq
+     done-f
+     (lambda (&optional _)
+       (setq current-f done-f)
+       (signal 'iter-end-of-sequence nil)))
+
+    ;;   START -> start-f -> END|after-move-f
+    ;;   after-move-f -> END|after-move-f
+    (setq current-f start-f)
+    (lambda (cmd val)
+      (cond
+       ((eq cmd :next)
+        (funcall current-f val))
+       ((eq cmd :close))
+       (t (error "Unknown command %s" cmd))))))
 
 (defun mistty--same-pos-ignoring-skipped (posa posb)
   "Return non-nil if POSA and POSB are the same, skipped spaces.

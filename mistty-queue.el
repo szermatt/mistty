@@ -142,6 +142,10 @@ description for the meaning of QUEUE and VALUE."
               (setf (mistty--queue-accept-f queue) nil))
             (while t
               (pcase (iter-next (mistty--queue-iter queue) value)
+                ;; Keep waiting
+                ('keep-waiting
+                 (cl-return-from mistty--dequeue-1))
+
                 ;; Fire-and-forget; no need to wait for a response
                 ((and `(fire-and-forget ,str)
                       (guard (mistty--nonempty-str-p str)))

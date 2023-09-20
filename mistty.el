@@ -1523,9 +1523,9 @@ acceptable. It is always run in the calling buffer."
 (defun mistty--replay-generator (cs)
   (let (start-f next-modification-f
         move-to-beg-f after-move-to-beg-f
-        move-to-end-f after-move-to-end-f
+        move-to-end-f after-move-to-end-f move-old-end-f
         insert-and-delete-f after-insert-and-delete-f
-        done-f unwind-f current-f
+        done-f unwind-f current-f accept-f
 
         calling-buffer backstage work-sync-marker modifications
         beg old-end is-first lower-limit upper-limit distance
@@ -1534,7 +1534,9 @@ acceptable. It is always run in the calling buffer."
     ;; next-modification-f -> move-to-beg-f
     ;; move-to-beg-f -> move-to-end-f|after-move-to-beg-f
     ;; after-move-to-beg-f -> move-to-end-f
-    ;; move-to-end-f -> insert-and-delete-f|after-move-to-end-f
+    ;; move-to-end-f -> insert-and-delete-f|move-old-end-f|after-move-to-end-f
+    ;; after-move-to-end -> move-old-end-f
+    ;; move-old-end-f -> insert-and-delete-f
     ;; insert-and-delete-f -> after-insert-and-delete-f
     ;; after-insert-and-delete-f -> next-modification-f
     (setq
@@ -1600,28 +1602,32 @@ acceptable. It is always run in the calling buffer."
           (let ((term-seq (mistty--move-horizontally-str distance)))
             (when (mistty--nonempty-str-p term-seq)
               (setq current-f after-move-to-beg-f)
-              `(until ,term-seq ,(mistty--yield-condition
+              (setq accept-f (mistty--yield-condition
                                   (lambda ()
                                     (mistty--update-backstage)
-                                    (= (point) beg)))))))
+                                    (= (point) beg))))
+              term-seq)))
          (funcall move-to-end-f))))
     (setq
      after-move-to-beg-f
-     (lambda (&optional _)
-       (mistty--update-backstage)
-       (mistty-log "Got to %s" (point))
-       ;; Point is now as close to beg as we can make it
+     (lambda (val)
+       (if (funcall accept-f val)
+           (progn
+             (mistty--update-backstage)
+             (mistty-log "Got to %s" (point))
+             ;; Point is now as close to beg as we can make it
 
-       ;; We couldn't move point as far back as beg. Presumably, the
-       ;; process mark points to the leftmost modifiable position of
-       ;; the command line.
-       (when (and (> (point) beg)
-                  (> (mistty--distance beg (point)) 0))
-         (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) beg)
-         (move-marker lower-limit (point)))
-       (move-marker beg (point))
+             ;; We couldn't move point as far back as beg. Presumably, the
+             ;; process mark points to the leftmost modifiable position of
+             ;; the command line.
+             (when (and (> (point) beg)
+                        (> (mistty--distance beg (point)) 0))
+               (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) beg)
+               (move-marker lower-limit (point)))
+             (move-marker beg (point))
 
-       (funcall move-to-end-f)))
+             (funcall move-to-end-f))
+         'keep-waiting)))
     (setq
      move-to-end-f
      (lambda ()
@@ -1635,18 +1641,25 @@ acceptable. It is always run in the calling buffer."
                (if (mistty--nonempty-str-p term-seq)
                    (progn
                      (setq current-f after-move-to-end-f)
-                     `(until ,term-seq
-                             ,(mistty--yield-condition
-                               (lambda ()
-                                 (mistty--update-backstage)
-                                 (= (point) old-end)))))
-                 (funcall after-move-to-end-f))))
+                     (setq accept-f (mistty--yield-condition
+                                     (lambda ()
+                                       (mistty--update-backstage)
+                                       (= (point) old-end))))
+                     term-seq)
+                 (funcall move-old-end-f))))
          (funcall insert-and-delete-f))))
     (setq
      after-move-to-end-f
+     (lambda (val)
+       (if (funcall accept-f val)
+           (progn
+             (mistty--update-backstage)
+             (mistty-log "Got to %s" (point))
+             (funcall move-old-end-f))
+         'keep-waiting)))
+    (setq
+     move-old-end-f
      (lambda (&optional _)
-       (mistty--update-backstage)
-       (mistty-log "Got to %s" (point))
        (when (and (> beg (point))
                   (> (mistty--distance beg (point)) 0))
          ;; If we couldn't even get to beg we'll have trouble with
@@ -1694,19 +1707,22 @@ acceptable. It is always run in the calling buffer."
             (setq inserted-detector (mistty--make-inserted-detector
                                      sub beg old-end))
             (setq current-f after-insert-and-delete-f)
-            `(until ,term-seq
-                    ,(mistty--yield-condition
-                      (lambda ()
-                        (mistty--update-backstage)
-                        (mistty--remove-text-with-property 'term-line-wrap t)
-                        (mistty--remove-text-with-property 'mistty-skip t)
-                        (funcall inserted-detector))))))
+            (setq accept-f (mistty--yield-condition
+                            (lambda ()
+                              (mistty--update-backstage)
+                              (mistty--remove-text-with-property 'term-line-wrap t)
+                              (mistty--remove-text-with-property 'mistty-skip t)
+                              (funcall inserted-detector))))
+            term-seq))
         (funcall next-modification-f))))
     (setq
      after-insert-and-delete-f
-     (lambda (&optional _)
-       (mistty--update-backstage)
-       (funcall next-modification-f)))
+     (lambda (val)
+       (if (funcall accept-f val)
+           (progn
+             (mistty--update-backstage)
+             (funcall next-modification-f))
+         'keep-waiting)))
     (setq
      unwind-f
      (lambda ()
@@ -1960,7 +1976,7 @@ post-command hook."
              (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))))))))
 
 (defun mistty--cursor-to-point-generator ()
-  (let (start-f after-move-f done-f current-f)
+  (let (start-f after-move-f done-f current-f accept-f)
     (setq
      start-f
      (lambda (&optional _)
@@ -1977,21 +1993,24 @@ post-command hook."
                 (when (mistty--nonempty-str-p term-seq)
                   (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
                   (setq current-f after-move-f)
-                  `(until ,term-seq
-                          ,(mistty--yield-condition
-                            (lambda ()
-                              ;; Ignoring skipped spaces is useful as, with
-                              ;; multiline prompts, it's hard to figure out
-                              ;; where the indentation should be without
-                              ;; understanding the language.
-                              (mistty--same-pos-ignoring-skipped
-                               (mistty-cursor) (point))))))))))
+                  (setq accept-f (mistty--yield-condition
+                                  (lambda ()
+                                    ;; Ignoring skipped spaces is useful as, with
+                                    ;; multiline prompts, it's hard to figure out
+                                    ;; where the indentation should be without
+                                    ;; understanding the language.
+                                    (mistty--same-pos-ignoring-skipped
+                                     (mistty-cursor) (point)))))
+                  term-seq)))))
         (funcall done-f))))
     (setq
      after-move-f
-     (lambda (&optional _)
-       (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
-       (funcall done-f)))
+     (lambda (val)
+       (if (funcall accept-f val)
+           (progn
+             (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
+             (funcall done-f))
+         'keep-waiting)))
     (setq
      done-f
      (lambda (&optional _)

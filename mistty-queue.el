@@ -82,10 +82,33 @@ Does nothing is STR is nil or empty."
   (when (mistty--nonempty-str-p str)
     (mistty--enqueue
      queue
-     (mistty--iter-single
-      (if fire-and-forget
-          (list 'fire-and-forget str)
-        str)))))
+     (mistty--single-generator str fire-and-forget))))
+
+(defun mistty--single-generator (str fire-and-forget)
+  "Generator that sends a single string STR.
+
+If FIRE-AND-FORGET, tell the queue not to wait before sending the
+next string."
+  (let (start-f done-f current-f)
+    (setq
+     start-f
+     (lambda (&optional _)
+       (setq current-f done-f)
+       (if fire-and-forget
+           `(fire-and-forget ,str)
+         str)))
+    (setq
+     done-f
+     (lambda (&optional _)
+       (setq current-f done-f)
+       (signal 'iter-end-of-sequence nil)))
+    (setq current-f start-f)
+    (lambda (cmd val)
+      (cond
+       ((eq cmd :next)
+        (funcall current-f val))
+       ((eq cmd :close))
+       (t (error "Unknown command %s" cmd))))))
 
 (defun mistty--enqueue (queue gen)
   "Add GEN to QUEUE.
@@ -245,10 +268,6 @@ This function is meant to be use as timer handler."
   (mistty--with-live-buffer buf
     (setf (mistty--queue-timer queue) nil)
     (mistty--dequeue queue value)))
-
-(iter-defun mistty--iter-single (elt)
-  "Build a generator that returns ELT and ends."
-  (iter-yield elt))
 
 (provide 'mistty-queue)
 

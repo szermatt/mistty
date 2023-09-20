@@ -1976,7 +1976,8 @@ post-command hook."
              (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))))))))
 
 (defun mistty--cursor-to-point-generator ()
-  (let (start-f after-move-f done-f current-f accept-f)
+  (let ((interact (mistty--make-interact))
+        start-f after-move-f accept-f)
     (setq
      start-f
      (lambda (&optional _)
@@ -1992,7 +1993,6 @@ post-command hook."
                      (term-seq (mistty--move-horizontally-str distance)))
                 (when (mistty--nonempty-str-p term-seq)
                   (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-                  (setq current-f after-move-f)
                   (setq accept-f (mistty--yield-condition
                                   (lambda ()
                                     ;; Ignoring skipped spaces is useful as, with
@@ -2001,31 +2001,21 @@ post-command hook."
                                     ;; understanding the language.
                                     (mistty--same-pos-ignoring-skipped
                                      (mistty-cursor) (point)))))
-                  term-seq)))))
-        (funcall done-f))))
+                  (mistty--interact-return interact term-seq after-move-f))))))
+        'done)))
     (setq
      after-move-f
      (lambda (val)
        (if (funcall accept-f val)
            (progn
              (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
-             (funcall done-f))
+             'done)
          'keep-waiting)))
-    (setq
-     done-f
-     (lambda (&optional _)
-       (setq current-f done-f)
-       (signal 'iter-end-of-sequence nil)))
 
     ;;   START -> start-f -> END|after-move-f
     ;;   after-move-f -> END|after-move-f
-    (setq current-f start-f)
-    (lambda (cmd val)
-      (cond
-       ((eq cmd :next)
-        (funcall current-f val))
-       ((eq cmd :close))
-       (t (error "Unknown command %s" cmd))))))
+    (mistty--interact-init interact start-f)
+    (mistty--interact-adapt interact)))
 
 (defun mistty--same-pos-ignoring-skipped (posa posb)
   "Return non-nil if POSA and POSB are the same, skipped spaces.

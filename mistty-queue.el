@@ -64,6 +64,42 @@
   ;; keep waiting for output (if it returns nil).
   accept-f)
 
+;; Asynchronous terminal interaction, to add into the queue.
+(cl-defstruct (mistty--interact
+               (:constructor mistty--make-interact)
+               (:conc-name mistty--interact-)
+               (:copier nil))
+  ;; Callback function that will handle the next call to
+  ;; mistty--interact-next. It takes a single argument.
+  ;;
+  ;; The interaction is finished once the callback returns 'done.
+  cb
+
+  ;; A function that releases any resource held during the
+  ;; interaction. It is called once It might be called even if the
+  ;; interaction is not ended or never started.
+  cleanup)
+
+(defsubst mistty--interact-init (interact cb &optional cleanup)
+  "Convenience function for initializing INTERACT.
+
+This function simply initializes the fields CB and CLEANUP of
+INTERACT."
+  (setf (mistty--interact-cb interact) cb)
+  (when cleanup
+    (setf (mistty--interact-cleanup interact) cleanup)))
+
+(defsubst mistty--interact-return (interact value cb)
+  "Convenience function for returning a value from INTERACT.
+
+This function sets CB and returns VALUE."
+  (setf (mistty--interact-cb interact) cb)
+  value)
+
+(defsubst mistty--interact-next (interact &optional val)
+  "Return the next value from INTERACT."
+  (funcall (mistty--interact-cb interact) val))
+
 (defsubst mistty--queue-empty-p (queue)
   "Return t if QUEUE generator hasn't finished yet."
   (not (mistty--queue-iter queue)))
@@ -269,6 +305,32 @@ This function is meant to be use as timer handler."
     (setf (mistty--queue-timer queue) nil)
     (mistty--dequeue queue value)))
 
+(defun mistty--interact-close (interact)
+  "Close INTERACT, releasing any resource it helds.
+
+After this call, `mistty--interact-next' fails and
+`mistty--interact-close' is a no-op."
+  (setf (mistty--interact-cb interact)
+        (lambda (&optional _)
+          (error "Interaction was closed")))
+  (when-let ((func (mistty--interact-cleanup interact)))
+    (setf (mistty--interact-cleanup interact) nil)
+    (funcall func)))
+
+(defun mistty--interact-adapt (interact)
+  "Transform INTERACT into a generator."
+  (lambda (cmd val)
+    (cond
+     ((eq cmd :next)
+      (let ((ret (mistty--interact-next interact val)))
+        (when (eq 'done ret)
+          (mistty--interact-close interact)
+          (signal 'iter-end-of-sequence nil))
+        ret))
+     ((eq cmd :close)
+      (mistty--interact-close interact))
+     (t (error "Unknown command %s" cmd)))))
+  
 (provide 'mistty-queue)
 
 ;;; mistty-queue.el ends here

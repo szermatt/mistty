@@ -4,7 +4,7 @@
 
 ;; Author: Stephane Zermatten <szermatt@gmx.net>
 ;; Version: 0.9
-;; Package-Requires: ((emacs "29.1") (iter2 "1.4"))
+;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: convenience, unix
 ;; URL: http://github.com/szermatt/mistty
 
@@ -39,7 +39,6 @@
 (require 'generator)
 (require 'text-property-search)
 (require 'fringe)
-(require 'iter2)
 (eval-when-compile
   (require 'cl-lib))
 

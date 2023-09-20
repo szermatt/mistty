@@ -18,7 +18,7 @@
 (require 'term)
 (require 'ert)
 (require 'ert-x)
-(require 'iter2)
+(require 'generator)
 (require 'seq)
 (eval-when-compile
   (require 'cl-lib))

@@ -134,35 +134,18 @@ This function sets CB and returns VALUE."
 
 Does nothing is STR is nil or empty."
   (when (mistty--nonempty-str-p str)
-    (mistty--enqueue
-     queue
-     (mistty--single-generator str fire-and-forget))))
-
-(defun mistty--single-generator (str fire-and-forget)
-  "Generator that sends a single string STR.
-
-If FIRE-AND-FORGET, tell the queue not to wait before sending the
-next string."
-  (let (start-f done-f current-f)
-    (setq
-     start-f
-     (lambda (&optional _)
-       (setq current-f done-f)
-       (if fire-and-forget
-           `(fire-and-forget ,str)
-         str)))
-    (setq
-     done-f
-     (lambda (&optional _)
-       (setq current-f done-f)
-       (signal 'iter-end-of-sequence nil)))
-    (setq current-f start-f)
-    (lambda (cmd val)
-      (cond
-       ((eq cmd :next)
-        (funcall current-f val))
-       ((eq cmd :close))
-       (t (error "Unknown command %s" cmd))))))
+    (let ((interact (mistty--make-interact)))
+      (mistty--interact-init
+       interact
+       (lambda (&optional _)
+         (mistty--interact-return
+          interact
+          (if fire-and-forget
+              `(fire-and-forget ,str)
+            str)
+          (lambda (&optional_) 'done))))
+      (mistty--enqueue
+       queue (mistty--interact-adapt interact)))))
 
 (defun mistty--enqueue (queue gen)
   "Add GEN to QUEUE.

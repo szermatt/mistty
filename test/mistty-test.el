@@ -1970,14 +1970,31 @@ window while BODY is running."
     (let ((start (mistty--bol (point))))
       (mistty--enqueue
        mistty--queue
-       (funcall (iter-lambda ()
-                  (iter-yield `(until "hello"
-                                      ,(lambda (_res)
-                                         (mistty-test-find-p "hello" start))))
-                  (iter-yield `(until "\C-m"
-                                      ,(lambda (_res)
-                                         (mistty-test-find-p "reset done" start))))
-                  (iter-yield "bar"))))
+       (let ((interact (mistty--make-interact))
+             hello-f enter-f bar-f done-f)
+
+         (setq hello-f
+               (lambda (&optional _)
+                 (mistty--interact-return
+                  interact "hello" enter-f)))
+         (setq enter-f
+               (lambda (val)
+                 (if (mistty-test-find-p "hello" start)
+                     (mistty--interact-return
+                      interact "\C-m" bar-f)
+                   'keep-waiting)))
+         (setq bar-f
+               (lambda (val)
+                 (if (mistty-test-find-p "reset done" start)
+                     (mistty--interact-return
+                      interact "bar" done-f)
+                   'keep-waiting)))
+         (setq done-f
+               (lambda (&optional _)
+                 'done))
+
+         (mistty--interact-init interact hello-f)
+         (mistty--interact-adapt interact)))
       (mistty-wait-for-output :str "$ " :start start)
 
       (should (equal (concat "read> hello\n"
@@ -2620,20 +2637,25 @@ window while BODY is running."
 
 (ert-deftest mistty-test-quit ()
   (mistty-with-test-buffer ()
-    (mistty--enqueue
-     mistty--queue
-     (funcall
-      (iter-lambda ()
-        (while t
-          (iter-yield ".")))))
-    (should (not (mistty--queue-empty-p mistty--queue)))
+    (let ((interact (mistty--make-interact))
+          (killed nil))
+      (mistty--interact-init
+       interact
+       (lambda (&optional _) ".")
+       (lambda () (setq killed t)))
+      (mistty--enqueue
+       mistty--queue
+       (mistty--interact-adapt interact))
 
-    ;; C-g
-    (let ((this-command 'keyboard-quit))
-      (mistty--pre-command)
-      (mistty--post-command))
+      (should (not (mistty--queue-empty-p mistty--queue)))
 
-    (should (mistty--queue-empty-p mistty--queue))))
+      ;; C-g
+      (let ((this-command 'keyboard-quit))
+        (mistty--pre-command)
+        (mistty--post-command))
+
+      (should (mistty--queue-empty-p mistty--queue))
+      (should killed))))
 
 (ert-deftest mistty-test-forbid-edit ()
   (let ((mistty-forbid-edit-regexps

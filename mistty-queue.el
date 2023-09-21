@@ -214,7 +214,12 @@ description for the meaning of QUEUE and VALUE."
                  (mistty-log "Accept function failed; giving up: %s" err)))
               (setf (mistty--queue-accept-f queue) nil))
             (while t
-              (pcase (iter-next (mistty--queue-iter queue) value)
+              (pcase
+                  (condition-case err
+                      (iter-next (mistty--queue-iter queue) value)
+                    (error
+                     (mistty-log "Interaction failed; giving up: %s" err)
+                     (signal 'iter-end-of-sequence nil)))
                 ;; Keep waiting
                 ('keep-waiting
                  (cl-return-from mistty--dequeue-1))

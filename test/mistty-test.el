@@ -18,7 +18,6 @@
 (require 'term)
 (require 'ert)
 (require 'ert-x)
-(require 'generator)
 (require 'seq)
 (eval-when-compile
   (require 'cl-lib))
@@ -2010,15 +2009,27 @@ window while BODY is running."
       (should (null mistty--changesets))
       (should (not mistty--need-refresh)))))
 
-(ert-deftest mistty-error-in-until-function ()
+(ert-deftest mistty-error-in-interaction ()
   (mistty-with-test-buffer ()
     (mistty--enqueue
      mistty--queue
-     (funcall (iter-lambda ()
-                (iter-yield `(until "foo"
-                                    ,(lambda (_res)
-                                       (error "fake error"))))
-                (iter-yield "bar"))))
+     (let ((interact (mistty--make-interact))
+             foo-f error-f)
+         (setq foo-f
+               (lambda (&optional _)
+                 (mistty-log "foo-f")
+                 (mistty--interact-return
+                  interact "foo" error-f)))
+         (setq error-f
+               (lambda (val)
+                 (mistty-log "error-f %s" val)
+                 (error "fake")))
+
+         (mistty--interact-init interact foo-f)
+         (mistty--interact-adapt interact)))
+    ;; mistty-queue.el should discard the failed interaction and move
+    ;; on to the next one.
+    (mistty--enqueue-str mistty--queue "bar")
     (mistty-wait-for-output :str "foobar" :start (point-min))))
 
 (ert-deftest mistty-test-end-prompt ()

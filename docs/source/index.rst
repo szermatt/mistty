@@ -18,7 +18,17 @@ autosuggestions.
 Commands that take over the :ref:`entire screen<fullscreen>`, such as
 :command:`less` or :command:`vi` are also available.
 
-MisTTY` is known to work with :program:`bash`, :program:`zsh` and
+.. only:: builder_html
+
+  MisTTY works well with Bash and ZSH, but it is especially well suited
+  to running `Fish <https://fishshell.com>`_: you get autosuggestions,
+  completion in full colors. Here's what the end result might look like:
+
+  .. image:: ../../screengrab.gif
+    :width: 600
+    :alt: Screen grab showing MisTTY in action
+
+MisTTY is known to work with :program:`bash`, :program:`zsh` and
 :program:`fish` on Linux and MacOS. It also supports non-shell
 command-line programs, such as :program:`python`.
 

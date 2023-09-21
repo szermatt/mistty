@@ -64,7 +64,8 @@ autosuggestions.
 Commands that take over the @ref{2,,entire screen}, such as
 @code{less} or @code{vi} are also available.
 
-MisTTY` is known to work with @code{bash}, @code{zsh} and
+
+MisTTY is known to work with @code{bash}, @code{zsh} and
 @code{fish} on Linux and MacOS. It also supports non-shell
 command-line programs, such as @code{python}.
 

@@ -12,8 +12,8 @@ https://github.com/szermatt/mistty.
 MisTTY feels very much like comint mode: you can move around freely
 and run any Emacs command you want - until you press TAB and end up
 with the native completion or notice the shell autosuggestions. With
-MisTTY have access to both Emacs and the shell commands and editing
-tools.
+MisTTY you have access to both Emacs and the shell commands and
+editing tools.
 
 Additionally, commands that take over the :ref:`entire
 screen<fullscreen>`, such as :command:`less` or :command:`vi` also

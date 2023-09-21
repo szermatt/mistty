@@ -148,30 +148,6 @@ history search are typically such a mode."
   :group 'mistty
   :type '(list regexp))
 
-(defvar mistty-max-try-count 1)
-
-(defvar mistty--report-issue-function nil
-  "A function that is told about non-fatal issues (debugging).
-
-This function is called with a single argument describing the
-possible problem:
-
- - ==\'hard-timeout ==\'soft-timeout A timeout is reported when
-  some key sequence sent to the terminal hasn't had the expected
-  effect after a certain time.
-
-  A hard timeout is reported when nothing was sent back, a soft
-  timeout when something was sent back, but it didn't satisfy the
-  condition.
-
-  This is to be expected, there are cases where terminal
-  sequences aren't meant to have an effect, such as sequence that
-  attempts to move left through the prompt.
-
-- ==\'already-matching A condition used to detect the effect of
-  a key sequence matches even before the key sequence is sent.
-  This is a sign that the condition is not appropriate.")
-
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -1490,37 +1466,8 @@ This is meant to be added to ==\'after-change-functions."
    ;; Outside sync region
   (mistty--sync-history-remove-above end nil)))
 
-(defun mistty--yield-condition (accept-f)
-  "Have `mistty-interact' instances wait for ACCEPT-F to pass.
-
-ACCEPT-F is a function that returns non-nil once the state is
-acceptable. It is always run in the calling buffer."
-  (let ((saved-buffer (current-buffer))
-        (try-count 0))
-    (when (and mistty--report-issue-function (funcall accept-f))
-      (funcall mistty--report-issue-function 'already-matching))
-    (lambda (res)
-      (with-current-buffer saved-buffer
-        (cond
-         ((funcall accept-f) 'accept)
-
-         ((and (eq res 'stable) (< try-count mistty-max-try-count))
-          (cl-incf try-count)
-          ;; keep waiting
-          nil)
-
-         ((eq res 'timeout)
-          (when mistty--report-issue-function
-            (funcall mistty--report-issue-function 'hard-timeout))
-          'give-up)
-
-         ((eq res 'stable)
-          (when mistty--report-issue-function
-            (funcall mistty--report-issue-function 'soft-timeout))
-          'give-up))))))
-
 (defun mistty--replay-interaction (cs)
-  "Build a `mistty--interact' to replay the changes in CS."
+  "Build a `mistty--interact' to replay what CS captured."
   (let ((interact (mistty--make-interact))
         start-f next-modification-f
         move-to-beg-f after-move-to-beg-f
@@ -1602,7 +1549,7 @@ acceptable. It is always run in the calling buffer."
           (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
           (let ((term-seq (mistty--move-horizontally-str distance)))
             (when (mistty--nonempty-str-p term-seq)
-              (setq accept-f (mistty--yield-condition
+              (setq accept-f (mistty--interact-wrap-accept
                                   (lambda ()
                                     (mistty--update-backstage)
                                     (= (point) beg))))
@@ -1640,7 +1587,7 @@ acceptable. It is always run in the calling buffer."
              (let ((term-seq (mistty--move-horizontally-str distance)))
                (if (mistty--nonempty-str-p term-seq)
                    (progn
-                     (setq accept-f (mistty--yield-condition
+                     (setq accept-f (mistty--interact-wrap-accept
                                      (lambda ()
                                        (mistty--update-backstage)
                                        (= (point) old-end))))
@@ -1705,7 +1652,7 @@ acceptable. It is always run in the calling buffer."
             (mistty--remove-text-with-property 'mistty-skip t)
             (setq inserted-detector (mistty--make-inserted-detector
                                      sub beg old-end))
-            (setq accept-f (mistty--yield-condition
+            (setq accept-f (mistty--interact-wrap-accept
                             (lambda ()
                               (mistty--update-backstage)
                               (mistty--remove-text-with-property 'term-line-wrap t)
@@ -1976,7 +1923,7 @@ post-command hook."
                      (term-seq (mistty--move-horizontally-str distance)))
                 (when (mistty--nonempty-str-p term-seq)
                   (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-                  (setq accept-f (mistty--yield-condition
+                  (setq accept-f (mistty--interact-wrap-accept
                                   (lambda ()
                                     ;; Ignoring skipped spaces is useful as, with
                                     ;; multiline prompts, it's hard to figure out

@@ -32,6 +32,31 @@
 (defvar mistty-timeout-s 0.5)
 (defvar mistty-stable-delay-s 0.1)
 
+(defvar mistty-max-try-count 1
+  "Maximum number of tries in `mistty--interact-wrap-accept'.")
+
+(defvar mistty--report-issue-function nil
+  "A function that is told about non-fatal issues (debugging).
+
+This function is called with a single argument describing the
+possible problem:
+
+ - ==\'hard-timeout ==\'soft-timeout A timeout is reported when
+  some key sequence sent to the terminal hasn't had the expected
+  effect after a certain time.
+
+  A hard timeout is reported when nothing was sent back, a soft
+  timeout when something was sent back, but it didn't satisfy the
+  condition.
+
+  This is to be expected, there are cases where terminal
+  sequences aren't meant to have an effect, such as sequence that
+  attempts to move left through the prompt.
+
+- ==\'already-matching A condition used to detect the effect of
+  a key sequence matches even before the key sequence is sent.
+  This is a sign that the condition is not appropriate.")
+
 ;; A queue of strings to send to the terminal process.
 ;;
 ;; The queue contains mistty--interact, which generates strings to
@@ -55,12 +80,7 @@
 
   ;; Timer called if the process doesn't not answer after a certain
   ;; time.
-  timeout
-
-  ;; A function to call to check whether it's time to call the
-  ;; generator (if it returns a non-nil value) or whether we should
-  ;; keep waiting for output (if it returns nil).
-  accept-f)
+  timeout)
 
 ;; Asynchronous terminal interaction, to add into the queue.
 (cl-defstruct (mistty--interact
@@ -89,6 +109,12 @@
   ;;   not be complete
   ;; - 'stable once the process stops sending data for a certain time
   ;; - 'timeout if the process did not send anything for a long time
+  ;; - 'fire-and-forget if the last value returned was a fire-and-forget
+  ;;
+  ;; CB returns one of:
+  ;; - a non-empty string to send to the terminal
+  ;; - 'keep-waiting to just wait for more output
+  ;; - 'done once the interaction is done. It'll be closed and discarded.
   cb
 
   ;; A function that releases any resource held during the
@@ -215,6 +241,7 @@ description for the meaning of QUEUE and VALUE."
                 'done))
         
         ('done
+         (setq value nil)
          (mistty--interact-close (mistty--queue-interact queue))
          (setf (mistty--queue-interact queue)
                (pop (mistty--queue-more-interacts queue))))
@@ -258,7 +285,6 @@ scheduled."
   "Clear QUEUE and cancel all pending actions.
 
 The queue remains usable, but empty."
-  (setf (mistty--queue-accept-f queue) nil)
   (when (mistty--queue-interact queue)
     (mistty--interact-close (mistty--queue-interact queue))
     (setf (mistty--queue-interact queue) nil))
@@ -313,7 +339,9 @@ This function is meant to be use as timer handler."
     (mistty--dequeue queue value)))
 
 (defun mistty--interact-next (interact &optional val)
-  "Return the next value from INTERACT."
+  "Return the next value from INTERACT.
+
+This passes VAL to `mistty-interact-cb'."
   (with-current-buffer (mistty--interact-buf interact)
     (prog1 (funcall (mistty--interact-cb interact) val)
       (setf (mistty--interact-buf interact) (current-buffer)))))
@@ -330,7 +358,45 @@ After this call, `mistty--interact-next' fails and
     (setf (mistty--interact-cleanup interact) nil)
     (with-current-buffer (mistty--interact-initial-buf interact)
       (funcall func))))
-  
+
+(defun mistty--interact-wrap-accept (accept-f)
+  "Decorates a condition for accepting a change.
+
+This is a helper for building `mistty--interact' instances. It wraps
+around ACCEPT-F, which should be a function that returns non-nil once
+the state of the output is acceptable.
+
+The wrapped function takes into account timeouts, intermediate
+states and stable states; it knows when to give up and return
+even though ACCEPT-F still doesn't return non-nil.
+
+It returns non-nil once interaction should continue:
+ - ==\'accept if the state is correct
+ - ==\'give-up if the state is incorrect but too much time has
+   passed
+ - nil if the caller should keep waiting."
+  (let ((try-count 0))
+    (when (and mistty--report-issue-function (funcall accept-f))
+      (funcall mistty--report-issue-function 'already-matching))
+    (lambda (res)
+      (cond
+       ((funcall accept-f) 'accept)
+
+       ((and (eq res 'stable) (< try-count mistty-max-try-count))
+        (cl-incf try-count)
+        ;; keep waiting
+        nil)
+
+       ((eq res 'timeout)
+        (when mistty--report-issue-function
+          (funcall mistty--report-issue-function 'hard-timeout))
+        'give-up)
+
+       ((eq res 'stable)
+        (when mistty--report-issue-function
+          (funcall mistty--report-issue-function 'soft-timeout))
+        'give-up)))))
+
 (provide 'mistty-queue)
 
 ;;; mistty-queue.el ends here

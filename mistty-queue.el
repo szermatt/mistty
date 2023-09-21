@@ -114,7 +114,20 @@ captures the current buffer."
 (defsubst mistty--interact-return (interact value cb)
   "Convenience function for returning a value from INTERACT.
 
-This function sets CB and returns VALUE."
+This function sets CB and returns VALUE.
+
+VALUE is the value returned to the queue, that is, either:
+ - a string to be sent to the terminal
+ - \\=`(fire-and-forget ,str) with STR the string to be sent
+ - \\='keep-waiting
+
+after sending that value. Note that there is no guarantee that
+the CB is a function to call once the terminal has been updated,
+terminal contains the effect of sending that value.
+
+Note that it makes no sense to return \\='done as a VALUE using
+this function, as CB would never be executed; Just return
+\\='done directly."
   (setf (mistty--interact-cb interact) cb)
   value)
 

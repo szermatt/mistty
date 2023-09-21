@@ -238,6 +238,7 @@ description for the meaning of QUEUE and VALUE."
                  (mistty--interact-next (mistty--queue-interact queue) value)
                (error
                 (mistty-log "Interaction failed; giving up: %s" err)
+                (message "mistty: Interaction failed; giving up: %s" err)
                 'done))
         
         ('done

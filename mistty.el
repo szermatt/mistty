@@ -36,7 +36,6 @@
 (require 'seq)
 (require 'subr-x)
 (require 'pcase)
-(require 'generator)
 (require 'text-property-search)
 (require 'fringe)
 (eval-when-compile
@@ -1492,7 +1491,7 @@ This is meant to be added to ==\'after-change-functions."
   (mistty--sync-history-remove-above end nil)))
 
 (defun mistty--yield-condition (accept-f)
-  "Build a condition for using with `iter-yield'.
+  "Have `mistty-interact' instances wait for ACCEPT-F to pass.
 
 ACCEPT-F is a function that returns non-nil once the state is
 acceptable. It is always run in the calling buffer."
@@ -1520,7 +1519,8 @@ acceptable. It is always run in the calling buffer."
             (funcall mistty--report-issue-function 'soft-timeout))
           'give-up))))))
 
-(defun mistty--replay-generator (cs)
+(defun mistty--replay-interaction (cs)
+  "Build a `mistty--interact' to replay the changes in CS."
   (let ((interact (mistty--make-interact))
         start-f next-modification-f
         move-to-beg-f after-move-to-beg-f
@@ -1543,7 +1543,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      start-f
      (lambda (&optional _)
-       (mistty-log "=== start-f")
        (setq calling-buffer (current-buffer))
        (setq backstage (mistty--create-backstage mistty-proc))
        (setq work-sync-marker (marker-position mistty-sync-marker))
@@ -1562,7 +1561,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      next-modification-f
      (lambda (&optional first)
-       (mistty-log "=== next-modification-f")
        (setq is-first first)
        (if-let ((m (car modifications)))
            (progn
@@ -1592,12 +1590,10 @@ acceptable. It is always run in the calling buffer."
          ;; couldn't be replayed.
          (set-buffer calling-buffer)
          (setq mistty--need-refresh t)
-         (mistty-log "=== done")
          'done)))
     (setq
      move-to-beg-f
      (lambda ()
-       (mistty-log "=== move-to-beg-f")
        (or
         ;; Move to beg, if possible. If not possible, remember how
         ;; far back we went when inserting.
@@ -1615,7 +1611,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      after-move-to-beg-f
      (lambda (val)
-       (mistty-log "=== after-move-to-beg")
        (if (funcall accept-f val)
            (progn
              (mistty--update-backstage)
@@ -1636,7 +1631,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      move-to-end-f
      (lambda ()
-       (mistty-log "=== move-to-end-f")
        ;; Move to old-end, if possible. If not possible, remember
        ;; how far we went when deleting.
        (if (and is-first (> old-end beg))
@@ -1656,7 +1650,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      after-move-to-end-f
      (lambda (val)
-       (mistty-log "=== after-move-to-end-f")
        (if (funcall accept-f val)
            (progn
              (mistty--update-backstage)
@@ -1666,7 +1659,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      move-old-end-f
      (lambda (&optional _)
-       (mistty-log "=== move-old-end-f")
        (when (and (> beg (point))
                   (> (mistty--distance beg (point)) 0))
          ;; If we couldn't even get to beg we'll have trouble with
@@ -1679,7 +1671,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      insert-and-delete-f
      (lambda ()
-       (mistty-log "=== insert-and-delete")
        (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
        (or
         (let ((start-idx (if (>= beg orig-beg)
@@ -1725,7 +1716,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      after-insert-and-delete-f
      (lambda (val)
-       (mistty-log "=== after-insert-and-delete")
        (if (funcall accept-f val)
            (progn
              (mistty--update-backstage)
@@ -1734,7 +1724,6 @@ acceptable. It is always run in the calling buffer."
     (setq
      unwind-f
      (lambda ()
-       (mistty-log "=== unwind-f")
        (mistty--delete-backstage backstage)
 
        ;; Always release the changeset at the end and re-enable
@@ -1743,7 +1732,7 @@ acceptable. It is always run in the calling buffer."
        (mistty--refresh-after-changeset)))
 
     (mistty--interact-init interact start-f unwind-f)
-    (mistty--interact-adapt interact)))
+    interact))
 
 (defun mistty--make-inserted-detector (inserted beg old-end)
   "Return a function for checking for INSERTED in the buffer.
@@ -1957,8 +1946,8 @@ post-command hook."
              (setq mistty--need-refresh t)))
 
            (when replay
-             (mistty--enqueue mistty--queue (mistty--replay-generator cs))
-             (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))
+             (mistty--enqueue mistty--queue (mistty--replay-interaction cs))
+             (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
 
            ;; Abandon changesets that haven't been picked up for replay.
            (when (and (not replay) (mistty--changeset-p cs))
@@ -1966,9 +1955,10 @@ post-command hook."
              (mistty--refresh-after-changeset))
 
            (when (and (not replay) point-moved)
-             (mistty--enqueue mistty--queue (mistty--cursor-to-point-generator)))))))))
+             (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))))))))
 
-(defun mistty--cursor-to-point-generator ()
+(defun mistty--cursor-to-point-interaction ()
+  "Build a `mistty--interact' to move the cursor to the point."
   (let ((interact (mistty--make-interact))
         start-f after-move-f accept-f)
     (setq
@@ -2008,7 +1998,7 @@ post-command hook."
     ;;   START -> start-f -> END|after-move-f
     ;;   after-move-f -> END|after-move-f
     (mistty--interact-init interact start-f)
-    (mistty--interact-adapt interact)))
+    interact))
 
 (defun mistty--same-pos-ignoring-skipped (posa posb)
   "Return non-nil if POSA and POSB are the same, skipped spaces.
@@ -2225,7 +2215,7 @@ prompts."
     (when (and (not (= cursor (point)))
                (mistty-maybe-realize-possible-prompt))
       (mistty--enqueue
-       mistty--queue (mistty--cursor-to-point-generator)))))
+       mistty--queue (mistty--cursor-to-point-interaction)))))
 
 (defun mistty-maybe-realize-possible-prompt (&optional pos)
   "If a possible prompt was detected at POS, create it now."

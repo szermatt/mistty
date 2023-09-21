@@ -1993,7 +1993,7 @@ window while BODY is running."
                  'done))
 
          (mistty--interact-init interact hello-f)
-         (mistty--interact-adapt interact)))
+         interact))
       (mistty-wait-for-output :str "$ " :start start)
 
       (should (equal (concat "read> hello\n"
@@ -2026,7 +2026,7 @@ window while BODY is running."
                  (error "fake")))
 
          (mistty--interact-init interact foo-f)
-         (mistty--interact-adapt interact)))
+         interact))
     ;; mistty-queue.el should discard the failed interaction and move
     ;; on to the next one.
     (mistty--enqueue-str mistty--queue "bar")
@@ -2654,9 +2654,7 @@ window while BODY is running."
        interact
        (lambda (&optional _) ".")
        (lambda () (setq killed t)))
-      (mistty--enqueue
-       mistty--queue
-       (mistty--interact-adapt interact))
+      (mistty--enqueue mistty--queue interact)
 
       (should (not (mistty--queue-empty-p mistty--queue)))
 

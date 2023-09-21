@@ -73,19 +73,41 @@
   ;; mistty--interact-next. It takes a single argument.
   ;;
   ;; The interaction is finished once the callback returns 'done.
+  ;;
+  ;; CB initially runs within the buffer that was current when
+  ;; `mistty--interact-init' was called. If CB modifies its current
+  ;; buffer, it is stored by `mistty--interact-next' and set for the
+  ;; next call to CB. The buffer that's current when
+  ;; `mistty--interact-next' doesn't matter, though it is guaranteed
+  ;; to be restored when it returns.
+  ;;
+  ;; As such, it is safe to use `set-buffer' within CB, as a buffer
+  ;; set that way sticks around between calls to CB and doesn't
+  ;; interfere with other pieces of the code.
   cb
 
   ;; A function that releases any resource held during the
   ;; interaction. It is called once It might be called even if the
   ;; interaction is not ended or never started.
-  cleanup)
+  cleanup
+
+  ;; The buffer that is current for the interaction. It'll be
+  ;; set before the next call to CB.
+  buf
+
+  ;; The buffer that was current when `mistty--interact-init' was
+  ;; called. It is set before calling CLEANUP.
+  initial-buf)
 
 (defsubst mistty--interact-init (interact cb &optional cleanup)
   "Convenience function for initializing INTERACT.
 
-This function simply initializes the fields CB and CLEANUP of
-INTERACT."
+This function initializes the fields CB, CLEANUP of INTERACT and
+captures the current buffer."
   (setf (mistty--interact-cb interact) cb)
+  (let ((buf (current-buffer)))
+    (setf (mistty--interact-buf interact) buf)
+    (setf (mistty--interact-initial-buf interact) buf))
   (when cleanup
     (setf (mistty--interact-cleanup interact) cleanup)))
 
@@ -95,10 +117,6 @@ INTERACT."
 This function sets CB and returns VALUE."
   (setf (mistty--interact-cb interact) cb)
   value)
-
-(defsubst mistty--interact-next (interact &optional val)
-  "Return the next value from INTERACT."
-  (funcall (mistty--interact-cb interact) val))
 
 (defsubst mistty--queue-empty-p (queue)
   "Return t if QUEUE generator hasn't finished yet."
@@ -305,6 +323,12 @@ This function is meant to be use as timer handler."
     (setf (mistty--queue-timer queue) nil)
     (mistty--dequeue queue value)))
 
+(defun mistty--interact-next (interact &optional val)
+  "Return the next value from INTERACT."
+  (with-current-buffer (mistty--interact-buf interact)
+    (prog1 (funcall (mistty--interact-cb interact) val)
+      (setf (mistty--interact-buf interact) (current-buffer)))))
+
 (defun mistty--interact-close (interact)
   "Close INTERACT, releasing any resource it helds.
 
@@ -315,7 +339,8 @@ After this call, `mistty--interact-next' fails and
           (error "Interaction was closed")))
   (when-let ((func (mistty--interact-cleanup interact)))
     (setf (mistty--interact-cleanup interact) nil)
-    (funcall func)))
+    (with-current-buffer (mistty--interact-initial-buf interact)
+      (funcall func))))
 
 (defun mistty--interact-adapt (interact)
   "Transform INTERACT into a generator."

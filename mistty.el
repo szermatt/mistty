@@ -1521,11 +1521,12 @@ acceptable. It is always run in the calling buffer."
           'give-up))))))
 
 (defun mistty--replay-generator (cs)
-  (let (start-f next-modification-f
+  (let ((interact (mistty--make-interact))
+        start-f next-modification-f
         move-to-beg-f after-move-to-beg-f
         move-to-end-f after-move-to-end-f move-old-end-f
         insert-and-delete-f after-insert-and-delete-f
-        done-f unwind-f current-f accept-f
+        unwind-f accept-f
 
         calling-buffer backstage work-sync-marker modifications
         beg old-end is-first lower-limit upper-limit distance
@@ -1542,24 +1543,26 @@ acceptable. It is always run in the calling buffer."
     (setq
      start-f
      (lambda (&optional _)
+       (mistty-log "=== start-f")
        (setq calling-buffer (current-buffer))
        (setq backstage (mistty--create-backstage mistty-proc))
        (setq work-sync-marker (marker-position mistty-sync-marker))
        (setq modifications (mistty--changeset-modifications cs))
        (setq beg (make-marker))
        (setq old-end (make-marker))
-       (with-current-buffer backstage
-         ;; Move modifications positions into the backstage buffer.
-         ;; Rely on markers to keep the positions valid through
-         ;; buffer modifications.
-         (dolist (m modifications)
-           (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min)))))
-         (setq lower-limit (point-min-marker))
-         (setq upper-limit (point-max-marker))
-         (funcall next-modification-f t))))
+       (set-buffer backstage)
+       ;; Move modifications positions into the backstage buffer.
+       ;; Rely on markers to keep the positions valid through
+       ;; buffer modifications.
+       (dolist (m modifications)
+         (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min)))))
+       (setq lower-limit (point-min-marker))
+       (setq upper-limit (point-max-marker))
+       (funcall next-modification-f t)))
     (setq
      next-modification-f
      (lambda (&optional first)
+       (mistty-log "=== next-modification-f")
        (setq is-first first)
        (if-let ((m (car modifications)))
            (progn
@@ -1587,12 +1590,14 @@ acceptable. It is always run in the calling buffer."
          ;; No more modifications.
          ;; Force refresh, even if nothing was sent, if only to revert what
          ;; couldn't be replayed.
-         (with-current-buffer calling-buffer
-           (setq mistty--need-refresh t))
-         (funcall done-f))))
+         (set-buffer calling-buffer)
+         (setq mistty--need-refresh t)
+         (mistty-log "=== done")
+         'done)))
     (setq
      move-to-beg-f
      (lambda ()
+       (mistty-log "=== move-to-beg-f")
        (or
         ;; Move to beg, if possible. If not possible, remember how
         ;; far back we went when inserting.
@@ -1601,16 +1606,16 @@ acceptable. It is always run in the calling buffer."
           (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
           (let ((term-seq (mistty--move-horizontally-str distance)))
             (when (mistty--nonempty-str-p term-seq)
-              (setq current-f after-move-to-beg-f)
               (setq accept-f (mistty--yield-condition
                                   (lambda ()
                                     (mistty--update-backstage)
                                     (= (point) beg))))
-              term-seq)))
+              (mistty--interact-return interact term-seq after-move-to-beg-f))))
          (funcall move-to-end-f))))
     (setq
      after-move-to-beg-f
      (lambda (val)
+       (mistty-log "=== after-move-to-beg")
        (if (funcall accept-f val)
            (progn
              (mistty--update-backstage)
@@ -1631,6 +1636,7 @@ acceptable. It is always run in the calling buffer."
     (setq
      move-to-end-f
      (lambda ()
+       (mistty-log "=== move-to-end-f")
        ;; Move to old-end, if possible. If not possible, remember
        ;; how far we went when deleting.
        (if (and is-first (> old-end beg))
@@ -1640,17 +1646,17 @@ acceptable. It is always run in the calling buffer."
              (let ((term-seq (mistty--move-horizontally-str distance)))
                (if (mistty--nonempty-str-p term-seq)
                    (progn
-                     (setq current-f after-move-to-end-f)
                      (setq accept-f (mistty--yield-condition
                                      (lambda ()
                                        (mistty--update-backstage)
                                        (= (point) old-end))))
-                     term-seq)
+                     (mistty--interact-return interact term-seq after-move-to-end-f))
                  (funcall move-old-end-f))))
          (funcall insert-and-delete-f))))
     (setq
      after-move-to-end-f
      (lambda (val)
+       (mistty-log "=== after-move-to-end-f")
        (if (funcall accept-f val)
            (progn
              (mistty--update-backstage)
@@ -1660,6 +1666,7 @@ acceptable. It is always run in the calling buffer."
     (setq
      move-old-end-f
      (lambda (&optional _)
+       (mistty-log "=== move-old-end-f")
        (when (and (> beg (point))
                   (> (mistty--distance beg (point)) 0))
          ;; If we couldn't even get to beg we'll have trouble with
@@ -1672,6 +1679,7 @@ acceptable. It is always run in the calling buffer."
     (setq
      insert-and-delete-f
      (lambda ()
+       (mistty-log "=== insert-and-delete")
        (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
        (or
         (let ((start-idx (if (>= beg orig-beg)
@@ -1706,18 +1714,18 @@ acceptable. It is always run in the calling buffer."
             (mistty--remove-text-with-property 'mistty-skip t)
             (setq inserted-detector (mistty--make-inserted-detector
                                      sub beg old-end))
-            (setq current-f after-insert-and-delete-f)
             (setq accept-f (mistty--yield-condition
                             (lambda ()
                               (mistty--update-backstage)
                               (mistty--remove-text-with-property 'term-line-wrap t)
                               (mistty--remove-text-with-property 'mistty-skip t)
                               (funcall inserted-detector))))
-            term-seq))
+            (mistty--interact-return interact term-seq after-insert-and-delete-f)))
         (funcall next-modification-f))))
     (setq
      after-insert-and-delete-f
      (lambda (val)
+       (mistty-log "=== after-insert-and-delete")
        (if (funcall accept-f val)
            (progn
              (mistty--update-backstage)
@@ -1726,31 +1734,16 @@ acceptable. It is always run in the calling buffer."
     (setq
      unwind-f
      (lambda ()
+       (mistty-log "=== unwind-f")
        (mistty--delete-backstage backstage)
 
-       (with-current-buffer calling-buffer
-         ;; Always release the changeset at the end and re-enable
-         ;; refresh.
-         (mistty--release-changeset cs)
-         (mistty--refresh-after-changeset))))
-    (setq
-     done-f
-     (lambda (&optional _)
-       (setq current-f done-f)
-       (funcall unwind-f)
-       (signal 'iter-end-of-sequence nil)))
+       ;; Always release the changeset at the end and re-enable
+       ;; refresh.
+       (mistty--release-changeset cs)
+       (mistty--refresh-after-changeset)))
 
-    (setq current-f start-f)
-    (lambda (cmd val)
-      (cond
-       ((eq cmd :next)
-        (if backstage
-            (with-current-buffer backstage
-              (funcall current-f val))
-          (funcall current-f val)))
-       ((eq cmd :close)
-        (funcall unwind-f))
-       (t (error "Unknown command %s" cmd))))))
+    (mistty--interact-init interact start-f unwind-f)
+    (mistty--interact-adapt interact)))
 
 (defun mistty--make-inserted-detector (inserted beg old-end)
   "Return a function for checking for INSERTED in the buffer.

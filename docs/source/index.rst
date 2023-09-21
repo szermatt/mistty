@@ -6,30 +6,32 @@ a shell inside of a buffer, similarly to comint mode. It is built on
 top of :file:`term.el`. Check out its project page at
 https://github.com/szermatt/mistty.
 
-:kbd:`M-x mistty` creates a buffer with an interactive shell. Inside
-that buffer, you can move freely and use the usual Emacs commands and
-editing tools to run shell command and work with their output. See
+:kbd:`M-x mistty` creates a buffer with an interactive shell. See
 :ref:`launching` for details.
 
-In addition to these, you also have access to your shell's native
-command and editing tools, including TAB-completion and
-autosuggestions.
+MisTTY feels very much like comint mode: you can move around freely
+and run any Emacs command you want - until you press TAB and end up
+with the native completion or notice the shell autosuggestions. With
+MisTTY have access to both Emacs and the shell commands and editing
+tools.
 
-Commands that take over the :ref:`entire screen<fullscreen>`, such as
-:command:`less` or :command:`vi` are also available.
+Additionally, commands that take over the :ref:`entire
+screen<fullscreen>`, such as :command:`less` or :command:`vi` also
+work, temporarily taking over the window, while scrollback remains
+available in another buffer.
 
 .. only:: builder_html
 
-  MisTTY works well with Bash and ZSH, but it is especially well suited
-  to running `Fish <https://fishshell.com>`_: you get autosuggestions,
-  completion in full colors. Here's what the end result might look like:
+  MisTTY works well with Bash and ZSH, but it is especially well
+  suited to running `Fish <https://fishshell.com>`_: you get
+  autosuggestions, completion in full colors. Here's what the end
+  result might look like:
 
   .. image:: ../../screengrab.gif
     :width: 600
     :alt: Screen grab showing MisTTY in action
 
-MisTTY is known to work with :program:`bash`, :program:`zsh` and
-:program:`fish` on Linux and MacOS. It also supports non-shell
+MisTTY is known to work on Linux and MacOS. It also supports non-shell
 command-line programs, such as :program:`python`.
 
 The latest version of this documentation is available at

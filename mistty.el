@@ -1473,7 +1473,7 @@ This is meant to be added to ==\'after-change-functions."
         move-to-beg-f after-move-to-beg-f
         move-to-end-f after-move-to-end-f move-old-end-f
         insert-and-delete-f after-insert-and-delete-f
-        unwind-f accept-f
+        unwind-f
 
         calling-buffer backstage work-sync-marker modifications
         beg old-end is-first lower-limit upper-limit distance
@@ -1540,32 +1540,30 @@ This is meant to be added to ==\'after-change-functions."
           (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
           (let ((term-seq (mistty--move-horizontally-str distance)))
             (when (mistty--nonempty-str-p term-seq)
-              (setq accept-f (mistty--interact-wrap-accept
-                                  (lambda ()
-                                    (mistty--update-backstage)
-                                    (= (point) beg))))
-              (mistty--interact-return interact term-seq after-move-to-beg-f))))
+              (mistty--interact-return
+               interact term-seq
+               :wait-until (lambda ()
+                             (mistty--update-backstage)
+                             (= (point) beg))
+               :then after-move-to-beg-f))))
          (funcall move-to-end-f))))
     (setq
      after-move-to-beg-f
-     (lambda (val)
-       (if (funcall accept-f val)
-           (progn
-             (mistty--update-backstage)
-             (mistty-log "Got to %s" (point))
-             ;; Point is now as close to beg as we can make it
+     (lambda ()
+       (mistty--update-backstage)
+       (mistty-log "Got to %s" (point))
+       ;; Point is now as close to beg as we can make it
 
-             ;; We couldn't move point as far back as beg. Presumably, the
-             ;; process mark points to the leftmost modifiable position of
-             ;; the command line.
-             (when (and (> (point) beg)
-                        (> (mistty--distance beg (point)) 0))
-               (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) beg)
-               (move-marker lower-limit (point)))
-             (move-marker beg (point))
+       ;; We couldn't move point as far back as beg. Presumably, the
+       ;; process mark points to the leftmost modifiable position of
+       ;; the command line.
+       (when (and (> (point) beg)
+                  (> (mistty--distance beg (point)) 0))
+         (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) beg)
+         (move-marker lower-limit (point)))
+       (move-marker beg (point))
 
-             (funcall move-to-end-f))
-         'keep-waiting)))
+       (funcall move-to-end-f)))
     (setq
      move-to-end-f
      (lambda ()
@@ -1577,26 +1575,23 @@ This is meant to be added to ==\'after-change-functions."
              (mistty-log "to old-end: %s -> %s distance: %s" (point) old-end distance)
              (let ((term-seq (mistty--move-horizontally-str distance)))
                (if (mistty--nonempty-str-p term-seq)
-                   (progn
-                     (setq accept-f (mistty--interact-wrap-accept
-                                     (lambda ()
-                                       (mistty--update-backstage)
-                                       (= (point) old-end))))
-                     (mistty--interact-return interact term-seq after-move-to-end-f))
+                   (mistty--interact-return
+                    interact term-seq
+                    :wait-until (lambda ()
+                                  (mistty--update-backstage)
+                                  (= (point) old-end))
+                    :then after-move-to-end-f)
                  (funcall move-old-end-f))))
          (funcall insert-and-delete-f))))
     (setq
      after-move-to-end-f
-     (lambda (val)
-       (if (funcall accept-f val)
-           (progn
-             (mistty--update-backstage)
-             (mistty-log "Got to %s" (point))
-             (funcall move-old-end-f))
-         'keep-waiting)))
+     (lambda ()
+       (mistty--update-backstage)
+       (mistty-log "Got to %s" (point))
+       (funcall move-old-end-f)))
     (setq
      move-old-end-f
-     (lambda (&optional _)
+     (lambda ()
        (when (and (> beg (point))
                   (> (mistty--distance beg (point)) 0))
          ;; If we couldn't even get to beg we'll have trouble with
@@ -1643,22 +1638,20 @@ This is meant to be added to ==\'after-change-functions."
             (mistty--remove-text-with-property 'mistty-skip t)
             (setq inserted-detector (mistty--make-inserted-detector
                                      sub beg old-end))
-            (setq accept-f (mistty--interact-wrap-accept
-                            (lambda ()
-                              (mistty--update-backstage)
-                              (mistty--remove-text-with-property 'term-line-wrap t)
-                              (mistty--remove-text-with-property 'mistty-skip t)
-                              (funcall inserted-detector))))
-            (mistty--interact-return interact term-seq after-insert-and-delete-f)))
+            (mistty--interact-return
+             interact term-seq
+             :wait-until (lambda ()
+                           (mistty--update-backstage)
+                           (mistty--remove-text-with-property 'term-line-wrap t)
+                           (mistty--remove-text-with-property 'mistty-skip t)
+                           (funcall inserted-detector))
+             :then after-insert-and-delete-f)))
         (funcall next-modification-f))))
     (setq
      after-insert-and-delete-f
-     (lambda (val)
-       (if (funcall accept-f val)
-           (progn
-             (mistty--update-backstage)
-             (funcall next-modification-f))
-         'keep-waiting)))
+     (lambda ()
+       (mistty--update-backstage)
+       (funcall next-modification-f)))
     (setq
      unwind-f
      (lambda ()
@@ -1898,7 +1891,7 @@ post-command hook."
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."
   (let ((interact (mistty--make-interact))
-        start-f after-move-f accept-f)
+        start-f after-move-f)
     (setq
      start-f
      (lambda (&optional _)
@@ -1914,24 +1907,22 @@ post-command hook."
                      (term-seq (mistty--move-horizontally-str distance)))
                 (when (mistty--nonempty-str-p term-seq)
                   (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-                  (setq accept-f (mistty--interact-wrap-accept
-                                  (lambda ()
-                                    ;; Ignoring skipped spaces is useful as, with
-                                    ;; multiline prompts, it's hard to figure out
-                                    ;; where the indentation should be without
-                                    ;; understanding the language.
-                                    (mistty--same-pos-ignoring-skipped
-                                     (mistty-cursor) (point)))))
-                  (mistty--interact-return interact term-seq after-move-f))))))
+                  (mistty--interact-return
+                   interact term-seq
+                   :wait-until (lambda ()
+                                 ;; Ignoring skipped spaces is useful as, with
+                                 ;; multiline prompts, it's hard to figure out
+                                 ;; where the indentation should be without
+                                 ;; understanding the language.
+                                 (mistty--same-pos-ignoring-skipped
+                                  (mistty-cursor) (point)))
+                   :then after-move-f))))))
         'done)))
     (setq
      after-move-f
-     (lambda (val)
-       (if (funcall accept-f val)
-           (progn
-             (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
-             'done)
-         'keep-waiting)))
+     (lambda ()
+       (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
+       'done))
     (mistty--interact-init interact start-f)
     interact))
 

@@ -1975,19 +1975,21 @@ window while BODY is running."
          (setq hello-f
                (lambda (&optional _)
                  (mistty--interact-return
-                  interact "hello" enter-f)))
+                  interact "hello"
+                  :wait-until (lambda ()
+                                (mistty-test-find-p "hello" start))
+                  :then enter-f)))
          (setq enter-f
-               (lambda (val)
-                 (if (mistty-test-find-p "hello" start)
-                     (mistty--interact-return
-                      interact "\C-m" bar-f)
-                   'keep-waiting)))
+               (lambda ()
+                 (mistty--interact-return
+                  interact "\C-m"
+                  :wait-until (lambda ()
+                                (mistty-test-find-p "reset done" start))
+                  :then bar-f)))
          (setq bar-f
-               (lambda (val)
-                 (if (mistty-test-find-p "reset done" start)
-                     (mistty--interact-return
-                      interact "bar" done-f)
-                   'keep-waiting)))
+               (lambda ()
+                 (mistty--interact-return
+                  interact "bar" :then done-f)))
          (setq done-f
                (lambda (&optional _)
                  'done))
@@ -2019,7 +2021,7 @@ window while BODY is running."
                (lambda (&optional _)
                  (mistty-log "foo-f")
                  (mistty--interact-return
-                  interact "foo" error-f)))
+                  interact "foo" :then error-f)))
          (setq error-f
                (lambda (val)
                  (mistty-log "error-f %s" val)

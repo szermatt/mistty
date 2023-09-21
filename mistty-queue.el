@@ -142,26 +142,6 @@ captures the current buffer."
   (when cleanup
     (setf (mistty--interact-cleanup interact) cleanup)))
 
-(defsubst mistty--interact-return (interact value cb)
-  "Convenience function for returning a value from INTERACT.
-
-This function sets CB and returns VALUE.
-
-VALUE is the value returned to the queue, that is, either:
- - a string to be sent to the terminal
- - \\=`(fire-and-forget ,str) with STR the string to be sent
- - \\='keep-waiting
-
-after sending that value. Note that there is no guarantee that
-the CB is a function to call once the terminal has been updated,
-terminal contains the effect of sending that value.
-
-Note that it makes no sense to return \\='done as a VALUE using
-this function, as CB would never be executed; Just return
-\\='done directly."
-  (setf (mistty--interact-cb interact) cb)
-  value)
-
 (defsubst mistty--queue-empty-p (queue)
   "Return t if QUEUE generator hasn't finished yet."
   (not (mistty--queue-interact queue)))
@@ -187,7 +167,7 @@ Does nothing is STR is nil or empty."
           (if fire-and-forget
               `(fire-and-forget ,str)
             str)
-          (lambda (&optional_) 'done))))
+          :then (lambda (&optional_) 'done))))
       (mistty--enqueue queue interact))))
 
 (defun mistty--enqueue (queue interact)
@@ -397,6 +377,37 @@ It returns non-nil once interaction should continue:
         (when mistty--report-issue-function
           (funcall mistty--report-issue-function 'soft-timeout))
         'give-up)))))
+
+(cl-defun mistty--interact-return
+    (interact value &key (wait-until nil) (then nil))
+  "Convenience function for returning a value from INTERACT.
+
+This function optionally sets up the callback with THEN, a
+condition to wait on with WAIT-UNTIL, then returns VALUE, a
+string to be sent to the process.
+
+WAIT-UNTIL must be a function that returns non-nil once the
+condition is met. It is wrapped with
+`mistty--interact-wrap-accept' before it is used.
+
+after sending that value. Note that there is no guarantee that
+the CB is a function to call once the terminal has been updated,
+terminal contains the effect of sending that value.
+
+Note that it makes no sense to return \\='done as a VALUE using
+this function, as CB would never be executed; Just return
+\\='done directly."
+  (cond
+   (wait-until
+    (let ((accept-f (mistty--interact-wrap-accept wait-until))
+          (then (or then (mistty--interact-cb interact))))
+      (setf (mistty--interact-cb interact)
+            (lambda (value)
+              (if (funcall accept-f value)
+                  (funcall then)
+                'keep-waiting)))))
+   (then (setf (mistty--interact-cb interact) then)))
+  value)
 
 (provide 'mistty-queue)
 

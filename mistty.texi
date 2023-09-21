@@ -52,21 +52,21 @@ a shell inside of a buffer, similarly to comint mode. It is built on
 top of @code{term.el}. Check out its project page at
 @indicateurl{https://github.com/szermatt/mistty}.
 
-@code{M-x mistty} creates a buffer with an interactive shell. Inside
-that buffer, you can move freely and use the usual Emacs commands and
-editing tools to run shell command and work with their output. See
+@code{M-x mistty} creates a buffer with an interactive shell. See
 @ref{1,,Launching} for details.
 
-In addition to these, you also have access to your shell’s native
-command and editing tools, including TAB-completion and
-autosuggestions.
+MisTTY feels very much like comint mode: you can move around freely
+and run any Emacs command you want - until you press TAB and end up
+with the native completion or notice the shell autosuggestions. With
+MisTTY have access to both Emacs and the shell commands and editing
+tools.
 
-Commands that take over the @ref{2,,entire screen}, such as
-@code{less} or @code{vi} are also available.
+Additionally, commands that take over the @ref{2,,entire screen}, such as @code{less} or @code{vi} also
+work, temporarily taking over the window, while scrollback remains
+available in another buffer.
 
 
-MisTTY is known to work with @code{bash}, @code{zsh} and
-@code{fish} on Linux and MacOS. It also supports non-shell
+MisTTY is known to work on Linux and MacOS. It also supports non-shell
 command-line programs, such as @code{python}.
 
 The latest version of this documentation is available at

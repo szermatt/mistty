@@ -1478,15 +1478,6 @@ This is meant to be added to ==\'after-change-functions."
         calling-buffer backstage work-sync-marker modifications
         beg old-end is-first lower-limit upper-limit distance
         orig-beg content old-length)
-    ;; start-f -> next-modification-f
-    ;; next-modification-f -> move-to-beg-f
-    ;; move-to-beg-f -> move-to-end-f|after-move-to-beg-f
-    ;; after-move-to-beg-f -> move-to-end-f
-    ;; move-to-end-f -> insert-and-delete-f|move-old-end-f|after-move-to-end-f
-    ;; after-move-to-end -> move-old-end-f
-    ;; move-old-end-f -> insert-and-delete-f
-    ;; insert-and-delete-f -> after-insert-and-delete-f
-    ;; after-insert-and-delete-f -> next-modification-f
     (setq
      start-f
      (lambda (&optional _)
@@ -1941,9 +1932,6 @@ post-command hook."
              (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
              'done)
          'keep-waiting)))
-
-    ;;   START -> start-f -> END|after-move-f
-    ;;   after-move-f -> END|after-move-f
     (mistty--interact-init interact start-f)
     interact))
 

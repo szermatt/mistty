@@ -101,6 +101,15 @@ window while BODY is running."
                  (setq mistty-test-ok 'ok))
              (unless mistty-test-ok (mistty-start-log))))))))
 
+(cl-defmacro mistty-simulate-scrollback-buffer (&body body)
+  "Run BODY in a simulated scrollback buffer."
+  `(let ((term-buffer mistty-term-buffer))
+     (mistty--detach)
+     (unwind-protect
+         (progn
+           ,@body)
+       (mistty--attach term-buffer))))
+
 (defmacro mistty-run-command (&rest body)
   `(progn
      (mistty-test-pre-command)
@@ -286,6 +295,11 @@ window while BODY is running."
                               (execute-kbd-macro (kbd "RET"))))))
     (should (equal "$ echo hello\nhello\n$" (mistty-test-content)))))
 
+(ert-deftest mistty-test-send-command-in-scrollback ()
+  (mistty-with-test-buffer ()
+    (mistty-simulate-scrollback-buffer
+     (should-error (call-interactively 'mistty-send-command)))))
+
 (ert-deftest mistty-test-send-newline-because-not-at-prompt ()
   (mistty-with-test-buffer (:selected t)
     (mistty-send-text "echo hello")
@@ -456,6 +470,59 @@ window while BODY is running."
     (should
      (equal "$ <>"
             (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-bol-in-scrollback ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (mistty-simulate-scrollback-buffer
+     (call-interactively 'mistty-beginning-of-line))))
+
+(ert-deftest mistty-test-eol-in-scrollback ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (goto-char (mistty--bol (point)))
+    (mistty-simulate-scrollback-buffer
+     (call-interactively 'mistty-end-of-line)
+
+     (should (equal "$ echo hello<>"
+                    (mistty-test-content :show (point))))
+     
+     (let ((this-command 'mistty-end-of-line)
+           (last-command 'mistty-end-of-line))
+       (call-interactively 'mistty-end-of-line))
+
+     (should (equal "$ echo hello<>"
+                    (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-eol-or-goto-cursor-in-scrollback ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (goto-char (mistty--bol (point)))
+    (mistty-simulate-scrollback-buffer
+     (call-interactively 'mistty-end-of-line-or-goto-cursor)
+
+     (should (equal "$ echo hello<>"
+                    (mistty-test-content :show (point))))
+
+     (let ((this-command 'mistty-end-of-line)
+           (last-command 'mistty-end-of-line))
+       (call-interactively 'mistty-end-of-line-or-goto-cursor))
+
+     (should (equal "$ echo hello<>"
+                    (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-goto-cursor ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (goto-char (point-min))
+    (mistty-run-command
+     (call-interactively 'mistty-goto-cursor))
+    (should (equal (point) (mistty-cursor)))))
+
+(ert-deftest mistty-test-goto-cursor-in-scrollback-buffer ()
+  (mistty-with-test-buffer ()
+    (mistty-simulate-scrollback-buffer
+     (should-error (call-interactively 'mistty-goto-cursor)))))
 
 (ert-deftest mistty-test-next-input ()
   (mistty-with-test-buffer ()
@@ -1263,42 +1330,6 @@ window while BODY is running."
       (should (equal work-buffer (window-buffer winA)))
       (should (equal term-buffer (window-buffer winB))))))
 
-(ert-deftest mistty-test-commands-in-scrollback-buffer ()
-  (mistty-with-test-buffer (:selected t)
-    (let ((proc mistty-proc)
-          (work-buffer mistty-work-buffer)
-          (term-buffer mistty-term-buffer))
-      ;; Enter fullscreen
-      (mistty-send-text
-       (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
-               "[47h" "[47l"))
-      (mistty-send-command)
-      (mistty-wait-for-output
-       :test
-       (lambda ()
-         (buffer-local-value 'mistty-fullscreen work-buffer)))
-
-      (with-current-buffer work-buffer
-        (should-error (mistty-goto-cursor))
-        (should-error (mistty-send-command))
-        (should-error (mistty-send-key 1 (kbd "a")))
-        (should-error (mistty-send-key-sequence))
-        (should-error (mistty-sudo))
-
-        (mistty--recenter (selected-window))
-        (mistty-beginning-of-line)
-        (mistty-end-of-line-or-goto-cursor)
-        (let ((this-command 'mistty-end-of-line-or-goto-cursor)
-              (last-command 'mistty-end-of-line-or-goto-cursor))
-          (mistty-end-of-line-or-goto-cursor)))
-
-      ;; Leave fullscreen
-      (mistty--send-string proc "\C-m")
-      (mistty-wait-for-output
-       :test
-       (lambda ()
-         (not (buffer-local-value 'mistty-fullscreen work-buffer)))))))
-
 (ert-deftest mistty-test-kill-fullscreen-buffer-kills-scrollback ()
   (mistty-with-test-buffer (:selected t)
     (let ((work-buffer mistty-work-buffer)
@@ -1953,6 +1984,11 @@ window while BODY is running."
     (execute-kbd-macro (kbd "e c h o SPC C-u 3 a"))
     (should (equal "aaa" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-send-key-in-scrollback ()
+  (mistty-with-test-buffer ()
+    (mistty-simulate-scrollback-buffer
+     (should-error (mistty-send-key 1 (kbd "a"))))))
+
 (ert-deftest mistty-test-self-insert ()
   (mistty-with-test-buffer ()
     (mistty-run-command
@@ -2036,6 +2072,11 @@ window while BODY is running."
       (mistty-send-key-sequence))
     (mistty-wait-for-output :str "ghij" :cursor-at-end t)
     (should (equal "abc ghij" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-send-key-sequence-in-scrollback ()
+  (mistty-with-test-buffer ()
+    (mistty-simulate-scrollback-buffer
+     (should-error (call-interactively 'mistty-send-key-sequence)))))
 
 (ert-deftest mistty-test-revert-modification-after-prompt ()
   (mistty-with-test-buffer (:shell zsh)
@@ -3077,6 +3118,11 @@ window while BODY is running."
     (mistty-run-command
      (call-interactively 'mistty-sudo))
     (should (equal "$ sudo echo ok<>" (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-sudo-in-scrollback ()
+  (mistty-with-test-buffer ()
+    (mistty-simulate-scrollback-buffer
+     (should-error (call-interactively 'mistty-sudo)))))
 
 (ert-deftest mistty-test-fullscreen-message ()
   (let ((mistty-mode-map (make-sparse-keymap))

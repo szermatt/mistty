@@ -58,8 +58,8 @@ top of @code{term.el}. Check out its project page at
 MisTTY feels very much like comint mode: you can move around freely
 and run any Emacs command you want - until you press TAB and end up
 with the native completion or notice the shell autosuggestions. With
-MisTTY have access to both Emacs and the shell commands and editing
-tools.
+MisTTY you have access to both Emacs and the shell commands and
+editing tools.
 
 Additionally, commands that take over the @ref{2,,entire screen}, such as @code{less} or @code{vi} also
 work, temporarily taking over the window, while scrollback remains

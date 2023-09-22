@@ -106,7 +106,7 @@ differently from modifications made inside of the synced region."
   :type '(boolean)
   :group 'mistty)
 
-(defcustom mistty-skip-empty-spaces nil
+(defcustom mistty-skip-empty-spaces t
   "If non-nil the cursor skips over empty spaces like the shell does.
 
 With this option set, MisTTY attempts to reproduce the jumps the

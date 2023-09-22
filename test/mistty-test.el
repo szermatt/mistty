@@ -1939,6 +1939,14 @@ window while BODY is running."
     (mistty-wait-for-output :regexp "abc *$")
     (should (equal "abc" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-send-key-sequence  ()
+  (mistty-with-test-buffer (:selected t)
+    (mistty-send-text "echo abc def")
+    (ert-simulate-keys '(?\C-w ?g ?i ?j ?\C-b ?\C-b ?h ?\C-e ?\C-g)
+      (mistty-send-key-sequence))
+    (mistty-wait-for-output :str "ghij" :cursor-at-end t)
+    (should (equal "abc ghij" (mistty-send-and-capture-command-output)))))
+
 (ert-deftest mistty-test-revert-modification-after-prompt ()
   (mistty-with-test-buffer (:shell zsh)
     (dotimes (i 3)

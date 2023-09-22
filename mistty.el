@@ -1366,10 +1366,14 @@ terminal, just like `mistty-send-key', until it is interrupted
 with \\[keyboard-quit] or until it is passed a key or event it
 doesn't support, such as a mouse event.."
   (interactive)
-  (while-let ((key
+  (let (key)
+    (while
+        (and
+         (setq key
                (read-event "Sending all KEYS to terminal... Exit with C-g."
-                           'inherit-input-method)))
-    (mistty-send-key 1 (make-vector 1 key))))
+                           'inherit-input-method))
+         (not (eq key ?\C-g)))
+      (mistty-send-key 1 (make-vector 1 key)))))
 
 (defun mistty-beginning-of-line (&optional n)
   "Go to the Nth beginning of line, possibly by sending Control a.

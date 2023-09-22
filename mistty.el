@@ -474,6 +474,10 @@ The first entry is a copy of the current sync markers.")
   "Asserts that the current buffer is the term buffer."
   (unless (eq mistty-term-buffer (current-buffer)) (error "Term buffer required")))
 
+(defsubst mistty--require-proc ()
+  "Asserts that the current buffer has a live process."
+  (unless (process-live-p mistty-proc) (error "No running process")))
+
 (defun mistty--exec (program &rest args)
   "Execute PROGRAM ARGS in the current buffer.
 
@@ -814,6 +818,7 @@ PROC is the calling shell process and STR the string it sent."
 (defun mistty-goto-cursor ()
   "Move the point to the terminal's cursor."
   (interactive)
+  (mistty--require-proc)
   (let ((cursor (mistty--safe-pos (mistty-cursor))))
     (goto-char cursor)
     (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
@@ -907,6 +912,10 @@ update the term buffer normally."
 Note that the position might not exist in `mistty-work-buffer',
 not yet, if it the work buffer is out of sync with
 `mistty-term-buffer'."
+  ;; Not using mistty--require-proc as a non-live process is
+  ;; acceptable here.
+  (unless mistty-proc
+    (error "No process"))
   (mistty--from-pos-of (process-mark mistty-proc) mistty-term-buffer))
 
 (defun mistty--from-pos-of (pos buffer-of-pos)
@@ -1225,13 +1234,13 @@ instead `mistty--move-sync-mark-with-shift' or
 
 (defun mistty-send-string (str)
   "Send STR to the process."
-  (if (process-live-p mistty-proc)
-      (mistty--enqueue-str mistty--queue str)
-    (error "No running process")))
+  (mistty--require-proc)
+  (mistty--enqueue-str mistty--queue str))
 
 (defun mistty-send-command ()
   "Send the current command to the shell."
   (interactive)
+  (mistty--require-proc)
   (mistty-maybe-realize-possible-prompt)
   (setq mistty-goto-cursor-next-time t)
   (when (and mistty-proc
@@ -1317,6 +1326,7 @@ KEY must be a string or vector as would be returned by `kbd'.
 
 This command is available in fullscreen mode."
   (interactive "p")
+  (mistty--require-proc)
   (let* ((key (or key (this-command-keys-vector)))
          (translated-key (mistty-translate-key key n))
          (fire-and-forget (string-match "^[[:graph:]]+$" translated-key)))
@@ -1366,6 +1376,7 @@ terminal, just like `mistty-send-key', until it is interrupted
 with \\[keyboard-quit] or until it is passed a key or event it
 doesn't support, such as a mouse event.."
   (interactive)
+  (mistty--require-proc)
   (let (key)
     (while
         (and
@@ -1389,6 +1400,7 @@ forwards the argument to it."
   ;; sign that we're on a pointer.
   (let ((n (or n 1)))
     (if (and (= n 1)
+             (process-live-p mistty-proc)
              (or (mistty-maybe-realize-possible-prompt (point))
                  (mistty-on-prompt-p (point))))
         (progn
@@ -1412,6 +1424,7 @@ forwards the argument to it."
   (let ((n (or n 1)))
     (if (and (= 1 n)
              (eq last-command this-command)
+             mistty-proc ;; doesn't have to be running
              (/= (point) (mistty-cursor)))
         (mistty-goto-cursor)
       (mistty-end-of-line n))))
@@ -1429,6 +1442,7 @@ forwards the argument to it."
   (let ((n (or n 1)))
     (cond
      ((and (= 1 n)
+           (process-live-p mistty-proc)
            (or (mistty-maybe-realize-possible-prompt (point))
                (mistty-on-prompt-p (point))))
       (mistty-goto-cursor)

@@ -1263,6 +1263,42 @@ window while BODY is running."
       (should (equal work-buffer (window-buffer winA)))
       (should (equal term-buffer (window-buffer winB))))))
 
+(ert-deftest mistty-test-commands-in-scrollback-buffer ()
+  (mistty-with-test-buffer (:selected t)
+    (let ((proc mistty-proc)
+          (work-buffer mistty-work-buffer)
+          (term-buffer mistty-term-buffer))
+      ;; Enter fullscreen
+      (mistty-send-text
+       (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
+               "[47h" "[47l"))
+      (mistty-send-command)
+      (mistty-wait-for-output
+       :test
+       (lambda ()
+         (buffer-local-value 'mistty-fullscreen work-buffer)))
+
+      (with-current-buffer work-buffer
+        (should-error (mistty-goto-cursor))
+        (should-error (mistty-send-command))
+        (should-error (mistty-send-key 1 (kbd "a")))
+        (should-error (mistty-send-key-sequence))
+        (should-error (mistty-sudo))
+
+        (mistty--recenter (selected-window))
+        (mistty-beginning-of-line)
+        (mistty-end-of-line-or-goto-cursor)
+        (let ((this-command 'mistty-end-of-line-or-goto-cursor)
+              (last-command 'mistty-end-of-line-or-goto-cursor))
+          (mistty-end-of-line-or-goto-cursor)))
+
+      ;; Leave fullscreen
+      (mistty--send-string proc "\C-m")
+      (mistty-wait-for-output
+       :test
+       (lambda ()
+         (not (buffer-local-value 'mistty-fullscreen work-buffer)))))))
+
 (ert-deftest mistty-test-kill-fullscreen-buffer-kills-scrollback ()
   (mistty-with-test-buffer (:selected t)
     (let ((work-buffer mistty-work-buffer)

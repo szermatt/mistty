@@ -1209,6 +1209,60 @@ window while BODY is running."
       (should-error (mistty-toggle-buffers))
       (should (equal work-buffer (window-buffer win))))))
 
+(ert-deftest mistty-test-fullscreen-swap-buffers ()
+  (mistty-with-test-buffer (:selected t)
+    (let ((proc mistty-proc)
+          (work-buffer mistty-work-buffer)
+          (term-buffer mistty-term-buffer)
+          (scratch (get-buffer-create "*scratch*"))
+          (winA (selected-window))
+          winA-prevs
+          winB-prevs
+          winB)
+      (delete-other-windows)
+      (set-window-buffer winA scratch)
+      (set-window-buffer winA work-buffer)
+      (split-window-vertically)
+      (other-window 1)
+      (setq winB (selected-window))
+      (set-window-buffer winB scratch)
+      (set-window-buffer winB term-buffer)
+      (setq winA-prevs (mapcar #'car (window-prev-buffers winA)))
+      (setq winB-prevs (mapcar #'car (window-prev-buffers winB)))
+
+      (should (equal work-buffer (window-buffer winA)))
+      (should (equal term-buffer (window-buffer winB)))
+
+      ;; Enter fullscreen
+      (with-current-buffer work-buffer
+        (mistty-send-text
+         (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
+                 "[47h" "[47l"))
+        (mistty-send-command)
+        (mistty-wait-for-output
+         :test
+         (lambda ()
+           (buffer-local-value 'mistty-fullscreen work-buffer))))
+
+      ;; The buffers have been swapped; prev-buffers doesn't register
+      ;; that there was a change, though.
+      (should (equal term-buffer (window-buffer winA)))
+      (should (equal work-buffer (window-buffer winB)))
+      (should (equal winA-prevs (mapcar #'car (window-prev-buffers winA))))
+      (should (equal winB-prevs (mapcar #'car (window-prev-buffers winB))))
+
+      ;; Leave fullscreen
+      (with-current-buffer work-buffer
+        (mistty--send-string proc "\C-m")
+        (mistty-wait-for-output
+         :test
+         (lambda ()
+           (not (buffer-local-value 'mistty-fullscreen work-buffer)))))
+
+      ;; Back to the initial setup
+      (should (equal work-buffer (window-buffer winA)))
+      (should (equal term-buffer (window-buffer winB))))))
+
 (ert-deftest mistty-test-kill-fullscreen-buffer-kills-scrollback ()
   (mistty-with-test-buffer (:selected t)
     (let ((work-buffer mistty-work-buffer)

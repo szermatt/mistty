@@ -2086,26 +2086,21 @@ Ignores buffers that don't exist."
   (force-mode-line-update))
 
 (defun mistty--swap-buffer-in-windows (a b)
-  "Swap buffers A and B in windows and window previous buffers."
+  "Swap buffers A and B in windows.
+
+This function keeps prev-buffers list unmodified."
   (walk-windows
    (lambda (win)
-     (cond
-      ((eq (window-buffer win) a)
-       (set-window-buffer win b))
-      ((eq (window-buffer win) b)
-       (set-window-buffer win a)))
-     (let ((prev-buffers (window-prev-buffers win))
-           (modified nil))
-       (dolist (entry prev-buffers)
-         (cond
-          ((eq (car entry) a)
-           (setcar entry b)
-           (setq modified t))
-          ((eq (car entry) b)
-           (setcar entry a)
-           (setq modified t))))
-       (when modified
-         (set-window-prev-buffers win prev-buffers))))))
+     (let ((prevs nil))
+       (cond
+        ((eq (window-buffer win) a)
+         (setq prevs (cl-copy-list (window-prev-buffers win)))
+         (set-window-buffer win b))
+        ((eq (window-buffer win) b)
+         (setq prevs (cl-copy-list (window-prev-buffers win)))
+         (set-window-buffer win a)))
+       (when prevs
+         (set-window-prev-buffers win prevs))))))
 
 (defun mistty-toggle-buffers ()
   "Toggle between the fullscreen buffer and the scrollback buffer."

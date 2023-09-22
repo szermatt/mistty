@@ -45,6 +45,33 @@
         (let ((kill-buffer-query-functions nil))
           (kill-buffer log-buffer))))))
 
+(ert-deftest mistty-log-test-start-stop-log-in-batch-mode ()
+  (ert-with-test-buffer ()
+    (let ((noninteractive t)
+          (mistty-backlog-size 0)
+          log-buffer)
+      (ert-with-message-capture messages
+        (should (not mistty-log))
+        (mistty-log "too early; will not be logged")
+        (setq log-buffer (save-excursion (mistty-start-log)))
+        (should (equal log-buffer mistty-log-buffer))
+        (should mistty-log)
+        (mistty-log "will be logged (1)")
+        (mistty-log "will be logged (2)")
+        (mistty-stop-log)
+        (should (not mistty-log))
+        (mistty-log "too late; will not be logged")
+        
+        (with-temp-buffer
+          (insert messages)
+          (goto-char (point-min))
+          (should (search-forward "log enabled"))
+          (should (search-forward "will be logged (1)"))
+          (should (search-forward "will be logged (2)"))
+          (goto-char (point-min))
+          (should (not (search-forward
+                        "will not be logged" nil 'noerror))))))))
+
 (ert-deftest mistty-log-test-drop-log ()
   (ert-with-test-buffer ()
     (let ((noninteractive nil)

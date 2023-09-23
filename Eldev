@@ -5,6 +5,8 @@
 (setq eldev-build-treat-warnings-as-errors t)
 (setf eldev-project-loading-mode 'byte-compiled)
 (setq sentence-end-double-space nil)
+(setq eldev-files-to-package `(:and ,eldev-files-to-package
+                                    (concat "!extras/*")))
 
 (eldev-use-plugin 'autoloads)
 

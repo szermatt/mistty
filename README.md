@@ -3,6 +3,7 @@
 [![CI Status](https://github.com/szermatt/mistty/actions/workflows/CI.yml/badge.svg)](https://github.com/szermatt/mistty/actions/workflows/test.yml)
 [![Documentation Status](https://readthedocs.org/projects/mistty/badge/?version=latest)](https://mistty.readthedocs.io/en/latest/?badge=latest)
 [![MELPA](https://melpa.org/packages/mistty-badge.svg)](https://melpa.org/#/mistty)
+[![MELPA Stable](https://stable.melpa.org/packages/mistty-badge.svg)](https://stable.melpa.org/#/mistty)
 
 MisTTY runs a shell interactively under Emacs 29.1 and later, just like
 `M-x shell` does. 

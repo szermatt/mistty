@@ -70,3 +70,12 @@
   "Delete Sphinx build dir"
   :default t
   '("docs/build"))
+
+(eldev-use-plugin 'maintainer)
+(setq eldev-release-test-local t)
+(defun mistty-release-preparator (version)
+  (eldev-with-file-buffer "docs/source/conf.py"
+    (search-forward-regexp "version = '\\([0-9.]+\\)' *$")
+    (replace-match
+     (format "version = '%s'" (package-version-join version)))))
+(add-hook 'eldev-release-preparators #'mistty-release-preparator)

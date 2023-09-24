@@ -44,13 +44,18 @@ be used as engine for MisTTY, such as `vterm` and `eat`.
 MisTTY has some similarities with `coterm`; it offers the same switch
 between full-screen and line mode.
 
-`Coterm`, `ansi-term` and `eat` all have a line mode, just like comint.
-While in line mode, rendering is done by Emacs and editing commands
-are Emacs commands. In constrast, with MisTTY, all rendering is done
-by the shell through the terminal. This is why native shell completion
-and autosuggestion is available with MisTTY and not with these other
-line modes and why you can freely mix shell commands with Emacs
-commands while editing the command line.
+`Coterm`, `ansi-term` and `eat` all have a line mode, just like
+`comint`. While in line mode, rendering is done by Emacs and editing
+commands are Emacs commands. In constrast, with MisTTY, all rendering
+is done by the shell through the terminal. This is why native shell
+completion and autosuggestion is available with MisTTY and not with
+these other line modes and why you can freely mix shell commands with
+Emacs commands while editing the command line.
+
+`ansi-term` and `eat` also have a char mode, where rendering and
+command execution is handled by the shell, and editing with Emacs
+isn't available. The difference with MisTTY is then that MisTTY makes
+Emacs editing commands available when possible.
 
 ## INSTALLATION
 

@@ -66,7 +66,12 @@ shell through the terminal. This is why native shell completion and
 autosuggestion is available with MisTTY and not in line modes and why
 you can freely mix shell commands with Emacs commands while editing
 the command line.
-        
+
+:program:`ansi-term` and :program:`eat` also have a char mode, where
+rendering and command execution is handled by the shell, and editing
+with Emacs isn't available. The difference with MisTTY is then that
+MisTTY makes Emacs editing commands available when possible.
+
 Contents
 --------
 

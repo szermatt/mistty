@@ -113,6 +113,11 @@ autosuggestion is available with MisTTY and not in line modes and why
 you can freely mix shell commands with Emacs commands while editing
 the command line.
 
+@code{ansi-term} and @code{eat} also have a char mode, where
+rendering and command execution is handled by the shell, and editing
+with Emacs isn’t available. The difference with MisTTY is then that
+MisTTY makes Emacs editing commands available when possible.
+
 @node Contents,Index,Comparison with other packages,Top
 @anchor{index contents}@anchor{6}
 @chapter Contents

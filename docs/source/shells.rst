@@ -8,11 +8,11 @@ Shells
 Bash
 ----
 
-A recent version of Bash is preferable. Bash 5.1 and later work best.
+A recent version of Bash is preferable. Bash 5.1 and later work best,
+as bracketed paste mode is on by default in that version.
 
-Older versions of Bash work, but with some limitations with multi-line
-prompts, and it might behaves unexpectedly when yanking text
-containing special characters.
+Older versions of Bash work, but with limitations, and it might
+behaves unexpectedly when yanking text containing special characters.
 
 To use Bash between 4.4 and 5.0 without these limitations, add the
 following to your :file:`.inputrc`:
@@ -32,7 +32,8 @@ let you go back to the previous line with the default keybindings.
 To work around that, type :kbd:`S-<return>` instead of :kbd:`RET`
 while on the terminal zone of a MisTTY buffer. This sends a newline
 without running the command. You'll then end up with one multi-line
-prompt that you can edit normally. This requires Bash 5 or later.
+prompt that you can edit normally. This requires Bash 5.1 or an
+earlier version with bracketed paste mode turned on.
 
 You'll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
@@ -92,6 +93,9 @@ Or, in bash :file:`~/.bashrc`:
 
 Fish
 ----
+
+A recent version of Fish is preferable. MisTTY relies on bracketed
+paste mode, on by default, so it should not be turned off.
 
 Autosuggestions
 ^^^^^^^^^^^^^^^
@@ -185,6 +189,12 @@ something like the following in :file:`~/.zshrc`:
 Zsh
 ---
 
+A recent version of Zsh is preferable.
+
+Zsh supports bracketed paste, which MisTTY relies on, since version
+5.1. Older versions will work, but with limitations, and you might get
+unexpected results if you yank text containing special characters.
+
 Autosuggestions
 ^^^^^^^^^^^^^^^
 
@@ -221,7 +231,8 @@ know how to go back to the previous prompt from such a prompt.
 To work around that, type :kbd:`S-<return>` instead of :kbd:`RET`
 while on the terminal zone of a MisTTY buffer. This sends a newline
 without running the command. You'll then end up with one multi-line
-prompt that you can edit normally.
+prompt that you can edit normally. This requires a version of Zsh that
+supports bracketed paste mode, 5.1 or later.
 
 You'll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.

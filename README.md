@@ -57,6 +57,12 @@ command execution is handled by the shell, and editing with Emacs
 isn't available. The difference with MisTTY is then that MisTTY makes
 Emacs editing commands available when possible.
 
+`eat` also has a semi-char mode, which is the closest there is to
+MisTTY. In that mode, Emacs movements commands are available. However,
+Emacs commands that modify the buffer, aren't available to edit the
+command line. In contrast, MisTTY allows Emacs to navigate to and edit
+the whole buffer, then replays changes made to the command-line.
+
 ## INSTALLATION
 
 > **The following is just a quick introduction. Read the full documentation at https://mistty.readthedocs.io/en/latest/**

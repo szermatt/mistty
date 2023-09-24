@@ -195,6 +195,16 @@ window while BODY is running."
                            " <>")
                    (mistty-test-content :show (point))))))
 
+(ert-deftest mistty-test-reconcile-delete-python ()
+  (mistty-with-test-buffer (:shell python)
+    (mistty-send-text "print")
+
+    (mistty-run-command
+     (delete-region (mistty-test-pos "print")
+                    (mistty-test-pos-after "print")))
+
+    (should (equal ">>> <>" (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-reconcile-large-multiline-delete ()
   (mistty-with-test-buffer (:shell fish)
     (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")

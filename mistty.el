@@ -2141,7 +2141,14 @@ This function keeps prev-buffers list unmodified."
        (>= pos mistty-sync-marker)
        (not mistty--forbid-edit)
        (or mistty-bracketed-paste
-           (<= pos (mistty--eol mistty-sync-marker)))))
+           (<= pos (mistty--eol mistty-sync-marker))
+           ;; The position passed to (mistty-on-prompt-p
+           ;; (mistty-cursor)) might not be on the same line as
+           ;; mistty-sync-marker on the work buffer; check on the term
+           ;; buffer as well.
+           (mistty--with-live-buffer mistty-term-buffer
+             (<= (mistty--from-pos-of pos mistty-work-buffer)
+                 (mistty--eol mistty-sync-marker))))))
 
 (defun mistty-before-positional ()
   "Prepare the state for executing a positional command.

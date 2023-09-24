@@ -36,15 +36,15 @@ command-line programs, such as python.
 ## COMPARISON
 
 MisTTY isn't a terminal emulator, but rather a frontend to an existing
-terminal emulator, the built-in term.el. Its goal is to make it more
+terminal emulator, the built-in `term.el`. Its goal is to make it more
 convenient to use while inside of Emacs and better integrate with
-Emacs itself. In theory, other terminal emulators than term.el might
-be used as engine for MisTTY, such as vterm and eat.
+Emacs itself. In theory, other terminal emulators than `term.el` might
+be used as engine for MisTTY, such as `vterm` and `eat`.
 
-MisTTY has some similarities with coterm; it offers the same switch
+MisTTY has some similarities with `coterm`; it offers the same switch
 between full-screen and line mode.
 
-Coterm, ansi-term and eat all have a line mode, just like comint.
+`Coterm`, `ansi-term` and `eat` all have a line mode, just like comint.
 While in line mode, rendering is done by Emacs and editing commands
 are Emacs commands. In constrast, with MisTTY, all rendering is done
 by the shell through the terminal. This is why native shell completion

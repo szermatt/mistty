@@ -5,19 +5,52 @@
 [![MELPA](https://melpa.org/packages/mistty-badge.svg)](https://melpa.org/#/mistty)
 [![MELPA Stable](https://stable.melpa.org/packages/mistty-badge.svg)](https://stable.melpa.org/#/mistty)
 
-MisTTY runs a shell interactively under Emacs 29.1 and later, just like
-`M-x shell` does. 
+**MisTTY** is a major mode for Emacs 29.1 and up that runs
+a shell inside of a buffer, similarly to comint mode. It is built on
+top of `term.el`.
 
-In a MisTTY buffer, just like in a normal shell buffer, the usual
-native Emacs movement and editing work. What *also* work is everything
-that you normally only have in a terminal, such as TAB-completion and
-native shell history.
+`M-x mistty` creates a buffer with an interactive shell. See
+[launching](https://mistty.readthedocs.io/en/latest/usage.html#launching)
+for details.
 
-MisTTY works well with Bash and ZSH, but it is especially well suited
-to running [Fish](https://fishshell.com): you get autosuggestions,
-completion in full colors. Here's what the end result might look like:
+MisTTY feels very much like `comint` mode: you can move around freely
+and run any Emacs command you want - until you press TAB and end up
+with the native completion or notice the shell autosuggestions. With
+MisTTY you have access to both Emacs and the shell commands and
+editing tools.
+
+Additionally, commands that take over the entire screen, such as
+`less` or `vi` also work, temporarily taking over the window, while
+scrollback remains available in another buffer.
+
+MisTTY works well with Bash and ZSH, but it is especially well
+suited to running [Fish](https://fishshell.com): you get
+autosuggestions, completion in full colors. Here's what the end
+result might look like:
 
 ![screen grab](https://github.com/szermatt/mistty/blob/master/screengrab.gif?raw=true)
+
+MisTTY is known to work on Linux and MacOS. It also supports non-shell
+command-line programs, such as python.
+
+## COMPARISON
+
+MisTTY isn't a terminal emulator, but rather a frontend to an existing
+terminal emulator, the built-in term.el. Its goal is to make it more
+convenient to use while inside of Emacs and better integrate with
+Emacs itself. In theory, other terminal emulators than term.el might
+be used as engine for MisTTY, such as vterm and eat.
+
+MisTTY has some similarities with coterm; it offers the same switch
+between full-screen and line mode.
+
+Coterm, ansi-term and eat all have a line mode, just like comint.
+While in line mode, rendering is done by Emacs and editing commands
+are Emacs commands. In constrast, with MisTTY, all rendering is done
+by the shell through the terminal. This is why native shell completion
+and autosuggestion is available with MisTTY and not with these other
+line modes and why you can freely mix shell commands with Emacs
+commands while editing the command line.
 
 ## INSTALLATION
 

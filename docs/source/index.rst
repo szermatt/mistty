@@ -44,6 +44,29 @@ info gmistty`
    If you encounter issues, please take the time to file a bug. See
    :ref:`reporting` for details.
 
+Comparison with other packages
+------------------------------
+
+MisTTY isn't a terminal emulator, but rather a frontend to an existing
+terminal emulator, the built-in :file:`term.el`. Its goal is to make
+it more convenient to use while inside of Emacs and better integrate
+with Emacs itself. In theory, other terminal emulators than
+:file:`term.el` might be used as engine for MisTTY, such as
+:program:`vterm` and :program:`eat`.
+
+MisTTY has some similarities with :program:`coterm`; it offers the
+same switch between full-screen and line mode.
+
+:program:`Coterm`, :program:`ansi-term` and :program:`eat` all have a
+line mode, just like :program:`comint` does, which allows you to edit
+a command line as a whole before sending it to the shell. While in
+line mode, rendering is done by Emacs and editing commands are Emacs
+commands. In constrast, with MisTTY, all rendering is done by the
+shell through the terminal. This is why native shell completion and
+autosuggestion is available with MisTTY and not in line modes and why
+you can freely mix shell commands with Emacs commands while editing
+the command line.
+        
 Contents
 --------
 

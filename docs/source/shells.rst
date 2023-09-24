@@ -8,6 +8,12 @@ Shells
 Bash
 ----
 
+A recent version of Bash is preferable. Bash 5 works best.
+
+Bash 3 and 4 work, but with some limitations with multi-line prompts,
+and it might behaves unexpectedly when yanking text containing special
+characters.
+
 Multi-line prompts
 ^^^^^^^^^^^^^^^^^^
 
@@ -18,7 +24,7 @@ let you go back to the previous line with the default keybindings.
 To work around that, type :kbd:`S-<return>` instead of :kbd:`RET`
 while on the terminal zone of a MisTTY buffer. This sends a newline
 without running the command. You'll then end up with one multi-line
-prompt that you can edit normally.
+prompt that you can edit normally. This requires Bash 5 or later.
 
 You'll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.

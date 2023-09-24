@@ -8,11 +8,19 @@ Shells
 Bash
 ----
 
-A recent version of Bash is preferable. Bash 5 works best.
+A recent version of Bash is preferable. Bash 5.1 and later work best.
 
-Bash 3 and 4 work, but with some limitations with multi-line prompts,
-and it might behaves unexpectedly when yanking text containing special
-characters.
+Older versions of Bash work, but with some limitations with multi-line
+prompts, and it might behaves unexpectedly when yanking text
+containing special characters.
+
+To use Bash between 4.4 and 5.0 without these limitations, add the
+following to your :file:`.inputrc`:
+
+.. code-block::
+
+  set enable-bracketed-paste on
+
 
 Multi-line prompts
 ^^^^^^^^^^^^^^^^^^

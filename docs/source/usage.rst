@@ -135,8 +135,8 @@ everywhere as expected.
     just end up controlling it with VI commands using Evil.
 
 To get the most out of MisTTY, it's worth it to take the time to
-configure it forward the shell key bindings that you actually use to
-the terminal and keep everything else behaving as usual for your Emacs
+configure it to send to the terminal the shell key bindings that you
+actually use and keep everything else behaving as usual for your Emacs
 configuration.
 
 .. index::
@@ -144,7 +144,7 @@ configuration.
    pair: map; mistty-mode-map
 
 To bind keys only in the terminal zone, bind them to
-:code`mistty-prompt-map`. To bind keys in both zones, bind them to
+:code:`mistty-prompt-map`. To bind keys in both zones, bind them to
 :code:`mistty-mode-map`. See examples below.
 
 The following commands are useful to send key sequences to the current

@@ -219,6 +219,9 @@ If @code{explicit-shell-file-name} is unset, MisTTY falls back to
 @geindex SHELL
 @geindex environment variable; SHELL
 @code{SHELL}.
+
+@code{M-x customize-option display-comint-buffer-action} lets you
+configure how the buffer is displayed.
 @end itemize
 
 @geindex command; mistty-create-other-window
@@ -237,9 +240,11 @@ buffer in another window.
 @itemize -
 
 @item 
-@code{M-x mistty} also creates a new MisTTY buffer the first time
-it is called. Afterwards, it’ll to an existing MisTTY buffer or
-creating a new one, trying to guess what’s most appropriate.
+@code{M-x mistty} creates a new MisTTY buffer the first time it is
+called. Afterwards, it’ll try to guess what’s most appropriate,
+displaying an existing MisTTY buffer or creating a new one.
+
+With a prefix argument, this command always creates a new buffer.
 @end itemize
 
 @geindex command; mistty-other-window
@@ -248,7 +253,7 @@ creating a new one, trying to guess what’s most appropriate.
 @itemize -
 
 @item 
-@code{M-x mistty-other-window} does the same, but opens a buffer
+@code{M-x mistty-other-window} does the same, but opens the buffer
 in another window.
 @end itemize
 @end quotation

@@ -618,7 +618,10 @@ one.
 
 To create a new buffer unconditionally, call `mistty-create'.
 
-If OTHER-WINDOW is non-nil, put the buffer into another window."
+If OTHER-WINDOW is nil, execute the default action configured by
+`display-comint-buffer-action'. If OTHER-WINDOW is a function, it
+is passed to `pop-to-buffer` to be used as a `display-buffer'
+action. Otherwise, display the buffer in another window."
   (interactive)
   (let ((existing (mistty-list-live-buffers)))
     (if (or current-prefix-arg         ; command prefix was given
@@ -646,10 +649,22 @@ If OTHER-WINDOW is non-nil, put the buffer into another window."
   (let ((existing-tail (or (cdr (member (current-buffer) existing))
                            existing)))
     (if existing-tail
-        (if other-window
-            (switch-to-buffer-other-window (car existing-tail))
-          (switch-to-buffer (car existing-tail)))
+        (mistty--pop-to-buffer (car existing-tail) other-window)
       (error "No next mistty buffer"))))
+
+(defun mistty--pop-to-buffer (buf other-window)
+  "Display BUF.
+
+If OTHER-WINDOW is nil, execute the default action configured by
+`display-comint-buffer-action'. If OTHER-WINDOW is a function, it
+is passed to `pop-to-buffer` to be used as a `display-buffer'
+action. Otherwise, display the buffer in another window."
+  (pop-to-buffer
+   buf
+   (cond
+    ((functionp other-window) other-window)
+    (other-window #'display-buffer-pop-up-window)
+    (t (bound-and-true-p display-comint-buffer-action)))))
 
 ;;;###autoload
 (defun mistty-create (&optional command other-window)
@@ -662,17 +677,18 @@ from the ESHELL or SHELL environment variables.
 Set COMMAND to specify instead the command to run just for the
 current call.
 
-If OTHER-WINDOW is non-nil, put the buffer into another window.
+If OTHER-WINDOW is nil, execute the default action configured by
+`display-comint-buffer-action'. If OTHER-WINDOW is a function, it
+is passed to `pop-to-buffer` to be used as a `display-buffer'
+action. Otherwise, display the buffer in another window.
 
-Upon success, the function returns  the newly-created buffer."
+Upon success, the function returns the newly-created buffer."
   (interactive)
   (let ((buf (generate-new-buffer "*mistty*")))
     ;; Note that it's important to attach the buffer to a window
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.
-    (if other-window
-        (switch-to-buffer-other-window buf)
-      (switch-to-buffer buf))
+    (mistty--pop-to-buffer buf other-window)
     (with-current-buffer buf
       (mistty--exec (or command
                         explicit-shell-file-name

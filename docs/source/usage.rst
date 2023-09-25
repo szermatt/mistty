@@ -56,6 +56,9 @@ regularly, you'll want to bind some of these to global shortcuts:
     :code:`shell-file-name`, then the environment variables
     :envvar:`ESHELL` and :envvar:`SHELL`.
 
+    :kbd:`M-x customize-option display-comint-buffer-action` lets you
+    configure how the buffer is displayed.
+
   .. index:: pair: command; mistty-create-other-window
 
   - :kbd:`M-x mistty-create-other-window` does the same, but opens the
@@ -63,13 +66,15 @@ regularly, you'll want to bind some of these to global shortcuts:
 
   .. index:: pair: command; mistty
 
-  - :kbd:`M-x mistty` also creates a new MisTTY buffer the first time
-    it is called. Afterwards, it'll to an existing MisTTY buffer or
-    creating a new one, trying to guess what's most appropriate.
+  - :kbd:`M-x mistty` creates a new MisTTY buffer the first time it is
+    called. Afterwards, it'll try to guess what's most appropriate,
+    displaying an existing MisTTY buffer or creating a new one.
+
+    With a prefix argument, this command always creates a new buffer.
 
   .. index:: pair: command; mistty-other-window
 
-  - :kbd:`M-x mistty-other-window` does the same, but opens a buffer
+  - :kbd:`M-x mistty-other-window` does the same, but opens the buffer
     in another window.
 
 .. _term-vs-scroll:

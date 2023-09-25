@@ -1,6 +1,37 @@
 Writing Extensions
 ==================
 
+.. _hooks:
+
+Hooks
+-----
+
+.. index::
+   pair: variable; mistty-mode-hook
+   pair: hook; mistty-mode-hook
+
+The hook :code:`mistty-mode-hook` is called on every MisTTY buffer
+just after creating the buffer and selecting a window for it but
+before executing the shell, with the buffer selected.
+
+If you have enabled autocomplete or autosuggestion globally, you might
+want to disable it for MisTTY buffers from a function called by
+:code:`mistty-mode-hook`.
+
+This hook also provides a good time to rename the buffer, change its
+directory or change environment variables, to be inherited by the
+process.
+
+For example, if you wanted a more generic name for the MisTTY buffers,
+you could do:
+
+.. code-block:: elisp
+
+  (defun my-lets-call-it-shell ()
+    (rename-buffer (generate-new-buffer-name "*shell*")))
+  (add-hook 'mistty-mode-hook #'my-lets-call-it-shell)
+
+
 .. _osc:
 
 OSC Sequences

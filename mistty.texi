@@ -914,14 +914,44 @@ fi
 
 
 @menu
+* Hooks:: 
 * OSC Sequences:: 
 * Writing Your Own Commands:: 
 * Terminal Keymap:: 
 
 @end menu
 
-@node OSC Sequences,Writing Your Own Commands,,Writing Extensions
-@anchor{extensions osc}@anchor{2c}@anchor{extensions osc-sequences}@anchor{2d}
+@node Hooks,OSC Sequences,,Writing Extensions
+@anchor{extensions hooks}@anchor{2c}@anchor{extensions id1}@anchor{2d}
+@subsection Hooks
+
+
+@geindex variable; mistty-mode-hook
+@geindex hook; mistty-mode-hook
+
+The hook @code{mistty-mode-hook} is called on every MisTTY buffer
+just after creating the buffer and selecting a window for it but
+before executing the shell, with the buffer selected.
+
+If you have enabled autocomplete or autosuggestion globally, you might
+want to disable it for MisTTY buffers from a function called by
+@code{mistty-mode-hook}.
+
+This hook also provides a good time to rename the buffer, change its
+directory or change environment variables, to be inherited by the
+process.
+
+For example, if you wanted a more generic name for the MisTTY buffers,
+you could do:
+
+@example
+(defun my-lets-call-it-shell ()
+  (rename-buffer (generate-new-buffer-name "*shell*")))
+(add-hook 'mistty-mode-hook #'my-lets-call-it-shell)
+@end example
+
+@node OSC Sequences,Writing Your Own Commands,Hooks,Writing Extensions
+@anchor{extensions osc}@anchor{2e}@anchor{extensions osc-sequences}@anchor{2f}
 @subsection OSC Sequences
 
 
@@ -966,7 +996,7 @@ same argument.
 @end itemize
 
 @node Writing Your Own Commands,Terminal Keymap,OSC Sequences,Writing Extensions
-@anchor{extensions custom-commands}@anchor{2e}@anchor{extensions writing-your-own-commands}@anchor{2f}
+@anchor{extensions custom-commands}@anchor{30}@anchor{extensions writing-your-own-commands}@anchor{31}
 @subsection Writing Your Own Commands
 
 
@@ -1022,7 +1052,7 @@ to that position.
 @end itemize
 
 @node Terminal Keymap,,Writing Your Own Commands,Writing Extensions
-@anchor{extensions term-keymap}@anchor{30}@anchor{extensions terminal-keymap}@anchor{31}
+@anchor{extensions term-keymap}@anchor{32}@anchor{extensions terminal-keymap}@anchor{33}
 @subsection Terminal Keymap
 
 
@@ -1072,7 +1102,7 @@ keymap that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node FAQ,Contributing,Writing Extensions,Contents
-@anchor{faq doc}@anchor{32}@anchor{faq faq}@anchor{33}
+@anchor{faq doc}@anchor{34}@anchor{faq faq}@anchor{35}
 @section FAQ
 
 
@@ -1135,7 +1165,7 @@ If you just don’t want to see that line, turn it off with
 @end quotation
 
 @node Contributing,,FAQ,Contents
-@anchor{contrib doc}@anchor{34}@anchor{contrib contributing}@anchor{35}
+@anchor{contrib doc}@anchor{36}@anchor{contrib contributing}@anchor{37}
 @section Contributing
 
 
@@ -1149,7 +1179,7 @@ If you just don’t want to see that line, turn it off with
 @end menu
 
 @node Reporting issues,Suggesting features,,Contributing
-@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{36}
+@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{38}
 @subsection Reporting issues
 
 
@@ -1228,21 +1258,21 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib issue-tracker}@anchor{37}@anchor{contrib suggesting-features}@anchor{38}
+@anchor{contrib issue-tracker}@anchor{39}@anchor{contrib suggesting-features}@anchor{3a}
 @subsection Suggesting features
 
 
 Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
-@anchor{contrib asking-questions}@anchor{39}
+@anchor{contrib asking-questions}@anchor{3b}
 @subsection Asking questions
 
 
 Open an issue on the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} with your question.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
-@anchor{contrib code-contributions}@anchor{3a}
+@anchor{contrib code-contributions}@anchor{3c}
 @subsection Code contributions
 
 
@@ -1260,7 +1290,7 @@ tests passing reliably when run using @code{eldev test} is what
 matters.
 
 @node Documentation contributions,,Code contributions,Contributing
-@anchor{contrib documentation-contributions}@anchor{3b}@anchor{contrib eldev}@anchor{3c}
+@anchor{contrib documentation-contributions}@anchor{3d}@anchor{contrib eldev}@anchor{3e}
 @subsection Documentation contributions
 
 

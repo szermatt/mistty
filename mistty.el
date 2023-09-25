@@ -652,7 +652,7 @@ If OTHER-WINDOW is non-nil, put the buffer into another window."
       (error "No next mistty buffer"))))
 
 ;;;###autoload
-(defun mistty-create (&optional command other-window)
+(defun mistty-create (&optional command other-window buffer-name)
   "Create a new MisTTY buffer, running a shell.
 
 The shell that is run can be configured by setting
@@ -666,7 +666,7 @@ If OTHER-WINDOW is non-nil, put the buffer into another window.
 
 Upon success, the function returns  the newly-created buffer."
   (interactive)
-  (let ((buf (generate-new-buffer "*mistty*")))
+  (let ((buf (generate-new-buffer (or buffer-name "*mistty*"))))
     (if other-window
         (switch-to-buffer-other-window buf)
       (switch-to-buffer buf))
@@ -679,7 +679,7 @@ Upon success, the function returns  the newly-created buffer."
       buf)))
 
 ;;;###autoload
-(defun mistty-create-other-window (&optional command)
+(defun mistty-create-other-window (&optional command buffer-name)
   "Create a new MisTTY buffer, running a shell, in another window.
 
 COMMAND, if specified, is the command to execute instead of the
@@ -687,7 +687,7 @@ shell.
 
 See the documentation of `mistty-create' for details."
   (interactive)
-  (mistty-create command 'other-window))
+  (mistty-create command 'other-window buffer-name))
 
 (defun mistty--process-sentinel (proc msg)
   "Process sentinel for MisTTY shell processes.

@@ -667,6 +667,9 @@ If OTHER-WINDOW is non-nil, put the buffer into another window.
 Upon success, the function returns  the newly-created buffer."
   (interactive)
   (let ((buf (generate-new-buffer "*mistty*")))
+    ;; Note that it's important to attach the buffer to a window
+    ;; before executing the command, so that the shell known the size
+    ;; of the terminal from the very beginning.
     (if other-window
         (switch-to-buffer-other-window buf)
       (switch-to-buffer buf))

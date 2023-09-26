@@ -16,6 +16,9 @@ the issue. Such as:
 - the name and version of the program you were running - usually a shell
 - the version of Emacs you're running, taken, for example, from :kbd:`M-x about-emacs`
 - whether you're running Emacs in a window environment or a terminal
+- what kind of prompt you're using, that is, what it looks like, what
+  character it ends with, how many lines it has and whether you're
+  using any kind of right prompt
 
 .. index::
    pair: command; mistty-start-log

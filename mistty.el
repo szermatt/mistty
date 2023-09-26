@@ -1260,13 +1260,20 @@ instead `mistty--move-sync-mark-with-shift' or
   "Send the current command to the shell."
   (interactive)
   (mistty--require-proc)
-  (mistty-maybe-realize-possible-prompt)
-  (setq mistty-goto-cursor-next-time t)
-  (when (and mistty-proc
-             (mistty-on-prompt-p (point))
-             (mistty-on-prompt-p (mistty-cursor)))
-    (setq mistty--end-prompt t))
-  (mistty--enqueue-str mistty--queue "\C-m"))
+  (let ((interact (mistty--make-interact)))
+    (mistty--interact-init
+     interact
+     (lambda (&optional _)
+       (mistty-maybe-realize-possible-prompt)
+       (setq mistty-goto-cursor-next-time t)
+       (when (and mistty-proc
+                  (mistty-on-prompt-p (point))
+                  (mistty-on-prompt-p (mistty-cursor)))
+         (setq mistty--end-prompt t))
+       (mistty--interact-return
+        interact "\C-m"
+        :then (lambda (&optional_) 'done))))
+    (mistty--enqueue mistty--queue interact)))
 
 (defun mistty-send-last-key (&optional n)
   "Send the last key that was typed to the terminal N times.
@@ -1348,18 +1355,26 @@ This command is available in fullscreen mode."
   (mistty--require-proc)
   (let* ((key (or key (this-command-keys-vector)))
          (translated-key (mistty-translate-key key n))
-         (fire-and-forget (string-match "^[[:graph:]]+$" translated-key)))
+         (fire-and-forget (string-match "^[[:graph:]]+$" translated-key))
+         (positional (or positional (mistty-positional-p key))))
     (cond
      ((and (buffer-live-p mistty-work-buffer)
            (not (buffer-local-value
                  'mistty-fullscreen mistty-work-buffer)))
       (with-current-buffer mistty-work-buffer
-        (setq mistty-goto-cursor-next-time t)
-        (when (or positional (mistty-positional-p key))
-          (mistty-before-positional))
-        (mistty--maybe-add-key-to-undo n key (mistty-cursor))
-        (mistty--enqueue-str
-         mistty--queue translated-key fire-and-forget)))
+        (when positional (mistty-before-positional))
+        (let ((interact (mistty--make-interact)))
+          (mistty--interact-init
+           interact
+           (lambda (&optional _)
+             (setq mistty-goto-cursor-next-time t)
+             (mistty--maybe-add-key-to-undo n key (mistty-cursor))
+             (mistty--interact-return
+              interact (if fire-and-forget
+                           `(fire-and-forget ,translated-key)
+                         translated-key)
+              :then (lambda (&optional_) 'done))))
+          (mistty--enqueue mistty--queue interact))))
 
      ((process-live-p mistty-proc)
       (mistty--send-string mistty-proc translated-key))
@@ -1415,16 +1430,26 @@ shell, if on a prompt.
 With an argument, this command just calls `beginning-of-line' and
 forwards the argument to it."
   (interactive "p")
-  ;; While C-a is not, strictly-speaking, a positional, it's a good
-  ;; sign that we're on a pointer.
   (let ((n (or n 1)))
     (if (and (= n 1)
              (process-live-p mistty-proc)
-             (or (mistty-maybe-realize-possible-prompt (point))
-                 (mistty-on-prompt-p (point))))
-        (progn
-          (setq mistty-goto-cursor-next-time t)
-          (mistty-send-key 1 "\C-a"))
+             mistty--queue)
+        (let ((interact (mistty--make-interact)))
+          (mistty--interact-init
+           interact
+           (lambda (&optional _)
+             ;; While C-a is not, strictly-speaking, a positional,
+             ;; it's a good sign that we're on a prompt.
+             (if (or (mistty-maybe-realize-possible-prompt (point))
+                     (mistty-on-prompt-p (point)))
+                 (progn
+                   (setq mistty-goto-cursor-next-time t)
+                   (mistty--interact-return
+                    interact "\C-a"
+                    :then (lambda (&optional_) 'done)))
+               (beginning-of-line n)
+               'done)))
+          (mistty--enqueue mistty--queue interact))
       (beginning-of-line n))))
 
 (defun mistty-end-of-line-or-goto-cursor (&optional n)
@@ -1462,11 +1487,27 @@ forwards the argument to it."
     (cond
      ((and (= 1 n)
            (process-live-p mistty-proc)
-           (or (mistty-maybe-realize-possible-prompt (point))
-               (mistty-on-prompt-p (point))))
-      (mistty-goto-cursor)
-      (setq mistty-goto-cursor-next-time t)
-      (mistty-send-key n "\C-e"))
+           mistty--queue)
+      (let ((interact (mistty--make-interact)))
+        (mistty--interact-init
+         interact
+         (lambda (&optional _)
+           ;; While C-e is not, strictly-speaking, a positional, it's
+           ;; a good sign that we're on a prompt.
+           (if (or (mistty-maybe-realize-possible-prompt (point))
+                   (mistty-on-prompt-p (point)))
+               (progn
+                 ;; If anything, move point to the cursor. This might
+                 ;; be the only visible effect if the cursor is
+                 ;; already at what the shell considers eol.
+                 (mistty-goto-cursor)
+                 (setq mistty-goto-cursor-next-time t)
+                 (mistty--interact-return
+                  interact "\C-e"
+                  :then (lambda (&optional_) 'done)))
+             (end-of-line n)
+             'done)))
+        (mistty--enqueue mistty--queue interact)))
      (t
       (end-of-line n)))))
 
@@ -2176,11 +2217,19 @@ This creates any possible prompts that were detected at the last
 minute. If a prompt is created, it also moves the cursor to the
 point, as this is only done by the post-command hook on detected
 prompts."
-  (let ((cursor (mistty-cursor)))
-    (when (and (not (= cursor (point)))
-               (mistty-maybe-realize-possible-prompt))
-      (mistty--enqueue
-       mistty--queue (mistty--cursor-to-point-interaction)))))
+  (let ((interact (mistty--make-interact)))
+    (mistty--interact-init
+     interact
+     (lambda (&optional _)
+       (let ((cursor (mistty-cursor)))
+         (when (and (not (= cursor (point)))
+                    (mistty-maybe-realize-possible-prompt))
+           (mistty--enqueue
+            mistty--queue
+            (mistty--cursor-to-point-interaction)
+            'prepend))
+         'done)))
+    (mistty--enqueue mistty--queue interact)))
 
 (defun mistty-maybe-realize-possible-prompt (&optional pos)
   "If a possible prompt was detected at POS, create it now."

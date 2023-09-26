@@ -310,6 +310,20 @@ window while BODY is running."
     (mistty-simulate-scrollback-buffer
      (should-error (call-interactively 'mistty-send-command)))))
 
+(ert-deftest mistty-test-send-command-is-queued ()
+  (mistty-with-test-buffer ()
+    (mistty--enqueue mistty--queue (mistty--stuck-interaction "echo ok"))
+    (mistty-send-and-wait-for-prompt
+     (lambda ()
+       (mistty-send-command)
+       ;; send-command is added to the queue. It must not execute, not
+       ;; even partially, until 'echo ok' has appeared.
+       (should-not mistty-goto-cursor-next-time)
+       (should-not mistty--end-prompt)
+       (should (equal "$ <>" (mistty-test-content :show (point))))
+       (mistty--send-string mistty-proc "echo ok")))
+    (should (equal "$ echo ok\nok\n$ <>" (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-send-newline-because-not-at-prompt ()
   (mistty-with-test-buffer (:selected t)
     (mistty-send-text "echo hello")
@@ -480,6 +494,38 @@ window while BODY is running."
     (should
      (equal "$ <>"
             (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-bol-is-queued ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (goto-char (point-min))
+    (mistty--enqueue mistty--queue (mistty--stuck-interaction " world"))
+    (mistty-beginning-of-line)
+    ;; insert # at the beginning of the line
+    (mistty--enqueue-str mistty--queue "#")
+    ;; mistty-beginning-of-line should be queued should not have an
+    ;; effect until "world' has been written.
+    (should (equal "<>$ echo hello" (mistty-test-content :show (point))))
+    (should-not mistty-goto-cursor-next-time)
+    (mistty--send-string mistty-proc " world")
+    (mistty-wait-for-output :str "#echo hello world" :start (point-min))
+    (should (equal "$ #<>echo hello world" (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-eol-is-queued ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (goto-char (point-min))
+    (mistty--enqueue mistty--queue (mistty--stuck-interaction " world"))
+    (mistty-end-of-line)
+    ;; insert . at the end of the line
+    (mistty--enqueue-str mistty--queue ".")
+    ;; mistty-end-of-line should be queued should not have an
+    ;; effect until "world' has been written.
+    (should (equal "<>$ echo hello" (mistty-test-content :show (point))))
+    (should-not mistty-goto-cursor-next-time)
+    (mistty--send-string mistty-proc " world")
+    (mistty-wait-for-output :str "echo hello world." :start (point-min))
+    (should (equal "$ echo hello world.<>" (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-bol-in-scrollback ()
   (mistty-with-test-buffer ()
@@ -1999,6 +2045,18 @@ window while BODY is running."
     (mistty-simulate-scrollback-buffer
      (should-error (mistty-send-key 1 (kbd "a"))))))
 
+(ert-deftest mistty-test-send-key-is-queued ()
+  (mistty-with-test-buffer ()
+    (goto-char (point-min)) ;; should be moved by mistty-send-key
+    (mistty--enqueue mistty--queue (mistty--stuck-interaction "ok."))
+    (mistty-send-key 1 (kbd "a"))
+    (should-not mistty-goto-cursor-next-time)
+    (should-not buffer-undo-list)
+    (mistty--send-string mistty-proc "ok.")
+    (mistty-wait-for-output :str "ok.a" :start (point-min))
+    (should buffer-undo-list)
+    (should (equal "$ ok.a<>" (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-self-insert ()
   (mistty-with-test-buffer ()
     (mistty-run-command
@@ -2182,6 +2240,15 @@ window while BODY is running."
     ;; on to the next one.
     (mistty--enqueue-str mistty--queue "bar")
     (mistty-wait-for-output :str "foobar" :start (point-min))))
+
+(ert-deftest mistty-test-stuck-interaction ()
+  (mistty-with-test-buffer ()
+    (mistty--enqueue mistty--queue (mistty--stuck-interaction "ok."))
+    (mistty--enqueue-str mistty--queue "done")
+    (should (not (mistty--queue-empty-p mistty--queue)))
+    (mistty--send-string mistty-proc "ok.")
+    (mistty-wait-for-output :str "ok.done" :start (point-min))
+    (should (mistty--queue-empty-p mistty--queue))))
 
 (ert-deftest mistty-test-end-prompt ()
   (mistty-with-test-buffer ()
@@ -3520,6 +3587,22 @@ text to be inserted there."
 (defun mistty-ert-explain-string-match (a b)
   `(string-match ,a ,b))
 (put 'equal 'ert-explainer 'mistty-ert-explain-string-match)
+
+(defun mistty--stuck-interaction (text)
+  "Returns a mistty--interact that waits for TEXT.
+
+The interaction waits for TEXT, but never sends it, so it'll wait
+forever - or until the test calls mistty--send-text directly."
+  (let ((interact (mistty--make-interact)))
+    (mistty--interact-init
+     interact
+     (lambda (&optional _)
+       (if (save-excursion
+             (goto-char (mistty-cursor))
+             (looking-back (regexp-quote text)))
+           'done
+         'keep-waiting)))
+    interact))
 
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.

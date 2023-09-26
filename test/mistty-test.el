@@ -2645,6 +2645,21 @@ window while BODY is running."
       (should (string-match "^\\$ +< right\n<>$"
                             (mistty-test-content :show (point)))))))
 
+(ert-deftest mistty-test-fish-right-prompt-insert-newlines ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-setup-fish-right-prompt)
+
+    ;; This test makes sure that there's no timeout here, as right
+    ;; prompts used to cause issues when detecting text with newlines
+    ;; that was just replayed.
+    (mistty-run-command
+     (insert "for i in a b c\necho $i\nend"))
+    (mistty-wait-for-output :str "end")
+    (should (string-match (concat "^\\$ for i in a b c +< right\n"
+                                  " *echo \\$i\n"
+                                  " *end$")
+                          (mistty-test-content)))))
+
 (ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-forward ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-send-text "for i in (seq 10)\n\necho first\n\n\nend")

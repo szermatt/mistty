@@ -603,8 +603,6 @@ BEG and END define the region that was modified."
                (<= end eol)
                (get-text-property (1- beg) 'mistty-skip)
                (not (get-text-property bol 'mistty-skip)))
-      (when (eq ?\n (char-after end))
-        (setq end (1+ end)))
       (add-text-properties beg end '(mistty-skip t yank-handler (nil "" nil nil))))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)

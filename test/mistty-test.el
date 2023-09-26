@@ -3261,6 +3261,51 @@ window while BODY is running."
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
+(ert-deftest mistty-test-long-running-command ()
+  (mistty-with-test-buffer (:selected t :shell fish)
+    ;; CUA rectangle mark mode is an example of an interactive command
+    ;; that uses overlays. It has the advantage of being built-in.
+    ;; Other examples would be template engines, such as yasnippet and
+    ;; templ.
+    (cua-mode 'on)
+    (mistty-send-text "for i in a b c\necho $i\nend")
+    (mistty-test-goto "in")
+    (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
+    (should mistty--long-running-command)
+    (should (equal (concat "$ for i in boo a b c\n"
+                           "      echo<> boo $i\n"
+                           "  end")
+                   (mistty-test-content :show (point))))
+    (execute-kbd-macro (kbd "C-<return>"))
+    (mistty-wait-for-output :str "boo a b c" :start (point-min))
+    (should-not mistty--long-running-command)
+    (should (equal (concat "$ for i in boo a b c\n"
+                           "      echo<> boo $i\n"
+                           "  end")
+                   (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-quit-during-a-long-running-command ()
+  (mistty-with-test-buffer ()
+    (let ((test-overlay))
+      (mistty-send-text "echo hello, world")
+      (mistty-run-command
+       (mistty-test-goto "hello")
+       (setq test-overlay (make-overlay (point) (+ 5 (point)))))
+
+      ;; A long command was detected.
+      (should mistty--long-running-command)
+
+      ;; Simulate C-g
+      (let ((this-command 'keyboard-quit))
+        (mistty--pre-command)
+        (mistty--post-command))
+
+      ;; We're back to normal.
+      (should-not mistty--long-running-command)
+
+      (should (equal "hello, world"
+                     (mistty-send-and-capture-command-output))))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

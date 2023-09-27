@@ -1581,24 +1581,27 @@ This is meant to be added to ==\'after-change-functions."
         insert-and-delete-f after-insert-and-delete-f
         unwind-f
 
-        calling-buffer backstage work-sync-marker modifications
-        beg old-end is-first lower-limit upper-limit distance
+        ;; mistty--changeset-modification extracts modification from
+        ;; the buffer. It must be called when the interaction is
+        ;; created, not when it is run
+        (modifications (mistty--changeset-modifications cs))
+        (calling-buffer (current-buffer))
+        (beg (make-marker))
+        (old-end (make-marker))
+        backstage is-first lower-limit upper-limit distance
         orig-beg content old-length)
     (setq
      start-f
      (lambda (&optional _)
-       (setq calling-buffer (current-buffer))
+       (set-buffer calling-buffer)
        (setq backstage (mistty--create-backstage mistty-proc))
-       (setq work-sync-marker (marker-position mistty-sync-marker))
-       (setq modifications (mistty--changeset-modifications cs))
-       (setq beg (make-marker))
-       (setq old-end (make-marker))
-       (set-buffer backstage)
-       ;; Move modifications positions into the backstage buffer.
-       ;; Rely on markers to keep the positions valid through
-       ;; buffer modifications.
-       (dolist (m modifications)
-         (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min)))))
+       (let ((work-sync-marker (marker-position mistty-sync-marker)))
+         (set-buffer backstage)
+         ;; Move modifications positions into the backstage buffer.
+         ;; Rely on markers to keep the positions valid through
+         ;; buffer modifications.
+         (dolist (m modifications)
+           (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min))))))
        (setq lower-limit (point-min-marker))
        (setq upper-limit (point-max-marker))
        (funcall next-modification-f t)))

@@ -3337,6 +3337,33 @@ window while BODY is running."
     (should (equal nil mistty--inhibit))
     (mistty-wait-for-output :str "hello, world")))
 
+(ert-deftest mistty-test-replays-are-queued ()
+  (mistty-with-test-buffer ()
+    (let ((pos (point)))
+      ;; the queue is stuck for now
+      (mistty--enqueue mistty--queue (mistty--stuck-interaction "#"))
+
+      ;; put two replays in the queue
+      (mistty-test-pre-command)
+      (insert "echo hello")
+      (mistty-test-after-command 'noempty-queue)
+
+      (mistty-test-pre-command)
+      (insert " world.")
+      (mistty-test-after-command 'noempty-queue)
+
+      ;; the work buffer is still frozen, showing a preview.
+      (should (equal "$ echo hello world.<>" (mistty-test-content :show (point))))
+
+      ;; restart the queue and wait until it's empty
+      (mistty--send-string mistty-proc "#") ;; start the queue
+      (mistty-wait-for-output
+       :test (lambda ()
+               (mistty--queue-empty-p mistty--queue)))
+
+      (mistty-wait-for-output :str "echo hello world.#")
+      (should (equal "$ echo hello world.<>#" (mistty-test-content :show (point)))))))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 
@@ -3431,12 +3458,13 @@ window while BODY is running."
   (when (and (listp buffer-undo-list) (car buffer-undo-list))
     (push nil buffer-undo-list)))
 
-(defun mistty-test-after-command ()
+(defun mistty-test-after-command (&optional noempty-queue)
   (mistty--post-command)
   (ert-run-idle-timers)
-  (mistty-wait-for-output
-   :test (lambda ()
-           (mistty--queue-empty-p mistty--queue))))
+  (unless noempty-queue
+    (mistty-wait-for-output
+     :test (lambda ()
+             (mistty--queue-empty-p mistty--queue)))))
 
 (cl-defun mistty-wait-for-output
     (&key (test nil) (str nil) (regexp nil) (start (point-min))
@@ -3672,9 +3700,8 @@ forever - or until the test calls mistty--send-text directly."
   (let ((interact (mistty--make-interact)))
     (mistty--interact-init
      interact
-     (lambda (&optional _)
-       (if (save-excursion
-             (goto-char (mistty-cursor))
+     (lambda (val)
+       (if (with-current-buffer mistty-term-buffer
              (looking-back (regexp-quote text)))
            'done
          'keep-waiting)))

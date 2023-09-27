@@ -1944,7 +1944,7 @@ change."
   (let ((was-inhibited (if mistty--inhibit t nil)))
     (cl-pushnew sym mistty--inhibit)
     (unless was-inhibited
-      (mistty-log "Long running command ON")
+      (mistty-log "Long running command ON %s" mistty--inhibit)
       (overlay-put mistty--sync-ov 'keymap nil))))
 
 (defun mistty--inhibit-remove (sym)

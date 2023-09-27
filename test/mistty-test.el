@@ -3347,9 +3347,9 @@ window while BODY is running."
 
 (ert-deftest mistty-test-replays-are-queued ()
   (mistty-with-test-buffer ()
-    (let ((pos (point)))
-      ;; the queue is stuck for now
-      (mistty--enqueue mistty--queue (mistty--stuck-interaction "#"))
+    (let ((pos (point))
+          (unfreeze (mistty-test-freeze-queue)))
+      ;; the queue is frozen for now
 
       ;; put two replays in the queue
       (mistty-test-pre-command)
@@ -3364,13 +3364,13 @@ window while BODY is running."
       (should (equal "$ echo hello world.<>" (mistty-test-content :show (point))))
 
       ;; restart the queue and wait until it's empty
-      (mistty--send-string mistty-proc "#") ;; start the queue
+      (funcall unfreeze)
       (mistty-wait-for-output
        :test (lambda ()
                (mistty--queue-empty-p mistty--queue)))
 
-      (mistty-wait-for-output :str "echo hello world.#")
-      (should (equal "$ echo hello world.<>#" (mistty-test-content :show (point)))))))
+      (mistty-wait-for-output :str "echo hello world.")
+      (should (equal "$ echo hello world.<>" (mistty-test-content :show (point)))))))
 
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
@@ -3716,6 +3716,29 @@ forever - or until the test calls mistty--send-text directly."
            'done
          'keep-waiting)))
     interact))
+
+(defun mistty-test-freeze-queue ()
+  "Freezes `mistty-queue'.
+
+Add an interaction into the queue that'll get stuck until
+the function returned by this function is called.
+
+This should only be used when the shell is bash, as it sends a
+^G, which bash answers with another ^G, but cause other shells to
+redraw everything."
+  (let ((interact (mistty--make-interact))
+        (can-continue nil))
+    (mistty--interact-init
+     interact
+     (lambda (val)
+       (if can-continue
+           'done
+         'keep-waiting)))
+    (mistty--enqueue mistty--queue interact)
+    (lambda ()
+      (setq can-continue t)
+      ;; make sure we get something back from the shell right away.
+      (mistty--send-string mistty-proc "\C-g"))))
 
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.

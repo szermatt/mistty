@@ -2076,7 +2076,10 @@ post-command hook."
             (when (and (>= from (point-min))
                        (<= from (point-max))
                        (>= to (point-min))
-                       (<= to (point-max)))
+                       (<= to (point-max))
+                       (mistty--with-live-buffer mistty-term-buffer 
+                         (<= (mistty--from-pos-of to mistty-work-buffer)
+                             (point-max))))
               (let* ((distance (mistty--distance from to))
                      (term-seq (mistty--move-horizontally-str distance)))
                 (when (mistty--nonempty-str-p term-seq)

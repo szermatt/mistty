@@ -3321,6 +3321,22 @@ window while BODY is running."
       (should (equal "hello, world"
                      (mistty-send-and-capture-command-output))))))
 
+(ert-deftest mistty-test-detect-completion-in-region ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (setq completion-in-region-mode t)
+    (run-hooks 'completion-in-region-mode-hook)
+    (should (equal '(completion-in-region) mistty--inhibit))
+    (mistty-run-command
+     (insert ","))
+    (mistty-run-command
+     (insert " world"))
+    (should (equal "$ echo hello, world" (mistty-test-content)))
+    (setq completion-in-region-mode nil)
+    (run-hooks 'completion-in-region-mode-hook)
+    (should (equal nil mistty--inhibit))
+    (mistty-wait-for-output :str "hello, world")))
+
 ;; TODO: find a way of testing non-empty modifications that are
 ;; ignored and require the timer to be reverted.
 

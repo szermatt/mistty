@@ -39,6 +39,7 @@
 (require 'text-property-search)
 (require 'fringe)
 (eval-when-compile
+  (require 'minibuffer)
   (require 'cl-lib))
 
 (require 'mistty-changeset)
@@ -475,6 +476,7 @@ as a sign that there is a long-running command.")
   (setq-local scroll-conservatively 1024)
 
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
+  (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
 
   (when mistty-fringe-enabled
     (if (window-system)
@@ -1983,6 +1985,10 @@ This function tells `mistty--detect-foreign-overlays' to ignore
 whatever overlay currently exists."
   (dolist (ov (overlays-in mistty-sync-marker (point-max)))
     (cl-pushnew ov mistty--ignored-overlays)))
+
+(defun mistty--detect-completion-in-region ()
+  "Inhibit replay and refresh while completion is in progress."
+  (mistty--inhibit-set 'completion-in-region completion-in-region-mode))
 
 (defun mistty--post-command-1 (buf point-moved)
   "Function called from `mistty--post-command'.

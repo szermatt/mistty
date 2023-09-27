@@ -1976,8 +1976,11 @@ change."
 Foreign overlays are used as a sign that a long-running command
 is active and that normal MisTTY operations should be turned off
 for a time."
-  (let ((ovs (overlays-in mistty-sync-marker (point-max))))
-    (while (and ovs (memq (car ovs) mistty--ignored-overlays))
+  (let ((ovs (overlays-in mistty-sync-marker (point-max)))
+        (region-ovs (delq nil (mapcar (lambda (win) (window-parameter win 'internal-region-overlay))
+                                      (get-buffer-window-list)))))
+    (while (and ovs (or (memq (car ovs) mistty--ignored-overlays)
+                        (memq (car ovs) region-ovs)))
       (setq ovs (cdr ovs)))
     (mistty--inhibit-set 'overlays ovs)))
 

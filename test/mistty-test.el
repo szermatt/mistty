@@ -66,6 +66,12 @@ problems.")
 
 (defvar mistty-test-prompt "$ ")
 
+(defvar mistty-test-had-issues nil
+  "When this is non-nil, the test will fail.
+
+This is used to work around errors being swallowed and then
+silently ignored by the test.")
+
 (cl-defmacro mistty-with-test-buffer
     ((&key (shell 'bash) (selected nil)) &body body)
   "Run BODY in a MisTTY buffer.
@@ -90,7 +96,8 @@ window while BODY is running."
                                         ">>> "
                                       'mistty-test-prompt))
                (mistty-backlog-size 500)
-               (mistty-test-ok nil))
+               (mistty-test-ok nil)
+               (mistty-test-had-issues nil))
            (mistty-test-setup (quote ,shell))
            (unwind-protect
                (prog1
@@ -98,6 +105,7 @@ window while BODY is running."
                       `(with-selected-window (display-buffer (current-buffer))
                          ,@body)
                     `(progn ,@body))
+                 (should-not mistty-test-had-issues)
                  (setq mistty-test-ok 'ok))
              (unless mistty-test-ok (mistty-start-log))))))))
 
@@ -3573,6 +3581,8 @@ This is meant to be assigned to `mistty--report-issue-function'
                   :show-property '(mistty-skip t)
                   :show (list (point) (ignore-errors (mistty-cursor)))))))
     (mistty-log error-message)
+    ;; Errors might get caught. This makes sure 
+    (setq mistty-test-had-issues t)
     (error "%s" error-message)))
 
 (cl-defun mistty-test-content (&key (start (point-min))

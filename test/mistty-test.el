@@ -3276,7 +3276,7 @@ window while BODY is running."
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
-(ert-deftest mistty-test-long-running-command ()
+(ert-deftest mistty-test-detect-foreign-overlays ()
   (mistty-with-test-buffer (:selected t :shell fish)
     ;; CUA rectangle mark mode is an example of an interactive command
     ;; that uses overlays. It has the advantage of being built-in.
@@ -3286,20 +3286,20 @@ window while BODY is running."
     (mistty-send-text "for i in a b c\necho $i\nend")
     (mistty-test-goto "in")
     (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
-    (should mistty--long-running-command)
+    (should (equal '(overlays) mistty--inhibit))
     (should (equal (concat "$ for i in boo a b c\n"
                            "      echo<> boo $i\n"
                            "  end")
                    (mistty-test-content :show (point))))
     (execute-kbd-macro (kbd "C-<return>"))
     (mistty-wait-for-output :str "boo a b c" :start (point-min))
-    (should-not mistty--long-running-command)
+    (should (equal nil mistty--inhibit))
     (should (equal (concat "$ for i in boo a b c\n"
                            "      echo<> boo $i\n"
                            "  end")
                    (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-quit-during-a-long-running-command ()
+(ert-deftest mistty-test-ignore-foreign-overlays ()
   (mistty-with-test-buffer ()
     (let ((test-overlay))
       (mistty-send-text "echo hello, world")
@@ -3308,7 +3308,7 @@ window while BODY is running."
        (setq test-overlay (make-overlay (point) (+ 5 (point)))))
 
       ;; A long command was detected.
-      (should mistty--long-running-command)
+      (should (equal '(overlays) mistty--inhibit))
 
       ;; Simulate C-g
       (let ((this-command 'keyboard-quit))
@@ -3316,7 +3316,7 @@ window while BODY is running."
         (mistty--post-command))
 
       ;; We're back to normal.
-      (should-not mistty--long-running-command)
+      (should (equal nil mistty--inhibit))
 
       (should (equal "hello, world"
                      (mistty-send-and-capture-command-output))))))

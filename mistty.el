@@ -333,7 +333,7 @@ buffer.")
 
 (defvar-local mistty--has-active-prompt nil
   "Non-nil there is a prompt at `mistty-sync-marker'.")
-  
+
 (defvar-local mistty--sync-ov nil
   "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
 
@@ -432,8 +432,8 @@ position values.
 
 The first entry is a copy of the current sync markers.")
 
-(defvar-local mistty--long-running-command nil
-  "When non-nil, a long-running command has been detected.
+(defvar-local mistty--inhibit nil
+  "When non-nil, inhibit communication with the terminal.
 
 Normally, MisTTY allows normal Emacs operations during a command,
 then replays any changes in the post-command hook. With this
@@ -445,8 +445,9 @@ This is used to allow longer-running, interactive commands such
 as filling templates to run without interference from the shell
 until the end.
 
-Long-running commands are detected by
-`mistty--long-running-command-p'.")
+This is a list of symbols, that represent the reason why normal
+operations are inhibited. This allows dealing with more than one
+running command at a time.")
 
 (defvar-local mistty--ignored-overlays nil
   "Foreign overlays that should just be ignored.
@@ -988,7 +989,7 @@ function just sets `mistty--need-refresh' and returns.
 
 Also updates prompt and point."
   (mistty--require-work-buffer)
-  (if (or mistty--inhibit-refresh mistty--long-running-command)
+  (if (or mistty--inhibit-refresh mistty--inhibit)
       (setq mistty--need-refresh t)
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
@@ -1003,7 +1004,7 @@ Also updates prompt and point."
 
          (mistty-log "refresh")
          (mistty--sync-buffer mistty-term-buffer)
-         
+
          ;; Make fake newlines invisible. They're not really "visible"
          ;; to begin with, since they're at the end of the window, but
          ;; marking them invisible allows kill-line to go "through"
@@ -1915,49 +1916,71 @@ With an argument, clear from the end of the last Nth output."
         (mistty-log "CANCEL")
         (message "MisTTY: Canceling replay")
         (mistty--cancel-queue mistty--queue))
-      (mistty--ignore-long-running-command)))
+      (mistty--ignore-foreign-overlays)))
 
-  ;; Show cursor again if the command moved the point.
+  (ignore-errors
+    (mistty--detect-foreign-overlays))
+
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
+    ;; Show cursor again if the command moved the point.
     (when point-moved
       (setq cursor-type t))
 
-    (let ((old-lr mistty--long-running-command)
-          (new-lr (mistty--long-running-command-p)))
-      (setq mistty--long-running-command new-lr)
-      (cond
-       ((and new-lr (not old-lr))
-        (mistty-log "Long running command ON")
-        (setq cursor-type t)
-        (overlay-put mistty--sync-ov 'keymap nil))
-       ((and (not new-lr) old-lr)
-        (mistty-log "Long running command OFF")
-        (setq point-moved t)
-        (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
-        (when mistty--need-refresh (mistty--refresh)))))
-
-    (unless mistty--long-running-command
+    (unless mistty--inhibit
       (run-with-idle-timer
        0 nil #'mistty--post-command-1
        mistty-work-buffer point-moved))))
 
-(defun mistty--long-running-command-p ()
-  "Detect long-running commands currently in effect.
+(defun mistty--inhibit-add (sym)
+  "Add a source of inhibition with SYM as id.
 
-This function attempts to detect long-running, interactive
-commands, such as filling in a template, which should be left to
-run until the end before replaying the changes."
+This changes the value of `mistty--inhibit' and reacts to that
+change."
+  (let ((was-inhibited (if mistty--inhibit t nil)))
+    (cl-pushnew sym mistty--inhibit)
+    (unless was-inhibited
+      (mistty-log "Long running command ON")
+      (overlay-put mistty--sync-ov 'keymap nil))))
+
+(defun mistty--inhibit-remove (sym)
+  "Remove a source of inhibition with SYM as id.
+
+This changes the value of `mistty--inhibit' and reacts to that
+change."
+  (when mistty--inhibit
+    (setq mistty--inhibit (delq sym mistty--inhibit))
+    (unless mistty--inhibit
+      (mistty-log "Long running command OFF")
+      (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
+      (when mistty--need-refresh (mistty--refresh)))))
+
+(defun mistty--inhibit-set (sym val)
+  "Add or remove a source of inhibition with SYM as id.
+
+If VAL evaluates to non-nil, add it, otherwise remove it.
+
+This changes the value of `mistty--inhibit' and reacts to that
+change."
+  (if val
+      (mistty--inhibit-add sym)
+    (mistty--inhibit-remove sym)))
+
+(defun mistty--detect-foreign-overlays ()
+  "Detect foreign overlays.
+
+Foreign overlays are used as a sign that a long-running command
+is active and that normal MisTTY operations should be turned off
+for a time."
   (let ((ovs (overlays-in mistty-sync-marker (point-max))))
     (while (and ovs (memq (car ovs) mistty--ignored-overlays))
       (setq ovs (cdr ovs)))
-    (if ovs t nil)))
+    (mistty--inhibit-set 'overlays ovs)))
 
-(defun mistty--ignore-long-running-command ()
+(defun mistty--ignore-foreign-overlays ()
   "Ignore currently active foreign overlays.
 
-This function prepares `mistty--long-running-command-p' to return
-nil. This is to be used in case some misbehaving command leaves
-foreign overlay in the buffer."
+This function tells `mistty--detect-foreign-overlays' to ignore
+whatever overlay currently exists."
   (dolist (ov (overlays-in mistty-sync-marker (point-max)))
     (cl-pushnew ov mistty--ignored-overlays)))
 

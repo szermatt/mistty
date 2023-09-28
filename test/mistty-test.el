@@ -182,6 +182,29 @@
     (should (equal "baa baa, black sheep"
                    (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-reconcile-with-autosuggestions ()
+  (mistty-with-test-buffer (:shell fish)
+    ;; seed autosuggestions
+    (mistty-send-text "echo hello, world")
+    (mistty-send-and-wait-for-prompt)
+    (let ((start (mistty--bol (point))))
+      ;; The suggestions could confuse the algorithm that detects what
+      ;; was inserted, causing timeout. This is the worst case: insertions
+      ;; look just like cursor movements.
+      (mistty-run-command
+       (insert "echo h"))
+      (mistty-wait-for-output :str "world" :start start)
+      (should (equal "$ echo h<>ello, world"
+                     (mistty-test-content :show (point) :start start)))
+      (mistty-run-command
+       (insert "el"))
+      (should (equal "$ echo hel<>lo, world"
+                     (mistty-test-content :show (point) :start start)))
+      (mistty-run-command
+       (insert "lo"))
+      (should (equal "$ echo hello<>, world"
+                     (mistty-test-content :show (point) :start start))))))
+
 (ert-deftest mistty-test-change-before-prompt ()
   (mistty-with-test-buffer ()
     (let (beg end)

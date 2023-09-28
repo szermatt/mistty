@@ -1745,8 +1745,7 @@ This is meant to be added to ==\'after-change-functions."
             ;; building and running the detector.
             (mistty--remove-text-with-property 'term-line-wrap t)
             (mistty--remove-text-with-property 'mistty-skip t)
-            (setq inserted-detector (mistty--make-inserted-detector
-                                     sub beg old-end))
+            (setq inserted-detector (mistty--make-inserted-detector sub beg))
             (mistty--interact-return
              interact term-seq
              :wait-until (lambda ()
@@ -1774,13 +1773,11 @@ This is meant to be added to ==\'after-change-functions."
     (mistty--interact-init interact start-f unwind-f)
     interact))
 
-(defun mistty--make-inserted-detector (inserted beg old-end)
+(defun mistty--make-inserted-detector (inserted beg)
   "Return a function for checking for INSERTED in the buffer.
 
 The returned function checks the current buffer for INSERTED
-appearing at position BEG. OLD-END is the position of the text
-that should follow INSERTED, that is, the position of text to be
-deleted. If nothing is deleted, OLD-END is the same as BEG.
+appearing at position BEG. 
 
 The way this function works allows for the shell to make some
 modifications to the inserted text, such as:
@@ -1795,16 +1792,10 @@ INSERTED has been detected in the current buffer."
           "^"
           (regexp-quote (mistty--safe-bufstring
                          (mistty--bol beg) beg))
-          "\\(" (regexp-quote inserted) "\\)"
-          (regexp-quote (mistty--safe-bufstring
-                         old-end (mistty--eol old-end)))
-          "$")))
+          "\\(" (regexp-quote inserted) "\\)")))
     (mistty-log "RE /%s/" regexp)
     (lambda ()
-      (and (save-excursion
-             (goto-char (mistty--bol beg))
-             (looking-at regexp))
-           (= (match-end 1) (point))))))
+      (looking-back regexp (point-min)))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."

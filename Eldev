@@ -10,6 +10,8 @@
 
 (eldev-use-plugin 'autoloads)
 
+(eldev-add-loading-roots 'test "test")
+
 (eldev-defoption mistty-test-bash-exe (&optional path)
   "Tests look for Bash at PATH."
   :options        (--bash)

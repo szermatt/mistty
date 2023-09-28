@@ -2010,7 +2010,8 @@ post-command hook."
     (mistty--inhibit-undo
      (save-restriction
        (widen)
-       (when (and (process-live-p mistty-proc)
+       (when (and (not mistty--inhibit)
+                  (process-live-p mistty-proc)
                   (buffer-live-p mistty-term-buffer))
          (let* ((cs (mistty--active-changeset))
                 shift replay)

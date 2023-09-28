@@ -3,7 +3,9 @@
 (require 'mistty)
 (require 'mistty-testing)
 
-(ert-deftest mistty-compat-test-and-hippie-completion ()
+(require 'yasnippet nil 'noerror)
+
+(ert-deftest mistty-compat-test-hippie-expand ()
   (mistty-with-test-buffer ()
     (mistty-send-text "echo hello, hullo, hallo, hi")
     (mistty-send-and-wait-for-prompt)
@@ -27,3 +29,39 @@
        (call-interactively 'hippie-expand))
       (should (equal "echo hallo<>"
                      (mistty-test-content :start start :show (point)))))))
+
+(ert-deftest mistty-compat-test-yas-expand ()
+  (skip-unless (featurep 'yasnippet))
+  (yas-define-snippets
+   'mistty-mode
+   ;; (KEY TEMPLATE NAME ...)
+   '(("bif" "if ${1}; then ${0}; fi" "bif")))
+  (mistty-with-test-buffer (:selected t)
+    (yas-minor-mode-on)
+    (keymap-local-set "C-c y" #'yas-expand)
+    (mistty-send-text "bif")
+    (execute-kbd-macro (kbd "C-c y t r u e TAB e c h o SPC o k TAB"))
+    (mistty-wait-for-output :test (lambda () (not mistty--inhibit)))
+    (mistty-wait-for-output :str "echo ok")
+    (should-not mistty--inhibit)
+    (should (equal "$ if true; then echo ok; fi<>"
+                   (mistty-test-content :show (point))))
+    (should (equal "ok" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-compat-yas-expand-multiline ()
+  (skip-unless (featurep 'yasnippet))
+  (yas-define-snippets
+   'mistty-mode
+   ;; (KEY TEMPLATE NAME ...)
+   '(("bif" "if ${1}\nthen ${0}\nfi" "bif")))
+  (mistty-with-test-buffer (:selected t)
+    (yas-minor-mode-on)
+    (keymap-local-set "C-c y" #'yas-expand)
+    (mistty-send-text "bif")
+    (execute-kbd-macro (kbd "C-c y t r u e TAB e c h o SPC o k TAB"))
+    (mistty-wait-for-output :test (lambda () (not mistty--inhibit)))
+    (mistty-wait-for-output :str "echo ok")
+    (should-not mistty--inhibit)
+    (should (equal "$ if true\nthen echo ok\nfi<>"
+                   (mistty-test-content :show (point))))
+    (should (equal "ok" (mistty-send-and-capture-command-output)))))

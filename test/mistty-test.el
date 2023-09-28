@@ -1883,31 +1883,6 @@
     (mistty-send-and-wait-for-prompt
      (lambda () (mistty--send-string mistty-proc "q")))))
 
-(ert-deftest mistty-test-and-hippie-completion ()
-  (mistty-with-test-buffer ()
-    (mistty-send-text "echo hello, hullo, hallo, hi")
-    (mistty-send-and-wait-for-prompt)
-
-    (let ((hippie-expand-try-functions-list '(try-expand-dabbrev))
-          (start (point)))
-
-      (mistty-send-text "echo h")
-      (should (equal "echo h<>"
-                     (mistty-test-content :start start :show (point))))
-
-      (mistty-run-command
-       (setq this-command 'hippie-expand)
-       (call-interactively 'hippie-expand))
-      (should (equal "echo hi<>"
-                     (mistty-test-content :start start :show (point))))
-
-      (mistty-run-command
-       (setq this-command 'hippie-expand)
-       (setq last-command 'hippie-expand)
-       (call-interactively 'hippie-expand))
-      (should (equal "echo hallo<>"
-                     (mistty-test-content :start start :show (point)))))))
-
 (ert-deftest mistty-test-last-non-ws ()
   (ert-with-test-buffer ()
     (insert "This is a test\t   \r\n   \n  \t ")

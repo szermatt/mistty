@@ -15,6 +15,7 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'mistty-util)
+(require 'mistty-testing)
 (require 'ert)
 (require 'ert-x)
 
@@ -79,9 +80,3 @@
   (mistty--remove-text-with-property 'mistty-skip t)
   (should (equal "abc def"
                  (mistty--safe-bufstring (point-min) (point-max)))))
-
-(defun mistty-test-pos (text)
-  (save-excursion
-    (goto-char (point-min))
-    (search-forward text)
-    (match-beginning 0)))

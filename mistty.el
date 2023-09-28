@@ -1265,7 +1265,7 @@ instead `mistty--move-sync-mark-with-shift' or
   (mistty--require-work-buffer)
   (unless (= sync-pos mistty-sync-marker)
     (mistty-log "MOVE SYNC MARKER %s to %s"
-                mistty-sync-marker
+                (marker-position mistty-sync-marker)
                 sync-pos)
     (setq mistty--has-active-prompt nil)
     (move-marker mistty-sync-marker sync-pos)

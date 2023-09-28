@@ -1718,7 +1718,7 @@ This is meant to be added to ==\'after-change-functions."
         (let ((start-idx (if (>= beg orig-beg)
                              (min (length content) (max 0 (- beg orig-beg)))
                            (length content)))
-              sub term-seq inserted-detector)
+              sub term-seq inserted-detector-regexp)
           (setq sub (substring content start-idx))
           (setq term-seq
                 (concat
@@ -1745,14 +1745,20 @@ This is meant to be added to ==\'after-change-functions."
             ;; building and running the detector.
             (mistty--remove-text-with-property 'term-line-wrap t)
             (mistty--remove-text-with-property 'mistty-skip t)
-            (setq inserted-detector (mistty--make-inserted-detector sub beg))
+            (setq inserted-detector-regexp
+                  (concat
+                   "^"
+                   (regexp-quote (mistty--safe-bufstring
+                                  (mistty--bol beg) beg))
+                   "\\(" (regexp-quote sub) "\\)"))
+            (mistty-log "RE /%s/" inserted-detector-regexp)
             (mistty--interact-return
              interact term-seq
              :wait-until (lambda ()
                            (mistty--update-backstage)
                            (mistty--remove-text-with-property 'term-line-wrap t)
                            (mistty--remove-text-with-property 'mistty-skip t)
-                           (funcall inserted-detector))
+                           (looking-back inserted-detector-regexp (point-min)))
              :then after-insert-and-delete-f)))
         (funcall next-modification-f))))
     (setq
@@ -1772,30 +1778,6 @@ This is meant to be added to ==\'after-change-functions."
 
     (mistty--interact-init interact start-f unwind-f)
     interact))
-
-(defun mistty--make-inserted-detector (inserted beg)
-  "Return a function for checking for INSERTED in the buffer.
-
-The returned function checks the current buffer for INSERTED
-appearing at position BEG. 
-
-The way this function works allows for the shell to make some
-modifications to the inserted text, such as:
-- indent or re-indent it
-- add fake newlines (with text property \\='term-line-wrap)
-- add empty spaces (with text property \\='mistty-skip)
-
-The returned function takes no argument and returns non-nil once
-INSERTED has been detected in the current buffer."
-  (let ((regexp
-         (concat
-          "^"
-          (regexp-quote (mistty--safe-bufstring
-                         (mistty--bol beg) beg))
-          "\\(" (regexp-quote inserted) "\\)")))
-    (mistty-log "RE /%s/" regexp)
-    (lambda ()
-      (looking-back regexp (point-min)))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."

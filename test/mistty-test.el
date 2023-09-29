@@ -3193,14 +3193,16 @@
     (mistty-send-text "for i in a b c\necho $i\nend")
     (mistty-test-goto "in")
     (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
-    (should (equal '(overlays) mistty--inhibit))
+    (mistty-wait-for-output :test (lambda ()
+                                    (equal '(overlays) mistty--inhibit)))
     (should (equal (concat "$ for i in boo a b c\n"
                            "      echo<> boo $i\n"
                            "  end")
                    (mistty-test-content :show (point))))
     (execute-kbd-macro (kbd "C-<return>"))
     (mistty-wait-for-output :str "boo a b c" :start (point-min))
-    (should (equal nil mistty--inhibit))
+    (mistty-wait-for-output :test (lambda ()
+                                    (not mistty--inhibit)))
     (should (equal (concat "$ for i in boo a b c\n"
                            "      echo<> boo $i\n"
                            "  end")
@@ -3215,7 +3217,8 @@
        (setq test-overlay (make-overlay (point) (+ 5 (point)))))
 
       ;; A long command was detected.
-      (should (equal '(overlays) mistty--inhibit))
+      (mistty-wait-for-output :test (lambda ()
+                                      (equal '(overlays) mistty--inhibit)))
 
       ;; Simulate C-g
       (let ((this-command 'keyboard-quit))
@@ -3223,7 +3226,8 @@
         (mistty--post-command))
 
       ;; We're back to normal.
-      (should (equal nil mistty--inhibit))
+      (mistty-wait-for-output :test (lambda ()
+                                      (not mistty--inhibit)))
 
       (should (equal "hello, world"
                      (mistty-send-and-capture-command-output))))))

@@ -1896,18 +1896,14 @@ With an argument, clear from the end of the last Nth output."
         (mistty--cancel-queue mistty--queue))
       (mistty--ignore-foreign-overlays)))
 
-  (ignore-errors
-    (mistty--detect-foreign-overlays))
-
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
     ;; Show cursor again if the command moved the point.
     (when point-moved
       (setq cursor-type t))
 
-    (unless mistty--inhibit
-      (run-with-idle-timer
-       0 nil #'mistty--post-command-1
-       mistty-work-buffer point-moved))))
+    (run-with-idle-timer
+     0 nil #'mistty--post-command-1
+     mistty-work-buffer point-moved)))
 
 (defun mistty--inhibit-add (sym)
   "Add a source of inhibition with SYM as id.
@@ -1920,7 +1916,7 @@ change."
       (mistty-log "Long running command ON %s" mistty--inhibit)
       (overlay-put mistty--sync-ov 'keymap nil))))
 
-(defun mistty--inhibit-remove (sym)
+(defun mistty--inhibit-remove (sym noschedule)
   "Remove a source of inhibition with SYM as id.
 
 This changes the value of `mistty--inhibit' and reacts to that
@@ -1930,18 +1926,21 @@ change."
     (unless mistty--inhibit
       (mistty-log "Long running command OFF")
       (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
-      (when mistty--need-refresh (mistty--refresh)))))
+      (unless noschedule
+        (run-with-idle-timer
+         0 nil #'mistty--post-command-1
+         mistty-work-buffer 'point-moved)))))
 
-(defun mistty--inhibit-set (sym val)
+(defun mistty--inhibit-set (sym val &optional noschedule)
   "Add or remove a source of inhibition with SYM as id.
 
 If VAL evaluates to non-nil, add it, otherwise remove it.
 
 This changes the value of `mistty--inhibit' and reacts to that
-change."
+change, unless NOSCHEDULE evaluates to t"
   (if val
       (mistty--inhibit-add sym)
-    (mistty--inhibit-remove sym)))
+    (mistty--inhibit-remove sym noschedule)))
 
 (defun mistty--detect-foreign-overlays ()
   "Detect foreign overlays.
@@ -1955,7 +1954,7 @@ for a time."
     (while (and ovs (or (memq (car ovs) mistty--ignored-overlays)
                         (memq (car ovs) region-ovs)))
       (setq ovs (cdr ovs)))
-    (mistty--inhibit-set 'overlays ovs)))
+    (mistty--inhibit-set 'overlays ovs 'noschedule)))
 
 (defun mistty--ignore-foreign-overlays ()
   "Ignore currently active foreign overlays.
@@ -1980,6 +1979,7 @@ modifications or cursor movement executed during the command. It
 is run in an idle timer to avoid failures inside of the
 post-command hook."
   (mistty--with-live-buffer buf
+    (mistty--detect-foreign-overlays)
     (mistty--inhibit-undo
      (save-restriction
        (widen)
@@ -2034,7 +2034,10 @@ post-command hook."
              (mistty--refresh-after-changeset))
 
            (when (and (not replay) point-moved)
-             (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))))))))
+             (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
+
+           (when mistty--need-refresh
+             (mistty--refresh))))))))
 
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."

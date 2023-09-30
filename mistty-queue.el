@@ -149,6 +149,11 @@ captures the current buffer."
   "Return t if QUEUE generator hasn't finished yet."
   (not (mistty--queue-interact queue)))
 
+(defun mistty--queue-interact-type (queue)
+  "Return the type of the QUEUE current interact or nil."
+  (when-let ((interact (mistty--queue-interact queue)))
+    (mistty--interact-type interact)))
+
 (defun mistty--send-string (proc str)
   "Send STR to PROC, if it is still live."
   (when (and (mistty--nonempty-str-p str)
@@ -195,6 +200,7 @@ Does nothing if INTERACT is nil."
     (cond
      ;; This is the first mistty-interact; kick things off.
      ((mistty--queue-empty-p queue)
+      (mistty-log "START %s" (mistty--interact-type interact))
       (setf (mistty--queue-interact queue) interact)
       (mistty--dequeue queue))
      ;; Execute this interact next
@@ -238,7 +244,9 @@ description for the meaning of QUEUE and VALUE."
          (setq value nil)
          (mistty--interact-close (mistty--queue-interact queue))
          (setf (mistty--queue-interact queue)
-               (pop (mistty--queue-more-interacts queue))))
+               (pop (mistty--queue-more-interacts queue)))
+         (when (mistty--queue-interact queue)
+           (mistty-log "NEXT %s" (mistty--queue-interact-type queue))))
         
         ;; Keep waiting
         ('keep-waiting
@@ -280,6 +288,7 @@ scheduled."
 
 The queue remains usable, but empty."
   (when (mistty--queue-interact queue)
+    (mistty-log "CLOSE %s" (mistty--queue-interact-type queue))
     (mistty--interact-close (mistty--queue-interact queue))
     (setf (mistty--queue-interact queue) nil))
   (while (mistty--queue-more-interacts queue)

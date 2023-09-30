@@ -205,6 +205,44 @@
       (should (equal "$ echo hello<>, world"
                      (mistty-test-content :show (point) :start start))))))
 
+(ert-deftest mistty-test-reconcile-quick-single-char-changes ()
+  (mistty-with-test-buffer ()
+    ;; nowait lets mistty join the replays together.
+    (mistty-run-command-nowait
+     (goto-char (mistty-cursor))
+     (self-insert-command 1 ?e))
+    (mistty-run-command-nowait
+     (self-insert-command 1 ?c))
+    (mistty-run-command-nowait
+     (self-insert-command 1 ?h))
+    (mistty-run-command-nowait
+     (self-insert-command 1 ?o))
+    (mistty-run-command-nowait
+     (self-insert-command 1 ?\ ))
+    (mistty-run-command-nowait
+     (self-insert-command 1 ?o))
+    (mistty-run-command
+     (self-insert-command 1 ?k))
+    (should (equal "$ echo ok<>" (mistty-test-content :show (point))))
+    (should (equal "ok" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-reconcile-quick-single-insert-changes ()
+  (mistty-with-test-buffer ()
+    ;; nowait lets mistty join the replays together.
+    (mistty-run-command-nowait
+     (goto-char (mistty-cursor))
+     (insert "echo"))
+    (mistty-run-command-nowait
+     (insert " baa"))
+    (mistty-run-command-nowait
+     (insert " baa"))
+    (mistty-run-command-nowait
+     (insert " black"))
+    (mistty-run-command
+     (insert " sheep"))
+    (should (equal "$ echo baa baa black sheep<>" (mistty-test-content :show (point))))
+    (should (equal "baa baa black sheep" (mistty-send-and-capture-command-output)))))
+
 (ert-deftest mistty-test-change-before-prompt ()
   (mistty-with-test-buffer ()
     (let (beg end)
@@ -1841,7 +1879,7 @@
     ;; mistty-queue.el should discard the failed interaction and move
     ;; on to the next one.
     (mistty--enqueue-str mistty--queue "bar")
-    (mistty-wait-for-output :str "foobar" :start (point-min))))
+    (mistty-wait-for-output :str "foobar" :start (point-min)))))
 
 (ert-deftest mistty-test-stuck-interaction ()
   (mistty-with-test-buffer ()
@@ -2967,3 +3005,4 @@
 
       (mistty-wait-for-output :str "echo hello world.")
       (should (equal "$ echo hello world.<>" (mistty-test-content :show (point)))))))
+

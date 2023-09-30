@@ -1576,7 +1576,13 @@ This is meant to be added to ==\'after-change-functions."
   (mistty--sync-history-remove-above end nil)))
 
 (defun mistty--replay-interaction (cs)
-  "Build a `mistty--interact' to replay what CS captured."
+  "Build a `mistty--interact' of type \=='replay to replay CS.
+
+Replay interactions are callable with `mistty--call-interact'.
+They take a single argument, another changeset, and attempt to
+append that changeset to the current one. If that works, the
+changeset is released and the call returns t, otherwise the call
+returns nil."
   (let ((interact (mistty--make-interact 'replay))
         start-f next-modification-f
         move-to-beg-f after-move-to-beg-f
@@ -1592,7 +1598,8 @@ This is meant to be added to ==\'after-change-functions."
         (beg (make-marker))
         (old-end (make-marker))
         backstage is-first lower-limit upper-limit distance
-        orig-beg content old-length)
+        orig-beg content old-length waiting-for-last-change
+        inserted-detector-regexp)
     (setq
      start-f
      (lambda (&optional _)
@@ -1640,6 +1647,11 @@ This is meant to be added to ==\'after-change-functions."
          ;; couldn't be replayed.
          (set-buffer calling-buffer)
          (setq mistty--need-refresh t)
+
+         ;; Move cursor back to point
+         (mistty--enqueue
+          mistty--queue
+          (mistty--cursor-to-point-interaction) 'prepend)
          'done)))
     (setq
      move-to-beg-f
@@ -1658,7 +1670,7 @@ This is meant to be added to ==\'after-change-functions."
                              (mistty--update-backstage)
                              (= (point) beg))
                :then after-move-to-beg-f))))
-         (funcall move-to-end-f))))
+        (funcall move-to-end-f))))
     (setq
      after-move-to-beg-f
      (lambda ()
@@ -1721,7 +1733,7 @@ This is meant to be added to ==\'after-change-functions."
         (let ((start-idx (if (>= beg orig-beg)
                              (min (length content) (max 0 (- beg orig-beg)))
                            (length content)))
-              sub term-seq inserted-detector-regexp)
+              sub term-seq)
           (setq sub (substring content start-idx))
           (setq term-seq
                 (concat
@@ -1753,8 +1765,10 @@ This is meant to be added to ==\'after-change-functions."
                    "^"
                    (regexp-quote (mistty--safe-bufstring
                                   (mistty--bol beg) beg))
-                   "\\(" (regexp-quote sub) "\\)"))
+                   (regexp-quote sub)))
             (mistty-log "RE /%s/" inserted-detector-regexp)
+            (unless modifications
+              (setq waiting-for-last-change t))
             (mistty--interact-return
              interact term-seq
              :wait-until (lambda ()
@@ -1767,8 +1781,43 @@ This is meant to be added to ==\'after-change-functions."
     (setq
      after-insert-and-delete-f
      (lambda ()
+       (setq waiting-for-last-change nil)
        (mistty--update-backstage)
        (funcall next-modification-f)))
+
+    (setf
+     (mistty--interact-call interact)
+     (lambda (other-cs)
+       "Append OTHER-CS to the current changeset.
+
+If appending worked, return t and release OTHER-CS."
+       (when-let ((text-to-insert (mistty--changeset-single-insert other-cs)))
+         (when (and
+                (eql (mistty--changeset-beg other-cs)
+                     (mistty--changeset-end cs))
+                (cond
+                 (modifications
+                  (let* ((tail (last modifications))
+                         (m (car tail))
+                         (beg (nth 0 m))
+                         (content (nth 1 m))
+                         (old-length (nth 2 m)))
+                    (setcar tail
+                            (list beg (concat content text-to-insert) old-length))
+                    t))
+
+                 ((and (null modifications) waiting-for-last-change)
+                  (mistty--send-string mistty-proc text-to-insert)
+                  (setq inserted-detector-regexp
+                        (concat inserted-detector-regexp
+                                (regexp-quote text-to-insert)))
+                  (mistty-log "updated RE /%s/" inserted-detector-regexp)
+                  t)))
+           (setf (mistty--changeset-end cs)
+                 (mistty--changeset-end other-cs))
+           (mistty--release-changeset other-cs)
+           t))))
+
     (setq
      unwind-f
      (lambda ()
@@ -2028,8 +2077,12 @@ post-command hook."
              (setq mistty--need-refresh t)))
 
            (when replay
-             (mistty--enqueue mistty--queue (mistty--replay-interaction cs))
-             (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
+             (let ((last-interaction (mistty--queue-last-interact mistty--queue)))
+               (unless (and last-interaction
+                            (eq 'replay (mistty--interact-type last-interaction))
+                            ;; append to existing interaction
+                            (mistty--call-interact last-interaction 'replay cs))
+                 (mistty--enqueue mistty--queue (mistty--replay-interaction cs)))))
 
            ;; Abandon changesets that haven't been picked up for replay.
            (when (and (not replay) (mistty--changeset-p cs))

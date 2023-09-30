@@ -1820,10 +1820,11 @@
       (should (not mistty--need-refresh)))))
 
 (ert-deftest mistty-error-in-interaction ()
-  (mistty-with-test-buffer ()
-    (mistty--enqueue
-     mistty--queue
-     (let ((interact (mistty--make-interact 'test))
+  (let ((debug-on-error nil))
+    (mistty-with-test-buffer ()
+      (mistty--enqueue
+       mistty--queue
+       (let ((interact (mistty--make-interact 'test))
              foo-f error-f)
          (setq foo-f
                (lambda (&optional _)

@@ -233,7 +233,7 @@ description for the meaning of QUEUE and VALUE."
   (let ((proc (mistty--queue-proc queue)))
     (mistty--cancel-timeout queue)
     (while (mistty--queue-interact queue)
-      (pcase (condition-case err
+      (pcase (condition-case-unless-debug err
                  (mistty--interact-next (mistty--queue-interact queue) value)
                (error
                 (mistty-log "Interaction failed; giving up: %s" err)

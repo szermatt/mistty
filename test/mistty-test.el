@@ -243,6 +243,27 @@
     (should (equal "$ echo baa baa black sheep<>" (mistty-test-content :show (point))))
     (should (equal "baa baa black sheep" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-reconcile-quick-bad-single-insert-changes ()
+  (mistty-with-test-buffer ()
+    (setq mistty-log t)
+    ;; nowait lets mistty join and queue the replays.
+    (mistty-run-command-nowait
+     (goto-char (mistty-cursor))
+     (insert "echo "))
+    (mistty-run-command-nowait
+     (insert "baa "))
+    ;; This replay is made in such a way that it cannot be appended on
+    ;; purpose, to test that this case is handled properly.
+    (mistty-run-command-nowait
+     (delete-region (- (point) 3) (point))
+     (insert "baa "))
+    (mistty-run-command-nowait
+     (insert "black "))
+    (mistty-run-command
+     (insert "sheep"))
+    (should (equal "$ echo bbaa black sheep<>" (mistty-test-content :show (point))))
+    (should (equal "bbaa black sheep" (mistty-send-and-capture-command-output)))))
+
 (ert-deftest mistty-test-change-before-prompt ()
   (mistty-with-test-buffer ()
     (let (beg end)

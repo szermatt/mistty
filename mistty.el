@@ -2163,14 +2163,24 @@ post-command hook."
              (mistty--refresh))))))))
 
 (defun mistty--cursor-to-point-interaction ()
-  "Build a `mistty--interact' to move the cursor to the point."
+  "Build a `mistty--interact' to move the cursor to the point.
+
+This interaction is meant for an interactive scenario: it moves
+to the point as it is now, not the point as it was when the
+interaction was queued.
+
+This means that it's never useful to run this interaction between
+two other interactions, so this interaction just does nothing
+unless there's nothing else on the queue when it is run."
   (let ((interact (mistty--make-interact 'cursor-to-point))
         start-f after-move-f)
     (setq
      start-f
      (lambda (&optional _)
        (or
-        (when (mistty-on-prompt-p (point))
+        (when (and
+               (null (mistty--queue-more-interacts mistty--queue))
+               (mistty-on-prompt-p (point)))
           (let ((from (mistty-cursor))
                 (to (point)))
             (when (and (>= from (point-min))

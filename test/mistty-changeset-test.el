@@ -299,3 +299,36 @@
       (should (equal '((6 inserted) (15 deleted-to-end)) (mistty--changeset-collect cs)))
       (should (equal nil (mistty--changeset-restrict cs 15))))))
 
+(ert-deftest mistty-changeset-test-single-insert ()
+  (ert-with-test-buffer ()
+    (insert "$ ")
+    (setq mistty-sync-marker (point))
+
+    (insert "abcd")
+    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+
+    (goto-char 6)
+    (insert "new")
+
+    (should (equal "$ abcnewd" (buffer-substring-no-properties (point-min) (point-max))))
+    (let ((cs (mistty--active-changeset)))
+      (should (equal "new" (mistty--changeset-single-insert cs)))
+      (should (eq 6 (mistty--changeset-beg cs))))))
+
+
+(ert-deftest mistty-changeset-test-single-insert-at-end ()
+  (ert-with-test-buffer ()
+    (insert "$ ")
+    (setq mistty-sync-marker (point))
+
+    (insert "abc")
+    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+
+    (goto-char 6)
+    (insert "at-end")
+
+    (should (equal "$ abcat-end" (buffer-substring-no-properties (point-min) (point-max))))
+    (let ((cs (mistty--active-changeset)))
+      (should (equal "at-end" (mistty--changeset-single-insert cs)))
+      (should (eq 6 (mistty--changeset-beg cs))))))
+

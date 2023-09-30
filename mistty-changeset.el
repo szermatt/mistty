@@ -137,6 +137,16 @@ recently deleted string."
     (when (and (> old-end beg) (= end (point-max)))
       (setf (mistty--changeset-deleted-point-max changeset) t))))
 
+(defun mistty--changeset-single-insert (cs)
+  "If CS contains a single insertion, return it.
+
+Otherwise return nil."
+  (pcase (mistty--changeset-collect cs)
+    (`((,pos1 inserted) (,pos2 shift ,_))
+     (mistty--safe-bufstring pos1 pos2))
+    (`((,pos1 inserted))
+     (mistty--safe-bufstring pos1 (point-max)))))
+
 (defun mistty--changeset-collect (changeset)
   "Extract CHANGESET data stored into text properties.
 

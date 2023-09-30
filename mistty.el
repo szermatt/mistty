@@ -1390,7 +1390,10 @@ This command is available in fullscreen mode."
            (not (buffer-local-value
                  'mistty-fullscreen mistty-work-buffer)))
       (with-current-buffer mistty-work-buffer
-        (when positional (mistty-before-positional))
+        (when (and positional
+                   (not (and (eq this-command 'mistty-self-insert)
+                             (eq last-command 'mistty-self-insert))))
+          (mistty-before-positional))
         (let ((interact (mistty--make-interact 'send-key)))
           (mistty--interact-init
            interact

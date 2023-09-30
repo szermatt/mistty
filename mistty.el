@@ -1405,7 +1405,9 @@ If N is set, send the key that many times. It defaults to 1.
 
 C is the character to send, a single character."
   (interactive "p")
-  (mistty-send-key n (when c (make-string 1 c)) 'positional))
+  (if mistty--inhibit
+      (self-insert-command n c)
+    (mistty-send-key n (when c (make-string 1 c)) 'positional)))
 
 (defun mistty-backward-delete-char (&optional n)
   "Send DEL N times to the terminal.
@@ -1413,9 +1415,11 @@ C is the character to send, a single character."
 If N is unset, send DEL once. If N is negative, send Control d
 that many times instead."
   (interactive "p")
-  (if (and (numberp n) (< n 0))
-      (mistty-send-key (abs n) "\C-d" 'positional)
-    (mistty-send-key n "\x7f" 'positional)))
+  (if mistty--inhibit
+      (backward-delete-char n)
+    (if (and (numberp n) (< n 0))
+        (mistty-send-key (abs n) "\C-d" 'positional)
+      (mistty-send-key n "\x7f" 'positional))))
 
 (defun mistty-delete-char (&optional n)
 "Send Control D N times to the terminal.
@@ -1423,9 +1427,11 @@ that many times instead."
 If N is unset, send Control d once. If N is negative, send DEL
 that many times instead."
   (interactive "p")
-  (if (and (numberp n) (< n 0))
-      (mistty-send-key (abs n) "\x7f" 'positional)
-    (mistty-send-key n "\C-d" 'positional)))
+  (if mistty--inhibit
+      (delete-char n)
+    (if (and (numberp n) (< n 0))
+        (mistty-send-key (abs n) "\x7f" 'positional)
+      (mistty-send-key n "\C-d" 'positional))))
 
 (defun mistty-send-key (&optional n key positional)
   "Send the current key sequence to the terminal.
@@ -1580,6 +1586,7 @@ forwards the argument to it."
   (interactive "p")
   (let ((n (or n 1)))
     (cond
+     (mistty--inhibit (end-of-line n))
      ((and (= 1 n)
            (process-live-p mistty-proc)
            mistty--queue)
@@ -1996,6 +2003,7 @@ With an argument, clear from the end of the last Nth output."
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."
+  (mistty--detect-foreign-overlays 'noschedule)
   (mistty--pre-command-for-undo)
   (when (and mistty--self-insert-line
              (not (eq this-command 'mistty-self-insert)))
@@ -2061,19 +2069,23 @@ change, unless NOSCHEDULE evaluates to t"
       (mistty--inhibit-add sym)
     (mistty--inhibit-remove sym noschedule)))
 
-(defun mistty--detect-foreign-overlays ()
+(defun mistty--detect-foreign-overlays (noschedule)
   "Detect foreign overlays.
 
 Foreign overlays are used as a sign that a long-running command
 is active and that normal MisTTY operations should be turned off
-for a time."
+for a time.
+
+If NOSCHEDULE evaluates to non-nil, don't schedule a
+`mistty--post-command-1' when inhibition is turned off by this
+call."
   (let ((ovs (overlays-in mistty-sync-marker (point-max)))
         (region-ovs (delq nil (mapcar (lambda (win) (window-parameter win 'internal-region-overlay))
                                       (get-buffer-window-list)))))
     (while (and ovs (or (memq (car ovs) mistty--ignored-overlays)
                         (memq (car ovs) region-ovs)))
       (setq ovs (cdr ovs)))
-    (mistty--inhibit-set 'overlays ovs 'noschedule)))
+    (mistty--inhibit-set 'overlays ovs noschedule)))
 
 (defun mistty--ignore-foreign-overlays ()
   "Ignore currently active foreign overlays.
@@ -2098,7 +2110,7 @@ modifications or cursor movement executed during the command. It
 is run in an idle timer to avoid failures inside of the
 post-command hook."
   (mistty--with-live-buffer buf
-    (mistty--detect-foreign-overlays)
+    (mistty--detect-foreign-overlays 'noschedule)
     (mistty--inhibit-undo
      (save-restriction
        (widen)

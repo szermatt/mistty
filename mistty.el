@@ -244,6 +244,30 @@ mapping somewhat consistent between fullscreen and normal mode."
     "<remap> <term-line-mode>" #'mistty-toggle-buffers)
 
 ;; Variables:
+
+(defvar mistty-interactive-insert-hook nil
+  "Report interactively inserted text.
+
+This hook is called whenever text that was inserted by
+`mistty-self-insert' has been echoed back. It might report a
+single character or a large number of characters, depending on
+the speed of the terminal and how fast the user types.
+
+This hook is called from the work buffer with the point right
+after the inserted text.
+
+This hook is not guaranteed to be called for all interactively
+inserted text. If the user is too fast or the shell too slow and
+a command gets run that's not `mistty-self-insert' before it was
+reported, it just never will be called.
+
+This is meant to be used to allow interactive completion or
+suggestions to work in MisTTY, with a little work, as a
+replacement of the usual approach, which is to track
+`self-insert-command' in post-command hooks. Such an approach
+doesn't work in the terminal region as typed characters usually
+get echoed back to buffer outside of any command.")
+
 (defvar-local mistty-work-buffer nil
   "The main `mistty-mode' buffer.
 
@@ -457,6 +481,13 @@ Normally, overlays are seen as a sign that there is a
 long-running command and MisTTY lets it run until without
 replaying the change. The overlays on this list must not be taken
 as a sign that there is a long-running command.")
+
+(defvar-local mistty--self-insert-line nil
+  "Capture of the last string of self-inserted characters.
+
+Whenever a character is inserted by `mistty-self-insert', it is added
+to this. When a character or a series of such self-inserted character
+is echoed back, call `mistty-interactive-insert-hook'.")
 
 (eval-when-compile
   ;; defined in term.el
@@ -1092,14 +1123,42 @@ Also updates prompt and point."
              (delete-region (point-min) (point))))
 
          ;; Move the point to the cursor, if necessary.
-
          (when (process-live-p mistty-proc)
            (when (or mistty-goto-cursor-next-time
                      (null mistty--cursor-after-last-refresh)
                      (= old-point mistty--cursor-after-last-refresh))
              (mistty-goto-cursor))
            (setq mistty-goto-cursor-next-time nil)
-           (setq mistty--cursor-after-last-refresh (mistty-cursor))))))))
+           (setq mistty--cursor-after-last-refresh (mistty-cursor))))))
+
+    (mistty--report-self-inserted-text)))
+
+(defun mistty--report-self-inserted-text ()
+  "Report self-inserted text that was just echoed back.
+
+This function compares the buffer with `mistty--self-insert-line'
+to figure out a good time to call
+`mistty-interactive-insert-hook'."
+  (when (and mistty--self-insert-line
+             (= (point) (mistty-cursor)))
+    (let* ((str (apply #'concat (nreverse (cdr mistty--self-insert-line))))
+           (origin (- (point) (length str))))
+      (when (and (string= str (mistty--safe-bufstring
+                               origin (point)))
+                 (eql (car mistty--self-insert-line)
+                      (mistty--distance (mistty--bol (point)) origin)))
+        (setq mistty--self-insert-line nil)
+        (run-hook-wrapped 'mistty-interactive-insert-hook
+                          #'mistty--run-hook-ignoring-errors)))))
+
+(defun mistty--run-hook-ignoring-errors (func)
+  "Run FUNC with ARGS ignoring any errors.
+
+Errors are reported to `message' and ignored."
+  (condition-case-unless-debug err
+      (funcall func)
+    (error
+     (message "MisTTY: hook failed with %s. hook: %s" err func))))
 
 (defun mistty--match-forbid-edit-regexp-p (beg)
   "Return t if `mistty-forbid-edit-regexp' matches, nil otherwise.
@@ -1390,6 +1449,11 @@ This command is available in fullscreen mode."
            (not (buffer-local-value
                  'mistty-fullscreen mistty-work-buffer)))
       (with-current-buffer mistty-work-buffer
+        (when (eq this-command 'mistty-self-insert)
+          (unless mistty--self-insert-line
+            (setq mistty--self-insert-line
+                  (cons (mistty--distance (mistty--bol (point)) (point)) nil)))
+          (push translated-key (cdr mistty--self-insert-line)))
         (when (and positional
                    (not (and (eq this-command 'mistty-self-insert)
                              (eq last-command 'mistty-self-insert))))
@@ -1933,6 +1997,9 @@ With an argument, clear from the end of the last Nth output."
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."
   (mistty--pre-command-for-undo)
+  (when (and mistty--self-insert-line
+             (not (eq this-command 'mistty-self-insert)))
+    (setq mistty--self-insert-line nil))
   (setq mistty--old-point (point)))
 
 (defun mistty--post-command ()

@@ -3006,3 +3006,32 @@
       (mistty-wait-for-output :str "echo hello world.")
       (should (equal "$ echo hello world.<>" (mistty-test-content :show (point)))))))
 
+(ert-deftest mistty-test-interactive-inserts ()
+  (let ((mistty-interactive-insert-hook nil))
+    (mistty-with-test-buffer ()
+      (let ((start (point))
+            (calls))
+      (add-hook 'mistty-interactive-insert-hook
+                (lambda ()
+                  (push (mistty--safe-bufstring start (point))
+                        calls)))
+      (setq this-command 'mistty-self-insert)
+      (mistty-run-command
+       (mistty-self-insert 1 ?e))
+      (setq last-command 'mistty-self-insert)
+      (mistty-run-command
+       (mistty-self-insert 1 ?c))
+      (mistty-run-command
+       (mistty-self-insert 1 ?h))
+      (mistty-run-command
+       (mistty-self-insert 1 ?o))
+      (mistty-run-command
+       (mistty-self-insert 1 ?\ ))
+      (mistty-run-command
+       (mistty-self-insert 1 ?o))
+      (mistty-run-command
+       (mistty-self-insert 1 ?k))
+      (mistty-wait-for-output :str "echo ok")
+      (should (length> calls 0))
+      (should (equal "echo ok" (car calls)))
+      (should (equal "ok" (mistty-send-and-capture-command-output)))))))

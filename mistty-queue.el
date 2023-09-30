@@ -84,9 +84,12 @@ possible problem:
 
 ;; Asynchronous terminal interaction, to add into the queue.
 (cl-defstruct (mistty--interact
-               (:constructor mistty--make-interact)
+               (:constructor mistty--make-interact (type))
                (:conc-name mistty--interact-)
                (:copier nil))
+  ;; Symbol that identifies the type of interaction.
+  type
+
   ;; Callback function that will handle the next call to
   ;; mistty--interact-next. It takes a single argument.
   ;;
@@ -158,7 +161,7 @@ captures the current buffer."
 
 Does nothing is STR is nil or empty."
   (when (mistty--nonempty-str-p str)
-    (let ((interact (mistty--make-interact)))
+    (let ((interact (mistty--make-interact 'str)))
       (mistty--interact-init
        interact
        (lambda (&optional _)

@@ -1777,7 +1777,7 @@
     (let ((start (mistty--bol (point))))
       (mistty--enqueue
        mistty--queue
-       (let ((interact (mistty--make-interact))
+       (let ((interact (mistty--make-interact 'test))
              hello-f enter-f bar-f done-f)
 
          (setq hello-f
@@ -1823,7 +1823,7 @@
   (mistty-with-test-buffer ()
     (mistty--enqueue
      mistty--queue
-     (let ((interact (mistty--make-interact))
+     (let ((interact (mistty--make-interact 'test))
              foo-f error-f)
          (setq foo-f
                (lambda (&optional _)
@@ -2482,7 +2482,7 @@
 
 (ert-deftest mistty-test-quit ()
   (mistty-with-test-buffer ()
-    (let ((interact (mistty--make-interact))
+    (let ((interact (mistty--make-interact 'test))
           (killed nil))
       (mistty--interact-init
        interact

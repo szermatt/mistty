@@ -1288,7 +1288,7 @@ instead `mistty--move-sync-mark-with-shift' or
   "Send the current command to the shell."
   (interactive)
   (mistty--require-proc)
-  (let ((interact (mistty--make-interact)))
+  (let ((interact (mistty--make-interact 'send-command)))
     (mistty--interact-init
      interact
      (lambda (&optional _)
@@ -1391,7 +1391,7 @@ This command is available in fullscreen mode."
                  'mistty-fullscreen mistty-work-buffer)))
       (with-current-buffer mistty-work-buffer
         (when positional (mistty-before-positional))
-        (let ((interact (mistty--make-interact)))
+        (let ((interact (mistty--make-interact 'send-key)))
           (mistty--interact-init
            interact
            (lambda (&optional _)
@@ -1462,7 +1462,7 @@ forwards the argument to it."
     (if (and (= n 1)
              (process-live-p mistty-proc)
              mistty--queue)
-        (let ((interact (mistty--make-interact)))
+        (let ((interact (mistty--make-interact 'bol)))
           (mistty--interact-init
            interact
            (lambda (&optional _)
@@ -1516,7 +1516,7 @@ forwards the argument to it."
      ((and (= 1 n)
            (process-live-p mistty-proc)
            mistty--queue)
-      (let ((interact (mistty--make-interact)))
+      (let ((interact (mistty--make-interact 'eol)))
         (mistty--interact-init
          interact
          (lambda (&optional _)
@@ -1574,7 +1574,7 @@ This is meant to be added to ==\'after-change-functions."
 
 (defun mistty--replay-interaction (cs)
   "Build a `mistty--interact' to replay what CS captured."
-  (let ((interact (mistty--make-interact))
+  (let ((interact (mistty--make-interact 'replay))
         start-f next-modification-f
         move-to-beg-f after-move-to-beg-f
         move-to-end-f after-move-to-end-f move-old-end-f
@@ -2041,7 +2041,7 @@ post-command hook."
 
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."
-  (let ((interact (mistty--make-interact))
+  (let ((interact (mistty--make-interact 'cursor-to-point))
         start-f after-move-f)
     (setq
      start-f
@@ -2293,7 +2293,7 @@ This creates any possible prompts that were detected at the last
 minute. If a prompt is created, it also moves the cursor to the
 point, as this is only done by the post-command hook on detected
 prompts."
-  (let ((interact (mistty--make-interact)))
+  (let ((interact (mistty--make-interact 'before-positional)))
     (mistty--interact-init
      interact
      (lambda (&optional _)

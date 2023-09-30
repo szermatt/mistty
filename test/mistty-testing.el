@@ -456,7 +456,7 @@ text to be inserted there."
 
 The interaction waits for TEXT, but never sends it, so it'll wait
 forever - or until the test calls mistty--send-text directly."
-  (let ((interact (mistty--make-interact)))
+  (let ((interact (mistty--make-interact 'stuck)))
     (mistty--interact-init
      interact
      (lambda (val)
@@ -475,7 +475,7 @@ the function returned by this function is called.
 This should only be used when the shell is bash, as it sends a
 ^G, which bash answers with another ^G, but cause other shells to
 redraw everything."
-  (let ((interact (mistty--make-interact))
+  (let ((interact (mistty--make-interact 'freeze))
         (can-continue nil))
     (mistty--interact-init
      interact

@@ -125,6 +125,9 @@ possible problem:
   ;; interaction is not ended or never started.
   cleanup
 
+  ;; Run interaction-specific behavior.
+  call
+
   ;; The buffer that is current for the interaction. It'll be
   ;; set before the next call to CB.
   buf
@@ -145,6 +148,10 @@ captures the current buffer."
   (when cleanup
     (setf (mistty--interact-cleanup interact) cleanup)))
 
+(defsubst mistty--interact-callable-p (interact)
+  "Return non-nil if INTERACT is callable."
+  (functionp (mistty--interact-call interact)))
+
 (defsubst mistty--queue-empty-p (queue)
   "Return t if QUEUE generator hasn't finished yet."
   (not (mistty--queue-interact queue)))
@@ -153,6 +160,14 @@ captures the current buffer."
   "Return the type of the QUEUE current interact or nil."
   (when-let ((interact (mistty--queue-interact queue)))
     (mistty--interact-type interact)))
+
+(defun mistty--queue-last-interact (queue)
+  "Return the last interact of QUEUE or nil.
+
+The last interact often is the one that's currently running."
+  (if-let ((more (mistty--queue-more-interacts queue)))
+      (car (last more))
+    (mistty--queue-interact queue)))
 
 (defun mistty--send-string (proc str)
   "Send STR to PROC, if it is still live."
@@ -430,6 +445,17 @@ this function, as CB would never be executed; Just return
                 'keep-waiting)))))
    (then (setf (mistty--interact-cb interact) then)))
   value)
+
+(defun mistty--call-interact (interact type &rest args)
+  "Call INTERACT and pass it ARGS.
+
+This function checks the type of INTERACT, checks that it is
+ callable then call it with the arguments ARGS."
+  (if (and (eq type (mistty--interact-type interact))
+           (mistty--interact-callable-p interact))
+      (apply (mistty--interact-call interact) args)
+    (error "Interact %s is not callable as a %s"
+           (mistty--interact-type interact) type)))
 
 (provide 'mistty-queue)
 

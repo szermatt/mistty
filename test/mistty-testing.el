@@ -124,6 +124,12 @@ window while BODY is running."
      (progn ,@body)
      (mistty-test-after-command)))
 
+(defmacro mistty-run-command-nowait (&rest body)
+  `(progn
+     (mistty-test-pre-command)
+     (progn ,@body)
+     (mistty-test-after-command 'noempty-queue)))
+
 (defun mistty-test-find-p (str &optional start)
   "Returns non-nil if STR is found in the current buffer."
   (save-excursion

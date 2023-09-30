@@ -2949,13 +2949,11 @@
       ;; the queue is frozen for now
 
       ;; put two replays in the queue
-      (mistty-test-pre-command)
-      (insert "echo hello")
-      (mistty-test-after-command 'noempty-queue)
+      (mistty-run-command-nowait
+       (insert "echo hello"))
 
-      (mistty-test-pre-command)
-      (insert " world.")
-      (mistty-test-after-command 'noempty-queue)
+      (mistty-run-command-nowait
+       (insert " world."))
 
       ;; the work buffer is still frozen, showing a preview.
       (should (equal "$ echo hello world.<>" (mistty-test-content :show (point))))

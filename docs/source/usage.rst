@@ -318,3 +318,61 @@ If you have configured TRAMP and know that the hosts you ssh into are
 accessible with the default TRAMP method, you might consider allowing
 MisTTY to report remote paths on :kbd:`M-x configure-option
 mistty-allow-tramp-paths`
+
+.. _autocomplete:
+
+Emacs Autocomplete
+------------------
+
+When in a MisTTY buffer, it's best to rely on the completion or
+autosuggestions provided by the shell or other command-line tool
+currently running, as they're more up-to-date and context-sensitive
+than what Emacs can provide.
+
+However, some form of Emacs auto-completion can still be useful from
+inside of a MisTTY buffer, to complete abbreviations, expand templates
+or add emojis.
+
+By default, auto-complete UIs only work in the scrollback region of a
+MisTTY buffer, but they can be made to work in the terminal region as
+well, with a little work.
+
+Note that :kbd:`M-x completion-at-point` or :kbd:`M-x
+company-complete` normally work inside of the terminal region. What
+doesn't work by default is the completion UI showing up automatically
+after some delay.
+
+.. index::
+   pair: variable; mistty-interactive-insert-hook
+   pair: hook; mistty-interactive-interactive
+
+:code:`mistty-interactive-insert-hook` is a hook that is called when
+text is typed in the terminal region. It's not called, for example,
+for text that is inserted or displayed by the shell.
+
+This hook provides an appropriate time to trigger auto-completion UI.
+This often requires calling a post-command function, however, and that
+might have unanticipated effects. It requires experimentation and
+might not work the same way with all versions, as this is not the
+intended usage. YMMV
+
+Here's an example of such a configuration that might work for
+`company-mode <http://company-mode.github.io>`_:
+
+.. code-block:: elisp
+
+  (defun my-mistty-company ()
+    (let ((this-command 'self-insert-command))
+      (when (and (featurep 'company) company-mode)
+        (company-post-command))))
+  (add-hook 'mistty-interactive-insert-hook #'my-mistty-company)
+
+... and another one for `corfu <https://github.com/minad/corfu>`_:
+
+.. code-block:: elisp
+
+  (defun my-mistty-corfu ()
+    (let ((this-command 'self-insert-command))
+      (when (and (featurep 'corfu) corfu-mode corfu-auto)
+        (corfu--auto-post-command))))
+  (add-hook 'mistty-interactive-insert-hook #'my-mistty-corfu)

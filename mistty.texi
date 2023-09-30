@@ -152,6 +152,7 @@ command-line.
 * Fullscreen Mode:: 
 * Command History:: 
 * Directory tracking and TRAMP:: 
+* Emacs Autocomplete:: 
 
 @end menu
 
@@ -577,7 +578,7 @@ in the terminal zone of the MisTTY buffer. For example:
 (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
 @end example
 
-@node Directory tracking and TRAMP,,Command History,Usage
+@node Directory tracking and TRAMP,Emacs Autocomplete,Command History,Usage
 @anchor{usage directory-tracking-and-tramp}@anchor{14}@anchor{usage dirtrack}@anchor{15}
 @subsection Directory tracking and TRAMP
 
@@ -598,8 +599,65 @@ accessible with the default TRAMP method, you might consider allowing
 MisTTY to report remote paths on @code{M-x configure-option
 mistty-allow-tramp-paths}
 
+@node Emacs Autocomplete,,Directory tracking and TRAMP,Usage
+@anchor{usage autocomplete}@anchor{16}@anchor{usage emacs-autocomplete}@anchor{17}
+@subsection Emacs Autocomplete
+
+
+When in a MisTTY buffer, it’s best to rely on the completion or
+autosuggestions provided by the shell or other command-line tool
+currently running, as they’re more up-to-date and context-sensitive
+than what Emacs can provide.
+
+However, some form of Emacs auto-completion can still be useful from
+inside of a MisTTY buffer, to complete abbreviations, expand templates
+or add emojis.
+
+By default, auto-complete UIs only work in the scrollback region of a
+MisTTY buffer, but they can be made to work in the terminal region as
+well, with a little work.
+
+Note that @code{M-x completion-at-point} or @code{M-x
+company-complete} normally work inside of the terminal region. What
+doesn’t work by default is the completion UI showing up automatically
+after some delay.
+
+@geindex variable; mistty-interactive-insert-hook
+@geindex hook; mistty-interactive-interactive
+
+@code{mistty-interactive-insert-hook} is a hook that is called when
+text is typed in the terminal region. It’s not called, for example,
+for text that is inserted or displayed by the shell.
+
+This hook provides an appropriate time to trigger auto-completion UI.
+This often requires calling a post-command function, however, and that
+might have unanticipated effects. It requires experimentation and
+might not work the same way with all versions, as this is not the
+intended usage. YMMV
+
+Here’s an example of such a configuration that might work for
+company-mode@footnote{http://company-mode.github.io}:
+
+@example
+(defun my-mistty-company ()
+  (let ((this-command 'self-insert-command))
+    (when (and (featurep 'company) company-mode)
+      (company-post-command))))
+(add-hook 'mistty-interactive-insert-hook #'my-mistty-company)
+@end example
+
+… and another one for corfu@footnote{https://github.com/minad/corfu}:
+
+@example
+(defun my-mistty-corfu ()
+  (let ((this-command 'self-insert-command))
+    (when (and (featurep 'corfu) corfu-mode corfu-auto)
+      (corfu--auto-post-command))))
+(add-hook 'mistty-interactive-insert-hook #'my-mistty-corfu)
+@end example
+
 @node Shells,Writing Extensions,Usage,Contents
-@anchor{shells doc}@anchor{16}@anchor{shells id1}@anchor{17}@anchor{shells shells}@anchor{e}
+@anchor{shells doc}@anchor{18}@anchor{shells id1}@anchor{19}@anchor{shells shells}@anchor{e}
 @section Shells
 
 
@@ -611,7 +669,7 @@ mistty-allow-tramp-paths}
 @end menu
 
 @node Bash,Fish,,Shells
-@anchor{shells bash}@anchor{18}@anchor{shells id2}@anchor{19}
+@anchor{shells bash}@anchor{1a}@anchor{shells id2}@anchor{1b}
 @subsection Bash
 
 
@@ -636,7 +694,7 @@ set enable-bracketed-paste on
 @end menu
 
 @node Multi-line prompts,Directory tracking,,Bash
-@anchor{shells multi-line-prompts}@anchor{1a}
+@anchor{shells multi-line-prompts}@anchor{1c}
 @subsubsection Multi-line prompts
 
 
@@ -654,7 +712,7 @@ You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
 @node Directory tracking,VI mode,Multi-line prompts,Bash
-@anchor{shells directory-tracking}@anchor{1b}
+@anchor{shells directory-tracking}@anchor{1d}
 @subsubsection Directory tracking
 
 
@@ -679,7 +737,7 @@ Such sequence are either ignored or understood by most terminals, so
 you don’t absolutely need to check TERM.
 
 @node VI mode,,Directory tracking,Bash
-@anchor{shells vi-mode}@anchor{1c}
+@anchor{shells vi-mode}@anchor{1e}
 @subsubsection VI mode
 
 
@@ -708,7 +766,7 @@ fi
 @end example
 
 @node Fish,Zsh,Bash,Shells
-@anchor{shells fish}@anchor{1d}@anchor{shells id3}@anchor{1e}
+@anchor{shells fish}@anchor{1f}@anchor{shells id3}@anchor{20}
 @subsection Fish
 
 
@@ -725,7 +783,7 @@ paste mode, on by default, so it should not be turned off.
 @end menu
 
 @node Autosuggestions,Command History<2>,,Fish
-@anchor{shells autosuggestions}@anchor{1f}
+@anchor{shells autosuggestions}@anchor{21}
 @subsubsection Autosuggestions
 
 
@@ -737,7 +795,7 @@ The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
 @node Command History<2>,Directory tracking<2>,Autosuggestions,Fish
-@anchor{shells command-history}@anchor{20}
+@anchor{shells command-history}@anchor{22}
 @subsubsection Command History
 
 
@@ -772,7 +830,7 @@ use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or e
 @end itemize
 
 @node Directory tracking<2>,Multi-line prompts<2>,Command History<2>,Fish
-@anchor{shells id4}@anchor{21}
+@anchor{shells id4}@anchor{23}
 @subsubsection Directory tracking
 
 
@@ -793,7 +851,7 @@ such sequence are either ignored or understood by most terminals. You
 might already have it set up.
 
 @node Multi-line prompts<2>,VI mode<2>,Directory tracking<2>,Fish
-@anchor{shells id5}@anchor{22}
+@anchor{shells id5}@anchor{24}
 @subsubsection Multi-line prompts
 
 
@@ -809,7 +867,7 @@ mistty-skip-empty-spaces} allows you to turn that on or off in a
 MisTTY buffer.
 
 @node VI mode<2>,,Multi-line prompts<2>,Fish
-@anchor{shells id6}@anchor{23}
+@anchor{shells id6}@anchor{25}
 @subsubsection VI mode
 
 
@@ -828,7 +886,7 @@ end
 @end example
 
 @node Zsh,,Fish,Shells
-@anchor{shells id7}@anchor{24}@anchor{shells zsh}@anchor{25}
+@anchor{shells id7}@anchor{26}@anchor{shells zsh}@anchor{27}
 @subsection Zsh
 
 
@@ -847,7 +905,7 @@ unexpected results if you yank text containing special characters.
 @end menu
 
 @node Autosuggestions<2>,Directory tracking<3>,,Zsh
-@anchor{shells id8}@anchor{26}
+@anchor{shells id8}@anchor{28}
 @subsubsection Autosuggestions
 
 
@@ -860,7 +918,7 @@ The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
 @node Directory tracking<3>,Multi-line prompts<3>,Autosuggestions<2>,Zsh
-@anchor{shells id9}@anchor{27}
+@anchor{shells id9}@anchor{29}
 @subsubsection Directory tracking
 
 
@@ -877,7 +935,7 @@ fi
 such sequence are either ignored or understood by most terminals.
 
 @node Multi-line prompts<3>,VI mode<3>,Directory tracking<3>,Zsh
-@anchor{shells id10}@anchor{28}
+@anchor{shells id10}@anchor{2a}
 @subsubsection Multi-line prompts
 
 
@@ -895,7 +953,7 @@ You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
 @node VI mode<3>,,Multi-line prompts<3>,Zsh
-@anchor{shells id11}@anchor{29}
+@anchor{shells id11}@anchor{2b}
 @subsubsection VI mode
 
 
@@ -914,7 +972,7 @@ fi
 @end example
 
 @node Writing Extensions,FAQ,Shells,Contents
-@anchor{extensions doc}@anchor{2a}@anchor{extensions writing-extensions}@anchor{2b}
+@anchor{extensions doc}@anchor{2c}@anchor{extensions writing-extensions}@anchor{2d}
 @section Writing Extensions
 
 
@@ -927,7 +985,7 @@ fi
 @end menu
 
 @node Hooks,OSC Sequences,,Writing Extensions
-@anchor{extensions hooks}@anchor{2c}@anchor{extensions id1}@anchor{2d}
+@anchor{extensions hooks}@anchor{2e}@anchor{extensions id1}@anchor{2f}
 @subsection Hooks
 
 
@@ -956,7 +1014,7 @@ you could do:
 @end example
 
 @node OSC Sequences,Writing Your Own Commands,Hooks,Writing Extensions
-@anchor{extensions osc}@anchor{2e}@anchor{extensions osc-sequences}@anchor{2f}
+@anchor{extensions osc}@anchor{30}@anchor{extensions osc-sequences}@anchor{31}
 @subsection OSC Sequences
 
 
@@ -1001,7 +1059,7 @@ same argument.
 @end itemize
 
 @node Writing Your Own Commands,Terminal Keymap,OSC Sequences,Writing Extensions
-@anchor{extensions custom-commands}@anchor{30}@anchor{extensions writing-your-own-commands}@anchor{31}
+@anchor{extensions custom-commands}@anchor{32}@anchor{extensions writing-your-own-commands}@anchor{33}
 @subsection Writing Your Own Commands
 
 
@@ -1057,7 +1115,7 @@ to that position.
 @end itemize
 
 @node Terminal Keymap,,Writing Your Own Commands,Writing Extensions
-@anchor{extensions term-keymap}@anchor{32}@anchor{extensions terminal-keymap}@anchor{33}
+@anchor{extensions term-keymap}@anchor{34}@anchor{extensions terminal-keymap}@anchor{35}
 @subsection Terminal Keymap
 
 
@@ -1107,7 +1165,7 @@ keymap that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node FAQ,Contributing,Writing Extensions,Contents
-@anchor{faq doc}@anchor{34}@anchor{faq faq}@anchor{35}
+@anchor{faq doc}@anchor{36}@anchor{faq faq}@anchor{37}
 @section FAQ
 
 
@@ -1170,7 +1228,7 @@ If you just don’t want to see that line, turn it off with
 @end quotation
 
 @node Contributing,,FAQ,Contents
-@anchor{contrib doc}@anchor{36}@anchor{contrib contributing}@anchor{37}
+@anchor{contrib doc}@anchor{38}@anchor{contrib contributing}@anchor{39}
 @section Contributing
 
 
@@ -1184,7 +1242,7 @@ If you just don’t want to see that line, turn it off with
 @end menu
 
 @node Reporting issues,Suggesting features,,Contributing
-@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{38}
+@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{3a}
 @subsection Reporting issues
 
 
@@ -1268,21 +1326,21 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib issue-tracker}@anchor{39}@anchor{contrib suggesting-features}@anchor{3a}
+@anchor{contrib issue-tracker}@anchor{3b}@anchor{contrib suggesting-features}@anchor{3c}
 @subsection Suggesting features
 
 
 Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
-@anchor{contrib asking-questions}@anchor{3b}
+@anchor{contrib asking-questions}@anchor{3d}
 @subsection Asking questions
 
 
 Open an issue on the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} with your question.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
-@anchor{contrib code-contributions}@anchor{3c}
+@anchor{contrib code-contributions}@anchor{3e}
 @subsection Code contributions
 
 
@@ -1300,7 +1358,7 @@ tests passing reliably when run using @code{eldev test} is what
 matters.
 
 @node Documentation contributions,,Code contributions,Contributing
-@anchor{contrib documentation-contributions}@anchor{3d}@anchor{contrib eldev}@anchor{3e}
+@anchor{contrib documentation-contributions}@anchor{3f}@anchor{contrib eldev}@anchor{40}
 @subsection Documentation contributions
 
 

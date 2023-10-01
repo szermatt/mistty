@@ -245,7 +245,6 @@
 
 (ert-deftest mistty-test-reconcile-quick-bad-single-insert-changes ()
   (mistty-with-test-buffer ()
-    (setq mistty-log t)
     ;; nowait lets mistty join and queue the replays.
     (mistty-run-command-nowait
      (goto-char (mistty-cursor))

@@ -340,11 +340,34 @@
     ;; mistty-send-if-at-prompt moves the cursor to the right position
     ;; before sending TAB.
     (mistty-run-command
-     (goto-char (+ (point-min) 5)))
+     (mistty-test-goto-after "ech"))
     (should (equal "$ ech<> world" (mistty-test-content :show (point))))
     (mistty-send-key 1 "\t")
     (mistty-wait-for-output :str "echo")
     (should (equal "$ echo<> world" (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-tab-command ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "ech world")
+    (mistty-run-command
+     (mistty-test-goto-after "ech"))
+    (should (equal "$ ech<> world" (mistty-test-content :show (point))))
+    (mistty-run-command
+     (mistty-tab-command))
+    (mistty-wait-for-output :str "echo")
+    (should (equal "$ echo<> world" (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-tab-command-inhibited ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "ech world")
+    (mistty-run-command
+     (mistty-test-goto-after "ech"))
+    (should (equal "$ ech<> world" (mistty-test-content :show (point))))
+    (mistty-report-long-running-command 'test t)
+    (mistty-run-command
+     (mistty-tab-command))
+    (mistty-wait-for-output :str "ech\t")
+    (should (equal "$ ech\t  <> world" (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-kill-term-buffer-when-work-buffer-is-killed ()
   (let* ((buffer-and-proc (mistty-with-test-buffer ()

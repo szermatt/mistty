@@ -226,7 +226,7 @@ It is used to send most key strokes and some keys directly to the
 terminal."
 
   "RET" #'mistty-send-command
-  "TAB" #'mistty-send-key
+  "TAB" #'mistty-tab-command
   "DEL" #'mistty-backward-delete-char
   "C-d" #'mistty-delete-char
   "C-a" #'mistty-beginning-of-line
@@ -1457,6 +1457,13 @@ that many times instead."
     (if (and (numberp n) (< n 0))
         (mistty-send-key (abs n) "\x7f" 'positional)
       (mistty-send-key n "\C-d" 'positional))))
+
+(defun mistty-tab-command (&optional n)
+  "Send a TAB to the terminal."
+  (interactive "p")
+  (if mistty--inhibit
+      (call-interactively 'indent-for-tab-command)
+    (mistty-send-key n (kbd "TAB") 'positional)))
 
 (defun mistty-send-key (&optional n key positional)
   "Send the current key sequence to the terminal.

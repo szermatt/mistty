@@ -149,6 +149,31 @@ history search are typically such a mode."
   :group 'mistty
   :type '(list regexp))
 
+(defcustom mistty-detect-foreign-overlays t
+  "Treat overlays as a sign of a long-running command.
+
+When this option is on, Mistty tracks overlays added to its
+buffer and enter long-running command mode when it sees an
+overlay it didn't know about.
+
+This allows interactive editing feature to work out of the box,
+such as filling-in templates, completion UIs, and CUA-style
+rectangle selection. These typically add overlay for a short
+duration, so it makes sense for MisTTY to turn itself off for a
+while, to let them work without changing the overlays and the
+buffer content they rely on.
+
+However, with this option set, if a package keeps overlays always
+on, MisTTY would be just unusable.
+
+Turn this option on if you'd like to use such a package or if
+auto-detection of long-running commands doesn't work for you.
+
+You might have to turn MisTTY on and off manually with
+ `mistty-report-long-running-command'."
+  :group 'mistty
+  :type '(boolean))
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -2021,7 +2046,8 @@ With an argument, clear from the end of the last Nth output."
         (mistty-log "CANCEL")
         (message "MisTTY: Canceling replay")
         (mistty--cancel-queue mistty--queue))
-      (mistty--ignore-foreign-overlays)))
+      (mistty--ignore-foreign-overlays)
+      (mistty--inhibit-clear 'noschedule)))
 
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
     ;; Show cursor again if the command moved the point.
@@ -2040,8 +2066,9 @@ change."
   (let ((was-inhibited (if mistty--inhibit t nil)))
     (cl-pushnew sym mistty--inhibit)
     (unless was-inhibited
-      (mistty-log "Long running command ON %s" mistty--inhibit)
-      (overlay-put mistty--sync-ov 'keymap nil))))
+      (mistty-log "Long-running command ON %s" mistty--inhibit)
+      (overlay-put mistty--sync-ov 'keymap nil)
+      (mistty--update-mode-lines))))
 
 (defun mistty--inhibit-remove (sym noschedule)
   "Remove a source of inhibition with SYM as id.
@@ -2051,8 +2078,9 @@ change."
   (when mistty--inhibit
     (setq mistty--inhibit (delq sym mistty--inhibit))
     (unless mistty--inhibit
-      (mistty-log "Long running command OFF")
+      (mistty-log "Long-running command OFF")
       (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
+      (mistty--update-mode-lines)
       (unless noschedule
         (run-with-idle-timer
          0 nil #'mistty--post-command-1
@@ -2064,9 +2092,17 @@ change."
 If VAL evaluates to non-nil, add it, otherwise remove it.
 
 This changes the value of `mistty--inhibit' and reacts to that
-change, unless NOSCHEDULE evaluates to t"
+change, unless NOSCHEDULE evaluates to true."
   (if val
       (mistty--inhibit-add sym)
+    (mistty--inhibit-remove sym noschedule)))
+
+(defun mistty--inhibit-clear (&optional noschedule)
+  "Clear `mistty--inhibit'.
+
+This changes the value of `mistty--inhibit' and reacts to that
+change, unless NOSCHEDULE evaluates to true."
+  (dolist (sym (cl-copy-list mistty--inhibit))
     (mistty--inhibit-remove sym noschedule)))
 
 (defun mistty--detect-foreign-overlays (noschedule)
@@ -2078,14 +2114,21 @@ for a time.
 
 If NOSCHEDULE evaluates to non-nil, don't schedule a
 `mistty--post-command-1' when inhibition is turned off by this
-call."
-  (let ((ovs (overlays-in mistty-sync-marker (point-max)))
-        (region-ovs (delq nil (mapcar (lambda (win) (window-parameter win 'internal-region-overlay))
-                                      (get-buffer-window-list)))))
-    (while (and ovs (or (memq (car ovs) mistty--ignored-overlays)
-                        (memq (car ovs) region-ovs)))
-      (setq ovs (cdr ovs)))
-    (mistty--inhibit-set 'overlays ovs noschedule)))
+call.
+
+Does nothing if the option `mistty-detect-foreign-overlays' is
+off."
+  (when mistty-detect-foreign-overlays
+    (let ((ovs (overlays-in mistty-sync-marker (point-max)))
+          (region-ovs
+           (delq nil
+                 (mapcar (lambda (win)
+                           (window-parameter win 'internal-region-overlay))
+                         (get-buffer-window-list)))))
+      (while (and ovs (or (memq (car ovs) mistty--ignored-overlays)
+                          (memq (car ovs) region-ovs)))
+        (setq ovs (cdr ovs)))
+      (mistty--inhibit-set 'mistty-overlays ovs noschedule))))
 
 (defun mistty--ignore-foreign-overlays ()
   "Ignore currently active foreign overlays.
@@ -2097,7 +2140,8 @@ whatever overlay currently exists."
 
 (defun mistty--detect-completion-in-region ()
   "Inhibit replay and refresh while completion is in progress."
-  (mistty--inhibit-set 'completion-in-region completion-in-region-mode))
+  (mistty--inhibit-set
+   'mistty-completion-in-region completion-in-region-mode))
 
 (defun mistty--post-command-1 (buf point-moved)
   "Function called from `mistty--post-command'.
@@ -2347,8 +2391,10 @@ If PROC is not specified, use the value of `mistty-work-buffer'
 and `mistty-term-buffer' to find the buffers.
 
 Ignores buffers that don't exist."
-  (mistty--with-live-buffer
-      (or mistty-work-buffer (and proc (process-get proc 'mistty-work-buffer)))
+  ;; work buffer modeline
+  (mistty--with-live-buffer 
+      (or mistty-work-buffer
+          (and proc (process-get proc 'mistty-work-buffer)))
     (cond
      (mistty-fullscreen
       (setq mode-line-process
@@ -2360,22 +2406,37 @@ Ignores buffers that don't exist."
                                       keymap
                                       (down-mouse-1 . mistty-toggle-buffers))))))
      (mistty-proc
-      (setq mode-line-process (format ":%s" (process-status mistty-proc))))
+      (setq mode-line-process
+            (concat
+             (when mistty--inhibit
+               (propertize
+                "CMD"
+                'help-echo "mouse-1: ignore command and re-enable MisTTY replays"
+                'mouse-face 'mode-line-highlight
+                'local-map '(keymap
+                             (mode-line
+                              keymap
+                              (down-mouse-1 . mistty-ignore-long-running-command)))))
+             (format ":%s" (process-status mistty-proc)))))
      (t
       (setq mode-line-process ":no process"))))
+  ;; term buffer modeline
   (mistty--with-live-buffer
       (or mistty-term-buffer (and proc (process-buffer proc)))
     (cond
      (mistty-fullscreen
-      (setq mode-line-process
-            (concat
-             (propertize "misTTY"
-                         'help-echo "mouse-1: Go to scrollback buffer"
-                         'mouse-face 'mode-line-highlight
-                         'local-map '(keymap
-                                      (mode-line
-                                       keymap
-                                       (down-mouse-1 . mistty-toggle-buffers)))) ":%s")))
+      (setq
+       mode-line-process
+       (concat
+        (propertize
+         "misTTY"
+         'help-echo "mouse-1: Go to scrollback buffer"
+         'mouse-face 'mode-line-highlight
+         'local-map '(keymap
+                      (mode-line
+                       keymap
+                       (down-mouse-1 . mistty-toggle-buffers))))
+        ":%s")))
      (t
       (setq mode-line-process "misTTY:%s"))))
   (force-mode-line-update))
@@ -2789,6 +2850,62 @@ and compared, ignoring text properties."
      (mistty--safe-bufstring (car beg) (car end)))
    (mistty--with-live-buffer mistty-term-buffer
      (mistty--safe-bufstring (cdr beg) (cdr end)))))
+
+(defun mistty-report-long-running-command (id active)
+  "Report whether a specific long-running command is active.
+
+MisTTY's replaying of modifications is turned off while a
+long-running command is active, so the command can run without
+interference. The result of the command is sent to the shell once
+it's inactive.
+
+MisTTY detects some long-running commands on its own by tracking
+overlay, when `mistty-detect-foreign-overlays' is turned on. It
+also detects completion in region by tracking
+`completion-in-region-mode'.
+
+Call this function when you'd like to use long-running command
+that's not detected by MisTTY.
+
+ID is a symbol that identifies the long-running command, so that
+you can track and report several such commands without worrying
+about interference. The same naming convention as you would for
+functions to keep them unique.
+
+If ACTIVE evaluates to true, report the long-running command as
+active, which inhibits MisTTY's normal operation for the duration
+of the command. If ACTIVE is nil, report the long-running command
+as inactive, which turns MisTTY on again and triggers replaying
+of any changes made in the terminal zone during that
+command (unless a command with another ID is active; check with
+`mistty-long-running-command-p')."
+  (with-current-buffer mistty-work-buffer
+    (mistty--inhibit-set id active)))
+
+(defun mistty-long-running-command-p ()
+  "Return non-nil if a long-running command is active.
+
+See `mistty-report-long-running-command'."
+  (with-current-buffer mistty-work-buffer
+    (if mistty--inhibit t nil)))
+
+(defun mistty-ignore-long-running-command ()
+  "Ignore any long-running command currently active.
+
+If MisTTY appears to be stuck, it might be because the end of
+some long-running command hasn't been reported. This will
+un-stuck MisTTY. It will not address the root cause of the
+problem, however, which might be a bug in usage of
+`mistty-report-long-running-command' or a bug in MisTTY. In the
+later case, please file a bug report on
+https://github.com/szermatt/mistty/issues"
+  (interactive)
+  (with-current-buffer mistty-work-buffer
+    (if mistty--inhibit
+        (progn
+          (message "MisTTY: ignore long-running command %s" mistty--inhibit)
+          (mistty--inhibit-clear))
+      (error "MisTTY: no long-running command is active."))))
 
 (provide 'mistty)
 

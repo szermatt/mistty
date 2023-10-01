@@ -2937,60 +2937,83 @@
         (kill-buffer buf)))))
 
 (ert-deftest mistty-test-detect-foreign-overlays ()
-  (mistty-with-test-buffer (:selected t :shell fish)
-    ;; CUA rectangle mark mode is an example of an interactive command
-    ;; that uses overlays. It has the advantage of being built-in.
-    ;; Other examples would be template engines, such as yasnippet and
-    ;; templ.
-    (cua-mode 'on)
-    (mistty-send-text "for i in a b c\necho $i\nend")
-    (mistty-test-goto "in")
-    (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
-    (mistty-wait-for-output :test (lambda ()
-                                    (equal '(overlays) mistty--inhibit)))
-    (should (equal (concat "$ for i in boo a b c\n"
-                           "      echo<> boo $i\n"
-                           "  end")
-                   (mistty-test-content :show (point))))
-    (execute-kbd-macro (kbd "C-<return>"))
-    (mistty-wait-for-output :str "boo a b c" :start (point-min))
-    (mistty-wait-for-output :test (lambda ()
-                                    (not mistty--inhibit)))
-    (should (equal (concat "$ for i in boo a b c\n"
-                           "      echo<> boo $i\n"
-                           "  end")
-                   (mistty-test-content :show (point))))))
-
-(ert-deftest mistty-test-ignore-foreign-overlays ()
-  (mistty-with-test-buffer ()
-    (let ((test-overlay))
-      (mistty-send-text "echo hello, world")
-      (mistty-run-command
-       (mistty-test-goto "hello")
-       (setq test-overlay (make-overlay (point) (+ 5 (point)))))
-
-      ;; A long command was detected.
+  (let ((mistty-detect-foreign-overlays t))
+    (mistty-with-test-buffer (:selected t :shell fish)
+      ;; CUA rectangle mark mode is an example of an interactive command
+      ;; that uses overlays. It has the advantage of being built-in.
+      ;; Other examples would be template engines, such as yasnippet and
+      ;; templ.
+      (cua-mode 'on)
+      (mistty-send-text "for i in a b c\necho $i\nend")
+      (mistty-test-goto "in")
+      (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
       (mistty-wait-for-output :test (lambda ()
-                                      (equal '(overlays) mistty--inhibit)))
+                                      (equal '(mistty-overlays) mistty--inhibit)))
+      (should (mistty-long-running-command-p))
 
-      ;; Simulate C-g
-      (let ((this-command 'keyboard-quit))
-        (mistty--pre-command)
-        (mistty--post-command))
-
-      ;; We're back to normal.
+      (should (equal (concat "$ for i in boo a b c\n"
+                             "      echo<> boo $i\n"
+                             "  end")
+                     (mistty-test-content :show (point))))
+      (execute-kbd-macro (kbd "C-<return>"))
+      (mistty-wait-for-output :str "boo a b c" :start (point-min))
       (mistty-wait-for-output :test (lambda ()
                                       (not mistty--inhibit)))
+      (should-not (mistty-long-running-command-p))
+      (should (equal (concat "$ for i in boo a b c\n"
+                             "      echo<> boo $i\n"
+                             "  end")
+                     (mistty-test-content :show (point)))))))
 
-      (should (equal "hello, world"
-                     (mistty-send-and-capture-command-output))))))
+(ert-deftest mistty-test-ignore-foreign-overlays ()
+  (let ((mistty-detect-foreign-overlays t))
+    (mistty-with-test-buffer ()
+      (let ((test-overlay))
+        (mistty-send-text "echo hello, world")
+        (mistty-run-command
+         (mistty-test-goto "hello")
+         (setq test-overlay (make-overlay (point) (+ 5 (point)))))
+
+        ;; A long command was detected.
+        (mistty-wait-for-output :test (lambda ()
+                                        (equal '(mistty-overlays) mistty--inhibit)))
+        (should (mistty-long-running-command-p))
+
+        ;; Simulate C-g
+        (let ((this-command 'keyboard-quit))
+          (mistty--pre-command)
+          (mistty--post-command))
+
+        ;; We're back to normal.
+        (mistty-wait-for-output :test (lambda ()
+                                        (not mistty--inhibit)))
+        (should-not (mistty-long-running-command-p))
+
+        (should (equal "hello, world"
+                       (mistty-send-and-capture-command-output)))))))
+
+(ert-deftest mistty-test-detect-foreign-overlays-disabled ()
+  (let ((mistty-detect-foreign-overlays nil))
+    (mistty-with-test-buffer (:selected t :shell fish)
+      (cua-mode 'on)
+      (mistty-send-text "for i in a b c\necho $i\nend")
+      (mistty-test-goto "in")
+      (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
+      ;; the result is replayed immediately, even though the command
+      ;; is still active.
+      (mistty-wait-for-output :str "in boo")
+      (should (equal (concat "$ for i in boo a b c\n"
+                             "      echo<> boo $i\n"
+                             "  end")
+                     (mistty-test-content :show (point))))
+      (should-not mistty--inhibit))))
 
 (ert-deftest mistty-test-detect-completion-in-region ()
   (mistty-with-test-buffer ()
     (mistty-send-text "echo hello")
     (setq completion-in-region-mode t)
     (run-hooks 'completion-in-region-mode-hook)
-    (should (equal '(completion-in-region) mistty--inhibit))
+    (should (equal '(mistty-completion-in-region) mistty--inhibit))
     (mistty-run-command
      (insert ","))
     (mistty-run-command
@@ -2999,6 +3022,39 @@
     (setq completion-in-region-mode nil)
     (run-hooks 'completion-in-region-mode-hook)
     (should (equal nil mistty--inhibit))
+    (mistty-wait-for-output :str "hello, world")))
+
+(ert-deftest mistty-test-report-long-running-command ()
+  (mistty-with-test-buffer ()
+    (should-not (mistty-long-running-command-p))
+    (should (equal ":run" mode-line-process))
+
+    (mistty-report-long-running-command 'test t)
+    (should (mistty-long-running-command-p))
+    (should (equal "CMD:run" mode-line-process))
+
+    (insert "echo hello, world")
+    (mistty-report-long-running-command 'test nil)
+    (should-not (mistty-long-running-command-p))
+    (should (equal ":run" mode-line-process))
+
+    ;; the change made during the long-running command have been
+    ;; replayed.
+    (mistty-wait-for-output :str "hello, world")))
+
+(ert-deftest mistty-test-ignore-long-running-command ()
+  (mistty-with-test-buffer ()
+    (mistty-report-long-running-command 'test-1 t)
+    (should (mistty-long-running-command-p))
+    (mistty-report-long-running-command 'test-2 t)
+    
+    (insert "echo hello, world")
+
+    (mistty-ignore-long-running-command)
+    (should-not (mistty-long-running-command-p))
+
+    ;; the change made during the long-running command have been
+    ;; replayed.
     (mistty-wait-for-output :str "hello, world")))
 
 (ert-deftest mistty-test-replays-are-queued ()

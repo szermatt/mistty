@@ -42,3 +42,25 @@ FAQ
 
     If you just don't want to see that line, turn it off with
     :kbd:`M-x customize-option mistty-fring-enabled`
+
+**Why doesn't <insert package here> work in the terminal region?**
+
+    The terminal region of MisTTY behaves very differently from a
+    normal buffer; many things can go wrong with commands that do more
+    than just editing text.
+
+    One such issue is with interactivly editing the buffer over
+    multiple Emacs command, which MisTTY calls a long-running command.
+    There are ways of making such commands work if they don't already,
+    described in :ref:`lrc`.
+
+    Another such issue is with autocomplete, with can also be made to
+    work as described in :ref:`autocomplete`.
+
+    While this works with some packages, it might not necessarily work
+    with the package you want - it might even not be possible to make
+    it work, but we can always try. Please `file a bug
+    <https://github.com/szermatt/mistty/issues>`_ if you encounter
+    such a package you'd like to work with MisTTY.
+
+

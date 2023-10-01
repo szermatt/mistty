@@ -376,3 +376,74 @@ Here's an example of such a configuration that might work for
       (when (and (featurep 'corfu) corfu-mode corfu-auto)
         (corfu--auto-post-command))))
   (add-hook 'mistty-interactive-insert-hook #'my-mistty-corfu)
+
+.. _lrc:
+
+Long-running commands
+---------------------
+
+In Emacs, most editing tools are run as a single Emacs command, but
+some tools span multiple Emacs command, for example, when you expand a
+snippet with `yasnippet <https://github.com/joaotavora/yasnippet>`_,
+the snippet template is inserted into the buffer, together with
+placeholders for you to fill some missing information.
+
+Filling in a template is a series of Emacs commands, that, together,
+have a single effect: to insert a snippet of text. MisTTY calls this a
+long-running command.
+
+When run in the terminal region, such long-running commands fail as
+MisTTY sends the initial text to the shell, which echoes it back to be
+redisplayed, possibly jumbling things and definitely destroying any
+overlays.
+
+To avoid such situations, MisTTY holds back sending text to the shell
+until long-running commands are done. For that to work, MisTTY needs
+to know when such command start and end.
+
+You can tell whether MisTTY thinks a long-running command is active,
+as it displays *CMD* in the modeline. You can also do it
+programmatically:
+
+    .. index::
+       pair: function; mistty-long-running-command-p
+
+    The function :code:`mistty-long-running-command-p` returns non-nil
+    if MisTTY thinks a long-running command is active.
+
+
+.. index::
+   pair: variable; mistty-detect-foreign-overlays
+   pair: option; mistty-detect-foreign-overlays
+
+MisTTY detects many long-running commands just by looking for overlays
+they typically add to the buffer. This can be turned off with
+:kbd:`M-x customize-option mistty-detect-foreign-overlays`
+
+As not all long-running commands that can be confused by MisTTY use
+overlays, you might need to tell MisTTY about them. MisTTY does it
+already for :code:`completion-in-region`.
+
+    .. index::
+       pair: function; mistty-report-long-running-command
+
+    The function :code:`mistty-report-long-running-command` can be
+    called to tell MisTTY when a long-running command start and end.
+    It's typically called from hooks provided by the package of the
+    long-running command.
+
+Here's an example of code that would detect
+:code:`completion-in-region-mode` if MisTTY didn't already do it:
+
+.. code-block:: elisp
+
+    (defun my-completion-in-region ()
+      (mistty-report-long-running-command
+        'my-completion-in-region completion-in-region-mode))
+    (defun my-detect-completion-in-region ()
+       (add-hook 'completion-in-region-mode-hook
+                 #'my-completion-in-region nil t))
+    (add-hook 'mistty-mode-hook #'my-detect-completion-in-region)
+
+
+

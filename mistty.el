@@ -1802,6 +1802,11 @@ returns nil."
        ;; how far we went when deleting.
        (if (and is-first (> old-end beg))
            (progn
+             ;; never delete the final \n that some shells add.
+             (when (and (= old-end (point-max))
+                        (= ?\n (char-before old-end)))
+               (move-marker old-end (1- old-end)))
+
              (setq distance (mistty--distance (point) old-end))
              (mistty-log "to old-end: %s -> %s distance: %s" (point) old-end distance)
              (let ((term-seq (mistty--move-horizontally-str distance)))

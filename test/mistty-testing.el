@@ -72,6 +72,11 @@ problems.")
 This is used to work around errors being swallowed and then
 silently ignored by the test.")
 
+(defvar-local mistty-test-content-start nil
+  "Start of the buffer for `mistty-test-content'.
+
+Defaults to (point-min).")
+
 (cl-defmacro mistty-with-test-buffer
     ((&key (shell 'bash) (selected nil)) &body body)
   "Run BODY in a MisTTY buffer.
@@ -158,6 +163,11 @@ window while BODY is running."
   (goto-char (point-min))
   (search-forward str))
 
+(defun mistty-test-narrow (start)
+  "Narrow to region START to end of buffer."
+  (setq mistty-test-content-start start)
+  (narrow-to-region start (point-max)))
+
 (defun mistty-test-setup (shell)
   (cond
    ((eq shell 'bash)
@@ -199,7 +209,7 @@ window while BODY is running."
     (mistty-wait-for-output :str ">>> ")
     (save-excursion
       (mistty-test-goto ">>> ")
-      (narrow-to-region (point) (point-max))))
+      (mistty-test-narrow (point))))
 
    (t (error "Unsupported shell %s" shell))))
 
@@ -209,12 +219,12 @@ window while BODY is running."
   ;; which expects the text it sends to appear after the text that's
   ;; already there. It's enough to wait for the prompt anyways.
   (mistty--send-string mistty-proc (concat "PS1='" mistty-test-prompt "'"))
-  (narrow-to-region (mistty-send-and-wait-for-prompt) (point-max)))
+  (mistty-test-narrow (mistty-send-and-wait-for-prompt)))
 
 (defun mistty-setup-fish-right-prompt ()
   (mistty-send-text "function fish_right_prompt; printf '< right'; end")
   (mistty-send-and-wait-for-prompt)
-  (narrow-to-region (mistty--bol (point)) (point-max)))
+  (mistty-test-narrow (mistty--bol (point))))
 
 (defun mistty-test-pre-command ()
   (mistty--pre-command)
@@ -308,7 +318,7 @@ buffer to a new region at the beginning of the new prompt."
                                       :show (unless nopointer (point))
                                       :strip-last-prompt t))
     (when narrow
-      (narrow-to-region next-prompt-start (point-max)))
+      (mistty-test-narrow next-prompt-start))
     output))
 
 (defun mistty-send-and-wait-for-prompt (&optional send-command-func prompt)
@@ -316,7 +326,7 @@ buffer to a new region at the beginning of the new prompt."
 
 Puts the point at the end of the prompt and return the position
 of the beginning of the prompt."
-  (let ((before-send (point-marker)))
+  (let ((before-send (point)))
     (funcall (or send-command-func #'mistty-send-command))
     (mistty-wait-for-output
      :regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt)))
@@ -340,7 +350,7 @@ This is meant to be assigned to `mistty--report-issue-function'
     (setq mistty-test-had-issues t)
     (error "%s" error-message)))
 
-(cl-defun mistty-test-content (&key (start (point-min))
+(cl-defun mistty-test-content (&key (start (or mistty-test-content-start (point-min)))
                                     (end (point-max))
                                     (show nil)
                                     (show-property '(nil nil))

@@ -975,11 +975,15 @@ markers have gone out-of-sync."
                   (goto-char term-home-marker)
                   (skip-chars-forward mistty--ws)
                   (point)))))))
-    (mistty--with-live-buffer mistty-work-buffer
-      (move-marker mistty-sync-marker (car new-head)))
+    (let ((old-sync-pos (marker-position mistty-sync-marker)))
+      (mistty--with-live-buffer mistty-work-buffer
+        (move-marker mistty-sync-marker (car new-head)))
+      (mistty-log "RESET SYNC MARKER %s to %s"
+                  old-sync-pos
+                  (marker-position mistty-sync-marker)))
     (mistty--with-live-buffer mistty-term-buffer
       (move-marker mistty-sync-marker (cdr new-head)))
-    (mistty--sync-history-remove-above (car new-head) (cdr new-head))
+    (mistty--sync-history-remove-at-or-below (car new-head) (cdr new-head))
     (mistty--sync-history-push)))
 
 (defun mistty--fs-process-filter (proc str)
@@ -1050,8 +1054,12 @@ Also updates prompt and point."
            (cancel-timer mistty--refresh-timer)
            (setq mistty--refresh-timer nil))
 
-         (mistty-log "refresh")
-         (mistty--sync-buffer mistty-term-buffer)
+         (let ((quick (not (and
+                            mistty-proc ;; doesn't need to be live
+                            (buffer-live-p mistty-term-buffer)
+                            (mistty-on-prompt-p (mistty-cursor))))))
+           (mistty-log "refresh (%s)" (if quick "quick" "complete"))
+           (mistty--sync-buffer mistty-term-buffer quick))
 
          ;; Make fake newlines invisible. They're not really "visible"
          ;; to begin with, since they're at the end of the window, but
@@ -1188,7 +1196,7 @@ The region searched is BEG to end of buffer."
                      (pop regexps) nil 'noerror))))
     (if match t nil)))
 
-(defun mistty--sync-buffer (source-buffer)
+(defun mistty--sync-buffer (source-buffer &optional quick)
   "Copy the sync region of SOURCE-BUFFER to the current buffer.
 
 The region [mistty-sync-marker,(point-max)] is copied from PROC
@@ -1198,28 +1206,48 @@ buffer to the current buffer. Both buffers must have
 The text and text properties of the destination buffer are
 overwritten with the properties of SOURCE-BUFFER.
 
-Markers, overlays and point of the destination buffer are moved
-as relevant to the changes that happened on the process buffer
-since the last update.
+Unless QUICK evaluates to non-nil, markers, restrictions,
+overlays and point of the destination buffer are moved as
+relevant to the changes that happened on the process buffer since
+the last update.
 
 Does nothing if SOURCE-BUFFER is dead."
-  (let ((dest-buffer (current-buffer))
-        (old-point (and (< (point) mistty-sync-marker) (point))))
-    (mistty--with-live-buffer source-buffer
+  (if quick
+      ;; Quicker version of sync-buffer that doesn't bother with
+      ;; markers.
       (save-restriction
-        (narrow-to-region mistty-sync-marker (point-max))
-        (let ((properties (mistty--save-properties (point-min))))
-          (with-current-buffer dest-buffer
-            (save-restriction
-              (narrow-to-region mistty-sync-marker (point-max))
-              (replace-buffer-contents source-buffer 0.2)
-              (mistty--restore-properties properties (point-min)))
+        (widen)
+        (let ((old-point (point))
+              (at-eobp (eobp)))
+          (goto-char mistty-sync-marker)
+          (delete-region mistty-sync-marker (point-max))
+          (insert-buffer-substring
+           mistty-term-buffer
+           (with-current-buffer mistty-term-buffer
+             mistty-sync-marker))
+          (unless at-eobp
+            (goto-char old-point))))
 
-            ;; If the point was outside the sync region, restore it as it has
-            ;; been moved by narrow-to-region . Otherwise, trust
-            ;; replace-buffer-contents to do something reasonable with it.
-            (when old-point
-              (goto-char old-point))))))))
+    ;; Complete but expensive version of sync-buffer that conserves
+    ;; markers.
+    (let ((dest-buffer (current-buffer))
+          (old-point (and (< (point) mistty-sync-marker) (point))))
+      (mistty--with-live-buffer source-buffer
+        (save-restriction
+          (narrow-to-region mistty-sync-marker (point-max))
+          (let ((properties (mistty--save-properties (point-min))))
+            (with-current-buffer dest-buffer
+              (save-restriction
+                (narrow-to-region mistty-sync-marker (point-max))
+                (replace-buffer-contents source-buffer 0.2)
+                (mistty--restore-properties properties (point-min)))
+
+              ;; If the point was outside the sync region, restore it,
+              ;; as it has been moved by narrow-to-region . Otherwise,
+              ;; trust replace-buffer-contents to do something
+              ;; reasonable with it.
+              (when old-point
+                (goto-char old-point)))))))))
 
 (defun mistty--copy-buffer-local-variables (variables source-buffer)
   "Copy the buffer-local values of VARIABLES between buffers.
@@ -2769,8 +2797,6 @@ as \\='mistty-skip spaces."
       (let ((work-marker (copy-marker mistty-sync-marker))
             (term-marker (mistty--with-live-buffer mistty-term-buffer
                            (copy-marker mistty-sync-marker))))
-        (set-marker-insertion-type work-marker t)
-        (set-marker-insertion-type term-marker t)
         (setq mistty--sync-history
               (append mistty--sync-history
                       (list (cons work-marker term-marker))))))))
@@ -2794,6 +2820,24 @@ to remove nothing."
         (move-marker (cdr head) nil)
         (setq mistty--sync-history
               (cdr mistty--sync-history))))))
+
+(defun mistty--sync-history-remove-at-or-below (work-pos term-pos)
+  "Remove markers below or at a certain position from history.
+
+WORK-POS specifies a position on the work buffer. It may be nil
+to remove nothing.
+
+TERM-POS specifies a position on the term buffer. It may be nil
+to remove nothing."
+  (mistty--with-live-buffer mistty-work-buffer
+    (setq mistty--sync-history
+          (delq nil
+                (mapcar
+                 (lambda (e)
+                   (when (and (or (null work-pos) (< (car e) work-pos))
+                              (or (null term-pos) (< (cdr e) term-pos)))
+                     e))
+                 mistty--sync-history)))))
 
 (defun mistty--sync-history-find ()
   "Find a replacement sync marker position in the history.

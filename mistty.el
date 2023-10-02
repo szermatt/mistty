@@ -1751,10 +1751,14 @@ returns nil."
          (set-buffer calling-buffer)
          (setq mistty--need-refresh t)
 
-         ;; Move cursor back to point
-         (mistty--enqueue
-          mistty--queue
-          (mistty--cursor-to-point-interaction) 'prepend)
+         ;; Move cursor back to point unless the next interact is a
+         ;; replay, in which case we let the replay move the cursor.
+         (let ((next (car (mistty--queue-more-interacts mistty--queue))))
+           (when (or (null next)
+                     (not (eq 'replay (mistty--interact-type next))))
+             (mistty--enqueue
+              mistty--queue
+              (mistty--cursor-to-point-interaction) 'prepend)))
          'done)))
     (setq
      move-to-beg-f

@@ -530,6 +530,7 @@ is echoed back, call `mistty-interactive-insert-hook'.")
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
   (setq-local scroll-conservatively 1024)
+  (setq window-point-insertion-type t)
 
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
@@ -926,18 +927,7 @@ PROC is the calling shell process and STR the string it sent."
     (goto-char cursor)
     (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
       (when (= cursor (window-point win))
-        (set-window-parameter win 'mistty--cursor-skip-state nil))
-      (mistty--recenter win))))
-
-(defun mistty--recenter (win)
-  "Make sure the cursor is visible in WIN and at the bottom of the screen."
-  (with-current-buffer (window-buffer win)
-    (when (and mistty-proc
-               (or (eq (mistty-cursor) (window-point win))
-                   (> (window-point win) (mistty--bol (point-max) -3))))
-      (with-selected-window win
-        (recenter (- (1+ (count-lines
-                          (window-point win) (point-max)))) t)))))
+        (set-window-parameter win 'mistty--cursor-skip-state nil)))))
 
 (defun mistty--detect-possible-prompt (cursor)
   "Look for a new prompt at CURSOR and store its position.
@@ -2297,9 +2287,7 @@ only spaces with ==\'mistty-skip t between them."
       (when size
         (let ((width (- (car size) left-margin-width))
               (height (cdr size)))
-        (mistty--set-process-window-size width height))))
-    (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
-      (mistty--recenter win))))
+        (mistty--set-process-window-size width height))))))
 
 (defun mistty--set-process-window-size (width height)
   "Set the process terminal size to WIDTH x HEIGHT."

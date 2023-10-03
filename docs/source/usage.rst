@@ -77,6 +77,23 @@ regularly, you'll want to bind some of these to global shortcuts:
   - :kbd:`M-x mistty-other-window` does the same, but opens the buffer
     in another window.
 
+  .. index::
+     pair: command; mistty-in-project
+     pair: function; mistty-project-init-kill-buffer
+
+  - :kbd:`M-x mistty-in-project` creates a new MisTTY buffer in the
+    root directory of the current project the first time it is called.
+    Afterwards, it'll try to guess what's most appropriate, displaying
+    an existing MisTTY buffer or creating a new one.
+
+    With a prefix argument, this command always creates a new buffer.
+
+    Note that if you want :kbd:`M-x project-kill-buffers` to kill such
+    buffers, you'll want to execute
+    :code:`mistty-project-init-kill-buffer` somewhere in your
+    configuration or tell :kbd:`M-x configure-option
+    project-kill-buffer-conditions` about MisTTY.
+
 .. _term-vs-scroll:
 
 Terminal vs. Scrollback

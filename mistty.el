@@ -687,13 +687,23 @@ When in fullscreen mode, the main MisTTY buffer is actually a
    ;; returns
    buffer))
 
-(defun mistty-list-live-buffers ()
-  "List of live MisTTY buffers, sorted."
-  (sort (delq nil (mapcar #'mistty-live-buffer-p (buffer-list)))
-        (lambda (a b) (string< (buffer-name a) (buffer-name b)))))
+(defun mistty-list-live-buffers (&optional accept-buffer)
+  "List of live MisTTY buffers, sorted.
+
+ACCEPT-BUFFER, if specified, must be a function that takes in a
+buffer and return non-nil if that buffer should be taken into
+account by this command."
+  (let ((cond #'mistty-live-buffer-p))
+    (when accept-buffer
+      (setq cond (lambda (buf) (when (and (mistty-live-buffer-p buf)
+                                          (funcall accept-buffer buf))
+                                 buf))))
+    (sort (delq nil (mapcar cond (buffer-list)))
+          (lambda (a b)
+            (string< (buffer-name a) (buffer-name b))))))
 
 ;;;###autoload
-(defun mistty (&optional other-window)
+(defun mistty (&optional other-window accept-buffer)
   "Go to the next MisTTY buffer, or create a new one.
 
 The first time this command is called, it creates a new MisTTY
@@ -706,9 +716,15 @@ To create a new buffer unconditionally, call `mistty-create'.
 If OTHER-WINDOW is nil, execute the default action configured by
 `display-comint-buffer-action'. If OTHER-WINDOW is a function, it
 is passed to `pop-to-buffer` to be used as a `display-buffer'
-action. Otherwise, display the buffer in another window."
+action. Otherwise, display the buffer in another window.
+
+ACCEPT-BUFFER, if specified, must be a function that takes in a
+buffer and return non-nil if that buffer should be taken into
+account by this command. This can be used to manage distinct
+group of buffers, such as buffers belonging to different
+projects."
   (interactive)
-  (let ((existing (mistty-list-live-buffers)))
+  (let ((existing (mistty-list-live-buffers accept-buffer)))
     (if (or current-prefix-arg         ; command prefix was given
             (null existing)            ; there are no mistty buffers
             (and (null (cdr existing)) ; the current buffer is the only mistty buffer

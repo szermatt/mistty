@@ -258,6 +258,27 @@ With a prefix argument, this command always creates a new buffer.
 @code{M-x mistty-other-window} does the same, but opens the buffer
 in another window.
 @end itemize
+
+@geindex command; mistty-in-project
+@geindex function; mistty-project-init-kill-buffer
+
+
+@itemize -
+
+@item 
+@code{M-x mistty-in-project} creates a new MisTTY buffer in the
+root directory of the current project the first time it is called.
+Afterwards, it’ll try to guess what’s most appropriate, displaying
+an existing MisTTY buffer or creating a new one.
+
+With a prefix argument, this command always creates a new buffer.
+
+Note that if you want @code{M-x project-kill-buffers} to kill such
+buffers, you’ll want to execute
+@code{mistty-project-init-kill-buffer} somewhere in your
+configuration or tell @code{M-x configure-option
+project-kill-buffer-conditions} about MisTTY.
+@end itemize
 @end quotation
 
 @node Terminal vs Scrollback,Navigating the scrollback zone,Launching,Usage

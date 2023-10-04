@@ -138,7 +138,7 @@ recently deleted string."
       (setf (mistty--changeset-deleted-point-max changeset) t))))
 
 (defun mistty--changeset-single-insert (cs)
-  "If CS contains a single insertion, return it.
+  "If CS is just a single insertion, return it.
 
 Otherwise return nil."
   (pcase (mistty--changeset-collect cs)

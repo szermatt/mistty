@@ -1522,7 +1522,9 @@ that many times instead."
       (mistty-send-key n "\C-d" 'positional))))
 
 (defun mistty-tab-command (&optional n)
-  "Send a TAB to the terminal."
+  "Send a TAB to the terminal.
+
+If N is specified, do it N times."
   (interactive "p")
   (if mistty--inhibit
       (call-interactively 'indent-for-tab-command)
@@ -1742,7 +1744,7 @@ This is meant to be added to ==\'after-change-functions."
   (mistty--sync-history-remove-above end nil)))
 
 (defun mistty--replay-interaction (cs)
-  "Build a `mistty--interact' of type \=='replay to replay CS.
+  "Build a `mistty--interact' of type \\='replay to replay CS.
 
 Replay interactions are callable with `mistty--call-interact'.
 They take a single argument, another changeset, and attempt to
@@ -2153,7 +2155,7 @@ change."
   "Remove a source of inhibition with SYM as id.
 
 This changes the value of `mistty--inhibit' and reacts to that
-change."
+change, unless NOSCHEDULE evaluates to true."
   (when mistty--inhibit
     (setq mistty--inhibit (delq sym mistty--inhibit))
     (unless mistty--inhibit
@@ -2312,7 +2314,7 @@ post-command hook."
                        (<= from (point-max))
                        (>= to (point-min))
                        (<= to (point-max))
-                       (mistty--with-live-buffer mistty-term-buffer 
+                       (mistty--with-live-buffer mistty-term-buffer
                          (<= (mistty--from-pos-of to mistty-work-buffer)
                              (point-max))))
               (let* ((distance (mistty--distance from to))
@@ -2459,7 +2461,7 @@ and `mistty-term-buffer' to find the buffers.
 
 Ignores buffers that don't exist."
   ;; work buffer modeline
-  (mistty--with-live-buffer 
+  (mistty--with-live-buffer
       (or mistty-work-buffer
           (and proc (process-get proc 'mistty-work-buffer)))
     (cond
@@ -2988,7 +2990,7 @@ https://github.com/szermatt/mistty/issues"
         (progn
           (message "MisTTY: ignore long-running command %s" mistty--inhibit)
           (mistty--inhibit-clear))
-      (error "MisTTY: no long-running command is active."))))
+      (error "MisTTY: no long-running command is active"))))
 
 (defun mistty--wrap-capf-functions ()
   "Wrap the content `completion-at-point-functions' locally.

@@ -449,6 +449,8 @@ this function, as CB would never be executed; Just return
 (defun mistty--call-interact (interact type &rest args)
   "Call INTERACT and pass it ARGS.
 
+Fails if INTERACT is not of of type TYPE.
+
 This function checks the type of INTERACT, checks that it is
  callable then call it with the arguments ARGS."
   (if (and (eq type (mistty--interact-type interact))

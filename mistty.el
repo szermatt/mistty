@@ -103,9 +103,18 @@ positional key to the terminal."
 
 This makes the synced region visible, which is useful as
 modifications made inside of the synced region are treated
-differently from modifications made inside of the synced region."
+differently from modifications made inside of the synced region.
+
+This can also be turned on and off on a per-buffer basis using
+`mistty-fringe-mode'."
   :type '(boolean)
-  :group 'mistty)
+  :group 'mistty
+  :set (lambda (sym val)
+         (set sym val)
+         (dolist (buf (buffer-list))
+           (with-current-buffer buf
+             (when (derived-mode-p 'mistty-mode)
+               (mistty-fringe-mode (if val nil -1)))))))
 
 (defcustom mistty-skip-empty-spaces t
   "If non-nil the cursor skips over empty spaces like the shell does.
@@ -563,20 +572,51 @@ is echoed back, call `mistty-interactive-insert-hook'.")
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
 
+  (setq mistty-sync-marker (point-max-marker))
+  (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
+  (setq mistty--ignored-overlays (list mistty--sync-ov))
+
+  (overlay-put mistty--sync-ov 'local-map mistty-prompt-map)
+
   (when mistty-fringe-enabled
-    (if (window-system)
-        (unless (fringe-bitmap-p 'mistty-bar)
-          (define-fringe-bitmap
-            'mistty-bar (make-vector 40 7) nil 3 'center))
-
-      ;; on a terminal, set margin width, and call set-window-buffer to make
-      ;; sure it has taken effect.
-      (setq left-margin-width 1)
-      (let ((buf (current-buffer)))
-        (dolist (win (get-buffer-window-list buf))
-          (set-window-buffer win buf))))))
-
+    (mistty-fringe-mode 'on)))
 (put 'mistty-mode 'mode-class 'special)
+
+(define-minor-mode mistty-fringe-mode
+  "Highlight the synced region with a left fringe or margin.
+
+This makes the synced region visible, which is useful as
+modifications made inside of the synced region are treated
+differently from modifications made inside of the synced region."
+  :init-value nil
+  (unless (derived-mode-p 'mistty-mode)
+    (error "Mistty-fringe-mode only meaningful on MisTTY buffers"))
+  (if mistty-fringe-mode
+      ;; turn on
+      (if (window-system)
+          ;; implemented as a left fringe
+          (progn
+            (unless (fringe-bitmap-p 'mistty-bar)
+              (define-fringe-bitmap
+                'mistty-bar (make-vector 40 7) nil 3 'center))
+            (overlay-put
+             mistty--sync-ov
+             'line-prefix
+             (propertize " " 'display
+                         '(left-fringe mistty-bar mistty-fringe-face))))
+        ;; implemented as a left margin
+        (progn
+          (setq left-margin-width 1)
+          (overlay-put
+           mistty--sync-ov
+           'line-prefix
+           (propertize " " 'display
+                       `((margin left-margin)
+                         ,(propertize "┃" 'face 'mistty-fringe-face))))))
+    ;; turn off
+    (unless (window-system)
+      (setq left-margin-width (default-value 'left-margin-width)))
+    (overlay-put mistty--sync-ov 'line-prefix nil)))
 
 (defsubst mistty--require-work-buffer ()
   "Asserts that the current buffer is the work buffer."
@@ -622,27 +662,14 @@ buffer and `mistty-proc' to that buffer's process."
 
     (setq mistty-proc proc)
     (setq mistty-term-buffer term-buffer)
-    (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker (point-max)))
-    (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
-    (cl-pushnew mistty--sync-ov mistty--ignored-overlays)
     (setq mistty--queue (mistty--make-queue proc))
 
     (with-current-buffer term-buffer
       (setq mistty-proc proc)
       (setq mistty-work-buffer work-buffer)
       (setq mistty-term-buffer term-buffer)
-      (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker term-home-marker)))
-
-    (overlay-put mistty--sync-ov 'local-map mistty-prompt-map)
-    ;; highlight the synced region in the fringe or margin
-    (when mistty-fringe-enabled
-      (overlay-put
-       mistty--sync-ov
-       'line-prefix
-       (propertize " " 'display
-                   (if (window-system)
-                       '(left-fringe mistty-bar mistty-fringe-face)
-                     `((margin left-margin) ,(propertize "┃" 'face 'mistty-fringe-face))))))
+      (unless mistty-sync-marker
+        (setq mistty-sync-marker (copy-marker term-home-marker))))
 
     (when proc
       (set-process-filter proc #'mistty--process-filter)
@@ -681,9 +708,6 @@ Returns M or a new marker."
   (when mistty--queue
     (mistty--cancel-queue mistty--queue)
     (setq mistty--queue nil))
-  (when mistty--sync-ov
-    (delete-overlay mistty--sync-ov)
-    (setq mistty--sync-ov nil))
   (when mistty-proc
     (set-process-filter mistty-proc #'term-emulate-terminal)
     (set-process-sentinel mistty-proc #'term-sentinel)

@@ -3123,3 +3123,24 @@
       (should (length> calls 0))
       (should (equal "echo ok" (car calls)))
       (should (equal "ok" (mistty-send-and-capture-command-output)))))))
+
+(ert-deftest mistty-test-toggle-fringe ()
+  (mistty-with-test-buffer ()
+    (mistty-fringe-mode nil)
+    (should mistty-fringe-mode)
+    (should (overlay-get mistty--sync-ov 'line-prefix))
+
+    (mistty-fringe-mode -1)
+    (should-not mistty-fringe-mode)
+    (should-not (overlay-get mistty--sync-ov 'line-prefix))))
+
+(ert-deftest mistty-test-fringe-enabled ()
+  (let ((orig-value mistty-fringe-enabled))
+    (mistty-with-test-buffer ()
+      (customize-set-variable 'mistty-fringe-enabled t)
+      (should mistty-fringe-mode)
+
+      (customize-set-variable 'mistty-fringe-enabled nil)
+      (should-not mistty-fringe-mode)
+
+      (customize-set-variable 'mistty-fringe-enabled orig-value))))

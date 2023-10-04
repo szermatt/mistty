@@ -2,6 +2,8 @@
 
 (require 'mistty)
 (require 'mistty-testing)
+(require 'thingatpt)
+(require 'minibuffer)
 
 (require 'yasnippet nil 'noerror)
 
@@ -121,3 +123,102 @@
                            "ok\n"
                            "$ <>")
                    (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-compat-test-wrap-capf ()
+  (let ((completion-at-point-functions (list #'mistty-compat-test-capf))
+        (completion-in-region-function #'mistty-compat-test-completion-in-region)
+        (mistty-wrap-capf-functions t))
+  (mistty-with-test-buffer (:shell fish)
+    (let (start)
+      (mistty-send-text "echo hello")
+      (mistty-send-and-wait-for-prompt)
+
+      (setq start (pos-bol))
+
+      ;; hello should be suggested
+      (mistty-send-text "echo h")
+      (should (equal "$ echo h<>ello"
+                     (mistty-test-content
+                      :start start :show (point))))
+      (mistty-run-command
+       (completion-at-point))
+
+      ;; hallo doesn't start with hello, but it does start with h.
+      (should (equal "$ echo hallo<>"
+                     (mistty-test-content
+                      :start start :show (point))))))))
+
+(ert-deftest mistty-compat-test-wrap-capf-in-scrollback-region ()
+  (let ((completion-at-point-functions (list #'mistty-compat-test-capf))
+        (completion-in-region-function #'mistty-compat-test-completion-in-region)
+        (mistty-wrap-capf-functions t))
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-send-text "echo hel")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-test-goto-after "echo h")
+    (should (equal
+             (concat "$ echo h<>el\n"
+                     "hel\n"
+                     "$")
+             (mistty-test-content
+              :show (point))))
+    (mistty-run-command
+     (completion-at-point))
+
+    ;; completion-at-point should have seen "hel" not just h "h"
+    (should (equal
+             (concat "$ echo hello<>\n"
+                     "hel\n"
+                     "$")
+             (mistty-test-content
+              :show (point)))))))
+
+(ert-deftest mistty-compat-test-wrap-capf-disabled ()
+  (let ((completion-at-point-functions (list #'mistty-compat-test-capf))
+        (completion-in-region-function #'mistty-compat-test-completion-in-region)
+        (mistty-wrap-capf-functions nil))
+  (mistty-with-test-buffer (:shell bash)
+    (let (start)
+      (mistty-send-text "echo hello")
+      (mistty-send-and-wait-for-prompt)
+
+      (setq start (pos-bol))
+
+      (mistty-send-text "echo ho")
+      (mistty-run-command
+       (goto-char (1- (point))))
+      (should (equal "$ echo h<>o"
+                     (mistty-test-content
+                      :start start :show (point))))
+
+      (mistty-run-command
+       (completion-at-point))
+
+      ;; completion-at-point should have seen "ho" not just "h"
+      (should (equal "$ echo ho!ho!ho!<>"
+                     (mistty-test-content
+                      :start start :show (point))))))))
+
+(defun mistty-compat-test-capf ()
+  "Test function for `completion-at-point-functions'."
+  (let ((bounds (bounds-of-thing-at-point 'word)))
+    (list (car bounds) (cdr bounds)
+          (list "ho!ho!ho!" "hi" "hello" "hallo"))))
+
+(defun mistty-compat-test-completion-in-region (start end collection &optional _)
+  "Strange `completion-in-region-function'.
+
+It overwrites START-END with the *last* element of COLLECTION
+that starts with the text currently between START and END."
+  (let ((text (buffer-substring-no-properties start end)))
+    (when-let ((replacement (car
+                             (last
+                              (delq nil
+                                    (mapcar (lambda (completion)
+                                              (when (string-prefix-p text completion)
+                                                completion))
+                                            collection))))))
+      (goto-char start)
+      (delete-region start end)
+      (insert replacement))))

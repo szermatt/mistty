@@ -338,8 +338,8 @@ mistty-allow-tramp-paths`
 
 .. _autocomplete:
 
-Emacs Autocomplete
-------------------
+Emacs Completion-at-point
+-------------------------
 
 When in a MisTTY buffer, it's best to rely on the completion or
 autosuggestions provided by the shell or other command-line tool
@@ -349,6 +349,43 @@ than what Emacs can provide.
 However, some form of Emacs auto-completion can still be useful from
 inside of a MisTTY buffer, to complete abbreviations, expand templates
 or add emojis.
+
+There are two challenges with that:
+
+ - :code:`completion-at-point` is confused by autosuggestions
+
+ - showing the completion automatically doesn't work in the terminal region by default
+
+See the sections below details.
+
+Autosuggestions
+^^^^^^^^^^^^^^^
+.. index::
+   pair: variable; mistty-wrap-capf-functions
+
+:code:`completion-at-point` is defined as completing the text *around*
+the point. This is generally convenient, but gets confused by shell
+autosuggestions.
+
+What if you typed "com" and the shell helpfully suggests "completion"?
+The buffer would look like: "com<>pletion", with <> representing
+the point. :code:`completion-at-point` would then think you typed
+"completion" and not suggest anything else.
+
+To avoid that problem MisTTY modifies the functions it finds in
+:code:`completion-at-point-functions` so that they just won't see
+anything after the point when in the terminal region. In the example
+above, they'd only complete "com", not "completion".
+
+That is, :code:`completion-at-point` in the MisTTY terminal region
+completes the text *before* the point.
+
+If you don't like that or don't use a shell that supports
+autosuggestions, you can turn this off with :kbd:`M-x customize-option
+mistty-wrap-capf-functions`
+
+Auto-complete
+^^^^^^^^^^^^^
 
 By default, auto-complete UIs only work in the scrollback region of a
 MisTTY buffer, but they can be made to work in the terminal region as

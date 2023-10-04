@@ -152,7 +152,7 @@ command-line.
 * Fullscreen Mode:: 
 * Command History:: 
 * Directory tracking and TRAMP:: 
-* Emacs Autocomplete:: 
+* Emacs Completion-at-point:: 
 * Long-running commands:: 
 
 @end menu
@@ -600,7 +600,7 @@ in the terminal zone of the MisTTY buffer. For example:
 (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
 @end example
 
-@node Directory tracking and TRAMP,Emacs Autocomplete,Command History,Usage
+@node Directory tracking and TRAMP,Emacs Completion-at-point,Command History,Usage
 @anchor{usage directory-tracking-and-tramp}@anchor{14}@anchor{usage dirtrack}@anchor{15}
 @subsection Directory tracking and TRAMP
 
@@ -621,9 +621,9 @@ accessible with the default TRAMP method, you might consider allowing
 MisTTY to report remote paths on @code{M-x configure-option
 mistty-allow-tramp-paths}
 
-@node Emacs Autocomplete,Long-running commands,Directory tracking and TRAMP,Usage
-@anchor{usage autocomplete}@anchor{16}@anchor{usage emacs-autocomplete}@anchor{17}
-@subsection Emacs Autocomplete
+@node Emacs Completion-at-point,Long-running commands,Directory tracking and TRAMP,Usage
+@anchor{usage autocomplete}@anchor{16}@anchor{usage emacs-completion-at-point}@anchor{17}
+@subsection Emacs Completion-at-point
 
 
 When in a MisTTY buffer, it’s best to rely on the completion or
@@ -634,6 +634,62 @@ than what Emacs can provide.
 However, some form of Emacs auto-completion can still be useful from
 inside of a MisTTY buffer, to complete abbreviations, expand templates
 or add emojis.
+
+There are two challenges with that:
+
+@quotation
+
+
+@itemize -
+
+@item 
+@code{completion-at-point} is confused by autosuggestions
+
+@item 
+showing the completion automatically doesn’t work in the terminal region by default
+@end itemize
+@end quotation
+
+See the sections below details.
+
+@menu
+* Autosuggestions:: 
+* Auto-complete:: 
+
+@end menu
+
+@node Autosuggestions,Auto-complete,,Emacs Completion-at-point
+@anchor{usage autosuggestions}@anchor{18}
+@subsubsection Autosuggestions
+
+
+@geindex variable; mistty-wrap-capf-functions
+
+@code{completion-at-point} is defined as completing the text `around'
+the point. This is generally convenient, but gets confused by shell
+autosuggestions.
+
+What if you typed “com” and the shell helpfully suggests “completion”?
+The buffer would look like: “com<>pletion”, with <> representing
+the point. @code{completion-at-point} would then think you typed
+“completion” and not suggest anything else.
+
+To avoid that problem MisTTY modifies the functions it finds in
+@code{completion-at-point-functions} so that they just won’t see
+anything after the point when in the terminal region. In the example
+above, they’d only complete “com”, not “completion”.
+
+That is, @code{completion-at-point} in the MisTTY terminal region
+completes the text `before' the point.
+
+If you don’t like that or don’t use a shell that supports
+autosuggestions, you can turn this off with @code{M-x customize-option
+mistty-wrap-capf-functions}
+
+@node Auto-complete,,Autosuggestions,Emacs Completion-at-point
+@anchor{usage auto-complete}@anchor{19}
+@subsubsection Auto-complete
+
 
 By default, auto-complete UIs only work in the scrollback region of a
 MisTTY buffer, but they can be made to work in the terminal region as
@@ -678,8 +734,8 @@ company-mode@footnote{http://company-mode.github.io}:
 (add-hook 'mistty-interactive-insert-hook #'my-mistty-corfu)
 @end example
 
-@node Long-running commands,,Emacs Autocomplete,Usage
-@anchor{usage long-running-commands}@anchor{18}@anchor{usage lrc}@anchor{19}
+@node Long-running commands,,Emacs Completion-at-point,Usage
+@anchor{usage long-running-commands}@anchor{1a}@anchor{usage lrc}@anchor{1b}
 @subsection Long-running commands
 
 
@@ -749,7 +805,7 @@ Here’s an example of code that would detect
 @end example
 
 @node Shells,Writing Extensions,Usage,Contents
-@anchor{shells doc}@anchor{1a}@anchor{shells id1}@anchor{1b}@anchor{shells shells}@anchor{e}
+@anchor{shells doc}@anchor{1c}@anchor{shells id1}@anchor{1d}@anchor{shells shells}@anchor{e}
 @section Shells
 
 
@@ -761,7 +817,7 @@ Here’s an example of code that would detect
 @end menu
 
 @node Bash,Fish,,Shells
-@anchor{shells bash}@anchor{1c}@anchor{shells id2}@anchor{1d}
+@anchor{shells bash}@anchor{1e}@anchor{shells id2}@anchor{1f}
 @subsection Bash
 
 
@@ -786,7 +842,7 @@ set enable-bracketed-paste on
 @end menu
 
 @node Multi-line prompts,Directory tracking,,Bash
-@anchor{shells multi-line-prompts}@anchor{1e}
+@anchor{shells multi-line-prompts}@anchor{20}
 @subsubsection Multi-line prompts
 
 
@@ -804,7 +860,7 @@ You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
 @node Directory tracking,VI mode,Multi-line prompts,Bash
-@anchor{shells directory-tracking}@anchor{1f}
+@anchor{shells directory-tracking}@anchor{21}
 @subsubsection Directory tracking
 
 
@@ -829,7 +885,7 @@ Such sequence are either ignored or understood by most terminals, so
 you don’t absolutely need to check TERM.
 
 @node VI mode,,Directory tracking,Bash
-@anchor{shells vi-mode}@anchor{20}
+@anchor{shells vi-mode}@anchor{22}
 @subsubsection VI mode
 
 
@@ -858,7 +914,7 @@ fi
 @end example
 
 @node Fish,Zsh,Bash,Shells
-@anchor{shells fish}@anchor{21}@anchor{shells id3}@anchor{22}
+@anchor{shells fish}@anchor{23}@anchor{shells id3}@anchor{24}
 @subsection Fish
 
 
@@ -866,7 +922,7 @@ A recent version of Fish is preferable. MisTTY relies on bracketed
 paste mode, on by default, so it should not be turned off.
 
 @menu
-* Autosuggestions:: 
+* Autosuggestions: Autosuggestions<2>. 
 * Command History: Command History<2>. 
 * Directory tracking: Directory tracking<2>. 
 * Multi-line prompts: Multi-line prompts<2>. 
@@ -874,8 +930,8 @@ paste mode, on by default, so it should not be turned off.
 
 @end menu
 
-@node Autosuggestions,Command History<2>,,Fish
-@anchor{shells autosuggestions}@anchor{23}
+@node Autosuggestions<2>,Command History<2>,,Fish
+@anchor{shells autosuggestions}@anchor{25}
 @subsubsection Autosuggestions
 
 
@@ -886,8 +942,8 @@ key, is very inconvenient as this is bound to an Emacs point movement.
 The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
-@node Command History<2>,Directory tracking<2>,Autosuggestions,Fish
-@anchor{shells command-history}@anchor{24}
+@node Command History<2>,Directory tracking<2>,Autosuggestions<2>,Fish
+@anchor{shells command-history}@anchor{26}
 @subsubsection Command History
 
 
@@ -922,7 +978,7 @@ use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or e
 @end itemize
 
 @node Directory tracking<2>,Multi-line prompts<2>,Command History<2>,Fish
-@anchor{shells id4}@anchor{25}
+@anchor{shells id4}@anchor{27}
 @subsubsection Directory tracking
 
 
@@ -943,7 +999,7 @@ such sequence are either ignored or understood by most terminals. You
 might already have it set up.
 
 @node Multi-line prompts<2>,VI mode<2>,Directory tracking<2>,Fish
-@anchor{shells id5}@anchor{26}
+@anchor{shells id5}@anchor{28}
 @subsubsection Multi-line prompts
 
 
@@ -959,7 +1015,7 @@ mistty-skip-empty-spaces} allows you to turn that on or off in a
 MisTTY buffer.
 
 @node VI mode<2>,,Multi-line prompts<2>,Fish
-@anchor{shells id6}@anchor{27}
+@anchor{shells id6}@anchor{29}
 @subsubsection VI mode
 
 
@@ -978,7 +1034,7 @@ end
 @end example
 
 @node Zsh,,Fish,Shells
-@anchor{shells id7}@anchor{28}@anchor{shells zsh}@anchor{29}
+@anchor{shells id7}@anchor{2a}@anchor{shells zsh}@anchor{2b}
 @subsection Zsh
 
 
@@ -989,15 +1045,15 @@ Zsh supports bracketed paste, which MisTTY relies on, since version
 unexpected results if you yank text containing special characters.
 
 @menu
-* Autosuggestions: Autosuggestions<2>. 
+* Autosuggestions: Autosuggestions<3>. 
 * Directory tracking: Directory tracking<3>. 
 * Multi-line prompts: Multi-line prompts<3>. 
 * VI mode: VI mode<3>. 
 
 @end menu
 
-@node Autosuggestions<2>,Directory tracking<3>,,Zsh
-@anchor{shells id8}@anchor{2a}
+@node Autosuggestions<3>,Directory tracking<3>,,Zsh
+@anchor{shells id8}@anchor{2c}
 @subsubsection Autosuggestions
 
 
@@ -1009,8 +1065,8 @@ this is normally bound to an Emacs point movement.
 The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
-@node Directory tracking<3>,Multi-line prompts<3>,Autosuggestions<2>,Zsh
-@anchor{shells id9}@anchor{2b}
+@node Directory tracking<3>,Multi-line prompts<3>,Autosuggestions<3>,Zsh
+@anchor{shells id9}@anchor{2d}
 @subsubsection Directory tracking
 
 
@@ -1027,7 +1083,7 @@ fi
 such sequence are either ignored or understood by most terminals.
 
 @node Multi-line prompts<3>,VI mode<3>,Directory tracking<3>,Zsh
-@anchor{shells id10}@anchor{2c}
+@anchor{shells id10}@anchor{2e}
 @subsubsection Multi-line prompts
 
 
@@ -1045,7 +1101,7 @@ You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
 @node VI mode<3>,,Multi-line prompts<3>,Zsh
-@anchor{shells id11}@anchor{2d}
+@anchor{shells id11}@anchor{2f}
 @subsubsection VI mode
 
 
@@ -1064,7 +1120,7 @@ fi
 @end example
 
 @node Writing Extensions,FAQ,Shells,Contents
-@anchor{extensions doc}@anchor{2e}@anchor{extensions writing-extensions}@anchor{2f}
+@anchor{extensions doc}@anchor{30}@anchor{extensions writing-extensions}@anchor{31}
 @section Writing Extensions
 
 
@@ -1077,7 +1133,7 @@ fi
 @end menu
 
 @node Hooks,OSC Sequences,,Writing Extensions
-@anchor{extensions hooks}@anchor{30}@anchor{extensions id1}@anchor{31}
+@anchor{extensions hooks}@anchor{32}@anchor{extensions id1}@anchor{33}
 @subsection Hooks
 
 
@@ -1106,7 +1162,7 @@ you could do:
 @end example
 
 @node OSC Sequences,Writing Your Own Commands,Hooks,Writing Extensions
-@anchor{extensions osc}@anchor{32}@anchor{extensions osc-sequences}@anchor{33}
+@anchor{extensions osc}@anchor{34}@anchor{extensions osc-sequences}@anchor{35}
 @subsection OSC Sequences
 
 
@@ -1151,7 +1207,7 @@ same argument.
 @end itemize
 
 @node Writing Your Own Commands,Terminal Keymap,OSC Sequences,Writing Extensions
-@anchor{extensions custom-commands}@anchor{34}@anchor{extensions writing-your-own-commands}@anchor{35}
+@anchor{extensions custom-commands}@anchor{36}@anchor{extensions writing-your-own-commands}@anchor{37}
 @subsection Writing Your Own Commands
 
 
@@ -1207,7 +1263,7 @@ to that position.
 @end itemize
 
 @node Terminal Keymap,,Writing Your Own Commands,Writing Extensions
-@anchor{extensions term-keymap}@anchor{36}@anchor{extensions terminal-keymap}@anchor{37}
+@anchor{extensions term-keymap}@anchor{38}@anchor{extensions terminal-keymap}@anchor{39}
 @subsection Terminal Keymap
 
 
@@ -1257,7 +1313,7 @@ keymap that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node FAQ,Contributing,Writing Extensions,Contents
-@anchor{faq doc}@anchor{38}@anchor{faq faq}@anchor{39}
+@anchor{faq doc}@anchor{3a}@anchor{faq faq}@anchor{3b}
 @section FAQ
 
 
@@ -1330,10 +1386,10 @@ than just editing text.
 One such issue is with interactivly editing the buffer over
 multiple Emacs command, which MisTTY calls a long-running command.
 There are ways of making such commands work if they don’t already,
-described in @ref{19,,Long-running commands}.
+described in @ref{1b,,Long-running commands}.
 
 Another such issue is with autocomplete, with can also be made to
-work as described in @ref{16,,Emacs Autocomplete}.
+work as described in @ref{16,,Emacs Completion-at-point}.
 
 While this works with some packages, it might not necessarily work
 with the package you want - it might even not be possible to make
@@ -1342,7 +1398,7 @@ such a package you’d like to work with MisTTY.
 @end quotation
 
 @node Contributing,,FAQ,Contents
-@anchor{contrib doc}@anchor{3a}@anchor{contrib contributing}@anchor{3b}
+@anchor{contrib doc}@anchor{3c}@anchor{contrib contributing}@anchor{3d}
 @section Contributing
 
 
@@ -1356,7 +1412,7 @@ such a package you’d like to work with MisTTY.
 @end menu
 
 @node Reporting issues,Suggesting features,,Contributing
-@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{3c}
+@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{3e}
 @subsection Reporting issues
 
 
@@ -1440,21 +1496,21 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib issue-tracker}@anchor{3d}@anchor{contrib suggesting-features}@anchor{3e}
+@anchor{contrib issue-tracker}@anchor{3f}@anchor{contrib suggesting-features}@anchor{40}
 @subsection Suggesting features
 
 
 Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
-@anchor{contrib asking-questions}@anchor{3f}
+@anchor{contrib asking-questions}@anchor{41}
 @subsection Asking questions
 
 
 Open an issue on the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} with your question.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
-@anchor{contrib code-contributions}@anchor{40}
+@anchor{contrib code-contributions}@anchor{42}
 @subsection Code contributions
 
 
@@ -1472,7 +1528,7 @@ tests passing reliably when run using @code{eldev test} is what
 matters.
 
 @node Documentation contributions,,Code contributions,Contributing
-@anchor{contrib documentation-contributions}@anchor{41}@anchor{contrib eldev}@anchor{42}
+@anchor{contrib documentation-contributions}@anchor{43}@anchor{contrib eldev}@anchor{44}
 @subsection Documentation contributions
 
 

@@ -174,6 +174,33 @@ You might have to turn MisTTY on and off manually with
   :group 'mistty
   :type '(boolean))
 
+(defcustom mistty-wrap-capf-functions t
+  "Make `completion-at-point' functions work nice with autosuggestions.
+
+Shell autosuggestions and `completion-at-point' don't work well
+together: as the typical `completion-at-point' function looks
+around the point for the object to complete, it'll see the
+shell's autosuggestions and think that this is what the user
+typed. So if the used typed \"com\" and the shell autosuggestion
+is \"complete\", what's shown on the buffer \"com<point>plete\"
+and naturally `completion-at-point' auto-completes \"complete\"
+not \"com\".
+
+To work around that, MisTTY wraps functions on
+`completion-at-point-functions' so that they don't see what's
+after the point, while on the terminal region. In the example
+above, these wrapped functions only see \"com\" and complete
+that.
+
+This does mean that completion doesn't work exactly the same way
+as it normally does: it only see what's before the point - but
+the resulting behavior is saner.
+
+Turn if off if you don't use a shell with autosuggestions and are
+annoyed by this difference."
+  :group 'mistty
+  :type '(boolean))
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -578,6 +605,7 @@ The buffer is switched to `mistty-mode'."
       (- (window-max-chars-per-line win) left-margin-width)
       ;;height
       (floor (with-selected-window win (window-screen-lines))))))
+  (mistty--wrap-capf-functions)
   (mistty--update-mode-lines))
 
 (defun mistty--attach (term-buffer)
@@ -2961,6 +2989,35 @@ https://github.com/szermatt/mistty/issues"
           (message "MisTTY: ignore long-running command %s" mistty--inhibit)
           (mistty--inhibit-clear))
       (error "MisTTY: no long-running command is active."))))
+
+(defun mistty--wrap-capf-functions ()
+  "Wrap the content `completion-at-point-functions' locally.
+
+This function applies `mistty-capf-wrapper' to all function on
+`completion-at-point-functions' in the current buffer.
+
+This can be turned off by setting the option
+`mistty-wrap-capf-functions' to nil."
+  (when mistty-wrap-capf-functions
+    (let ((capf-list (cl-copy-list completion-at-point-functions)))
+      (setq-local completion-at-point-functions capf-list)
+      (while capf-list
+        (add-function :around (car capf-list) #'mistty-capf-wrapper)
+        (setq capf-list (cdr capf-list))))))
+
+(defun mistty-capf-wrapper (func &rest args)
+  "Run FUNC with ARGS, with buffer narrowed to point.
+
+This wrapper is meant to be applied to functions on
+`completion-at-point-functions' to prevent them from seeing
+autosuggestions. For details, see the option
+`mistty-wrap-capf-functions'."
+  (if (and (markerp mistty-sync-marker)
+           (> (point) mistty-sync-marker))
+      (save-restriction
+        (narrow-to-region (point-min) (point))
+        (apply func args))
+    (apply func args)))
 
 (provide 'mistty)
 

@@ -208,6 +208,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
 
 (defvar-keymap mistty-prompt-map
+  :parent mistty-mode-map
   :doc "Keymap active on the part of `mistty-mode' synced with the terminal.
 
 This map is active only on the portion of a MisTTY mode buffer
@@ -604,7 +605,7 @@ buffer and `mistty-proc' to that buffer's process."
       (setq mistty-term-buffer term-buffer)
       (setq mistty-sync-marker (mistty--create-or-reuse-marker mistty-sync-marker term-home-marker)))
 
-    (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
+    (overlay-put mistty--sync-ov 'local-map mistty-prompt-map)
     ;; highlight the synced region in the fringe or margin
     (when mistty-fringe-enabled
       (overlay-put

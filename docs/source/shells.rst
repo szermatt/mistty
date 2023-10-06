@@ -54,7 +54,7 @@ To do that, you might add the following to :file:`~/.bashrc`:
 
 .. code-block:: bash
 
-    if [ "$TERM" = "eterm-color" ]; then                
+    if [ "$TERM" = "eterm-color" ]; then
       PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
     fi
 
@@ -144,7 +144,7 @@ do that, you might add the following to
 
 .. code-block:: fish
 
-    if [ "$TERM" = "eterm-color" ]            
+    if [ "$TERM" = "eterm-color" ]
       function osc7_send_pwd --on-event fish_prompt
         printf "\e]7;file://%s%s\e\\\\" (hostname) "$PWD"
       end
@@ -219,7 +219,7 @@ do that, you might add the following to :file:`~/.zshrc`:
         PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
     fi
 
-such sequence are either ignored or understood by most terminals. 
+such sequence are either ignored or understood by most terminals.
 
 Multi-line prompts
 ^^^^^^^^^^^^^^^^^^

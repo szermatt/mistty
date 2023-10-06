@@ -80,31 +80,31 @@ You'll quickly notice some differences. For example TAB completion
 working just like in a terminal instead of relying of Emacs
 completion.
 
-The purple line on the left indicates the portion of the buffer 
-that's a terminal. What you type in there gets sent to the program, 
+The purple line on the left indicates the portion of the buffer
+that's a terminal. What you type in there gets sent to the program,
 usually a shell, and translated by that program. The rest of the
-buffer is normal, editable, text. 
+buffer is normal, editable, text.
 
-Commands that takes the whole screen such as `less` or `vi` take you 
-into terminal mode for the duration of that command. You can still 
-access previous commands in the "scrollback" MisTTY buffer by typing 
-`C-c C-j`. 
+Commands that takes the whole screen such as `less` or `vi` take you
+into terminal mode for the duration of that command. You can still
+access previous commands in the "scrollback" MisTTY buffer by typing
+`C-c C-j`.
 
-If you ever get into a situation where a command needs you to press 
-keys normally sent to Emacs, such as the arrow keys, press `C-c C-q`. 
-It'll send all key strokes directly to the terminal until you exit 
-the mode by pressing `C-g`. To send a single key to the terminal 
+If you ever get into a situation where a command needs you to press
+keys normally sent to Emacs, such as the arrow keys, press `C-c C-q`.
+It'll send all key strokes directly to the terminal until you exit
+the mode by pressing `C-g`. To send a single key to the terminal
 you can also press `C-q <key>` instead.
 
-You will very likely want to send some keys you use often directly 
-to the terminal. This is done by binding keys to `mistty-send-key` 
+You will very likely want to send some keys you use often directly
+to the terminal. This is done by binding keys to `mistty-send-key`
 in `mistty-prompt-map`. For example:
 
 ```elisp
 (use-package mistty
   :bind (("C-c s" . mistty)
-  
-         ;; bind here the shortcuts you'd like the 
+
+         ;; bind here the shortcuts you'd like the
          ;; shell to handle instead of Emacs.
          :map mistty-prompt-map
 
@@ -125,5 +125,5 @@ MisTTY requires Emacs 29.1 or later.
 
 ## CONTRIBUTING
 
-See the [Contributing](https://mistty.readthedocs.io/en/latest/contrib.html) 
+See the [Contributing](https://mistty.readthedocs.io/en/latest/contrib.html)
 section of the documentation.

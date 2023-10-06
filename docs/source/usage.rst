@@ -134,11 +134,11 @@ directly to the terminal, bypassing Emacs:
   program.
 - :kbd:`M-p` to ask it to go up, or up the command history, sending
   :kbd:`C-p` to the terminal.
-- :kbd:`M-n` to ask it to go down, or down the command history, 
+- :kbd:`M-n` to ask it to go down, or down the command history,
   sending :kbd:`C-n` to the terminal.
 - :kbd:`M-r` to ask it to do backward history search, sending
   :kbd:`C-r` to the terminal.
-- :kbd:`M-.` to ask the shell to insert the last history argument. 
+- :kbd:`M-.` to ask the shell to insert the last history argument.
 
 In addition, :kbd:`C-c C-c` sends the TERM signal to the terminal.
 
@@ -498,6 +498,3 @@ Here's an example of code that would detect
        (add-hook 'completion-in-region-mode-hook
                  #'my-completion-in-region nil t))
     (add-hook 'mistty-mode-hook #'my-detect-completion-in-region)
-
-
-

@@ -61,7 +61,7 @@
         (mistty-stop-log)
         (should (not mistty-log))
         (mistty-log "too late; will not be logged")
-        
+
         (with-temp-buffer
           (insert messages)
           (goto-char (point-min))
@@ -104,4 +104,3 @@
               (should (not (search-forward "log entry [0-6]" nil 'noerror)))))
         (let ((kill-buffer-query-functions nil))
           (kill-buffer log-buffer))))))
-

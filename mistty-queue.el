@@ -254,7 +254,7 @@ description for the meaning of QUEUE and VALUE."
                 (mistty-log "Interaction failed; giving up: %s" err)
                 (message "mistty: Interaction failed; giving up: %s" err)
                 'done))
-        
+
         ('done
          (setq value nil)
          (mistty--interact-close (mistty--queue-interact queue))
@@ -262,22 +262,22 @@ description for the meaning of QUEUE and VALUE."
                (pop (mistty--queue-more-interacts queue)))
          (when (mistty--queue-interact queue)
            (mistty-log "NEXT %s" (mistty--queue-interact-type queue))))
-        
+
         ;; Keep waiting
         ('keep-waiting
          (cl-return-from mistty--dequeue-1))
-        
+
         ;; Fire-and-forget; no need to wait for a response
         ((and `(fire-and-forget ,str)
               (guard (mistty--nonempty-str-p str)))
          (mistty--send-string proc str)
          (setq value 'fire-and-forget))
-        
+
         ;; Normal sequences
         ((and (pred mistty--nonempty-str-p) str)
          (mistty--send-string proc str)
          (cl-return-from mistty--dequeue-1))
-        
+
         (invalid (error "Yielded invalid value: '%s'"
                         invalid))))))
 

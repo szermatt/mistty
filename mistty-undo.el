@@ -41,7 +41,7 @@
   ;;
   ;; Can be nil, 'self-insert 'delete-char or 'backward-delete-char.
   key-type)
-  
+
 (defvar-local mistty--this-undo-data nil)
 
 (defvar-local mistty--last-undo-data nil)
@@ -90,7 +90,7 @@ function does that, for `self-inserted keys', `delete-char', and
       (cl-assert (> n 0))
 
       (setq mistty--this-undo-data undo-data)
-      
+
       ;; Amalgamate if the key type is the same as last time.
       (when (eq key-type (mistty--undo-data-key-type undo-data))
         (setq buffer-undo-list (cdr buffer-undo-list)))
@@ -100,17 +100,17 @@ function does that, for `self-inserted keys', `delete-char', and
       ;; on slow connection, cursor might not be up-to-date.
       (setq pos (+ (length (mistty--undo-data-inserted undo-data))
                    (mistty--undo-data-start undo-data)))
-      
+
       (pcase key-type
         ('self-insert
          (setq entry (cons pos (+ pos n)))
          (setf (mistty--undo-data-inserted undo-data)
                (concat (mistty--undo-data-inserted undo-data)
                        (make-string n c))))
-        
+
         ('delete-char
          (setq entry (cons (mistty--safe-bufstring pos (+ pos n)) pos)))
-        
+
         ('backward-delete-char
          ;; Get the text to be deleted first from the inserted data,
          ;; then from the buffer at START, as the buffer content
@@ -136,4 +136,3 @@ function does that, for `self-inserted keys', `delete-char', and
 (provide 'mistty-undo)
 
 ;;; mistty-undo.el ends here
-

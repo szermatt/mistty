@@ -27,7 +27,7 @@
 
     (should (equal 0 (mistty--col (point-min))))
     (should (equal 0 (mistty--line (point-min))))
-    
+
     (should (equal 2 (mistty--col (mistty-test-pos "c"))))
     (should (equal 0 (mistty--line (mistty-test-pos "c"))))
 

@@ -99,7 +99,7 @@
 
     (insert "abcdefghijklmno<<end>>")
     (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
-    
+
     (goto-char 12)
     (insert "NEW")
 
@@ -331,4 +331,3 @@
     (let ((cs (mistty--active-changeset)))
       (should (equal "at-end" (mistty--changeset-single-insert cs)))
       (should (eq 6 (mistty--changeset-beg cs))))))
-

@@ -446,7 +446,7 @@
 (ert-deftest mistty-test-bol-eol-in-prompt ()
   (mistty-with-test-buffer ()
     (mistty-send-text "echo hello, world")
-    
+
     (mistty-test-goto "hello")
     (mistty-run-command
      (call-interactively #'mistty-beginning-of-line))
@@ -555,7 +555,7 @@
 
      (should (equal "$ echo hello<>"
                     (mistty-test-content :show (point))))
-     
+
      (let ((this-command 'mistty-end-of-line)
            (last-command 'mistty-end-of-line))
        (call-interactively 'mistty-end-of-line))
@@ -882,7 +882,7 @@
     (mistty-send-and-wait-for-prompt)
     (mistty-run-command
      (insert "echo current"))
-    
+
     (mistty-test-goto "current")
     (mistty-previous-input 1)
     (should
@@ -2855,13 +2855,13 @@
     (mistty-run-command
      (mistty-test-goto-after "world")
      (backward-kill-word 1))
-    
+
     ;; insert
     (mistty-run-command
      (mistty-self-insert 1 ?f))
     (mistty-run-command
      (mistty-self-insert 3 ?o))
-    
+
     ;; delete
     (mistty-run-command
      (mistty-backward-delete-char))
@@ -3076,7 +3076,7 @@
     (mistty-report-long-running-command 'test-1 t)
     (should (mistty-long-running-command-p))
     (mistty-report-long-running-command 'test-2 t)
-    
+
     (insert "echo hello, world")
 
     (mistty-ignore-long-running-command)

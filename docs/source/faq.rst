@@ -30,7 +30,7 @@ FAQ
     If it doesn't work with your shell or setup, or if you find it
     confusing, type :kbd:`M-x customize-option
     mistty-skip-empty-spaces` to turn it off.
-     
+
 **What's with the purple line?**
 
     This line indicates the region of the buffer that works as a
@@ -62,5 +62,3 @@ FAQ
     it work, but we can always try. Please `file a bug
     <https://github.com/szermatt/mistty/issues>`_ if you encounter
     such a package you'd like to work with MisTTY.
-
-

@@ -603,7 +603,8 @@ BEG and END define the region that was modified."
                (<= end eol)
                (get-text-property (1- beg) 'mistty-skip)
                (not (get-text-property bol 'mistty-skip)))
-      (add-text-properties beg end '(mistty-skip t yank-handler (nil "" nil nil))))))
+      (add-text-properties
+       beg end '(mistty-skip t mistty-right-prompt t yank-handler (nil "" nil nil))))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-skip t to spaces added when just moving.

@@ -2341,6 +2341,23 @@
                                   " *end$")
                           (mistty-test-content)))))
 
+(ert-deftest mistty-test-fish-right-prompt-reconcile ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-setup-fish-right-prompt)
+
+    (mistty-test-pre-command)
+    (insert "echo hello\necho world")
+
+    ;; There shouldn't be a right prompt after world or even spaces
+    ;; after hello.
+    (should (equal "$ echo hello\necho world<>\n"
+                   (mistty-test-content :show (point) :trim nil)))
+    (mistty-test-after-command)
+
+    ;; The shell has put the right prompt back at the right position.
+    (should (string-match "^\\$ echo hello +< right\n  echo world<>"
+                          (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-forward ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-send-text "for i in (seq 10)\n\necho first\n\n\nend")

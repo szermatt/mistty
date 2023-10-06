@@ -354,7 +354,8 @@ This is meant to be assigned to `mistty--report-issue-function'
                                     (end (point-max))
                                     (show nil)
                                     (show-property '(nil nil))
-                                    (strip-last-prompt nil))
+                                    (strip-last-prompt nil)
+                                    (trim t))
   "Return buffer content, post-processed.
 
 START and END specify the region to extract.
@@ -369,7 +370,8 @@ returned content.
 SHOW-PROPERTY \=='(PROP VAL) puts section with text-property PROP
 set to VAL within brackets.
 
-Trailing newlines are always stripped out from the output."
+Unless TRIM is set to nil, trailing newlines are always stripped
+out from the output."
   (interactive)
   (let ((output (buffer-substring start end)))
     (when show
@@ -383,8 +385,9 @@ Trailing newlines are always stripped out from the output."
 
     (when strip-last-prompt
       (setq output (replace-regexp-in-string "\\$ \\(<>\\)?\n?$" "" output)))
-    (setq output (replace-regexp-in-string "[ \t]*$" "" output))
-    (setq output (replace-regexp-in-string "[ \t\n]*\\'" "" output))
+    (when trim
+      (setq output (replace-regexp-in-string "[ \t]*$" "" output))
+      (setq output (replace-regexp-in-string "[ \t\n]*\\'" "" output)))
     output))
 
 (defun mistty-wait-for-term-buffer-and-proc-to-die (buf proc)

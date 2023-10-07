@@ -3149,6 +3149,43 @@
       (should (equal "echo ok" (car calls)))
       (should (equal "ok" (mistty-send-and-capture-command-output)))))))
 
+(ert-deftest mistty-test-simulate-self-insert-commands ()
+  (mistty-with-test-buffer ()
+    (let ((start (point))
+          (mistty-interactive-insert-hook '(mistty-simulate-self-insert-command))
+          (mistty-simulate-self-insert-command t)
+          pre-calls
+          post-calls)
+      (add-hook 'pre-command-hook
+                (lambda ()
+                  (push this-command pre-calls)))
+      (add-hook 'post-command-hook
+                (lambda ()
+                  (push this-command post-calls)))
+      (setq this-command 'mistty-self-insert)
+      (mistty-run-command
+       (mistty-self-insert 1 ?e))
+      (setq last-command 'mistty-self-insert)
+      (mistty-run-command
+       (mistty-self-insert 1 ?c))
+      (mistty-run-command
+       (mistty-self-insert 1 ?h))
+      (mistty-run-command
+       (mistty-self-insert 1 ?o))
+      (mistty-run-command
+       (mistty-self-insert 1 ?\ ))
+      (mistty-run-command
+       (mistty-self-insert 1 ?o))
+      (mistty-run-command
+       (mistty-self-insert 1 ?k))
+      (mistty-wait-for-output :str "echo ok")
+      (should (length> pre-calls 0))
+      (should (length> post-calls 0))
+      (should (equal 'self-insert-command (car pre-calls)))
+      (should (equal 'self-insert-command (car post-calls)))
+      (should (= (length post-calls) (length pre-calls)))
+      (should (equal "ok" (mistty-send-and-capture-command-output))))))
+
 (ert-deftest mistty-test-toggle-fringe ()
   (mistty-with-test-buffer ()
     (mistty-fringe-mode nil)

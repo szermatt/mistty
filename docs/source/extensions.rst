@@ -6,6 +6,9 @@ Writing Extensions
 Hooks
 -----
 
+mistty-mode-hook
+^^^^^^^^^^^^^^^^
+
 .. index::
    pair: variable; mistty-mode-hook
    pair: hook; mistty-mode-hook
@@ -31,6 +34,31 @@ you could do:
     (rename-buffer (generate-new-buffer-name "*shell*")))
   (add-hook 'mistty-mode-hook #'my-lets-call-it-shell)
 
+.. index::
+   pair: variable; mistty-interactive-insert-hook
+   pair: hook; mistty-interactive-interactive
+
+mistty-interactive-insert-hook
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:code:`mistty-interactive-insert-hook` is a hook that is called when
+text is typed in the terminal region. It's not called, for example,
+for text that is inserted or displayed by the shell.
+
+This hook provides an appropriate time to trigger auto-completion UI,
+which, by default, doesn't work in the terminal region, as discussed
+in :ref:`autocomplete`.
+
+Auto-completion doesn't work in the terminal region because it often
+requires calling a post-command function. To work around that, in most
+case, it's enough to just turn on the option :kbd:`M-x
+customize-option mistty-simulate-self-insert-command`, which enables
+the function :code:`mistty-self-insert-command`, called by this hook
+by default.
+
+This might not always work and have unintended effects, so you might
+prefer to trigger the auto-completion UI yourself by adding your own
+function to this hook and turning the above option off.
 
 .. _osc:
 

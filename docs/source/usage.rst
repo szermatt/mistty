@@ -335,9 +335,8 @@ see :ref:`shells`.
 If you have configured TRAMP and know that the hosts you ssh into are
 accessible with the default TRAMP method, you might consider allowing
 MisTTY to report remote paths on :kbd:`M-x configure-option
-mistty-allow-tramp-paths`
+mistty-allow-tramp-paths`.
 
-.. _autocomplete:
 
 Emacs Completion-at-point
 -------------------------
@@ -385,6 +384,8 @@ If you don't like that or don't use a shell that supports
 autosuggestions, you can turn this off with :kbd:`M-x customize-option
 mistty-wrap-capf-functions`
 
+.. _autocomplete:
+
 Auto-complete
 ^^^^^^^^^^^^^
 
@@ -398,39 +399,15 @@ doesn't work by default is the completion UI showing up automatically
 after some delay.
 
 .. index::
-   pair: variable; mistty-interactive-insert-hook
-   pair: hook; mistty-interactive-interactive
+   pair: variable; mistty-simulate-self-insert-command
 
-:code:`mistty-interactive-insert-hook` is a hook that is called when
-text is typed in the terminal region. It's not called, for example,
-for text that is inserted or displayed by the shell.
+To try and make auto-complete UIs work in the terminal region, turn on
+the option on :kbd:`M-x customize-option
+mistty-simulate-self-insert-command`.
 
-This hook provides an appropriate time to trigger auto-completion UI.
-This often requires calling a post-command function, however, and that
-might have unanticipated effects. It requires experimentation and
-might not work the same way with all versions, as this is not the
-intended usage. YMMV
-
-Here's an example of such a configuration that might work for
-`company-mode <http://company-mode.github.io>`_:
-
-.. code-block:: elisp
-
-  (defun my-mistty-company ()
-    (let ((this-command 'self-insert-command))
-      (when (and (featurep 'company) company-mode)
-        (company-post-command))))
-  (add-hook 'mistty-interactive-insert-hook #'my-mistty-company)
-
-... and another one for `corfu <https://github.com/minad/corfu>`_:
-
-.. code-block:: elisp
-
-  (defun my-mistty-corfu ()
-    (let ((this-command 'self-insert-command))
-      (when (and (featurep 'corfu) corfu-mode corfu-auto)
-        (corfu--auto-post-command))))
-  (add-hook 'mistty-interactive-insert-hook #'my-mistty-corfu)
+If that doesn't work, you may need to write a bridge between MisTTY
+and your auto-completion package. See
+:code:`mistty-interactive-insert-hook` in :ref:`hooks`.
 
 .. _lrc:
 

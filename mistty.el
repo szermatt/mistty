@@ -210,6 +210,31 @@ annoyed by this difference."
   :group 'mistty
   :type '(boolean))
 
+(defcustom mistty-simulate-self-insert-command nil
+  "Try to make auto-completion work.
+
+This option turns on a hack that attempts to make auto-completion
+work in the terminal region of MiSTTY buffers. This is known to
+work at least with company and corfu at this time.
+
+Packages that offer auto-completion often insert a function into
+`post-command-hook' and run a function a while after a string of
+`self-insert-command' has run.
+
+This doesn't work in MisTTY terminal region, as keystrokes are
+sent directly to the terminal and `self-insert-command' is just
+not used.
+
+MisTTY offers the hook `mistty-interactive-insert-hook' that
+allows implementing auto-completion in the terminal region.
+
+This option turns on the simulation of `self-insert-command' and
+their pre and post hooks being called whenever that hook is
+called. This is implemented by the function
+`mistty-simulate-self-insert-command'."
+  :group 'mistty
+  :type '(boolean))
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -307,7 +332,8 @@ mapping somewhat consistent between fullscreen and normal mode."
 
 ;; Variables:
 
-(defvar mistty-interactive-insert-hook nil
+(defvar mistty-interactive-insert-hook
+  (list #'mistty-simulate-self-insert-command)
   "Report interactively inserted text.
 
 This hook is called whenever text that was inserted by
@@ -328,7 +354,12 @@ suggestions to work in MisTTY, with a little work, as a
 replacement of the usual approach, which is to track
 `self-insert-command' in post-command hooks. Such an approach
 doesn't work in the terminal region as typed characters usually
-get echoed back to buffer outside of any command.")
+get echoed back to buffer outside of any command.
+
+By default, this calls the function
+`mistty-simulate-self-insert-command', which does nothing unless
+the option variable `mistty-simulate-self-insert-command' is
+non-nil.")
 
 (defvar-local mistty-work-buffer nil
   "The main `mistty-mode' buffer.
@@ -1252,7 +1283,33 @@ Errors are reported to `message' and ignored."
   (condition-case-unless-debug err
       (funcall func)
     (error
-     (message "MisTTY: hook failed with %s. hook: %s" err func))))
+     (message "MisTTY: hook failed with %s. hook: %s" err func)))
+  ;; call the next hooks
+  nil)
+
+(defun mistty-simulate-self-insert-command ()
+  "Simulate the execution of `self-insert-command'.
+
+This is meant to be called from `mistty-interactive-insert-hook'
+to attempt to trigger auto-completion.
+
+Does nothing unless the variable
+`mistty-simulate-self-insert-command' is set to a non-nil
+value (by default, it is nil)."
+  (when mistty-simulate-self-insert-command
+    (let ((last-command 'self-insert-command)
+          (this-command 'self-insert-command))
+      (run-hook-wrapped 'pre-command-hook #'mistty--wrap-pre-post-command)
+      (run-hook-wrapped 'post-command-hook #'mistty--wrap-pre-post-command))))
+
+(defun mistty--wrap-pre-post-command (func)
+  "Run a pre or post command FUNC.
+
+For `mistty-simulate-self-insert'."
+  (unless (memq func (list #'mistty--pre-command #'mistty--post-command))
+    (mistty--run-hook-ignoring-errors func))
+  ;; call the next hooks
+  nil)
 
 (defun mistty--match-forbid-edit-regexp-p (beg)
   "Return t if `mistty-forbid-edit-regexp' matches, nil otherwise.

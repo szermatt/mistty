@@ -21,7 +21,7 @@ you use often in shells, for example:
 .. code-block:: elisp
 
     (use-package mistty
-      :bind (("C-c s" . mistty)
+      :bind (("C-c s" . mistty) ;; or mistty-in-project
 
              ;; bind here the shortcuts you'd like the
              ;; shell to handle instead of Emacs.

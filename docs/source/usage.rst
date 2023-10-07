@@ -6,11 +6,12 @@ Usage
 Installation
 ------------
 
-To use MisTTY, first install its package.
+To use MisTTY, first install its package,
 
-.. code-block:: elisp
-
-    (package-vc-install "https://github.com/szermatt/mistty")
+ - from `MELPA or MELPA Stable
+   <https://melpa.org/#/getting-started>`_, using :kbd:`M-x
+   package-install mistty`
+ - from source using :kbd:`M-x package-vc-install https://github.com/szermatt/mistty`
 
 You can then call it, as described in :ref:`launching`.
 

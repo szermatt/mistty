@@ -1826,7 +1826,7 @@
     (mistty-simulate-scrollback-buffer
      (should-error (call-interactively 'mistty-send-key-sequence)))))
 
-(ert-deftest mistty-test-revert-modification-after-prompt ()
+(ert-deftest mistty-test-revert-insert-after-prompt ()
   (mistty-with-test-buffer (:shell zsh)
     (dotimes (i 3)
       (mistty-send-text (format "function toto%d { echo %d; };" i i)))
@@ -1837,16 +1837,14 @@
     ;; This test goes outside the prompt on purpose.
     ;; mistty-test-report-issue would cause this test to fail, since
     ;; the cursor cannot be moved to the point.
-    (let ((mistty--report-issue-function nil)
-          (mistty-max-try-count 1)
-          (mistty-stable-delay-s 0.05)
-          (mistty-timeout-s 0.25))
+    (let ((mistty-expected-issues '(hard-timeout)))
       (mistty-wait-for-output
        :test (lambda ()
                (search-forward-regexp "^toto" nil 'noerror)))
       (mistty-run-command
-       (insert "foobar"))
-      (should (equal "$ toto\ntoto<>0  toto1  toto2"
+       (insert "foobar")
+       (mistty-test-goto-after "$ toto"))
+      (should (equal "$ toto<>\ntoto0  toto1  toto2"
                      (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-revert-replace-after-prompt ()

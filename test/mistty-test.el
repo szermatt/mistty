@@ -1849,6 +1849,26 @@
       (should (equal "$ toto\ntoto<>0  toto1  toto2"
                      (mistty-test-content :show (point)))))))
 
+(ert-deftest mistty-test-revert-replace-after-prompt ()
+  (mistty-with-test-buffer (:shell zsh)
+    (dotimes (i 10)
+      (mistty-send-text (format "function toto%d { echo %d; };" i i))
+      (mistty-send-and-wait-for-prompt))
+    (let ((start (pos-bol))
+          (mistty-expected-issues '(hard-timeout)))
+      (mistty-send-text "toto")
+      (mistty-run-command
+       (mistty-tab-command))
+      (mistty-run-command
+       (save-excursion
+         (goto-char (mistty-cursor))
+         (while (search-forward "toto" nil t)
+           (replace-match "tata" nil t))))
+
+      (should (equal
+               "$ toto\ntoto0  toto1  toto2  toto3  toto4  toto5  toto6  toto7  toto8  toto9"
+               (mistty-test-content :start start))))))
+
 (ert-deftest mistty-reset-during-replay ()
   (mistty-with-test-buffer ()
     (mistty-send-text "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")

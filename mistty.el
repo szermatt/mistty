@@ -1937,6 +1937,12 @@ returns nil."
      move-to-beg-f
      (lambda ()
        (or
+        (when (> beg upper-limit)
+          (mistty-log "SKIP beg=%s > upper-limit=%s"
+                      (marker-position beg) (marker-position upper-limit))
+          ;; We can't possible get to beg, skip this modification.
+          (funcall next-modification-f))
+
         ;; Move to beg, if possible. If not possible, remember how
         ;; far back we went when inserting.
         (when (length> content 0)
@@ -1965,9 +1971,21 @@ returns nil."
                   (> (mistty--distance beg (point)) 0))
          (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) beg)
          (move-marker lower-limit (point)))
-       (move-marker beg (point))
 
-       (funcall move-to-end-f)))
+       (if (and (> beg (point))
+                (> (mistty--distance (point) beg) 0))
+           ;; If we couldn't even get to beg. We can't apply this
+           ;; modification. We'll have trouble with the next
+           ;; modifications, too, as they start left of this one.
+           ;; Remember that.
+           (progn
+             (mistty-log "UPPER LIMIT: %s (wanted %s)"
+                         (point) (marker-position beg))
+             (move-marker upper-limit (point))
+             (funcall next-modification-f))
+
+       (move-marker beg (point))
+       (funcall move-to-end-f))))
     (setq
      move-to-end-f
      (lambda ()
@@ -2001,13 +2019,6 @@ returns nil."
     (setq
      move-old-end-f
      (lambda ()
-       (when (and (> beg (point))
-                  (> (mistty--distance beg (point)) 0))
-         ;; If we couldn't even get to beg we'll have trouble with
-         ;; the next modifications, too, as they start left of this
-         ;; one. Remember that.
-         (mistty-log "UPPER LIMIT: %s (wanted %s)" (point) old-end)
-         (move-marker upper-limit (point)))
        (move-marker old-end (max beg (min old-end (point))))
        (funcall insert-and-delete-f)))
     (setq

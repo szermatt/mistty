@@ -77,6 +77,12 @@ silently ignored by the test.")
 
 Defaults to (point-min).")
 
+(defvar mistty-expected-issues nil
+  "A certain number of expected issues.
+
+This is handled by `mistty-test-report-issue' and must contain
+the symbol of the expected issues, in order.")
+
 (cl-defmacro mistty-with-test-buffer
     ((&key (shell 'bash) (selected nil)) &body body)
   "Run BODY in a MisTTY buffer.
@@ -338,17 +344,23 @@ of the beginning of the prompt."
 
 This is meant to be assigned to `mistty--report-issue-function'
  as well as called directly from tests."
-  (save-excursion (mistty-start-log))
-  (let ((error-message
-         (format "%s: BUF<<EOF%sEOF"
-                 issue
-                 (mistty-test-content
-                  :show-property '(mistty-skip t)
-                  :show (list (point) (ignore-errors (mistty-cursor)))))))
-    (mistty-log error-message)
-    ;; Errors might get caught. This makes sure
-    (setq mistty-test-had-issues t)
-    (error "%s" error-message)))
+  (if (eq issue (car mistty-expected-issues))
+      (progn
+        (mistty-log "EXPECTED %s" issue)
+        (setq mistty-expected-issues (cdr mistty-expected-issues)))
+
+    ;; unexpected
+    (save-excursion (mistty-start-log))
+    (let ((error-message
+           (format "%s: BUF<<EOF%sEOF"
+                   issue
+                   (mistty-test-content
+                    :show-property '(mistty-skip t)
+                    :show (list (point) (ignore-errors (mistty-cursor)))))))
+      (mistty-log error-message)
+      ;; Errors might get caught. This makes sure
+      (setq mistty-test-had-issues t)
+      (error "%s" error-message))))
 
 (cl-defun mistty-test-content (&key (start (or mistty-test-content-start (point-min)))
                                     (end (point-max))

@@ -2026,29 +2026,22 @@ returns nil."
      (lambda ()
        (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
        (or
-        (let ((start-idx (if (>= beg orig-beg)
-                             (min (length content) (max 0 (- beg orig-beg)))
-                           (length content)))
-              sub term-seq)
-          (setq sub (substring content start-idx))
-          (setq term-seq
-                (concat
-                 ;; move to old-end (except the first time, because then
-                 ;; we want to check the result of that move)
-                 (when (and (not is-first) (> old-end beg))
-                   (mistty-log "MOVE %s -> %s" (point) old-end)
-                   (mistty--move-horizontally-str
-                    (mistty--distance (point) old-end)))
-                 ;; delete
-                 (when (> old-end beg)
-                   (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
-                   (mistty--repeat-string (mistty--distance beg old-end) "\b"))
-                 ;; insert
-                 (when (length> sub 0)
-                   (if (> start-idx 0)
-                       (mistty-log "INSERT TRUNCATED: '%s' instead of '%s'" sub content)
-                     (mistty-log "INSERT: '%s'" sub))
-                   (mistty--maybe-bracketed-str sub))))
+        (let ((term-seq
+               (concat
+                ;; move to old-end (except the first time, because then
+                ;; we want to check the result of that move)
+                (when (and (not is-first) (> old-end beg))
+                  (mistty-log "MOVE %s -> %s" (point) old-end)
+                  (mistty--move-horizontally-str
+                   (mistty--distance (point) old-end)))
+                ;; delete
+                (when (> old-end beg)
+                  (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
+                  (mistty--repeat-string (mistty--distance beg old-end) "\b"))
+                ;; insert
+                (when (length> content 0)
+                  (mistty-log "INSERT: '%s'" content)
+                  (mistty--maybe-bracketed-str content)))))
 
           (when (mistty--nonempty-str-p term-seq)
 
@@ -2061,7 +2054,7 @@ returns nil."
                    "^"
                    (regexp-quote (mistty--safe-bufstring
                                   (mistty--bol beg) beg))
-                   (regexp-quote sub)))
+                   (regexp-quote content)))
             (mistty-log "RE /%s/" inserted-detector-regexp)
             (unless modifications
               (setq waiting-for-last-change t))

@@ -1867,6 +1867,16 @@
                "$ toto\ntoto0  toto1  toto2  toto3  toto4  toto5  toto6  toto7  toto8  toto9"
                (mistty-test-content :start start))))))
 
+(ert-deftest mistty-test-revert-insert-at-prompt ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-send-text "world")
+    (let ((mistty-expected-issues '(hard-timeout)))
+      (mistty-run-command
+       (mistty-test-goto "$ world")
+       (insert "echo hello ")))
+    (should (equal "$ echo hello world"
+                   (mistty-test-content)))))
+
 (ert-deftest mistty-reset-during-replay ()
   (mistty-with-test-buffer ()
     (mistty-send-text "echo -n 'read> '; read l; printf 'will reset\\ecreset done\\n'")

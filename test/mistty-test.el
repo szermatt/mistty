@@ -1834,9 +1834,8 @@
     (mistty-test-narrow (mistty--bol (point)))
     (mistty-send-text "toto\t")
 
-    ;; This test goes outside the prompt on purpose.
-    ;; mistty-test-report-issue would cause this test to fail, since
-    ;; the cursor cannot be moved to the point.
+    ;; This test goes outside the prompt on purpose, which is why a
+    ;; timeout is expected.
     (let ((mistty-expected-issues '(hard-timeout)))
       (mistty-wait-for-output
        :test (lambda ()
@@ -2939,7 +2938,7 @@
 
 (ert-deftest mistty-test-undo-multiple-types ()
   (mistty-with-test-buffer ()
-  (let ((mistty--report-issue-function nil))
+  (let ((mistty-expected-issues '(hard-timeout)))
     (mistty-send-text "echo hello world.")
     ;; replayed command
     (mistty-run-command

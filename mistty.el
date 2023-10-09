@@ -425,11 +425,17 @@ This variable is available in both the work buffer and the term
 buffer.")
 
 (defvar-local mistty-goto-cursor-next-time nil
-  "Non-nil if the point should be moved to the cursor.
+  "Controls whether the point should be moved to the cursor.
 
-This variable tells `mistty--refresh' that it should move
+If t, this variable tells `mistty--refresh' that it should move
 the point to the cursor next time it copies the state of the
 terminal to the work buffer.
+
+If \=='off, this variable tells `mistty--refresh' not to move the
+point to the cursor, even if it would normally do it.
+
+If nil, this variable lets `mistty-refresh' do what it think is
+best.
 
 This variable is available in the work buffer.")
 
@@ -1249,12 +1255,13 @@ Also updates prompt and point."
 
          ;; Move the point to the cursor, if necessary.
          (when (process-live-p mistty-proc)
-           (when (or mistty-goto-cursor-next-time
-                     (null mistty--cursor-after-last-refresh)
-                     (= old-point mistty--cursor-after-last-refresh))
+           (when (and (not (eq mistty-goto-cursor-next-time 'off))
+                      (or mistty-goto-cursor-next-time
+                          (null mistty--cursor-after-last-refresh)
+                          (= old-point mistty--cursor-after-last-refresh)))
              (mistty-goto-cursor))
-           (setq mistty-goto-cursor-next-time nil)
-           (setq mistty--cursor-after-last-refresh (mistty-cursor))))))
+           (setq mistty--cursor-after-last-refresh (mistty-cursor)))
+         (setq mistty-goto-cursor-next-time nil))))
 
     (mistty--report-self-inserted-text)))
 
@@ -1933,6 +1940,7 @@ returns nil."
          ;; couldn't be replayed.
          (set-buffer calling-buffer)
          (setq mistty--need-refresh t)
+         (setq mistty-goto-cursor-next-time 'off)
 
          ;; Move cursor back to point unless the next interact is a
          ;; replay, in which case we let the replay move the cursor.

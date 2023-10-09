@@ -182,6 +182,26 @@
     (should (equal "baa baa, black sheep"
                    (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-reconcile-multiple-replace-keep-pointer ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo boo boo, black sheep")
+
+    (mistty-run-command
+     (mistty-test-goto "echo"))
+    (should (equal (point) (mistty-cursor)))
+
+    (mistty-run-command
+     (goto-char (point-min))
+     (while (search-forward "boo" nil t)
+       (replace-match "baa" nil t))
+     (mistty-test-goto "echo"))
+    ;; At the end of this command, replay runs. The point is at cursor
+    ;; at the beginning, but it doesn't mean that it the point must be
+    ;; moved to the cursor at the end.
+
+    (should (equal "$ <>echo baa baa, black sheep"
+                   (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-reconcile-with-autosuggestions ()
   (mistty-with-test-buffer (:shell fish)
     ;; seed autosuggestions

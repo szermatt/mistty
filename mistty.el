@@ -1861,8 +1861,7 @@ changeset is released and the call returns t, otherwise the call
 returns nil."
   (let ((interact (mistty--make-interact 'replay))
         start-f next-modification-f
-        move-to-beg-f after-move-to-beg-f
-        move-to-end-f after-move-to-end-f move-old-end-f
+        move-to-target-f after-move-to-target-f
         insert-and-delete-f after-insert-and-delete-f
         unwind-f
 
@@ -1873,7 +1872,8 @@ returns nil."
         (calling-buffer (current-buffer))
         (beg (make-marker))
         (old-end (make-marker))
-        backstage is-first lower-limit upper-limit distance
+        target
+        backstage lower-limit upper-limit distance
         orig-beg content old-length waiting-for-last-change
         inserted-detector-regexp)
     (setq
@@ -1890,11 +1890,10 @@ returns nil."
            (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min))))))
        (setq lower-limit (point-min-marker))
        (setq upper-limit (point-max-marker))
-       (funcall next-modification-f t)))
+       (funcall next-modification-f)))
     (setq
      next-modification-f
-     (lambda (&optional first)
-       (setq is-first first)
+     (lambda ()
        (if-let ((m (car modifications)))
            (progn
              (setq modifications (cdr modifications))
@@ -1903,11 +1902,19 @@ returns nil."
              (setq content (nth 1 m))
              (setq old-length (nth 2 m))
 
-             (move-marker beg (max lower-limit orig-beg))
-             (move-marker old-end
-                          (if (>= old-length 0)
-                              (min upper-limit (+ orig-beg old-length))
-                            (point-max)))
+             (move-marker beg orig-beg)
+             (if (< old-length 0)
+                 (progn
+                   (setq old-length (- (point-max) orig-beg))
+                   (move-marker old-end (point-max)))
+               (move-marker old-end (+ orig-beg old-length)))
+
+             ;; never delete the final \n that some shells add.
+             (when (and (> old-length 0)
+                        (= old-end (point-max))
+                        (= ?\n (char-before old-end)))
+               (move-marker old-end (1- old-end))
+               (setq old-length (1- old-length)))
 
              (mistty-log "replay: %s %s %s old-content: %s (limit: [%s-%s])"
                          (marker-position orig-beg)
@@ -1916,7 +1923,10 @@ returns nil."
                          (mistty--safe-bufstring beg old-end)
                          (marker-position lower-limit)
                          (marker-position upper-limit))
-             (funcall move-to-beg-f))
+             (if (> old-length 0)
+                 (setq target old-end)
+               (setq target beg))
+             (funcall move-to-target-f))
 
          ;; No more modifications.
          ;; Force refresh, even if nothing was sent, if only to revert what
@@ -1934,110 +1944,78 @@ returns nil."
               (mistty--cursor-to-point-interaction) 'prepend)))
          'done)))
     (setq
-     move-to-beg-f
+     move-to-target-f
      (lambda ()
-       (or
-        (when (> beg upper-limit)
-          (mistty-log "SKIP beg=%s > upper-limit=%s"
-                      (marker-position beg) (marker-position upper-limit))
-          ;; We can't possible get to beg, skip this modification.
-          (funcall next-modification-f))
+       (cond
+        ((> target upper-limit)
+         (mistty-log "SKIP target=%s > upper-limit=%s"
+                     (marker-position target)
+                     (marker-position upper-limit))
+         (funcall next-modification-f))
 
-        ;; Move to beg, if possible. If not possible, remember how
-        ;; far back we went when inserting.
-        (when (length> content 0)
-          (setq distance (mistty--distance (point) beg))
-          (mistty-log "to beg: %s -> %s distance: %s" (point) beg distance)
-          (let ((term-seq (mistty--move-horizontally-str distance)))
-            (when (mistty--nonempty-str-p term-seq)
-              (mistty--interact-return
-               interact term-seq
-               :wait-until (lambda ()
-                             (mistty--update-backstage)
-                             (= (point) beg))
-               :then after-move-to-beg-f))))
-        (funcall move-to-end-f))))
+        ((and (< target lower-limit))
+         (mistty-log "SKIP target=%s < lower-limit=%s"
+                     (marker-position target)
+                     (marker-position lower-limit))
+         (funcall next-modification-f))
+
+        (t
+         (setq distance (mistty--distance (point) target))
+         (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
+         (let ((term-seq (mistty--move-horizontally-str distance)))
+           (if (mistty--nonempty-str-p term-seq)
+               (mistty--interact-return
+                interact term-seq
+                :wait-until (lambda ()
+                              (mistty--update-backstage)
+                              (= (point) target))
+                :then after-move-to-target-f)
+             (funcall insert-and-delete-f)))))))
     (setq
-     after-move-to-beg-f
+     after-move-to-target-f
      (lambda ()
        (mistty--update-backstage)
        (mistty-log "Got to %s" (point))
-       ;; Point is now as close to beg as we can make it
+       (cond
+        ((and (> (point) target)
+              (> (mistty--distance target (point)) 0))
+         (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) target)
+         (move-marker lower-limit (point))
+         (if (= old-length 0)
+             ;; insert anyways
+             (progn
+               (move-marker target (point))
+               (funcall insert-and-delete-f))
+           ;; skip delete or replace
+           (mistty-log "SKIP delete or replace; %s (wanted %s)"
+                       (point) (marker-position target))
+           (funcall next-modification-f)))
 
-       ;; We couldn't move point as far back as beg. Presumably, the
-       ;; process mark points to the leftmost modifiable position of
-       ;; the command line.
-       (when (and (> (point) beg)
-                  (> (mistty--distance beg (point)) 0))
-         (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) beg)
-         (move-marker lower-limit (point)))
+        ((and (> target (point))
+              (> (mistty--distance (point) target) 0))
+         (mistty-log "UPPER LIMIT: %s (wanted %s)"
+                     (point) (marker-position target))
+         (move-marker upper-limit (point))
+         (funcall next-modification-f))
 
-       (if (and (> beg (point))
-                (> (mistty--distance (point) beg) 0))
-           ;; If we couldn't even get to beg. We can't apply this
-           ;; modification. We'll have trouble with the next
-           ;; modifications, too, as they start left of this one.
-           ;; Remember that.
-           (progn
-             (mistty-log "UPPER LIMIT: %s (wanted %s)"
-                         (point) (marker-position beg))
-             (move-marker upper-limit (point))
-             (funcall next-modification-f))
-
-       (move-marker beg (point))
-       (funcall move-to-end-f))))
-    (setq
-     move-to-end-f
-     (lambda ()
-       ;; Move to old-end, if possible. If not possible, remember
-       ;; how far we went when deleting.
-       (if (and is-first (> old-end beg))
-           (progn
-             ;; never delete the final \n that some shells add.
-             (when (and (= old-end (point-max))
-                        (= ?\n (char-before old-end)))
-               (move-marker old-end (1- old-end)))
-
-             (setq distance (mistty--distance (point) old-end))
-             (mistty-log "to old-end: %s -> %s distance: %s" (point) old-end distance)
-             (let ((term-seq (mistty--move-horizontally-str distance)))
-               (if (mistty--nonempty-str-p term-seq)
-                   (mistty--interact-return
-                    interact term-seq
-                    :wait-until (lambda ()
-                                  (mistty--update-backstage)
-                                  (= (point) old-end))
-                    :then after-move-to-end-f)
-                 (funcall move-old-end-f))))
-         (funcall insert-and-delete-f))))
-    (setq
-     after-move-to-end-f
-     (lambda ()
-       (mistty--update-backstage)
-       (mistty-log "Got to %s" (point))
-       (funcall move-old-end-f)))
-    (setq
-     move-old-end-f
-     (lambda ()
-       (move-marker old-end (max beg (min old-end (point))))
-       (funcall insert-and-delete-f)))
+        (t
+         (move-marker target (point))
+         (funcall insert-and-delete-f)))))
     (setq
      insert-and-delete-f
      (lambda ()
-       (mistty-log "replay(2): point: %s beg: %s old-end: %s" (point) beg old-end)
+       (mistty-log "insert and delete: point: %s beg: %s old-end: %s"
+                   (point)
+                   (marker-position beg)
+                   (marker-position old-end))
        (or
         (let ((term-seq
                (concat
-                ;; move to old-end (except the first time, because then
-                ;; we want to check the result of that move)
-                (when (and (not is-first) (> old-end beg))
-                  (mistty-log "MOVE %s -> %s" (point) old-end)
-                  (mistty--move-horizontally-str
-                   (mistty--distance (point) old-end)))
                 ;; delete
-                (when (> old-end beg)
-                  (mistty-log "DELETE %s chars" (mistty--distance beg old-end))
-                  (mistty--repeat-string (mistty--distance beg old-end) "\b"))
+                (when (> old-length 0)
+                  (let ((char-count (mistty--distance beg old-end)))
+                    (mistty-log "DELETE %s chars (was %s)" char-count old-length)
+                    (mistty--repeat-string char-count "\b")))
                 ;; insert
                 (when (length> content 0)
                   (mistty-log "INSERT: '%s'" content)

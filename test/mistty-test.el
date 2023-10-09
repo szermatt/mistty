@@ -1867,7 +1867,7 @@
                "$ toto\ntoto0  toto1  toto2  toto3  toto4  toto5  toto6  toto7  toto8  toto9"
                (mistty-test-content :start start))))))
 
-(ert-deftest mistty-test-revert-insert-at-prompt ()
+(ert-deftest mistty-test-insert-at-prompt ()
   (mistty-with-test-buffer (:shell zsh)
     (mistty-send-text "world")
     (let ((mistty-expected-issues '(hard-timeout)))
@@ -1876,6 +1876,68 @@
        (insert "echo hello ")))
     (should (equal "$ echo hello world"
                    (mistty-test-content)))))
+
+(ert-deftest mistty-test-revert-replace-at-prompt ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-send-text "echo ok")
+    (let ((mistty-expected-issues '(hard-timeout)))
+      (mistty-run-command
+       (mistty-test-goto "$ echo ok")
+       (delete-char 1)
+       (insert "command>")
+       (mistty-test-goto "ok")))
+    (should (equal "$ echo ok"
+                   (mistty-test-content)))))
+
+(ert-deftest mistty-test-revert-delete-at-prompt ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-send-text "echo ok")
+    (let ((mistty-expected-issues '(hard-timeout)))
+      (mistty-run-command
+       (mistty-test-goto "$ echo ok")
+       (delete-char 2)
+       (mistty-test-goto "ok")))
+    (should (equal "$ echo ok"
+                   (mistty-test-content)))))
+
+(ert-deftest mistty-test-replace-prompt ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-send-text "echo ok")
+    (let ((mistty-expected-issues '(hard-timeout)))
+      (mistty-run-command
+       (mistty-test-goto "$ echo ok")
+       (delete-region
+        (point)
+        (mistty-test-pos-after "$ echo ok"))
+       (insert "echo hello, world"))
+    (should (equal "$ echo hello, world"
+                   (mistty-test-content))))))
+
+(ert-deftest mistty-test-multiple-replace-at-prompt ()
+  (mistty-with-test-buffer ()
+    (let ((mistty-test-prompt "cmd-cmd-cmd> "))
+      (mistty-send-text "PS1='cmd-cmd-cmd> '")
+      (mistty-send-and-wait-for-prompt)
+
+      (mistty-send-text "echo cmd")
+
+      ;; Replace "cmd" with "command". There's "cmd" in the scrollback
+      ;; area, at prompt and in the prompt. Replacements at prompt get
+      ;; reverted, replacement in the prompt gets replayed. There's
+      ;; only one hard-timeout, for the first cmd at prompt, after
+      ;; that replay remembers the limit.
+      (let ((mistty-expected-issues '(hard-timeout)))
+        (mistty-run-command
+         (goto-char (point-min))
+         (while (search-forward "cmd" nil t)
+           (replace-match "command" nil t))
+         (mistty-test-goto "echo command")))
+
+      (should
+       (equal
+        (concat "$ PS1='command-command-command> '\n"
+                "cmd-cmd-cmd> echo command")
+        (mistty-test-content))))))
 
 (ert-deftest mistty-reset-during-replay ()
   (mistty-with-test-buffer ()

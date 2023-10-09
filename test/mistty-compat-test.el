@@ -136,7 +136,9 @@
       (setq start (pos-bol))
 
       ;; hello should be suggested
-      (mistty-send-text "echo h")
+      (let ((start (point)))
+        (mistty-send-text "echo h")
+        (mistty-wait-for-output :str "echo hello" :start start))
       (should (equal "$ echo h<>ello"
                      (mistty-test-content
                       :start start :show (point))))

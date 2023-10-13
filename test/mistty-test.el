@@ -3056,6 +3056,17 @@
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
+(ert-deftest mistty-test-mistty-other-window ()
+  (let* ((explicit-shell-file-name mistty-test-bash-exe)
+         (buf (mistty-other-window)))
+    (unwind-protect
+        (with-current-buffer buf
+          (should (equal 'mistty-mode major-mode))
+          (should (equal buf (window-buffer (selected-window))))
+          (should (equal 2 (length (window-list)))))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf)))))
+
 (ert-deftest mistty-test-window-size ()
   (let* ((buf (mistty-create mistty-test-bash-exe)))
     (unwind-protect

@@ -822,7 +822,7 @@ projects."
             (and (null (cdr existing)) ; the current buffer is the only mistty buffer
                  (eq (current-buffer) (car existing))))
         ;; create a new one
-        (mistty-create other-window)
+        (mistty-create nil other-window)
       (mistty--goto-next existing other-window))))
 
 ;;;###autoload

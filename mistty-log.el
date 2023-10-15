@@ -40,14 +40,16 @@ This is usually set by calling `mistty-start-log'.
 
 Calling the function `mistty-log' is a no-op unless this is set.")
 
-(defvar mistty-backlog-size 0
+(defcustom mistty-backlog-size 0
   "Log entries to track when logging is disabled.
 
 As many as `mistty-backlog-size' entries will be backfilled
 by `mistty-start-log' when logging is enabled.
 
 Setting this value allows turning on logging once something wrong
-has happened.")
+has happened."
+  :group 'mistty
+  :type '(integer))
 
 (defvar-local mistty--backlog nil
   "If non-nil, a ring of `mistty--log' arguments.")

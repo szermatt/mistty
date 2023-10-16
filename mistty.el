@@ -2307,7 +2307,13 @@ off."
       (while (and ovs (or (memq (car ovs) mistty--ignored-overlays)
                           (memq (car ovs) region-ovs)))
         (setq ovs (cdr ovs)))
-      (mistty--inhibit-set 'mistty-overlays ovs noschedule))))
+      ;; If there are foreign overlays in an empty buffer, there will
+      ;; likely always be.
+      (if (and ovs (= 1 (point-max)))
+          (progn
+            (mistty-log "Foreign overlays detected too early. Turning off detection.")
+            (setq-local mistty-detect-foreign-overlays nil))
+        (mistty--inhibit-set 'mistty-overlays ovs noschedule)))))
 
 (defun mistty--ignore-foreign-overlays ()
   "Ignore currently active foreign overlays.

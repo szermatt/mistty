@@ -179,10 +179,12 @@ window while BODY is running."
   (cond
    ((eq shell 'bash)
     (mistty--exec mistty-test-bash-exe "--noprofile" "--norc" "-i")
+    (mistty-run-command)
     (mistty-test-set-ps1))
 
    ((eq shell 'zsh)
     (mistty--exec mistty-test-zsh-exe "-i" "--no-rcs")
+    (mistty-run-command)
     (mistty-test-set-ps1))
 
    ((eq shell 'fish)
@@ -209,11 +211,13 @@ window while BODY is running."
              "bind \\ca beginning-of-line; "
              "bind \\ce end-of-line; "
              "bind \\b backward-delete-char; "))
+    (mistty-run-command)
     (mistty-send-and-wait-for-prompt (lambda ())))
 
    ((eq shell 'python)
     (mistty--exec mistty-test-python-exe)
     (mistty-wait-for-output :str ">>> ")
+    (mistty-run-command)
     (save-excursion
       (mistty-test-goto ">>> ")
       (mistty-test-narrow (point))))

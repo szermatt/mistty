@@ -3145,6 +3145,14 @@
         (should (equal "hello, world"
                        (mistty-send-and-capture-command-output)))))))
 
+(ert-deftest mistty-test-autoignore-foreign-overlays ()
+  (let ((mistty-detect-foreign-overlays t)
+        (mistty-mode-hook (list (lambda ()
+                                  (mistty-log "MODE HOOK overlay: %s" (make-overlay (point-min) (point-max)))
+                                  ))))
+    (mistty-with-test-buffer ()
+      (should-not mistty-detect-foreign-overlays))))
+
 (ert-deftest mistty-test-detect-foreign-overlays-disabled ()
   (let ((mistty-detect-foreign-overlays nil)
         (orig-cua-mode cua-mode-hook))

@@ -119,11 +119,16 @@ See also [the documentation](https://mistty.readthedocs.io/en/latest/)
 for more details on configuring MisTTY [for different
 shells](https://mistty.readthedocs.io/en/latest/shells.html).
 
-## COMPATIBILITY
+## SOMETHING IS WRONG !
 
-MisTTY requires Emacs 29.1 or later.
+Please take the time to [file a bug
+report](https://mistty.readthedocs.io/en/latest/contrib.html#reporting-issues)
 
 ## CONTRIBUTING
 
 See the [Contributing](https://mistty.readthedocs.io/en/latest/contrib.html)
 section of the documentation.
+
+## COMPATIBILITY
+
+MisTTY requires Emacs 29.1 or later.

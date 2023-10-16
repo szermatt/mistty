@@ -21,6 +21,24 @@ FAQ
 
      See the section :ref:`term-vs-scroll` for more details.
 
+**The shell isn't answering!**
+
+    Press :kbd:`C-g`. If this is just a one-time thing, this will do
+    the trick.
+
+    If this keeps happening, check the modeline. Does it contain CMD?
+    It might look like this: *misTTY CMD:run*. In that case, MisTTY is
+    stuck in long-running command mode. This is likely due to some
+    package leaving foreign overlays to the buffer. To fix that, turn
+    off the option :kbd:`M-x customize-option
+    mistty-detect-foreign-overlays`
+
+    For details, see :ref:`lrc`
+
+    If this keeps happening and the modeline does not contain CMD,
+    this is likely a bug. Please see :ref:`reporting` for details on
+    filing a bug report.
+
 **Why is the cursor jumping around when I move it?**
 
     MisTTY jumps over spaces which just "aren't there", such as the

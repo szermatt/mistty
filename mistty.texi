@@ -1371,6 +1371,27 @@ Write a regexp that identifies the situation and add it to
 See the section @ref{c,,Terminal vs. Scrollback} for more details.
 @end quotation
 
+`The shell isn’t answering!'
+
+@quotation
+
+Press @code{C-g}. If this is just a one-time thing, this will do
+the trick.
+
+If this keeps happening, check the modeline. Does it contain CMD?
+It might look like this: `misTTY CMD:run'. In that case, MisTTY is
+stuck in long-running command mode. This is likely due to some
+package leaving foreign overlays to the buffer. To fix that, turn
+off the option @code{M-x customize-option
+mistty-detect-foreign-overlays}
+
+For details, see @ref{1c,,Long-running commands}
+
+If this keeps happening and the modeline does not contain CMD,
+this is likely a bug. Please see @ref{3,,Reporting issues} for details on
+filing a bug report.
+@end quotation
+
 `Why is the cursor jumping around when I move it?'
 
 @quotation
@@ -1475,7 +1496,7 @@ buffer @code{*mistty-log*} into your report, as follows:
 @itemize -
 
 @item 
-Enable logging with @code{M-x mistty-start-log}
+Enable logging by calling @code{M-x mistty-start-log}
 
 @item 
 Reproduce the issue
@@ -1484,10 +1505,10 @@ Reproduce the issue
 Go to the buffer @code{*mistty-log*}
 
 @item 
-call @code{M-x mistty-stop-log}
+Call @code{M-x mistty-stop-log} to avoid getting more log entries
 
 @item 
-copy the buffer content and paste it into the issue. The log
+Copy the buffer content and paste it into the issue. The log
 includes everything that you write to the terminal and everything
 that you get back from the terminal. Please make sure you’re not
 including any private information, such as password - remove them if

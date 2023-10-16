@@ -21,6 +21,7 @@
 (ert-deftest mistty-log-test-start-stop-log-in-buffer ()
   (ert-with-test-buffer ()
     (let ((noninteractive nil)
+          (mistty-log nil)
           (mistty-backlog-size 0)
           log-buffer)
       (should (not mistty-log))
@@ -45,9 +46,20 @@
         (let ((kill-buffer-query-functions nil))
           (kill-buffer log-buffer))))))
 
+(ert-deftest mistty-log-test-disable-log-when-buffer-is-killed ()
+  (ert-with-test-buffer ()
+    (let ((noninteractive nil)
+          (mistty-log nil)
+          (mistty-backlog-size 0)
+          log-buffer)
+      (setq log-buffer (save-excursion (mistty-start-log)))
+      (kill-buffer log-buffer)
+      (should-not mistty-log))))
+
 (ert-deftest mistty-log-test-start-stop-log-in-batch-mode ()
   (ert-with-test-buffer ()
     (let ((noninteractive t)
+          (mistty-log nil)
           (mistty-backlog-size 0)
           log-buffer)
       (ert-with-message-capture messages
@@ -75,6 +87,7 @@
 (ert-deftest mistty-log-test-drop-log ()
   (ert-with-test-buffer ()
     (let ((noninteractive nil)
+          (mistty-log nil)
           (log-buffer (save-excursion (mistty-start-log))))
       (unwind-protect
           (progn
@@ -88,6 +101,7 @@
 (ert-deftest mistty-log-test-backlog ()
   (ert-with-test-buffer ()
     (let ((noninteractive nil)
+          (mistty-log nil)
           (mistty-backlog-size 3)
           log-buffer)
       (dotimes (i 10)

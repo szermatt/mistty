@@ -27,11 +27,11 @@ the issue. Such as:
 If you can reproduce reliably, please include the content of the
 buffer :code:`*mistty-log*` into your report, as follows:
 
-- Enable logging with :kbd:`M-x mistty-start-log`
+- Enable logging by calling :kbd:`M-x mistty-start-log`
 - Reproduce the issue
 - Go to the buffer :code:`*mistty-log*`
-- call :kbd:`M-x mistty-stop-log`
-- copy the buffer content and paste it into the issue. The log
+- Call :kbd:`M-x mistty-stop-log` to avoid getting more log entries
+- Copy the buffer content and paste it into the issue. The log
   includes everything that you write to the terminal and everything
   that you get back from the terminal. Please make sure you're not
   including any private information, such as password - remove them if

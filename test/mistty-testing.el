@@ -108,7 +108,8 @@ window while BODY is running."
                                       'mistty-test-prompt))
                (mistty-backlog-size 500)
                (mistty-test-ok nil)
-               (mistty-test-had-issues nil))
+               (mistty-test-had-issues nil)
+               (mistty-log nil))
            (mistty-test-setup (quote ,shell))
            (unwind-protect
                (prog1
@@ -344,23 +345,24 @@ of the beginning of the prompt."
 
 This is meant to be assigned to `mistty--report-issue-function'
  as well as called directly from tests."
-  (if (eq issue (car mistty-expected-issues))
-      (progn
-        (mistty-log "EXPECTED %s" issue)
-        (setq mistty-expected-issues (cdr mistty-expected-issues)))
+  (let ((mistty-log mistty-log))
+    (if (eq issue (car mistty-expected-issues))
+        (progn
+          (mistty-log "EXPECTED %s" issue)
+          (setq mistty-expected-issues (cdr mistty-expected-issues)))
 
-    ;; unexpected
-    (save-excursion (mistty-start-log))
-    (let ((error-message
-           (format "%s: BUF<<EOF%sEOF"
-                   issue
-                   (mistty-test-content
-                    :show-property '(mistty-skip t)
-                    :show (list (point) (ignore-errors (mistty-cursor)))))))
-      (mistty-log error-message)
-      ;; Errors might get caught. This makes sure
-      (setq mistty-test-had-issues t)
-      (error "%s" error-message))))
+      ;; unexpected
+      (save-excursion (mistty-start-log))
+      (let ((error-message
+             (format "%s: BUF<<EOF%sEOF"
+                     issue
+                     (mistty-test-content
+                      :show-property '(mistty-skip t)
+                      :show (list (point) (ignore-errors (mistty-cursor)))))))
+        (mistty-log error-message)
+        ;; Errors might get caught. This makes sure
+        (setq mistty-test-had-issues t)
+      (error "%s" error-message)))))
 
 (cl-defun mistty-test-content (&key (start (or mistty-test-content-start (point-min)))
                                     (end (point-max))

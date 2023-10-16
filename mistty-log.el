@@ -33,8 +33,8 @@
 (defvar mistty-log-buffer nil
   "Buffer when log messages are directed, might not be live.")
 
-(defvar-local mistty-log nil
-  "Whether logging is enabled on the current buffer.
+(defvar mistty-log nil
+  "Whether logging is enabled globally.
 
 This is usually set by calling `mistty-start-log'.
 
@@ -83,36 +83,37 @@ buffer. It is usually enabled by calling mistty-start-log."
     (mistty--log str args)))
 
 (defun mistty-start-log ()
-  "Enable logging for the current buffer and display that buffer.
+  "Enable logging and display the log buffer.
 
 If logging is already enabled, just show the buffer."
   (interactive)
   (if (and mistty-log (buffer-live-p mistty-log-buffer))
       (switch-to-buffer-other-window mistty-log-buffer)
     (setq mistty-log t)
-    (when (ring-p mistty--backlog)
-      (dolist (args (nreverse (ring-elements mistty--backlog)))
-        (apply #'mistty--log args)))
+    (dolist (buffer (buffer-list))
+      (with-current-buffer buffer
+        (when (ring-p mistty--backlog)
+          (dolist (args (nreverse (ring-elements mistty--backlog)))
+            (apply #'mistty--log args))
+          (setq mistty--backlog nil))))
     (setq mistty--backlog nil)
-    (mistty--log "Log enabled" nil)
+    (mistty--log "Log enabled." nil)
     (when (buffer-live-p mistty-log-buffer)
       (switch-to-buffer-other-window mistty-log-buffer))))
 
 (defun mistty-stop-log ()
-  "Disable logging for the current buffer."
+  "Disable logging for all MisTTY buffers."
   (interactive)
   (when mistty-log
-    (when (buffer-live-p mistty-log-buffer)
-      (mistty-log "Log disabled for %s" (buffer-name)))
-    (setq mistty-log nil)))
+    (unwind-protect
+        (when (buffer-live-p mistty-log-buffer)
+          (mistty-log "Log disabled"))
+      (setq mistty-log nil))))
 
 (defun mistty-drop-log ()
-  "Disable logging for all buffers and kill the log buffer."
+  "Disable logging and kill the log buffer."
   (interactive)
-  (dolist (buf (buffer-list))
-    (with-current-buffer buf
-      (when mistty-log
-        (setq mistty-log nil))))
+  (setq mistty-log nil)
   (when (buffer-live-p mistty-log-buffer)
     (kill-buffer mistty-log-buffer))
   (setq mistty-log-buffer nil))
@@ -150,8 +151,8 @@ exit already."
       (with-current-buffer
           (or (and (buffer-live-p mistty-log-buffer) mistty-log-buffer)
               (setq mistty-log-buffer
-                    (progn
-                      (get-buffer-create "*mistty-log*"))))
+                    (get-buffer-create "*mistty-log*")))
+        (add-hook 'kill-buffer-hook #'mistty-stop-log nil t)
         (setq-local window-point-insertion-type t)
         (goto-char (point-max))
         (insert-before-markers

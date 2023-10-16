@@ -2738,7 +2738,7 @@ over to the backstage buffer: `mistty-log',
       (setq-local mistty-sync-marker (point-min))
       (setq-local mistty-proc proc)
       (mistty--copy-buffer-local-variables
-       '(mistty-bracketed-paste mistty-log) calling-buffer)
+       '(mistty-bracketed-paste) calling-buffer)
       (mistty--update-backstage))
     backstage))
 

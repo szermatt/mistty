@@ -1699,14 +1699,18 @@ with \\[keyboard-quit] or until it is passed a key or event it
 doesn't support, such as a mouse event.."
   (interactive)
   (mistty--require-proc)
-  (let (key)
+  (let ((proc mistty-proc)
+        key)
     (while
         (and
          (setq key
-               (read-event "Sending all KEYS to terminal... Exit with C-g."
-                           'inherit-input-method))
+               (read-key "Sending all KEYS to terminal... Exit with C-g."
+                         'inherit-input-method))
          (not (eq key ?\C-g)))
-      (mistty-send-key 1 (make-vector 1 key)))))
+      (pcase key
+        (`(xterm-paste ,str)
+         (mistty--send-string proc (mistty--maybe-bracketed-str str)))
+        (_ (mistty-send-key 1 (make-vector 1 key)))))))
 
 (defun mistty-beginning-of-line (&optional n)
   "Go to the Nth beginning of line, possibly by sending Control a.

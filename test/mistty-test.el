@@ -1841,6 +1841,17 @@
     (mistty-wait-for-output :str "ghij" :cursor-at-end t)
     (should (equal "abc ghij" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-send-key-sequence-paste  ()
+  (mistty-with-test-buffer (:selected t)
+    (mistty-send-text "echo abc def")
+    (ert-simulate-keys '((xterm-paste "hello\necho worl") ?d ?\C-g)
+      (mistty-send-key-sequence))
+    (mistty-wait-for-output :str "world" :cursor-at-end t)
+    (should (equal
+             (concat "$ echo abc defhello\n"
+                     "echo world")
+             (mistty-test-content)))))
+
 (ert-deftest mistty-test-send-key-sequence-in-scrollback ()
   (mistty-with-test-buffer ()
     (mistty-simulate-scrollback-buffer

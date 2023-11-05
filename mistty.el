@@ -2914,9 +2914,9 @@ This implementation is incomplete. Always call
 
 This function skips over the \\='term-line-wrap newlines as well
 as \\='mistty-skip spaces."
-  (let ((end (max beg end))
+  (let ((end (mistty--safe-pos (max beg end)))
         (sign (if (< end beg) -1 1))
-        (pos (min beg end))
+        (pos (mistty--safe-pos (min beg end)))
         (count 0))
     (while (< pos end)
       (if (get-text-property pos 'term-line-wrap)

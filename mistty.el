@@ -584,6 +584,10 @@ as a sign that there is a long-running command.")
 (defvar-local mistty--self-insert-line nil
   "Capture of the last string of self-inserted characters.
 
+The first element is the distance from bol to the current point.
+The second element is a list to which characters are pushed (this
+means that most recent characters appear first.)
+
 Whenever a character is inserted by `mistty-self-insert', it is added
 to this. When a character or a series of such self-inserted character
 is echoed back, call `mistty-interactive-insert-hook'.")
@@ -1273,7 +1277,7 @@ to figure out a good time to call
 `mistty-interactive-insert-hook'."
   (when (and mistty--self-insert-line
              (= (point) (mistty-cursor)))
-    (let* ((str (apply #'concat (nreverse (cdr mistty--self-insert-line))))
+    (let* ((str (apply #'concat (reverse (cdr mistty--self-insert-line))))
            (origin (- (point) (length str))))
       (when (and (string= str (mistty--safe-bufstring
                                origin (point)))
@@ -1642,11 +1646,6 @@ This command is available in fullscreen mode."
            (not (buffer-local-value
                  'mistty-fullscreen mistty-work-buffer)))
       (with-current-buffer mistty-work-buffer
-        (when (eq this-command 'mistty-self-insert)
-          (unless mistty--self-insert-line
-            (setq mistty--self-insert-line
-                  (cons (mistty--distance (mistty--bol (point)) (point)) nil)))
-          (push translated-key (cdr mistty--self-insert-line)))
         (when (and positional
                    (not (and (eq this-command 'mistty-self-insert)
                              (eq last-command 'mistty-self-insert))))
@@ -1655,6 +1654,11 @@ This command is available in fullscreen mode."
           (mistty--interact-init
            interact
            (lambda (&optional _)
+             (when (eq this-command 'mistty-self-insert)
+               (unless mistty--self-insert-line
+                 (setq mistty--self-insert-line
+                       (cons (mistty--distance (mistty--bol (point)) (point)) nil)))
+               (push translated-key (cdr mistty--self-insert-line)))
              (setq mistty-goto-cursor-next-time t)
              (mistty--maybe-add-key-to-undo n key (mistty-cursor))
              (mistty--interact-return

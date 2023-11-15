@@ -7,6 +7,7 @@
 (require 'cua-base)
 
 (require 'yasnippet nil 'noerror)
+(require 'tempel nil 'noerror)
 
 (ert-deftest mistty-test-detect-foreign-overlay-cua-rectangle ()
   (let ((mistty-detect-foreign-overlays t)
@@ -258,3 +259,26 @@ that starts with the text currently between START and END."
       (goto-char start)
       (delete-region start end)
       (insert replacement))))
+
+(ert-deftest mistty-compat-test-tempel-smoke ()
+  (skip-unless (featurep 'tempel))
+  ;; This makes sure that the tempel integration works at all
+  (ert-with-test-buffer ()
+    (let* ((mistty-test-tempel-templates '((test "THIS IS A TEST")))
+           (tempel-template-sources (list (lambda () mistty-test-tempel-templates))))
+      (tempel-insert 'test)
+      (should (equal "THIS IS A TEST" (mistty-test-content))))))
+
+(ert-deftest mistty-compat-test-tempel-detect-overlays ()
+  (skip-unless (featurep 'tempel))
+  (mistty-with-test-buffer (:selected t)
+    (let* ((mistty-test-tempel-templates '((test "for " p " in " p "; do " p "; done")))
+           (tempel-template-sources (list (lambda () mistty-test-tempel-templates))))
+      (keymap-local-set "C-c n" #'tempel-next)
+      (keymap-local-set "C-c d" #'tempel-done)
+      (mistty-run-command
+       (tempel-insert 'test))
+      (mistty-wait-for-output :test (lambda () mistty--inhibit))
+      (execute-kbd-macro (kbd "i C-c n a SPC b SPC c C-c n e c h o SPC $ i C-c d"))
+      (mistty-wait-for-output :test (lambda () (not mistty--inhibit)))
+      (mistty-wait-for-output :str "for i in a b c; do echo $i; done"))))

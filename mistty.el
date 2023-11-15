@@ -179,8 +179,9 @@ You might have to turn MisTTY on and off manually with
 
 (defcustom mistty-foreign-overlay-properties
   '(mistty-long-running-command
-    yas--snippet
-    cua-rectangle)
+    cua-rectangle
+    tempel--field tempel--form tempel--range
+    yas--snippet)
   "Set of properties to look for in overlays.
 
 MisTTY turns itself off while it sees an overlay with one of

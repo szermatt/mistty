@@ -447,14 +447,26 @@ programmatically:
 .. index::
    pair: variable; mistty-detect-foreign-overlays
    pair: option; mistty-detect-foreign-overlays
+   pair: variable; mistty-foreign-overlay-properties
+   pair: option; mistty-foreign-overlay-properties
 
-MisTTY detects many long-running commands just by looking for overlays
-they typically add to the buffer. This can be turned off with
-:kbd:`M-x customize-option mistty-detect-foreign-overlays`
+MisTTY detects some long-running commands by looking for overlays they
+typically add to the buffer. This can be extended with :kbd:`M-x
+customize-option mistty-foreign-overlay-properties` or turned off with
+:kbd:`M-x customize-option mistty-detect-foreign-overlays`.
 
-As not all long-running commands that can be confused by MisTTY use
-overlays, you might need to tell MisTTY about them. MisTTY does it
-already for :code:`completion-in-region`.
+To add a new property to `mistty-foreign-overlay-properties`, start
+the interactive command, look for overlays with `overlays-in` then get
+their properties with `overlay-properties`. You can then choose, on
+that list, a property or face that identifies the feature or package.
+
+If you find yourself extending `mistty-foreign-overlay-properties`,
+please add an issue to https://github.com/szermatt/mistty/issues/new
+so it can be integrated into the next version.
+
+Alternatively, as not all long-running commands that can be confused
+by MisTTY use overlays, you might need to tell MisTTY about them.
+MisTTY does it already for :code:`completion-in-region`.
 
     .. index::
        pair: function; mistty-report-long-running-command

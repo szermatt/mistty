@@ -4,8 +4,42 @@
 (require 'mistty-testing)
 (require 'thingatpt)
 (require 'minibuffer)
+(require 'cua-base)
 
 (require 'yasnippet nil 'noerror)
+
+(ert-deftest mistty-test-detect-foreign-overlay-cua-rectangle ()
+  (let ((mistty-detect-foreign-overlays t)
+        (orig-cua-mode cua-mode))
+    (unwind-protect
+        (mistty-with-test-buffer (:selected t :shell fish)
+          ;; CUA rectangle mark mode is an example of an interactive command
+          ;; that uses overlays. It has the advantage of being built-in.
+          ;; Other examples would be template engines, such as yasnippet and
+          ;; templ.
+          (cua-mode 'on)
+          (mistty-send-text "for i in a b c\necho $i\nend")
+          (mistty-test-goto "in")
+          (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
+          (mistty-wait-for-output :test (lambda ()
+                                          (equal '(mistty-overlays) mistty--inhibit)))
+          (should (mistty-long-running-command-p))
+
+          (should (equal (concat "$ for i in boo a b c\n"
+                                 "      echo<> boo $i\n"
+                                 "  end")
+                         (mistty-test-content :show (point))))
+          (execute-kbd-macro (kbd "C-<return>"))
+          (mistty-wait-for-output :str "boo a b c" :start (point-min))
+          (mistty-wait-for-output :test (lambda ()
+                                          (not mistty--inhibit)))
+          (should-not (mistty-long-running-command-p))
+          (should (equal (concat "$ for i in boo a b c\n"
+                                 "      echo<> boo $i\n"
+                                 "  end")
+                         (mistty-test-content :show (point)))))
+      ;; unwind
+      (cua-mode (if orig-cua-mode nil -1)))))
 
 (ert-deftest mistty-compat-test-hippie-expand ()
   (mistty-with-test-buffer ()

@@ -758,14 +758,26 @@ if MisTTY thinks a long-running command is active.
 
 @geindex variable; mistty-detect-foreign-overlays
 @geindex option; mistty-detect-foreign-overlays
+@geindex variable; mistty-foreign-overlay-properties
+@geindex option; mistty-foreign-overlay-properties
 
-MisTTY detects many long-running commands just by looking for overlays
-they typically add to the buffer. This can be turned off with
-@code{M-x customize-option mistty-detect-foreign-overlays}
+MisTTY detects some long-running commands by looking for overlays they
+typically add to the buffer. This can be extended with @code{M-x
+customize-option mistty-foreign-overlay-properties} or turned off with
+@code{M-x customize-option mistty-detect-foreign-overlays}.
 
-As not all long-running commands that can be confused by MisTTY use
-overlays, you might need to tell MisTTY about them. MisTTY does it
-already for @code{completion-in-region}.
+To add a new property to @cite{mistty-foreign-overlay-properties}, start
+the interactive command, look for overlays with @cite{overlays-in} then get
+their properties with @cite{overlay-properties}. You can then choose, on
+that list, a property or face that identifies the feature or package.
+
+If you find yourself extending @cite{mistty-foreign-overlay-properties},
+please add an issue to @indicateurl{https://github.com/szermatt/mistty/issues/new}
+so it can be integrated into the next version.
+
+Alternatively, as not all long-running commands that can be confused
+by MisTTY use overlays, you might need to tell MisTTY about them.
+MisTTY does it already for @code{completion-in-region}.
 
 @quotation
 
@@ -1381,9 +1393,11 @@ the trick.
 If this keeps happening, check the modeline. Does it contain CMD?
 It might look like this: `misTTY CMD:run'. In that case, MisTTY is
 stuck in long-running command mode. This is likely due to some
-package leaving foreign overlays to the buffer. To fix that, turn
-off the option @code{M-x customize-option
-mistty-detect-foreign-overlays}
+package leaving overlays to the buffer that confuse MisTTY. To fix
+that, turn off the option @code{M-x customize-option
+mistty-detect-foreign-overlays} or, if you know which package is
+causing trouble, remove the corresponding property in in @code{M-x
+customize-option mistty-foreign-overlay-properties}.
 
 For details, see @ref{1c,,Long-running commands}
 

@@ -29,9 +29,11 @@ FAQ
     If this keeps happening, check the modeline. Does it contain CMD?
     It might look like this: *misTTY CMD:run*. In that case, MisTTY is
     stuck in long-running command mode. This is likely due to some
-    package leaving foreign overlays to the buffer. To fix that, turn
-    off the option :kbd:`M-x customize-option
-    mistty-detect-foreign-overlays`
+    package leaving overlays to the buffer that confuse MisTTY. To fix
+    that, turn off the option :kbd:`M-x customize-option
+    mistty-detect-foreign-overlays` or, if you know which package is
+    causing trouble, remove the corresponding property in in :kbd:`M-x
+    customize-option mistty-foreign-overlay-properties`.
 
     For details, see :ref:`lrc`
 

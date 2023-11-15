@@ -3096,47 +3096,52 @@
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
-(ert-deftest mistty-test-detect-foreign-overlays ()
-  (let ((mistty-detect-foreign-overlays t)
-        (orig-cua-mode cua-mode))
-    (unwind-protect
-        (mistty-with-test-buffer (:selected t :shell fish)
-          ;; CUA rectangle mark mode is an example of an interactive command
-          ;; that uses overlays. It has the advantage of being built-in.
-          ;; Other examples would be template engines, such as yasnippet and
-          ;; templ.
-          (cua-mode 'on)
-          (mistty-send-text "for i in a b c\necho $i\nend")
-          (mistty-test-goto "in")
-          (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
-          (mistty-wait-for-output :test (lambda ()
-                                          (equal '(mistty-overlays) mistty--inhibit)))
-          (should (mistty-long-running-command-p))
-
-          (should (equal (concat "$ for i in boo a b c\n"
-                                 "      echo<> boo $i\n"
-                                 "  end")
-                         (mistty-test-content :show (point))))
-          (execute-kbd-macro (kbd "C-<return>"))
-          (mistty-wait-for-output :str "boo a b c" :start (point-min))
-          (mistty-wait-for-output :test (lambda ()
-                                          (not mistty--inhibit)))
-          (should-not (mistty-long-running-command-p))
-          (should (equal (concat "$ for i in boo a b c\n"
-                                 "      echo<> boo $i\n"
-                                 "  end")
-                         (mistty-test-content :show (point)))))
-      ;; unwind
-      (cua-mode (if orig-cua-mode nil -1)))))
-
-(ert-deftest mistty-test-ignore-foreign-overlays ()
+(ert-deftest mistty-test-detect-foreign-overlays-labelled ()
   (let ((mistty-detect-foreign-overlays t))
     (mistty-with-test-buffer ()
-      (let ((test-overlay))
+      (let (test-overlay)
+        (mistty-send-text "echo hello, world")
+        (mistty-run-command
+         (mistty-test-goto "hello")
+         (setq test-overlay (make-overlay (point) (+ 5 (point))))
+         (overlay-put test-overlay 'mistty-long-running-command t))
+
+        (mistty-wait-for-output :test (lambda ()
+                                        (equal '(mistty-overlays) mistty--inhibit)))
+        (should (mistty-long-running-command-p))))))
+
+(ert-deftest mistty-test-foreign-overlay-detection-disabled ()
+  (let ((mistty-detect-foreign-overlays nil))
+    (mistty-with-test-buffer ()
+      (let (test-overlay)
+        (mistty-send-text "echo hello, world")
+        (mistty-run-command
+         (mistty-test-goto "hello")
+         (setq test-overlay (make-overlay (point) (+ 5 (point))))
+         (overlay-put test-overlay 'mistty-long-running-command t))
+
+        (should-not (mistty-long-running-command-p))))))
+
+(ert-deftest mistty-test-ignore-unlabelled-foreign-overlays ()
+  (let ((mistty-detect-foreign-overlays t))
+    (mistty-with-test-buffer ()
+      (let (test-overlay)
         (mistty-send-text "echo hello, world")
         (mistty-run-command
          (mistty-test-goto "hello")
          (setq test-overlay (make-overlay (point) (+ 5 (point)))))
+
+        (should-not mistty--inhibit)))))
+
+(ert-deftest mistty-test-ignore-detected-foreign-overlays-after-C-g ()
+  (let ((mistty-detect-foreign-overlays t))
+    (mistty-with-test-buffer ()
+      (let (test-overlay)
+        (mistty-send-text "echo hello, world")
+        (mistty-run-command
+         (mistty-test-goto "hello")
+         (setq test-overlay (make-overlay (point) (+ 5 (point))))
+         (overlay-put test-overlay 'mistty-long-running-command t))
 
         ;; A long command was detected.
         (mistty-wait-for-output :test (lambda ()
@@ -3156,33 +3161,15 @@
         (should (equal "hello, world"
                        (mistty-send-and-capture-command-output)))))))
 
-(ert-deftest mistty-test-autoignore-foreign-overlays ()
+(ert-deftest mistty-test-autoignore-early-foreign-overlays ()
   (let ((mistty-detect-foreign-overlays t)
-        (mistty-mode-hook (list (lambda ()
-                                  (mistty-log "MODE HOOK overlay: %s" (make-overlay (point-min) (point-max)))
-                                  ))))
+        (mistty-mode-hook
+         (list (lambda ()
+                 (let ((ov (make-overlay (point-min) (point-max))))
+                   (overlay-put ov 'mistty-long-running-command t)
+                   (mistty-log "MODE HOOK overlay: %s" ov))))))
     (mistty-with-test-buffer ()
       (should-not mistty-detect-foreign-overlays))))
-
-(ert-deftest mistty-test-detect-foreign-overlays-disabled ()
-  (let ((mistty-detect-foreign-overlays nil)
-        (orig-cua-mode cua-mode-hook))
-    (unwind-protect
-        (mistty-with-test-buffer (:selected t :shell fish)
-          (cua-mode 'on)
-          (mistty-send-text "for i in a b c\necho $i\nend")
-          (mistty-test-goto "in")
-          (execute-kbd-macro (kbd "C-<return> <down> <right> <right> b o o SPC"))
-          ;; the result is replayed immediately, even though the command
-          ;; is still active.
-          (mistty-wait-for-output :str "in boo")
-          (should (equal (concat "$ for i in boo a b c\n"
-                                 "      echo<> boo $i\n"
-                                 "  end")
-                         (mistty-test-content :show (point))))
-          (should-not mistty--inhibit))
-      ;; unwind
-      (cua-mode (if orig-cua-mode nil -1)))))
 
 (ert-deftest mistty-test-detect-completion-in-region ()
   (mistty-with-test-buffer ()

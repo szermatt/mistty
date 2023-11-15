@@ -159,21 +159,15 @@ history search are typically such a mode."
   :type '(list regexp))
 
 (defcustom mistty-detect-foreign-overlays t
-  "Treat overlays as a sign of a long-running command.
+  "Treat some overlays as a sign of a long-running command.
 
 When this option is on, Mistty tracks overlays added to its
 buffer and enter long-running command mode when it sees an
-overlay it didn't know about.
+overlay with a property listed in `mistty-foreign-overlay-properties'.
 
-This allows interactive editing feature to work out of the box,
+This allows interactive editing feature to work
 such as filling-in templates, completion UIs, and CUA-style
-rectangle selection. These typically add overlay for a short
-duration, so it makes sense for MisTTY to turn itself off for a
-while, to let them work without changing the overlays and the
-buffer content they rely on.
-
-However, with this option set, if a package keeps overlays always
-on, MisTTY would be just unusable.
+rectangle selection.
 
 Turn this option on if you'd like to use such a package or if
 auto-detection of long-running commands doesn't work for you.
@@ -182,6 +176,34 @@ You might have to turn MisTTY on and off manually with
  `mistty-report-long-running-command'."
   :group 'mistty
   :type '(boolean))
+
+(defcustom mistty-foreign-overlay-properties
+  '(mistty-long-running-command
+    yas--snippet
+    cua-rectangle)
+  "Set of properties to look for in overlays.
+
+MisTTY turns itself off while it sees an overlay with one of
+these properties set and `mistty-detect-foreign-overlays' is
+non-nil. This allows interactive editing features to work that
+span more than one command.
+
+This covers known interactive editing features. If the package or
+feature you're using is not on this list, you might have to add
+it: look for an overlay with `overlays-in', then call
+`overlay-properties' and choose a custom property or face symbol
+on that list.
+
+If you find yourself extending this list, please add an issue to
+https://github.com/szermatt/mistty/issues/new so it can be
+integrated into the next version.
+
+If you're writing an interactive editing feature and would like
+it to be detected by MisTTY out of the boy, you might set the
+overlay property \\='mistty-long-runnning-command t. This avoids
+having to call `mistty-long-runnning-command'."
+  :type '(list symbol)
+  :group 'mistty)
 
 (defcustom mistty-wrap-capf-functions t
   "Make `completion-at-point' functions work nice with autosuggestions.
@@ -2306,15 +2328,22 @@ call.
 Does nothing if the option `mistty-detect-foreign-overlays' is
 off."
   (when mistty-detect-foreign-overlays
-    (let ((ovs (overlays-in mistty-sync-marker (point-max)))
-          (region-ovs
+    (let ((ovs
            (delq nil
-                 (mapcar (lambda (win)
-                           (window-parameter win 'internal-region-overlay))
-                         (get-buffer-window-list)))))
-      (while (and ovs (or (memq (car ovs) mistty--ignored-overlays)
-                          (memq (car ovs) region-ovs)))
-        (setq ovs (cdr ovs)))
+                 (mapcar
+                  (lambda (ov)
+                    (unless (memq ov mistty--ignored-overlays)
+                      (let ((ovprops (overlay-properties ov))
+                            (match nil))
+                        (dolist (prop mistty-foreign-overlay-properties)
+                          (when (memq prop ovprops)
+                            ;;(mistty-log "detected ov matching %s: %s" prop ovprops)
+                            (setq match t)))
+                        (if match
+                            ov
+                          ;;(mistty-log "ignored foreign overlay: %s" ovprops)
+                          nil))))
+                  (overlays-in mistty-sync-marker (point-max))))))
       ;; If there are foreign overlays in an empty buffer, there will
       ;; likely always be.
       (if (and ovs (= 1 (point-max)))

@@ -121,8 +121,8 @@ shells](https://mistty.readthedocs.io/en/latest/shells.html).
 
 ## SOMETHING IS WRONG !
 
-Please take the time to [file a bug
-report](https://mistty.readthedocs.io/en/latest/contrib.html#reporting-issues)
+Please check the [FAQ](https://mistty.readthedocs.io/en/latest/faq.html) 
+and, if that doesn't help, take the time to [file a bug report](https://mistty.readthedocs.io/en/latest/contrib.html#reporting-issues).
 
 ## CONTRIBUTING
 

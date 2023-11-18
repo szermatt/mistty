@@ -82,3 +82,16 @@ FAQ
     it work, but we can always try. Please `file a bug
     <https://github.com/szermatt/mistty/issues>`_ if you encounter
     such a package you'd like to work with MisTTY.
+
+**... but it used to work!**
+
+    Older versions used to detect any unknown overlay as a
+    long-running command, described in :ref:`lrc`. Unfortunately, this
+    caused problems with many packages which, leaving overlays around
+    for a long time, prevented MisTTY from working at all.
+
+    The good news is that it's likely easy to make it work again by
+    detecting the specific kind of overlays the package is using.
+    Please see :ref:`lrc` or `file a bug
+    <https://github.com/szermatt/mistty/issues>`_ mentioning the
+    package you're using, its version and how you installed it.

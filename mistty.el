@@ -2621,7 +2621,7 @@ Ignores buffers that don't exist."
             (concat
              (when mistty--inhibit
                (propertize
-                "CMD"
+                " CMD"
                 'help-echo "mouse-1: ignore command and re-enable MisTTY replays"
                 'mouse-face 'mode-line-highlight
                 'local-map '(keymap

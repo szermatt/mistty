@@ -3194,7 +3194,7 @@
 
     (mistty-report-long-running-command 'test t)
     (should (mistty-long-running-command-p))
-    (should (equal "CMD:run" mode-line-process))
+    (should (equal " CMD:run" mode-line-process))
 
     (insert "echo hello, world")
     (mistty-report-long-running-command 'test nil)

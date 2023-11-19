@@ -191,25 +191,25 @@ distribution; it's only available on `github
 Auto-complete
 -------------
 
-By default, auto-complete UIs only work in the scrollback region of a
-MisTTY buffer, but they can be made to work in the terminal region as
-well, with a little work.
-
-Note that :kbd:`M-x completion-at-point` or :kbd:`M-x
-company-complete` normally work inside of the terminal region. What
-doesn't work by default is the completion UI showing up automatically
-after some delay.
-
 .. index::
    pair: variable; mistty-simulate-self-insert-command
 
-To try and make auto-complete UIs work in the terminal region, turn on
-the option on :kbd:`M-x customize-option
+Auto-complete is a completion UI that shows up automatically after
+some delay, without having to call `completion-at-point`. This used
+not to work in MisTTY terminal region. The hook
+:code:`mistty-simulates-self-insert-command` was introduced to fix
+that. See :code:`mistty-interactive-insert-hook` in :ref:`hooks`.
+
+By default this hook calls the buffer :code:`pre-command-hook` and
+:code:`post-command-hook` with :code:`this-command` set to
+:code:`self-insert-command`, as this is the way auto-complete is
+normally triggered. This can be turned off if necessary using the
+option on :kbd:`M-x customize-option
 mistty-simulate-self-insert-command`.
 
-If that doesn't work, you may need to write a bridge between MisTTY
-and your auto-completion package. See
-:code:`mistty-interactive-insert-hook` in :ref:`hooks`.
+If the behavior described above doesn't work for some packages, it
+should be possible to build a custom bridge between this hook and the
+auto-completion package.
 
 .. _lrc:
 

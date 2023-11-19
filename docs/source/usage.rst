@@ -304,7 +304,7 @@ available in MisTTY using the following shortcuts:
 - :kbd:`M-p` moves up command history
 - :kbd:`M-n` moves down command history
 - :kbd:`M-r` triggers a backward search in command history
-- :kbd:`M-.` insert the last argument from command history.
+- :kbd:`M-.` insert the last argument from command history
 
 To get the same key bindings you'd get in a normal terminal, you can
 bind :kbd:`C-p`, :kbd:`C-n`, or :kbd:`C-r` to :code:`mistty-send-key`
@@ -357,18 +357,21 @@ the box, including auto-completion, if enabled:
 - `corfu <https://github.com/minad/corfu>`_
 - `company-mode <http://company-mode.github.io>`_
 
+Emacs `hippie-expand` also works. That's not completion, but it's
+close.
+
 Other packages might work or might be made to work with some efforts.
-Auto-completion is usually the main challenge :ref:`autocomplete` for
-some pointers. Please :ref:`file a bug <reporting>` if you encounter
-issues with other completion packages.
+Auto-completion is usually the main challenge. See :ref:`autocomplete`
+for some pointers. Please :ref:`file a bug <reporting>` if you
+encounter issues with other completion packages.
 
 Autosuggestions
 ^^^^^^^^^^^^^^^
 .. index::
    pair: variable; mistty-wrap-capf-functions
 
-:code:`completion-at-point` is defined as completing the text *around*
-the point. This is generally convenient, but gets confused by shell
+:code:`completion-at-point` completes the text *around* the point.
+This is generally convenient, but gets confused by shell
 autosuggestions, available in Fish or ZSH.
 
 What if you typed "com" and the shell helpfully suggests "completion"?
@@ -398,7 +401,7 @@ might be confused by the way MisTTY work in the terminal region. See
 The following template expansion packages are known to work with
 MisTTY out of the box, if enabled:
 
-- the built-in `tempo` package
+- Emacs built-in `tempo` package
 - `tempel <https://github.com/minad/tempel>`_
 - `yasnippet <https://github.com/joaotavora/yasnippet>`_
 
@@ -410,10 +413,10 @@ Fancy prompts
 -------------
 
 MisTTY is known to work with powerline-shell prompts or `Tide, on Fish
-<https://github.com/IlanCosman/tide>`_. This includes right prompt,
-for the most part, though there might be temporary artifacts and
+<https://github.com/IlanCosman/tide>`_. This includes right prompts,
+for the most part - though there might be temporary artifacts and
 troublesome corner cases left.
 
 If you suspect your shell prompt is causing issues, please first try
-setting a traditional prompt to confirm, and, :ref:`file a bug
+setting a traditional prompt to confirm, then :ref:`file a bug
 <reporting>`, whatever the outcome.

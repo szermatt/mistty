@@ -598,7 +598,7 @@ available in MisTTY using the following shortcuts:
 @code{M-r} triggers a backward search in command history
 
 @item 
-@code{M-.} insert the last argument from command history.
+@code{M-.} insert the last argument from command history
 @end itemize
 
 To get the same key bindings you’d get in a normal terminal, you can
@@ -662,10 +662,13 @@ corfu@footnote{https://github.com/minad/corfu}
 company-mode@footnote{http://company-mode.github.io}
 @end itemize
 
+Emacs @cite{hippie-expand} also works. That’s not completion, but it’s
+close.
+
 Other packages might work or might be made to work with some efforts.
-Auto-completion is usually the main challenge @ref{17,,Auto-complete} for
-some pointers. Please @ref{3,,file a bug} if you encounter
-issues with other completion packages.
+Auto-completion is usually the main challenge. See @ref{17,,Auto-complete}
+for some pointers. Please @ref{3,,file a bug} if you
+encounter issues with other completion packages.
 
 @menu
 * Autosuggestions:: 
@@ -679,8 +682,8 @@ issues with other completion packages.
 
 @geindex variable; mistty-wrap-capf-functions
 
-@code{completion-at-point} is defined as completing the text `around'
-the point. This is generally convenient, but gets confused by shell
+@code{completion-at-point} completes the text `around' the point.
+This is generally convenient, but gets confused by shell
 autosuggestions, available in Fish or ZSH.
 
 What if you typed “com” and the shell helpfully suggests “completion”?
@@ -716,7 +719,7 @@ MisTTY out of the box, if enabled:
 @itemize -
 
 @item 
-the built-in @cite{tempo} package
+Emacs built-in @cite{tempo} package
 
 @item 
 tempel@footnote{https://github.com/minad/tempel}
@@ -734,12 +737,12 @@ other packages.
 @subsection Fancy prompts
 
 
-MisTTY is known to work with powerline-shell prompts or Tide@comma{} on Fish@footnote{https://github.com/IlanCosman/tide}. This includes right prompt,
-for the most part, though there might be temporary artifacts and
+MisTTY is known to work with powerline-shell prompts or Tide@comma{} on Fish@footnote{https://github.com/IlanCosman/tide}. This includes right prompts,
+for the most part - though there might be temporary artifacts and
 troublesome corner cases left.
 
 If you suspect your shell prompt is causing issues, please first try
-setting a traditional prompt to confirm, and, @ref{3,,file a bug}, whatever the outcome.
+setting a traditional prompt to confirm, then @ref{3,,file a bug}, whatever the outcome.
 
 @node Shells,Extending MisTTY,Usage,Contents
 @anchor{shells doc}@anchor{1c}@anchor{shells id1}@anchor{1d}@anchor{shells shells}@anchor{e}
@@ -1294,24 +1297,24 @@ distribution; it’s only available on github@footnote{https://github.com/szerma
 @subsection Auto-complete
 
 
-By default, auto-complete UIs only work in the scrollback region of a
-MisTTY buffer, but they can be made to work in the terminal region as
-well, with a little work.
-
-Note that @code{M-x completion-at-point} or @code{M-x
-company-complete} normally work inside of the terminal region. What
-doesn’t work by default is the completion UI showing up automatically
-after some delay.
-
 @geindex variable; mistty-simulate-self-insert-command
 
-To try and make auto-complete UIs work in the terminal region, turn on
-the option on @code{M-x customize-option
+Auto-complete is a completion UI that shows up automatically after
+some delay, without having to call @cite{completion-at-point}. This used
+not to work in MisTTY terminal region. The hook
+@code{mistty-simulates-self-insert-command} was introduced to fix
+that. See @code{mistty-interactive-insert-hook} in @ref{32,,Hooks}.
+
+By default this hook calls the buffer @code{pre-command-hook} and
+@code{post-command-hook} with @code{this-command} set to
+@code{self-insert-command}, as this is the way auto-complete is
+normally triggered. This can be turned off if necessary using the
+option on @code{M-x customize-option
 mistty-simulate-self-insert-command}.
 
-If that doesn’t work, you may need to write a bridge between MisTTY
-and your auto-completion package. See
-@code{mistty-interactive-insert-hook} in @ref{32,,Hooks}.
+If the behavior described above doesn’t work for some packages, it
+should be possible to build a custom bridge between this hook and the
+auto-completion package.
 
 @node Long-running commands,,Auto-complete,Extending MisTTY
 @anchor{extensions long-running-commands}@anchor{3d}@anchor{extensions lrc}@anchor{1a}

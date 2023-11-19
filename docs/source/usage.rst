@@ -338,25 +338,29 @@ MisTTY to report remote paths on :kbd:`M-x configure-option
 mistty-allow-tramp-paths`.
 
 
-Emacs Completion-at-point
--------------------------
+Completion-at-point
+-------------------
 
 When in a MisTTY buffer, it's best to rely on the completion or
 autosuggestions provided by the shell or other command-line tool
 currently running, as they're more up-to-date and context-sensitive
 than what Emacs can provide.
 
-However, some form of Emacs auto-completion can still be useful from
+However, some form of Emacs-based completion can still be useful from
 inside of a MisTTY buffer, to complete abbreviations, expand templates
 or add emojis.
 
-There are two challenges with that:
+The following completion packages are known to work with MisTTY out of
+the box, including auto-completion, if enabled:
 
- - :code:`completion-at-point` is confused by autosuggestions
+- Emacs builtin `complete-in-region`
+- `corfu <https://github.com/minad/corfu>`_
+- `company-mode <http://company-mode.github.io>`_
 
- - showing the completion automatically doesn't work in the terminal region by default
-
-See the sections below details.
+Other packages might work or might be made to work with some efforts.
+Auto-completion is usually the main challenge :ref:`autocomplete` for
+some pointers. Please :ref:`file a bug <reporting>` if you encounter
+issues with other completion packages.
 
 Autosuggestions
 ^^^^^^^^^^^^^^^
@@ -365,7 +369,7 @@ Autosuggestions
 
 :code:`completion-at-point` is defined as completing the text *around*
 the point. This is generally convenient, but gets confused by shell
-autosuggestions.
+autosuggestions, available in Fish or ZSH.
 
 What if you typed "com" and the shell helpfully suggests "completion"?
 The buffer would look like: "com<>pletion", with <> representing
@@ -384,107 +388,32 @@ If you don't like that or don't use a shell that supports
 autosuggestions, you can turn this off with :kbd:`M-x customize-option
 mistty-wrap-capf-functions`
 
-.. _autocomplete:
+Template Expansion
+------------------
 
-Auto-complete
-^^^^^^^^^^^^^
+Template expansion and other form of long-running editing command
+might be confused by the way MisTTY work in the terminal region. See
+:ref:`lrc` for details.
 
-By default, auto-complete UIs only work in the scrollback region of a
-MisTTY buffer, but they can be made to work in the terminal region as
-well, with a little work.
+The following template expansion packages are known to work with
+MisTTY out of the box, if enabled:
 
-Note that :kbd:`M-x completion-at-point` or :kbd:`M-x
-company-complete` normally work inside of the terminal region. What
-doesn't work by default is the completion UI showing up automatically
-after some delay.
+- the built-in `tempo` package
+- `tempel <https://github.com/minad/tempel>`_
+- `yasnippet <https://github.com/joaotavora/yasnippet>`_
 
-.. index::
-   pair: variable; mistty-simulate-self-insert-command
+Other packages might work or might be made to work with some efforts.
+Please :ref:`file a bug <reporting>` if you encounter issues with
+other packages.
 
-To try and make auto-complete UIs work in the terminal region, turn on
-the option on :kbd:`M-x customize-option
-mistty-simulate-self-insert-command`.
+Fancy prompts
+-------------
 
-If that doesn't work, you may need to write a bridge between MisTTY
-and your auto-completion package. See
-:code:`mistty-interactive-insert-hook` in :ref:`hooks`.
+MisTTY is known to work with powerline-shell prompts or `Tide, on Fish
+<https://github.com/IlanCosman/tide>`_. This includes right prompt,
+for the most part, though there might be temporary artifacts and
+troublesome corner cases left.
 
-.. _lrc:
-
-Long-running commands
----------------------
-
-In Emacs, most editing tools are run as a single Emacs command, but
-some tools span multiple Emacs command, for example, when you expand a
-snippet with `yasnippet <https://github.com/joaotavora/yasnippet>`_,
-the snippet template is inserted into the buffer, together with
-placeholders for you to fill some missing information.
-
-Filling in a template is a series of Emacs commands, that, together,
-have a single effect: to insert a snippet of text. MisTTY calls this a
-long-running command.
-
-When run in the terminal region, such long-running commands fail as
-MisTTY sends the initial text to the shell, which echoes it back to be
-redisplayed, possibly jumbling things and definitely destroying any
-overlays.
-
-To avoid such situations, MisTTY holds back sending text to the shell
-until long-running commands are done. For that to work, MisTTY needs
-to know when such command start and end.
-
-You can tell whether MisTTY thinks a long-running command is active,
-as it displays *CMD* in the modeline. You can also do it
-programmatically:
-
-    .. index::
-       pair: function; mistty-long-running-command-p
-
-    The function :code:`mistty-long-running-command-p` returns non-nil
-    if MisTTY thinks a long-running command is active.
-
-
-.. index::
-   pair: variable; mistty-detect-foreign-overlays
-   pair: option; mistty-detect-foreign-overlays
-   pair: variable; mistty-foreign-overlay-properties
-   pair: option; mistty-foreign-overlay-properties
-
-MisTTY detects some long-running commands by looking for overlays they
-typically add to the buffer. This can be extended with :kbd:`M-x
-customize-option mistty-foreign-overlay-properties` or turned off with
-:kbd:`M-x customize-option mistty-detect-foreign-overlays`.
-
-To add a new property to `mistty-foreign-overlay-properties`, start
-the interactive command, look for overlays with `overlays-in` then get
-their properties with `overlay-properties`. You can then choose, on
-that list, a property or face that identifies the feature or package.
-
-If you find yourself extending `mistty-foreign-overlay-properties`,
-please add an issue to https://github.com/szermatt/mistty/issues/new
-so it can be integrated into the next version.
-
-Alternatively, as not all long-running commands that can be confused
-by MisTTY use overlays, you might need to tell MisTTY about them.
-MisTTY does it already for :code:`completion-in-region`.
-
-    .. index::
-       pair: function; mistty-report-long-running-command
-
-    The function :code:`mistty-report-long-running-command` can be
-    called to tell MisTTY when a long-running command start and end.
-    It's typically called from hooks provided by the package of the
-    long-running command.
-
-Here's an example of code that would detect
-:code:`completion-in-region-mode` if MisTTY didn't already do it:
-
-.. code-block:: elisp
-
-    (defun my-completion-in-region ()
-      (mistty-report-long-running-command
-        'my-completion-in-region completion-in-region-mode))
-    (defun my-detect-completion-in-region ()
-       (add-hook 'completion-in-region-mode-hook
-                 #'my-completion-in-region nil t))
-    (add-hook 'mistty-mode-hook #'my-detect-completion-in-region)
+If you suspect your shell prompt is causing issues, please first try
+setting a traditional prompt to confirm, and, :ref:`file a bug
+<reporting>`, whatever the outcome.

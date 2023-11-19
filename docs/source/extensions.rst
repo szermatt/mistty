@@ -1,5 +1,5 @@
-Writing Extensions
-==================
+Extending MisTTY
+================
 
 .. _hooks:
 
@@ -185,3 +185,108 @@ keymap that simulates rxvt, you might do:
 :file:`mistty-reverse-input-decode-map.el` is not included into the
 distribution; it's only available on `github
 <https://github.com/szermatt/mistty/tree/master/extras>`_.
+
+.. _autocomplete:
+
+Auto-complete
+-------------
+
+By default, auto-complete UIs only work in the scrollback region of a
+MisTTY buffer, but they can be made to work in the terminal region as
+well, with a little work.
+
+Note that :kbd:`M-x completion-at-point` or :kbd:`M-x
+company-complete` normally work inside of the terminal region. What
+doesn't work by default is the completion UI showing up automatically
+after some delay.
+
+.. index::
+   pair: variable; mistty-simulate-self-insert-command
+
+To try and make auto-complete UIs work in the terminal region, turn on
+the option on :kbd:`M-x customize-option
+mistty-simulate-self-insert-command`.
+
+If that doesn't work, you may need to write a bridge between MisTTY
+and your auto-completion package. See
+:code:`mistty-interactive-insert-hook` in :ref:`hooks`.
+
+.. _lrc:
+
+Long-running commands
+---------------------
+
+In Emacs, most editing tools are run as a single Emacs command, but
+some tools span multiple Emacs command, for example, when you expand a
+snippet with `yasnippet <https://github.com/joaotavora/yasnippet>`_,
+the snippet template is inserted into the buffer, together with
+placeholders for you to fill some missing information.
+
+Filling in a template is a series of Emacs commands, that, together,
+have a single effect: to insert a snippet of text. MisTTY calls this a
+long-running command.
+
+When run in the terminal region, such long-running commands fail as
+MisTTY sends the initial text to the shell, which echoes it back to be
+redisplayed, possibly jumbling things and definitely destroying any
+overlays.
+
+To avoid such situations, MisTTY holds back sending text to the shell
+until long-running commands are done. For that to work, MisTTY needs
+to know when such command start and end.
+
+You can tell whether MisTTY thinks a long-running command is active,
+as it displays *CMD* in the modeline. You can also do it
+programmatically:
+
+    .. index::
+       pair: function; mistty-long-running-command-p
+
+    The function :code:`mistty-long-running-command-p` returns non-nil
+    if MisTTY thinks a long-running command is active.
+
+
+.. index::
+   pair: variable; mistty-detect-foreign-overlays
+   pair: option; mistty-detect-foreign-overlays
+   pair: variable; mistty-foreign-overlay-properties
+   pair: option; mistty-foreign-overlay-properties
+
+MisTTY detects some long-running commands by looking for overlays they
+typically add to the buffer. This can be extended with :kbd:`M-x
+customize-option mistty-foreign-overlay-properties` or turned off with
+:kbd:`M-x customize-option mistty-detect-foreign-overlays`.
+
+To add a new property to `mistty-foreign-overlay-properties`, start
+the interactive command, look for overlays with `overlays-in` then get
+their properties with `overlay-properties`. You can then choose, on
+that list, a property or face that identifies the feature or package.
+
+If you find yourself extending `mistty-foreign-overlay-properties`,
+please add an issue to https://github.com/szermatt/mistty/issues/new
+so it can be integrated into the next version.
+
+Alternatively, as not all long-running commands that can be confused
+by MisTTY use overlays, you might need to tell MisTTY about them.
+MisTTY does it already for :code:`completion-in-region`.
+
+    .. index::
+       pair: function; mistty-report-long-running-command
+
+    The function :code:`mistty-report-long-running-command` can be
+    called to tell MisTTY when a long-running command start and end.
+    It's typically called from hooks provided by the package of the
+    long-running command.
+
+Here's an example of code that would detect
+:code:`completion-in-region-mode` if MisTTY didn't already do it:
+
+.. code-block:: elisp
+
+    (defun my-completion-in-region ()
+      (mistty-report-long-running-command
+        'my-completion-in-region completion-in-region-mode))
+    (defun my-detect-completion-in-region ()
+       (add-hook 'completion-in-region-mode-hook
+                 #'my-completion-in-region nil t))
+    (add-hook 'mistty-mode-hook #'my-detect-completion-in-region)

@@ -496,9 +496,9 @@ forever - or until the test calls mistty--send-text directly."
   (let ((interact (mistty--make-interact 'stuck)))
     (mistty--interact-init
      interact
-     (lambda (val)
+     (lambda (_)
        (if (with-current-buffer mistty-term-buffer
-             (looking-back (regexp-quote text)))
+             (looking-back (regexp-quote text) (point-min)))
            'done
          'keep-waiting)))
     interact))
@@ -516,7 +516,7 @@ redraw everything."
         (can-continue nil))
     (mistty--interact-init
      interact
-     (lambda (val)
+     (lambda (_)
        (if can-continue
            'done
          'keep-waiting)))

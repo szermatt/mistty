@@ -81,11 +81,22 @@
 
 (eldev-use-plugin 'maintainer)
 (setq eldev-release-test-local t)
-(defun mistty-release-preparator (version)
+(defun mistty-release-preparator (version &optional post-release-version)
   (eldev-with-file-buffer "docs/source/conf.py"
     (dolist (tag '("version" "release"))
       (goto-char (point-min))
       (search-forward-regexp (concat tag " = '\\([0-9.]+\\)' *$"))
       (replace-match
-       (format "%s = '%s'" tag (package-version-join version))))))
+       (format "%s = '%s'" tag (package-version-join
+                                (or post-release-version version)))))))
 (add-hook 'eldev-release-preparators #'mistty-release-preparator)
+
+;; After a release, add a .9 to tag a development version, so if the
+;; release is 1.0, the following development version is 1.0.9 and the
+;; next release is going to be 1.1 or 2.0.
+(setq eldev-release-post-release-commit
+      (lambda (release-version)
+        (append release-version '(9))))
+(setq eldev-release-post-release-commit-message
+      "Development version @[version-string]@.9, following release @[version-string]@")
+(add-hook 'eldev-release-post-release-preparators #'mistty-release-preparator)

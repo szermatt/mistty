@@ -83,7 +83,9 @@
 (setq eldev-release-test-local t)
 (defun mistty-release-preparator (version)
   (eldev-with-file-buffer "docs/source/conf.py"
-    (search-forward-regexp "version = '\\([0-9.]+\\)' *$")
-    (replace-match
-     (format "version = '%s'" (package-version-join version)))))
+    (dolist (tag '("version" "release"))
+      (goto-char (point-min))
+      (search-forward-regexp (concat tag " = '\\([0-9.]+\\)' *$"))
+      (replace-match
+       (format "%s = '%s'" tag (package-version-join version))))))
 (add-hook 'eldev-release-preparators #'mistty-release-preparator)

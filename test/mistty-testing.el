@@ -493,15 +493,11 @@ text to be inserted there."
 
 The interaction waits for TEXT, but never sends it, so it'll wait
 forever - or until the test calls mistty--send-text directly."
-  (let ((interact (mistty--make-interact 'stuck)))
-    (mistty--interact-init
-     interact
-     (lambda (_)
-       (if (with-current-buffer mistty-term-buffer
-             (looking-back (regexp-quote text) (point-min)))
-           'done
-         'keep-waiting)))
-    interact))
+  (mistty--interact stuck (interact)
+    (if (with-current-buffer mistty-term-buffer
+          (looking-back (regexp-quote text)))
+        (mistty--interact-done)
+      (mistty--interact-keep-waiting))))
 
 (defun mistty-test-freeze-queue ()
   "Freezes `mistty-queue'.
@@ -512,15 +508,14 @@ the function returned by this function is called.
 This should only be used when the shell is bash, as it sends a
 ^G, which bash answers with another ^G, but cause other shells to
 redraw everything."
-  (let ((interact (mistty--make-interact 'freeze))
-        (can-continue nil))
-    (mistty--interact-init
-     interact
-     (lambda (_)
+  (let ((can-continue nil))
+    (mistty--enqueue
+     mistty--queue
+     (mistty--interact freeze (interact)
        (if can-continue
-           'done
-         'keep-waiting)))
-    (mistty--enqueue mistty--queue interact)
+           (mistty--interact-done)
+         (mistty--interact-keep-waiting))))
+
     (lambda ()
       (setq can-continue t)
       ;; make sure we get something back from the shell right away.

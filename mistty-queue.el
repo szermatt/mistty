@@ -84,7 +84,11 @@ possible problem:
 
 ;; Asynchronous terminal interaction, to add into the queue.
 (cl-defstruct (mistty--interact
-               (:constructor mistty--make-interact (type))
+               (:constructor mistty--make-interact
+                             (type
+                              &aux
+                              (initial-buf (current-buffer))
+                              (buf initial-buf)))
                (:conc-name mistty--interact-)
                (:copier nil))
   ;; Symbol that identifies the type of interaction.
@@ -93,10 +97,12 @@ possible problem:
   ;; Callback function that will handle the next call to
   ;; mistty--interact-next. It takes a single argument.
   ;;
-  ;; The interaction is finished once the callback returns 'done.
+  ;; Such callbacks must never return a value. They must instead call
+  ;; mistty--interact-return, mistty--interact-keep-waiting or
+  ;; mistty--interact-done, which both throw 'mistty--interact-return.
   ;;
   ;; CB initially runs within the buffer that was current when
-  ;; `mistty--interact-init' was called. If CB modifies its current
+  ;; `mistty--make-interact' was called. If CB modifies its current
   ;; buffer, it is stored by `mistty--interact-next' and set for the
   ;; next call to CB. The buffer that's current when
   ;; `mistty--interact-next' doesn't matter, though it is guaranteed
@@ -114,10 +120,13 @@ possible problem:
   ;; - 'timeout if the process did not send anything for a long time
   ;; - 'fire-and-forget if the last value returned was a fire-and-forget
   ;;
-  ;; CB returns one of:
+  ;; CB then raises 'mistty--interact-return with one of the following
+  ;; values:
   ;; - a non-empty string to send to the terminal
   ;; - 'keep-waiting to just wait for more output
   ;; - 'done once the interaction is done. It'll be closed and discarded.
+  ;; (This is normally done by calling the function mistty--interact-return,
+  ;; mistty--interact-done or mistty--interact-keep-waiting.)
   cb
 
   ;; A function that releases any resource held during the
@@ -132,25 +141,47 @@ possible problem:
   ;; set before the next call to CB.
   buf
 
-  ;; The buffer that was current when `mistty--interact-init' was
+  ;; The buffer that was current when `mistty--make-interact' was
   ;; called. It is set before calling CLEANUP.
   initial-buf)
 
-(defsubst mistty--interact-init (interact cb &optional cleanup)
-  "Convenience function for initializing INTERACT.
+(cl-defmacro mistty--interact (type (var) &rest body)
+  "Create and return an interaction.
 
-This function initializes the fields CB, CLEANUP of INTERACT and
-captures the current buffer."
-  (setf (mistty--interact-cb interact) cb)
-  (let ((buf (current-buffer)))
-    (setf (mistty--interact-buf interact) buf)
-    (setf (mistty--interact-initial-buf interact) buf))
-  (when cleanup
-    (setf (mistty--interact-cleanup interact) cleanup)))
+The returned interaction is of type TYPE.
+
+VAR, usually \"interact\", is bound to the interaction, available
+in BODY.
+
+BODY defines the initial value of the interact callback.
+
+Returns the newly-created interaction."
+  (declare (indent 2))
+  `(let ((,var (mistty--make-interact (quote ,type))))
+     (setf (mistty--interact-cb ,var)
+           (lambda (&optional _) ,@body))
+     ,var))
 
 (defsubst mistty--interact-callable-p (interact)
   "Return non-nil if INTERACT is callable."
   (functionp (mistty--interact-call interact)))
+
+(defsubst mistty--interact-done (&optional _)
+  "Return \=='done from an interact.
+
+This is equivalent to calling:
+  (mistty--interact-return interact \=='done)
+
+This function accepts an optional argument so that it can safely
+be pass to a :then argument in `mistty--interact-return'."
+  (throw 'mistty--interact-return 'done))
+
+(defsubst mistty--interact-keep-waiting ()
+  "Return \=='keep-waiting from an interact.
+
+This is equivalent to calling:
+  (mistty--interact-return interact \=='keep-waiting)"
+  (throw 'mistty--interact-return 'keep-waiting))
 
 (defsubst mistty--queue-empty-p (queue)
   "Return t if QUEUE generator hasn't finished yet."
@@ -181,17 +212,15 @@ The last interact often is the one that's currently running."
 
 Does nothing is STR is nil or empty."
   (when (mistty--nonempty-str-p str)
-    (let ((interact (mistty--make-interact 'str)))
-      (mistty--interact-init
-       interact
-       (lambda (&optional _)
-         (mistty--interact-return
-          interact
-          (if fire-and-forget
-              `(fire-and-forget ,str)
-            str)
-          :then (lambda (&optional_) 'done))))
-      (mistty--enqueue queue interact))))
+    (mistty--enqueue
+     queue
+     (mistty--interact send-str (interact)
+       (mistty--interact-return
+        interact
+        (if fire-and-forget
+            `(fire-and-forget ,str)
+          str)
+        :then #'mistty--interact-done)))))
 
 (defun mistty--enqueue (queue interact &optional prepend)
   "Add INTERACT to QUEUE.
@@ -361,7 +390,11 @@ This function is meant to be use as timer handler."
 
 This passes VAL to `mistty-interact-cb'."
   (with-current-buffer (mistty--interact-buf interact)
-    (prog1 (funcall (mistty--interact-cb interact) val)
+    (prog1
+        (catch 'mistty--interact-return
+          (let ((ret (funcall (mistty--interact-cb interact) val)))
+            (error "unexpected return value from %s: %s"
+                   (mistty--interact-type interact) ret)))
       (setf (mistty--interact-buf interact) (current-buffer)))))
 
 (defun mistty--interact-close (interact)
@@ -442,9 +475,9 @@ this function, as CB would never be executed; Just return
             (lambda (value)
               (if (funcall accept-f value)
                   (funcall then)
-                'keep-waiting)))))
+                (mistty--interact-keep-waiting))))))
    (then (setf (mistty--interact-cb interact) then)))
-  value)
+  (throw 'mistty--interact-return value))
 
 (defun mistty--call-interact (interact type &rest args)
   "Call INTERACT and pass it ARGS.

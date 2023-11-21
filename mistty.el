@@ -1552,20 +1552,18 @@ instead `mistty--move-sync-mark-with-shift' or
   "Send the current command to the shell."
   (interactive)
   (mistty--require-proc)
-  (let ((interact (mistty--make-interact 'send-command)))
-    (mistty--interact-init
-     interact
-     (lambda (&optional _)
-       (mistty-maybe-realize-possible-prompt)
-       (setq mistty-goto-cursor-next-time t)
-       (when (and mistty-proc
-                  (mistty-on-prompt-p (point))
-                  (mistty-on-prompt-p (mistty-cursor)))
-         (setq mistty--end-prompt t))
-       (mistty--interact-return
-        interact "\C-m"
-        :then (lambda (&optional_) 'done))))
-    (mistty--enqueue mistty--queue interact)))
+  (mistty--enqueue
+   mistty--queue
+   (mistty--interact send-command (interact)
+     (mistty-maybe-realize-possible-prompt)
+     (setq mistty-goto-cursor-next-time t)
+     (when (and mistty-proc
+                (mistty-on-prompt-p (point))
+                (mistty-on-prompt-p (mistty-cursor)))
+       (setq mistty--end-prompt t))
+     (mistty--interact-return
+      interact "\C-m"
+      :then #'mistty--interact-done))))
 
 (defun mistty-send-last-key (&optional n)
   "Send the last key that was typed to the terminal N times.
@@ -1673,23 +1671,21 @@ This command is available in fullscreen mode."
                    (not (and (eq this-command 'mistty-self-insert)
                              (eq last-command 'mistty-self-insert))))
           (mistty-before-positional))
-        (let ((interact (mistty--make-interact 'send-key)))
-          (mistty--interact-init
-           interact
-           (lambda (&optional _)
-             (when (eq this-command 'mistty-self-insert)
-               (unless mistty--self-insert-line
-                 (setq mistty--self-insert-line
-                       (cons (mistty--distance (mistty--bol (point)) (point)) nil)))
-               (push translated-key (cdr mistty--self-insert-line)))
-             (setq mistty-goto-cursor-next-time t)
-             (mistty--maybe-add-key-to-undo n key (mistty-cursor))
-             (mistty--interact-return
-              interact (if fire-and-forget
-                           `(fire-and-forget ,translated-key)
-                         translated-key)
-              :then (lambda (&optional_) 'done))))
-          (mistty--enqueue mistty--queue interact))))
+        (mistty--enqueue
+         mistty--queue
+         (mistty--interact send-key (interact)
+           (when (eq this-command 'mistty-self-insert)
+             (unless mistty--self-insert-line
+               (setq mistty--self-insert-line
+                     (cons (mistty--distance (mistty--bol (point)) (point)) nil)))
+             (push translated-key (cdr mistty--self-insert-line)))
+           (setq mistty-goto-cursor-next-time t)
+           (mistty--maybe-add-key-to-undo n key (mistty-cursor))
+           (mistty--interact-return
+            interact (if fire-and-forget
+                         `(fire-and-forget ,translated-key)
+                       translated-key)
+            :then #'mistty--interact-done)))))
 
      ((process-live-p mistty-proc)
       (mistty--send-string mistty-proc translated-key))
@@ -1753,22 +1749,20 @@ forwards the argument to it."
     (if (and (= n 1)
              (process-live-p mistty-proc)
              mistty--queue)
-        (let ((interact (mistty--make-interact 'bol)))
-          (mistty--interact-init
-           interact
-           (lambda (&optional _)
-             ;; While C-a is not, strictly-speaking, a positional,
-             ;; it's a good sign that we're on a prompt.
-             (if (or (mistty-maybe-realize-possible-prompt (point))
-                     (mistty-on-prompt-p (point)))
-                 (progn
-                   (setq mistty-goto-cursor-next-time t)
-                   (mistty--interact-return
-                    interact "\C-a"
-                    :then (lambda (&optional_) 'done)))
-               (beginning-of-line n)
-               'done)))
-          (mistty--enqueue mistty--queue interact))
+        (mistty--enqueue
+         mistty--queue
+         (mistty--interact bol (interact)
+           ;; While C-a is not, strictly-speaking, a positional,
+           ;; it's a good sign that we're on a prompt.
+           (if (or (mistty-maybe-realize-possible-prompt (point))
+                   (mistty-on-prompt-p (point)))
+               (progn
+                 (setq mistty-goto-cursor-next-time t)
+                 (mistty--interact-return
+                  interact "\C-a"
+                  :then #'mistty--interact-done))
+             (beginning-of-line n)
+             (mistty--interact-done))))
       (beginning-of-line n))))
 
 (defun mistty-end-of-line-or-goto-cursor (&optional n)
@@ -1808,26 +1802,24 @@ forwards the argument to it."
      ((and (= 1 n)
            (process-live-p mistty-proc)
            mistty--queue)
-      (let ((interact (mistty--make-interact 'eol)))
-        (mistty--interact-init
-         interact
-         (lambda (&optional _)
-           ;; While C-e is not, strictly-speaking, a positional, it's
-           ;; a good sign that we're on a prompt.
-           (if (or (mistty-maybe-realize-possible-prompt (point))
-                   (mistty-on-prompt-p (point)))
-               (progn
-                 ;; If anything, move point to the cursor. This might
-                 ;; be the only visible effect if the cursor is
-                 ;; already at what the shell considers eol.
-                 (mistty-goto-cursor)
-                 (setq mistty-goto-cursor-next-time t)
-                 (mistty--interact-return
-                  interact "\C-e"
-                  :then (lambda (&optional_) 'done)))
-             (end-of-line n)
-             'done)))
-        (mistty--enqueue mistty--queue interact)))
+      (mistty--enqueue
+       mistty--queue
+       (mistty--interact eol (interact)
+         ;; While C-e is not, strictly-speaking, a positional, it's
+         ;; a good sign that we're on a prompt.
+         (if (or (mistty-maybe-realize-possible-prompt (point))
+                 (mistty-on-prompt-p (point)))
+             (progn
+               ;; If anything, move point to the cursor. This might
+               ;; be the only visible effect if the cursor is
+               ;; already at what the shell considers eol.
+               (mistty-goto-cursor)
+               (setq mistty-goto-cursor-next-time t)
+               (mistty--interact-return
+                interact "\C-e"
+                :then #'mistty--interact-done))
+           (end-of-line n)
+           (mistty--interact-done)))))
      (t
       (end-of-line n)))))
 
@@ -1898,10 +1890,9 @@ append that changeset to the current one. If that works, the
 changeset is released and the call returns t, otherwise the call
 returns nil."
   (let ((interact (mistty--make-interact 'replay))
-        start-f next-modification-f
+        next-modification-f
         move-to-target-f after-move-to-target-f
         insert-and-delete-f after-insert-and-delete-f
-        unwind-f
 
         ;; mistty--changeset-modification extracts modification from
         ;; the buffer. It must be called when the interaction is
@@ -1914,8 +1905,9 @@ returns nil."
         backstage lower-limit upper-limit distance
         orig-beg content old-length waiting-for-last-change
         inserted-detector-regexp)
-    (setq
-     start-f
+
+    (setf
+     (mistty--interact-cb interact)
      (lambda (&optional _)
        (set-buffer calling-buffer)
        (setq backstage (mistty--create-backstage mistty-proc))
@@ -1929,47 +1921,16 @@ returns nil."
        (setq lower-limit (point-min-marker))
        (setq upper-limit (point-max-marker))
        (funcall next-modification-f)))
+
     (setq
      next-modification-f
      (lambda ()
-       (if-let ((m (car modifications)))
-           (progn
-             (setq modifications (cdr modifications))
+       ;; No more modifications.
+       (unless modifications
+         (set-buffer calling-buffer)
 
-             (setq orig-beg (nth 0 m))
-             (setq content (nth 1 m))
-             (setq old-length (nth 2 m))
-
-             (move-marker beg orig-beg)
-             (if (< old-length 0)
-                 (progn
-                   (setq old-length (- (point-max) orig-beg))
-                   (move-marker old-end (point-max)))
-               (move-marker old-end (+ orig-beg old-length)))
-
-             ;; never delete the final \n that some shells add.
-             (when (and (> old-length 0)
-                        (= old-end (point-max))
-                        (= ?\n (char-before old-end)))
-               (move-marker old-end (1- old-end))
-               (setq old-length (1- old-length)))
-
-             (mistty-log "replay: %s %s %s old-content: %s (limit: [%s-%s])"
-                         (marker-position orig-beg)
-                         content
-                         old-length
-                         (mistty--safe-bufstring beg old-end)
-                         (marker-position lower-limit)
-                         (marker-position upper-limit))
-             (if (> old-length 0)
-                 (setq target old-end)
-               (setq target beg))
-             (funcall move-to-target-f))
-
-         ;; No more modifications.
          ;; Force refresh, even if nothing was sent, if only to revert what
          ;; couldn't be replayed.
-         (set-buffer calling-buffer)
          (setq mistty--need-refresh t)
          (setq mistty-goto-cursor-next-time 'off)
 
@@ -1981,7 +1942,42 @@ returns nil."
              (mistty--enqueue
               mistty--queue
               (mistty--cursor-to-point-interaction) 'prepend)))
-         'done)))
+         (mistty--interact-done))
+
+       ;; Handle modification.
+       (let ((m (car modifications)))
+         (setq modifications (cdr modifications))
+
+         (setq orig-beg (nth 0 m))
+         (setq content (nth 1 m))
+         (setq old-length (nth 2 m))
+
+         (move-marker beg orig-beg)
+         (if (< old-length 0)
+             (progn
+               (setq old-length (- (point-max) orig-beg))
+               (move-marker old-end (point-max)))
+           (move-marker old-end (+ orig-beg old-length)))
+
+         ;; never delete the final \n that some shells add.
+         (when (and (> old-length 0)
+                    (= old-end (point-max))
+                    (= ?\n (char-before old-end)))
+           (move-marker old-end (1- old-end))
+           (setq old-length (1- old-length)))
+
+         (mistty-log "replay: %s %s %s old-content: %s (limit: [%s-%s])"
+                     (marker-position orig-beg)
+                     content
+                     old-length
+                     (mistty--safe-bufstring beg old-end)
+                     (marker-position lower-limit)
+                     (marker-position upper-limit))
+         (if (> old-length 0)
+             (setq target old-end)
+           (setq target beg))
+         (funcall move-to-target-f))))
+
     (setq
      move-to-target-f
      (lambda ()
@@ -2002,14 +1998,15 @@ returns nil."
          (setq distance (mistty--distance (point) target))
          (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
          (let ((term-seq (mistty--move-horizontally-str distance)))
-           (if (mistty--nonempty-str-p term-seq)
-               (mistty--interact-return
-                interact term-seq
-                :wait-until (lambda ()
-                              (mistty--update-backstage)
-                              (= (point) target))
-                :then after-move-to-target-f)
-             (funcall insert-and-delete-f)))))))
+           (when (mistty--nonempty-str-p term-seq)
+             (mistty--interact-return
+              interact term-seq
+              :wait-until (lambda ()
+                            (mistty--update-backstage)
+                            (= (point) target))
+              :then after-move-to-target-f)))
+         (funcall insert-and-delete-f)))))
+
     (setq
      after-move-to-target-f
      (lambda ()
@@ -2040,6 +2037,7 @@ returns nil."
         (t
          (move-marker target (point))
          (funcall insert-and-delete-f)))))
+
     (setq
      insert-and-delete-f
      (lambda ()
@@ -2047,43 +2045,42 @@ returns nil."
                    (point)
                    (marker-position beg)
                    (marker-position old-end))
-       (or
-        (let ((term-seq
-               (concat
-                ;; delete
-                (when (> old-length 0)
-                  (let ((char-count (mistty--distance beg old-end)))
-                    (mistty-log "DELETE %s chars (was %s)" char-count old-length)
-                    (mistty--repeat-string char-count "\b")))
-                ;; insert
-                (when (length> content 0)
-                  (mistty-log "INSERT: '%s'" content)
-                  (mistty--maybe-bracketed-str content)))))
+       (let ((term-seq
+              (concat
+               ;; delete
+               (when (> old-length 0)
+                 (let ((char-count (mistty--distance beg old-end)))
+                   (mistty-log "DELETE %s chars (was %s)" char-count old-length)
+                   (mistty--repeat-string char-count "\b")))
+               ;; insert
+               (when (length> content 0)
+                 (mistty-log "INSERT: '%s'" content)
+                 (mistty--maybe-bracketed-str content)))))
+         (when (mistty--nonempty-str-p term-seq)
 
-          (when (mistty--nonempty-str-p term-seq)
+           ;; ignore term-line-wrap and mistty-skip when
+           ;; building and running the detector.
+           (mistty--remove-text-with-property 'term-line-wrap t)
+           (mistty--remove-text-with-property 'mistty-skip t)
+           (setq inserted-detector-regexp
+                 (concat
+                  "^"
+                  (regexp-quote (mistty--safe-bufstring
+                                 (mistty--bol beg) beg))
+                  (regexp-quote content)))
+           (mistty-log "RE /%s/" inserted-detector-regexp)
+           (unless modifications
+             (setq waiting-for-last-change t))
+           (mistty--interact-return
+            interact term-seq
+            :wait-until (lambda ()
+                          (mistty--update-backstage)
+                          (mistty--remove-text-with-property 'term-line-wrap t)
+                          (mistty--remove-text-with-property 'mistty-skip t)
+                          (looking-back inserted-detector-regexp (point-min)))
+            :then after-insert-and-delete-f)))
+       (funcall next-modification-f)))
 
-            ;; ignore term-line-wrap and mistty-skip when
-            ;; building and running the detector.
-            (mistty--remove-text-with-property 'term-line-wrap t)
-            (mistty--remove-text-with-property 'mistty-skip t)
-            (setq inserted-detector-regexp
-                  (concat
-                   "^"
-                   (regexp-quote (mistty--safe-bufstring
-                                  (mistty--bol beg) beg))
-                   (regexp-quote content)))
-            (mistty-log "RE /%s/" inserted-detector-regexp)
-            (unless modifications
-              (setq waiting-for-last-change t))
-            (mistty--interact-return
-             interact term-seq
-             :wait-until (lambda ()
-                           (mistty--update-backstage)
-                           (mistty--remove-text-with-property 'term-line-wrap t)
-                           (mistty--remove-text-with-property 'mistty-skip t)
-                           (looking-back inserted-detector-regexp (point-min)))
-             :then after-insert-and-delete-f)))
-        (funcall next-modification-f))))
     (setq
      after-insert-and-delete-f
      (lambda ()
@@ -2094,9 +2091,6 @@ returns nil."
     (setf
      (mistty--interact-call interact)
      (lambda (other-cs)
-       "Append OTHER-CS to the current changeset.
-
-If appending worked, return t and release OTHER-CS."
        (when-let ((text-to-insert (mistty--changeset-single-insert other-cs)))
          (when (and
                 (eql (mistty--changeset-beg other-cs)
@@ -2124,8 +2118,8 @@ If appending worked, return t and release OTHER-CS."
            (mistty--release-changeset other-cs)
            t))))
 
-    (setq
-     unwind-f
+    (setf
+     (mistty--interact-cleanup interact)
      (lambda ()
        (mistty--delete-backstage backstage)
 
@@ -2134,7 +2128,6 @@ If appending worked, return t and release OTHER-CS."
        (mistty--release-changeset cs)
        (mistty--refresh-after-changeset)))
 
-    (mistty--interact-init interact start-f unwind-f)
     interact))
 
 (defun mistty--refresh-after-changeset ()
@@ -2443,44 +2436,37 @@ post-command hook."
 
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."
-  (let ((interact (mistty--make-interact 'cursor-to-point))
-        start-f after-move-f)
-    (setq
-     start-f
-     (lambda (&optional _)
-       (or
-        (when (mistty-on-prompt-p (point))
-          (let ((from (mistty-cursor))
-                (to (point)))
-            (when (and (>= from (point-min))
-                       (<= from (point-max))
-                       (>= to (point-min))
-                       (<= to (point-max))
-                       (mistty--with-live-buffer mistty-term-buffer
-                         (<= (mistty--from-pos-of to mistty-work-buffer)
-                             (point-max))))
-              (let* ((distance (mistty--distance from to))
-                     (term-seq (mistty--move-horizontally-str distance)))
-                (when (mistty--nonempty-str-p term-seq)
-                  (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-                  (mistty--interact-return
-                   interact term-seq
-                   :wait-until (lambda ()
-                                 ;; Ignoring skipped spaces is useful as, with
-                                 ;; multiline prompts, it's hard to figure out
-                                 ;; where the indentation should be without
-                                 ;; understanding the language.
-                                 (mistty--same-pos-ignoring-skipped
-                                  (mistty-cursor) (point)))
-                   :then after-move-f))))))
-        'done)))
-    (setq
-     after-move-f
-     (lambda ()
-       (mistty-log "moved cursor to %s (goal: %s)" (mistty-cursor) (point))
-       'done))
-    (mistty--interact-init interact start-f)
-    interact))
+  (mistty--interact cursor-to-point (interact)
+    (when (mistty-on-prompt-p (point))
+      (let ((from (mistty-cursor))
+            (to (point)))
+        (when (and (>= from (point-min))
+                   (<= from (point-max))
+                   (>= to (point-min))
+                   (<= to (point-max))
+                   (mistty--with-live-buffer mistty-term-buffer
+                     (<= (mistty--from-pos-of to mistty-work-buffer)
+                         (point-max))))
+          (let* ((distance (mistty--distance from to))
+                 (term-seq (mistty--move-horizontally-str distance)))
+            (when (mistty--nonempty-str-p term-seq)
+              (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
+              (mistty--interact-return
+               interact term-seq
+               :wait-until
+               (lambda ()
+                 ;; Ignoring skipped spaces is useful as, with
+                 ;; multiline prompts, it's hard to figure out
+                 ;; where the indentation should be without
+                 ;; understanding the language.
+                 (mistty--same-pos-ignoring-skipped
+                  (mistty-cursor) (point)))
+               :then
+               (lambda ()
+                 (mistty-log "moved cursor to %s (goal: %s)"
+                             (mistty-cursor) (point))
+                 (mistty--interact-done))))))))
+    (mistty--interact-done)))
 
 (defun mistty--same-pos-ignoring-skipped (posa posb)
   "Return non-nil if POSA and POSB are the same, skipped spaces.
@@ -2710,19 +2696,17 @@ This creates any possible prompts that were detected at the last
 minute. If a prompt is created, it also moves the cursor to the
 point, as this is only done by the post-command hook on detected
 prompts."
-  (let ((interact (mistty--make-interact 'before-positional)))
-    (mistty--interact-init
-     interact
-     (lambda (&optional _)
-       (let ((cursor (mistty-cursor)))
-         (when (and (not (= cursor (point)))
-                    (mistty-maybe-realize-possible-prompt))
-           (mistty--enqueue
-            mistty--queue
-            (mistty--cursor-to-point-interaction)
-            'prepend))
-         'done)))
-    (mistty--enqueue mistty--queue interact)))
+  (mistty--enqueue
+   mistty--queue
+   (mistty--interact before-position (interact)
+     (let ((cursor (mistty-cursor)))
+       (when (and (not (= cursor (point)))
+                  (mistty-maybe-realize-possible-prompt))
+         (mistty--enqueue
+          mistty--queue
+          (mistty--cursor-to-point-interaction)
+          'prepend))
+       (mistty--interact-done)))))
 
 (defun mistty-maybe-realize-possible-prompt (&optional pos)
   "If a possible prompt was detected at POS, create it now."

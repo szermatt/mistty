@@ -1976,33 +1976,27 @@
     (let ((start (mistty--bol (point))))
       (mistty--enqueue
        mistty--queue
-       (let ((interact (mistty--make-interact 'test))
-             hello-f enter-f bar-f done-f)
+       (let (hello-f enter-f bar-f)
+         (mistty--interact test (interact)
+           (setq enter-f
+                 (lambda ()
+                   (mistty--interact-return
+                    interact "\C-m"
+                    :wait-until (lambda ()
+                                  (mistty-test-find-p "reset done" start))
+                    :then bar-f)))
 
-         (setq hello-f
-               (lambda (&optional _)
-                 (mistty--interact-return
-                  interact "hello"
-                  :wait-until (lambda ()
-                                (mistty-test-find-p "hello" start))
-                  :then enter-f)))
-         (setq enter-f
-               (lambda ()
-                 (mistty--interact-return
-                  interact "\C-m"
-                  :wait-until (lambda ()
-                                (mistty-test-find-p "reset done" start))
-                  :then bar-f)))
-         (setq bar-f
-               (lambda ()
-                 (mistty--interact-return
-                  interact "bar" :then done-f)))
-         (setq done-f
-               (lambda (&optional _)
-                 'done))
+           (setq bar-f
+                 (lambda ()
+                   (mistty--interact-return
+                    interact "bar" :then #'mistty--interact-done)))
 
-         (mistty--interact-init interact hello-f)
-         interact))
+           ;; start test interaction
+           (mistty--interact-return
+            interact "hello"
+            :wait-until (lambda ()
+                          (mistty-test-find-p "hello" start))
+            :then enter-f))))
       (mistty-wait-for-output :str "$ " :start start)
 
       (should (equal (concat "read> hello\n"
@@ -2023,20 +2017,14 @@
     (mistty-with-test-buffer ()
       (mistty--enqueue
        mistty--queue
-       (let ((interact (mistty--make-interact 'test))
-             foo-f error-f)
-         (setq foo-f
-               (lambda (&optional _)
-                 (mistty-log "foo-f")
-                 (mistty--interact-return
-                  interact "foo" :then error-f)))
-         (setq error-f
-               (lambda (val)
-                 (mistty-log "error-f %s" val)
-                 (error "fake")))
-
-         (mistty--interact-init interact foo-f)
-         interact))
+       (mistty--interact test (interact)
+         (mistty-log "foo-f")
+         (mistty--interact-return
+          interact "foo"
+          :then
+          (lambda (val)
+            (mistty-log "error-f %s" val)
+            (error "fake")))))
     ;; mistty-queue.el should discard the failed interaction and move
     ;; on to the next one.
     (mistty--enqueue-str mistty--queue "bar")
@@ -2699,13 +2687,13 @@
 
 (ert-deftest mistty-test-quit ()
   (mistty-with-test-buffer ()
-    (let ((interact (mistty--make-interact 'test))
-          (killed nil))
-      (mistty--interact-init
-       interact
-       (lambda (&optional _) ".")
-       (lambda () (setq killed t)))
-      (mistty--enqueue mistty--queue interact)
+    (let ((killed nil))
+      (mistty--enqueue
+       mistty--queue
+       (mistty--interact test (interact)
+         (setf (mistty--interact-cleanup interact)
+               (lambda () (setq killed t)))
+         (mistty--interact-return interact ".")))
 
       (should (not (mistty--queue-empty-p mistty--queue)))
 

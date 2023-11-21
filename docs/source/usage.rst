@@ -252,10 +252,18 @@ Navigating the scrollback zone
   - :kbd:`C-c C-n` or :kbd:`M-x mistty-goto-next-output` does the
     reverse, that is, it goes to the next command output.
 
+  .. index:: pair: command; mistty-select-output
+
+  - :kbd:`C-c C-o` or :kbd:`M-x mistty-select-output` selects the
+    command output at or before point. With an argument, selects the
+    Nth previous command output.
+
   .. index:: pair: command; mistty-create-buffer-with-output
 
-  - :kbd:`C-c C-r` or :kbd:`M-x mistty-create-buffer-with-output` creates
-    a new buffer containing the last command output.
+  - :kbd:`C-c C-r` or :kbd:`M-x mistty-create-buffer-with-output`
+    creates a new buffer containing the command output at or before
+    point. With an argument, creates a buffer containing the Nth
+    previous command output.
 
   .. index:: pair: command; mistty-goto-previous-input
 

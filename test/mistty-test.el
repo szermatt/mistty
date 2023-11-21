@@ -1123,6 +1123,128 @@
                       "$ echo current")
               (mistty-test-content :show (point)))))))
 
+(ert-deftest mistty-test-select-output ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo two"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo three"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo current"))
+
+    (mistty-select-output)
+    (equal (concat "$ echo one\n"
+                   "one\n"
+                   "$ echo two\n"
+                   "two\n"
+                   "$\n"
+                   "$ echo three\n"
+                   "<>three\n<1>"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))
+
+    (mistty-test-goto "echo two")
+    (forward-line 1)
+    (mistty-select-output)
+    (equal (concat "$ echo one\n"
+                   "one\n"
+                   "$ echo two\n"
+                   "<>two\n<1>"
+                   "$\n"
+                   "$ echo three\n"
+                   "three\n"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))
+
+    (goto-char (1+ (point)))
+    (mistty-select-output)
+    (equal (concat "$ echo one\n"
+                   "one\n"
+                   "$ echo two\n"
+                   "<>two\n<1>"
+                   "$\n"
+                   "$ echo three\n"
+                   "three\n"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))
+
+    (mistty-select-output 1)
+    (equal (concat "$ echo one\n"
+                   "<>one\n<1>"
+                   "$ echo two\n"
+                   "two\n"
+                   "$\n"
+                   "$ echo three\n"
+                   "three\n"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))
+
+    (mistty-test-goto "current")
+    (mistty-select-output 2)
+    (equal (concat "$ echo one\n"
+                   "one\n"
+                   "$ echo two\n"
+                   "<>two\n<1>"
+                   "$\n"
+                   "$ echo three\n"
+                   "three\n"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))
+
+    (mistty-test-goto "echo one")
+    (should-error (mistty-select-output))))
+
+(ert-deftest mistty-test-select-output-eob ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo current"))
+
+    (goto-char (point-max))
+
+    (mistty-select-output)
+    (equal (concat "$ echo one\n"
+                   "<>one\n<1>"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))))
+
+(ert-deftest mistty-test-select-output-bob ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo current"))
+
+    (mistty-test-goto "echo one")
+    (forward-line)
+    (delete-region (point-min) (point))
+
+    (mistty-select-output)
+    (equal (concat "<>one\n<1>"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))
+
+    (goto-char (1+ (point)))
+    (mistty-select-output)
+    (equal (concat "<>one\n<1>"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))
+
+    (goto-char (point-max))
+    (mistty-select-output)
+    (equal (concat "<>one\n<1>"
+                   "$ echo current")
+           (mistty-test-content :show (list (point) (mark))))))
+
 (ert-deftest mistty-test-mistty-clear ()
   (mistty-with-test-buffer ()
     (mistty-run-command
@@ -3030,7 +3152,7 @@
              "Fullscreen mode ON. C-c C-a goes to terminal, C-c C-b to scrollback."
              (mistty--fullscreen-message)))))
 
-(ert-deftest mistty-test-create-buffer-with-output ()
+(ert-deftest mistty-test-create-buffer-with-prev-output ()
   (mistty-with-test-buffer ()
     (mistty-send-text "printf '#!/bin/bash\\necho ok\\n'")
     (mistty-send-and-wait-for-prompt)
@@ -3043,6 +3165,19 @@
                            (buffer-substring-no-properties (point-min) (point-max))))
             ;; mode should be recognized thanks to the shebang
             (should (equal 'sh-mode major-mode)))
+        (kill-buffer newbuf)))))
+
+(ert-deftest mistty-test-create-buffer-with-current-output ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo content")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-test-goto "echo content")
+    (forward-line)
+    (let* ((bufname (concat "new buffer for %s" (buffer-name)))
+           (newbuf (mistty-create-buffer-with-output bufname)))
+      (unwind-protect
+          (with-current-buffer newbuf
+            (should (equal "content" (mistty-test-content))))
         (kill-buffer newbuf)))))
 
 (ert-deftest mistty-test-create ()

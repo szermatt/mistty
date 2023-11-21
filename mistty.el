@@ -266,6 +266,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-p" #'mistty-previous-output
   "C-c C-l" #'mistty-clear
   "C-c C-r" #'mistty-create-buffer-with-output
+  "C-c C-o" #'mistty-select-output
   "C-c C-j" #'mistty-toggle-buffers
   "C-c C-q" #'mistty-send-key-sequence
   "C-c C-s" #'mistty-sudo
@@ -2210,6 +2211,22 @@ output."
         (error "No previous output")))
     (cons (point) end)))
 
+(defun mistty-current-output-range ()
+  "Return the range of the current output, if point is on an output.
+
+This function returns nil, if the point is not inside an output.
+Otherwise, it returns a cons containing the start and end
+position of the output."
+  (save-excursion
+    (unless (get-text-property (point) 'mistty-input-id)
+      (when-let ((beg (if (or (bobp)
+                              (get-text-property (1- (point)) 'mistty-input-id))
+                          (point)
+                        (previous-single-property-change
+                         (point) 'mistty-input-id nil (point-min))))
+                 (end (next-single-property-change (point) 'mistty-input-id)))
+        (cons beg end)))))
+
 (defun mistty-clear (n)
   "Clear the MisTTY buffer until the end of the last output.
 
@@ -2218,16 +2235,40 @@ With an argument, clear from the end of the last Nth output."
   (let ((range (save-excursion (mistty-previous-output (or n 1)))))
     (mistty-truncate (min mistty-sync-marker (cdr range)))))
 
+(defun mistty-select-output (&optional n)
+  "Select the current or Nth previous output range."
+  (interactive "P")
+  (let ((range (mistty--current-or-previous-output-range n)))
+    (goto-char (car range))
+    (set-mark (cdr range))))
+
 (defun mistty-create-buffer-with-output (buffer-name &optional n)
-  "Create the new buffer BUFFER-NAME with the N'th last output."
-  (interactive "BNew buffer name: \np")
-  (let ((range (save-excursion (mistty-previous-output (or n 1))))
+  "Create the new buffer BUFFER-NAME with N'th previous output.
+
+If called with no arguments and the point is on an output, create
+a buffer with that output."
+  (interactive "BNew buffer name: \nP")
+  (let ((range (mistty--current-or-previous-output-range n))
         (buffer (generate-new-buffer buffer-name)))
     (copy-to-buffer buffer (car range) (cdr range))
     (with-current-buffer buffer
       (set-auto-mode 'keep-mode-if-sane))
     (pop-to-buffer buffer)
     buffer))
+
+(defun mistty--current-or-previous-output-range (&optional n)
+  "Return the range of the current or the Nth output.
+
+If called with no arguments and the point is on an output, create
+a buffer with that output, otherwise return the range of a
+previous output.
+
+This function fails if there is no current or previous output."
+  (save-excursion
+    (if (numberp n)
+        (mistty-previous-output n)
+      (or (mistty-current-output-range)
+          (mistty-previous-output 1)))))
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."

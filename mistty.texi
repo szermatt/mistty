@@ -513,14 +513,27 @@ beginning.
 reverse, that is, it goes to the next command output.
 @end itemize
 
+@geindex command; mistty-select-output
+
+
+@itemize -
+
+@item 
+@code{C-c C-o} or @code{M-x mistty-select-output} selects the
+command output at or before point. With an argument, selects the
+Nth previous command output.
+@end itemize
+
 @geindex command; mistty-create-buffer-with-output
 
 
 @itemize -
 
 @item 
-@code{C-c C-r} or @code{M-x mistty-create-buffer-with-output} creates
-a new buffer containing the last command output.
+@code{C-c C-r} or @code{M-x mistty-create-buffer-with-output}
+creates a new buffer containing the command output at or before
+point. With an argument, creates a buffer containing the Nth
+previous command output.
 @end itemize
 
 @geindex command; mistty-goto-previous-input

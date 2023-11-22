@@ -2831,10 +2831,6 @@
   (let ((mistty-forbid-edit-regexps
          '("^search: .*\n\\(►\\|(no matches)\\)")))
     (mistty-with-test-buffer (:shell fish)
-      (mistty-send-text "echo first")
-      (mistty-send-and-wait-for-prompt)
-      (mistty-send-text "echo second")
-      (mistty-send-and-wait-for-prompt)
       (mistty-send-key 1 (kbd "C-r"))
       (mistty-wait-for-output :str "search:" :start (point-min))
       (should mistty--forbid-edit)
@@ -2846,29 +2842,6 @@
         (should (equal cursor (mistty-cursor)))
         (should (not (equal (point) (mistty-cursor)))))
 
-      (should (equal (concat "$ echo first\n"
-                             "first\n"
-                             "$ echo second\n"
-                             "second\n"
-                             "$ echo second\n"
-                             "search:\n"
-                             "► echo second  ► echo first")
-                     (mistty-test-content)))
-
-      ;; replay is disabled
-      (mistty-run-command
-       (should-error (delete-region
-                      (mistty-test-pos "search:") (point-max))))
-
-      (should (equal (concat "$ echo first\n"
-                             "first\n"
-                             "$ echo second\n"
-                             "second\n"
-                             "$ echo second\n"
-                             "search:\n"
-                             "► echo second  ► echo first")
-                     (mistty-test-content)))
-
       ;; leave the mode
       (mistty-send-command)
 
@@ -2879,6 +2852,177 @@
                  (not (search-forward "search:" nil t)))))
 
       (should (not mistty--forbid-edit)))))
+
+(ert-deftest mistty-test-forbid-edit-insert ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      (mistty-send-text "echo")
+
+      ;; replay insertion at cursor
+      (mistty-run-command
+       (goto-char (mistty-cursor))
+       (insert " se"))
+
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$ echo second\n"
+                             "search: echo se<>\n"
+                             "► echo second")
+                     (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-forbid-edit-ignore-insert-after-cursor ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      (mistty-send-text "echo")
+
+      ;; ignore insertion after cursor
+      (mistty-run-command
+       (goto-char (1+ (mistty-cursor)))
+       (insert "se"))
+
+      (mistty-send-text " fi")
+
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$ echo first\n"
+                             "search: echo fi<>\n"
+                             "► echo first")
+                     (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-forbid-edit-ignore-insert-before-cursor ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      (mistty-send-text "echo")
+
+      ;; insertion before cursor are just appended
+      (mistty-run-command
+       (goto-char (pos-bol))
+       (insert "more"))
+
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$\n"
+                             "search: echomore<>\n"
+                             "(no matches)")
+                     (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-forbid-edit-delete ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      (mistty-send-text "echo sec")
+
+      ;; replay deletion
+      (mistty-run-command
+       (backward-kill-word 1))
+
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$ echo second\n"
+                             "search: echo <>\n"
+                             "► echo second  ► echo first")
+                     (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-forbid-edit-ignore-delete-after-cursor ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      (mistty-send-text "echo")
+
+      ;; ignore deletion after cursor
+      (mistty-run-command
+       (delete-region (mistty-test-pos-after "►") (point-max)))
+
+      (mistty-send-text " se")
+
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$ echo second\n"
+                             "search: echo se\n"
+                             "► echo second")
+                     (mistty-test-content))))))
+
+(ert-deftest mistty-test-forbid-edit-ignore-delete-before-cursor ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      (mistty-send-text "echo")
+
+      (mistty-run-command
+       (delete-region (pos-bol) (+ 4 (pos-bol))))
+
+      (mistty-send-text " se")
+
+      (should (equal (concat "$ echo first\n"
+                             "first\n"
+                             "$ echo second\n"
+                             "second\n"
+                             "$ echo second\n"
+                             "search: echo se\n"
+                             "► echo second")
+                     (mistty-test-content))))))
 
 (ert-deftest mistty-test-sync-history ()
   (mistty-with-test-buffer ()

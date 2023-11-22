@@ -567,9 +567,13 @@ cause changes are just ignored by the command.")
 Truncation is configured by `mistty-buffer-maximum-size'.")
 
 (defvar-local mistty--forbid-edit nil
-  "When non-nil, replaying of modifications in turned off.
+  "Non-nil when normal editing is not available.
 
-This is controlled by `mistty-forbid-edit-regexp'.")
+This is controlled by `mistty-forbid-edit-regexp'.
+
+When this is set, MisTTY assumes that typing and deletion work,
+but moving the cursor doesn't. This allows replaying some simple
+editing commands, such as a `yank' or a `backward-kill-word'.")
 
 (defvar-local mistty--sync-history nil
   "History of sync markers on the work and term buffers.
@@ -1056,14 +1060,19 @@ PROC is the calling shell process and STR the string it sent."
       (mistty--detect-possible-prompt (point)))))
 
 (defun mistty-goto-cursor ()
-  "Move the point to the terminal's cursor."
+  "Move the point to the terminal's cursor.
+
+This also deactivates the mark, as the resulting of moving the
+point while the mark is active can be surprising."
   (interactive)
   (mistty--require-proc)
   (let ((cursor (mistty--safe-pos (mistty-cursor))))
-    (goto-char cursor)
-    (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
-      (when (= cursor (window-point win))
-        (set-window-parameter win 'mistty--cursor-skip-state nil)))))
+    (when (/= cursor (point))
+      (deactivate-mark)
+      (goto-char cursor)
+      (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
+        (when (= cursor (window-point win))
+          (set-window-parameter win 'mistty--cursor-skip-state nil))))))
 
 (defun mistty--detect-possible-prompt (cursor)
   "Look for a new prompt at CURSOR and store its position.
@@ -1262,10 +1271,10 @@ Also updates prompt and point."
            (cond
             ((and forbid-edit (not mistty--forbid-edit))
              (setq mistty--forbid-edit t)
-             (add-hook 'before-change-functions #'mistty--enforce-forbid-edits nil t))
+             (mistty-log "FORBID EDIT on"))
             ((and (not forbid-edit) mistty--forbid-edit)
              (setq mistty--forbid-edit nil)
-             (remove-hook 'before-change-functions #'mistty--enforce-forbid-edits t))))
+             (mistty-log "FORBID EDIT off"))))
 
          (mistty--with-live-buffer mistty-term-buffer
            ;; Next time, only sync the visible portion of the terminal.
@@ -1824,15 +1833,6 @@ forwards the argument to it."
      (t
       (end-of-line n)))))
 
-(defun mistty--enforce-forbid-edits (_beg end)
-  "Forbid edits after the sync marker.
-
-This is meant to be added to ==\'before-change-functions after
-the region _BEG to END has been modified."
-  (when (and mistty--forbid-edit
-             mistty-sync-marker mistty-proc (>= end mistty-sync-marker))
-    (error "Edits disabled. M-x customize-option mistty-forbid-edit-regexps to configure")))
-
 (defun mistty--before-change-on-work (beg end)
   "Handler called before making modifications to the work buffer.
 
@@ -1900,6 +1900,7 @@ returns nil."
         ;; created, not when it is run
         (modifications (mistty--changeset-modifications cs))
         (calling-buffer (current-buffer))
+        (inhibit-moves mistty--forbid-edit)
         (beg (make-marker))
         (old-end (make-marker))
         target
@@ -1933,16 +1934,19 @@ returns nil."
          ;; Force refresh, even if nothing was sent, if only to revert what
          ;; couldn't be replayed.
          (setq mistty--need-refresh t)
-         (setq mistty-goto-cursor-next-time 'off)
 
-         ;; Move cursor back to point unless the next interact is a
-         ;; replay, in which case we let the replay move the cursor.
-         (let ((next (car (mistty--queue-more-interacts mistty--queue))))
-           (when (or (null next)
-                     (not (eq 'replay (mistty--interact-type next))))
-             (mistty--enqueue
-              mistty--queue
-              (mistty--cursor-to-point-interaction) 'prepend)))
+         (if inhibit-moves
+             (setq mistty-goto-cursor-next-time t)
+
+           ;; Move cursor back to point unless the next interact is a
+           ;; replay, in which case we let the replay move the cursor.
+           (setq mistty-goto-cursor-next-time 'off)
+           (let ((next (car (mistty--queue-more-interacts mistty--queue))))
+             (when (or (null next)
+                       (not (eq 'replay (mistty--interact-type next))))
+               (mistty--enqueue
+                mistty--queue
+                (mistty--cursor-to-point-interaction) 'prepend))))
          (mistty--interact-done))
 
        ;; Handle modification.
@@ -1997,15 +2001,20 @@ returns nil."
 
         (t
          (setq distance (mistty--distance (point) target))
+         (when inhibit-moves
+           (mistty-log "INHIBITED: to target: %s -> %s distance: %s"
+                       (point) target distance)
+           (funcall after-move-to-target-f))
+
          (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
          (let ((term-seq (mistty--move-horizontally-str distance)))
            (when (mistty--nonempty-str-p term-seq)
-             (mistty--interact-return
-              interact term-seq
-              :wait-until (lambda ()
-                            (mistty--update-backstage)
-                            (= (point) target))
-              :then after-move-to-target-f)))
+               (mistty--interact-return
+                interact term-seq
+                :wait-until (lambda ()
+                              (mistty--update-backstage)
+                              (= (point) target))
+                :then after-move-to-target-f)))
          (funcall insert-and-delete-f)))))
 
     (setq
@@ -2021,6 +2030,8 @@ returns nil."
          (if (= old-length 0)
              ;; insert anyways
              (progn
+               (mistty-log "insert anyway, at %s instead of %s"
+                           (point) (marker-position target))
                (move-marker target (point))
                (funcall insert-and-delete-f))
            ;; skip delete or replace
@@ -2424,10 +2435,6 @@ post-command hook."
             ;; nothing to do
             ((not (mistty--changeset-p cs)))
 
-            (mistty--forbid-edit
-             ;; Refresh to erase the changes.
-             (setq mistty--need-refresh t))
-
             ;; modifications are part of the current prompt; replay them
             ((mistty-on-prompt-p (mistty-cursor))
              (setq replay t))
@@ -2469,7 +2476,7 @@ post-command hook."
              (mistty--release-changeset cs)
              (mistty--refresh-after-changeset))
 
-           (when (and (not replay) point-moved)
+           (when (and (not replay) (not mistty--forbid-edit) point-moved)
              (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
 
            (when mistty--need-refresh
@@ -2478,7 +2485,8 @@ post-command hook."
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."
   (mistty--interact cursor-to-point (interact)
-    (when (mistty-on-prompt-p (point))
+    (when (and (not mistty--forbid-edit)
+               (mistty-on-prompt-p (point)))
       (let ((from (mistty-cursor))
             (to (point)))
         (when (and (>= from (point-min))
@@ -2719,7 +2727,6 @@ This function keeps prev-buffers list unmodified."
   (and mistty-sync-marker
        mistty--has-active-prompt
        (>= pos mistty-sync-marker)
-       (not mistty--forbid-edit)
        (or mistty-bracketed-paste
            (<= pos (mistty--eol mistty-sync-marker))
            ;; The position passed to (mistty-on-prompt-p

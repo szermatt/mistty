@@ -3,6 +3,8 @@ FAQ
 
 **What are all those OCOCOCO or ODODODO that appear on the screen?**
 
+     .. index:: pair: variable; mistty-forbid-edit-regexps
+
      These are the terminal sequences that MisTTY sends to a program
      to move the cursor left or right. If you see these printed on the
      terminal, it means that the program that's currently controlling
@@ -17,7 +19,9 @@ FAQ
        off with :kbd:`C-g`.
 
      - Write a regexp that identifies the situation and add it to
-       :kbd:`M-x customize-option mistty-forbid-edit-regexps`.
+       :kbd:`M-x customize-option mistty-forbid-edit-regexps` so MisTTY
+       knows it should not attempt to move the cursor. The default value
+       identifies most shell backward search prompts.
 
      See the section :ref:`term-vs-scroll` for more details.
 

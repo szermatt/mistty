@@ -1028,7 +1028,7 @@ Extend your prompt to send out an OSC7 sequence to have
 do that, you might add the following to @code{~/.zshrc}:
 
 @example
-if [ "$TERM" != "eterm-color" ]; then
+if [ "$TERM" = "eterm-color" ]; then
     PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
 fi
 @end example

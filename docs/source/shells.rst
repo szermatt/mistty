@@ -215,7 +215,7 @@ do that, you might add the following to :file:`~/.zshrc`:
 
 .. code-block:: zsh
 
-    if [ "$TERM" != "eterm-color" ]; then
+    if [ "$TERM" = "eterm-color" ]; then
         PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
     fi
 

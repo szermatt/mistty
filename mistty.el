@@ -1006,7 +1006,8 @@ PROC is the calling shell process and STR the string it sent."
         (mistty--enter-fullscreen proc (substring str smcup-pos))))
 
      ;; reset
-     ((string-match "\ec" str)
+     ((or (string-match "\ec" str)
+          (string-match "\e\\[H\e[[02]?J" str))
       (let ((rs1-before-pos (match-beginning 0))
             (rs1-after-pos (match-end 0)))
         ;; The work buffer must be updated before sending the reset to

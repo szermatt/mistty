@@ -1650,6 +1650,28 @@
     (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo\n$"
                    (mistty-test-content)))))
 
+(ert-deftest mistty-test-clear ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "clear")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+    (should (equal "$ echo one\none\n$ clear\n$ echo two\ntwo\n$"
+                   (mistty-test-content)))))
+
+(ert-deftest mistty-test-clear-zsh ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "clear")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+    (should (equal "$ echo one\none\n$ clear\n$ echo two\ntwo\n$"
+                   (mistty-test-content)))))
+
 (ert-deftest mistty-test-clear-screen ()
   (mistty-with-test-buffer ()
     (mistty-send-text "echo one")

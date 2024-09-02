@@ -1009,7 +1009,8 @@ PROC is the calling shell process and STR the string it sent."
      ((or (string-match "\ec" str)
           (string-match "\e\\[H\e[[02]?J" str))
       (let ((rs1-before-pos (match-beginning 0))
-            (rs1-after-pos (match-end 0)))
+            (rs1-after-pos (match-end 0))
+            (home-pos))
         ;; The work buffer must be updated before sending the reset to
         ;; the terminal, or we'll lose data. This might interfere with
         ;; collecting and applying modifications, but then so would
@@ -1021,13 +1022,21 @@ PROC is the calling shell process and STR the string it sent."
           (setq mistty--need-refresh t)
           (mistty--cancel-queue mistty--queue) ; might call mistty--refresh
           (when mistty--need-refresh
-            (mistty--refresh)))
+            (mistty--refresh))
+          (setq home-pos (point)))
         (mistty--with-live-buffer term-buffer
           (mistty--process-terminal-seq proc (substring str rs1-before-pos rs1-after-pos)))
         (mistty--with-live-buffer work-buffer
           (setq mistty-bracketed-paste nil))
         (mistty--reset-markers)
-        (mistty--process-filter proc (substring str rs1-after-pos))))
+        (mistty--process-filter proc (substring str rs1-after-pos))
+        ;; After clear or reset, scroll the main window so the region
+        ;; that was cleared is not visible anymore, so it looks like
+        ;; the buffer was cleared even though history is kept.
+        (mistty--with-live-buffer work-buffer
+          (when-let (win (get-buffer-window work-buffer))
+            (with-selected-window win
+              (set-window-start win (mistty--bol home-pos) 'noforce))))))
 
      ;; normal processing
      (t

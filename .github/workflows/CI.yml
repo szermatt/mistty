@@ -55,4 +55,4 @@ jobs:
         fi
 
     - name: Test the project
-      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev -p -dtT test'
+      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev -p -dtT test --ci'

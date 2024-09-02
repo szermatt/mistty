@@ -44,6 +44,13 @@
   :for-command    test
   (setq mistty-test-python-exe (executable-find path)))
 
+(defvar mistty-test-ci nil)
+(eldev-defoption mistty-test-ci ()
+  "Let tests know they're running on CI."
+  :options        (--ci)
+  :for-command    test
+  (setq mistty-test-ci t))
+
 (eldev-defbuilder mistty-builder-build-info (source target)
   :short-name     "SPHINX-TEXI"
   :message        source-and-target

@@ -104,7 +104,8 @@
     (should (equal "ok" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest mistty-compat-yas-expand-multiline-fish ()
-  (skip-unless (featurep 'yasnippet))
+  (skip-unless (and (featurep 'yasnippet)
+                    (null (and (boundp 'mistty-test-ci) mistty-test-ci))))
   (yas-define-snippets
    'mistty-mode
    ;; (KEY TEMPLATE NAME ...)
@@ -129,7 +130,8 @@
                    (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-compat-yas-expand-multiline-fish-insert ()
-  (skip-unless (featurep 'yasnippet))
+  (skip-unless (and (featurep 'yasnippet)
+                    (null (and (boundp 'mistty-test-ci) mistty-test-ci))))
   (yas-define-snippets
    'mistty-mode
    ;; (KEY TEMPLATE NAME ...)

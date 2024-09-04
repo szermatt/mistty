@@ -1991,7 +1991,13 @@ returns nil."
          (if (> old-length 0)
              (setq target old-end)
            (setq target beg))
-         (funcall move-to-target-f))))
+         (if (and (zerop old-length) (equal "" content))
+             ;; The modification is empty, move on to the next one.
+             ;; This can happen when the change specified "delete to
+             ;; the end of the buffer" and there was nothing to
+             ;; delete.
+             (funcall next-modification-f)
+           (funcall move-to-target-f)))))
 
     (setq
      move-to-target-f

@@ -17,16 +17,16 @@ jobs:
           - 29.1
 
     steps:
-    - name: Install zsh
-      run: "sudo apt-get install -y zsh && zsh --version"
-
-    - name: Install fish
-      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && brew install -q fish && fish --version'
-
-    - name: Set up Emacs
+    - name: Install Nix and set up Emacs
       uses: jcs090218/setup-emacs@master
       with:
         version: ${{matrix.emacs_version}}
+
+    - name: Install Test dependencies
+      run: |
+        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#zsh
+        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#fish
+        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#vim
 
     - name: Install Eldev
       uses: emacs-eldev/setup-eldev@v1
@@ -35,10 +35,12 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install Sphinx
-      run: 'pip3 install -r docs/requirements.txt'
+      run: |
+        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#texinfo
+        pip3 install -r docs/requirements.txt
 
     - name: Re-build mistty.texi
-      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev build --force mistty.texi'
+      run: 'eldev build --force mistty.texi'
 
     - name: Update mistty.texi
       # Only run on main branch push (e.g. after pull request merge).
@@ -55,4 +57,4 @@ jobs:
         fi
 
     - name: Test the project
-      run: 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && eldev -p -dtT test --ci'
+      run: 'eldev -p -dtT test --ci'

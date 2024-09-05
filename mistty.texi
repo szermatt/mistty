@@ -1095,6 +1095,10 @@ fi
 @menu
 * mistty-mode-hook:: 
 * mistty-interactive-insert-hook:: 
+* mistty-after-process-start-hook:: 
+* mistty-after-process-end-hook:: 
+* mistty-entered-fullscreen-hook:: 
+* mistty-left-fullscreen-hook:: 
 
 @end menu
 
@@ -1130,7 +1134,7 @@ you could do:
 @geindex variable; mistty-interactive-insert-hook
 @geindex hook; mistty-interactive-interactive
 
-@node mistty-interactive-insert-hook,,mistty-mode-hook,Hooks
+@node mistty-interactive-insert-hook,mistty-after-process-start-hook,mistty-mode-hook,Hooks
 @anchor{extensions mistty-interactive-insert-hook}@anchor{35}
 @subsubsection mistty-interactive-insert-hook
 
@@ -1154,8 +1158,62 @@ This might not always work and have unintended effects, so you might
 prefer to trigger the auto-completion UI yourself by adding your own
 function to this hook and turning the above option off.
 
+@node mistty-after-process-start-hook,mistty-after-process-end-hook,mistty-interactive-insert-hook,Hooks
+@anchor{extensions mistty-after-process-start-hook}@anchor{36}
+@subsubsection mistty-after-process-start-hook
+
+
+@code{mistty-after-process-start-hook} is a normal hook called from
+within a new MisTTY work buffer just after starting the process,
+usually a shell. The process itself is available as
+@code{mistty-proc}. At the time this hook is called, the buffer is
+typically empty, as no output from the process has been processed.
+
+@node mistty-after-process-end-hook,mistty-entered-fullscreen-hook,mistty-after-process-start-hook,Hooks
+@anchor{extensions mistty-after-process-end-hook}@anchor{37}
+@subsubsection mistty-after-process-end-hook
+
+
+@code{mistty-after-process-end-hook} is called from within a MisTTY
+work buffer just after the process ended. The process is passed as an
+argument to the hook and its status can be accessed using
+@code{process-status}.
+
+This can be used to, for example, kill the MisTTY work buffer after
+the shell exits successfully, with @code{mistty-kill-buffer} or
+@code{mistty-kill-buffer-and-window}.
+
+@example
+(add-hook 'mistty-after-process-end-hook
+          'mistty-kill-buffer-and-window)
+@end example
+
+@node mistty-entered-fullscreen-hook,mistty-left-fullscreen-hook,mistty-after-process-end-hook,Hooks
+@anchor{extensions mistty-entered-fullscreen-hook}@anchor{38}
+@subsubsection mistty-entered-fullscreen-hook
+
+
+@code{mistty-entered-fullscreen-hook} is a normal hook called from
+within a MisTTY work buffer just after switching to fullscreen mode.
+
+In this mode, @code{mistty-fullscreen} is non-nil and user commands
+run within the terminal buffer, available as
+@code{mistty-term-buffer}. The work buffer is kept, but usually
+buried until @code{mistty-toggle-buffers} is called.
+
+@node mistty-left-fullscreen-hook,,mistty-entered-fullscreen-hook,Hooks
+@anchor{extensions mistty-left-fullscreen-hook}@anchor{39}
+@subsubsection mistty-left-fullscreen-hook
+
+
+@code{mistty-left-fullscreen-hook} is a normal hook called from
+within a MisTTY work buffer just after switching back to normal mode.
+
+In this mode, @code{mistty-fullscreen} is nil and user commands run
+in the work buffer.
+
 @node OSC Sequences,Writing Your Own Commands,Hooks,Extending MisTTY
-@anchor{extensions osc}@anchor{36}@anchor{extensions osc-sequences}@anchor{37}
+@anchor{extensions osc}@anchor{3a}@anchor{extensions osc-sequences}@anchor{3b}
 @subsection OSC Sequences
 
 
@@ -1200,7 +1258,7 @@ same argument.
 @end itemize
 
 @node Writing Your Own Commands,Terminal Keymap,OSC Sequences,Extending MisTTY
-@anchor{extensions custom-commands}@anchor{38}@anchor{extensions writing-your-own-commands}@anchor{39}
+@anchor{extensions custom-commands}@anchor{3c}@anchor{extensions writing-your-own-commands}@anchor{3d}
 @subsection Writing Your Own Commands
 
 
@@ -1256,7 +1314,7 @@ to that position.
 @end itemize
 
 @node Terminal Keymap,Auto-complete,Writing Your Own Commands,Extending MisTTY
-@anchor{extensions term-keymap}@anchor{3a}@anchor{extensions terminal-keymap}@anchor{3b}
+@anchor{extensions term-keymap}@anchor{3e}@anchor{extensions terminal-keymap}@anchor{3f}
 @subsection Terminal Keymap
 
 
@@ -1306,7 +1364,7 @@ keymap that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node Auto-complete,Long-running commands,Terminal Keymap,Extending MisTTY
-@anchor{extensions auto-complete}@anchor{3c}@anchor{extensions autocomplete}@anchor{17}
+@anchor{extensions auto-complete}@anchor{40}@anchor{extensions autocomplete}@anchor{17}
 @subsection Auto-complete
 
 
@@ -1330,7 +1388,7 @@ should be possible to build a custom bridge between this hook and the
 auto-completion package.
 
 @node Long-running commands,,Auto-complete,Extending MisTTY
-@anchor{extensions long-running-commands}@anchor{3d}@anchor{extensions lrc}@anchor{1a}
+@anchor{extensions long-running-commands}@anchor{41}@anchor{extensions lrc}@anchor{1a}
 @subsection Long-running commands
 
 
@@ -1412,7 +1470,7 @@ Here’s an example of code that would detect
 @end example
 
 @node FAQ,Contributing,Extending MisTTY,Contents
-@anchor{faq doc}@anchor{3e}@anchor{faq faq}@anchor{3f}
+@anchor{faq doc}@anchor{42}@anchor{faq faq}@anchor{43}
 @section FAQ
 
 
@@ -1539,7 +1597,7 @@ package you’re using, its version and how you installed it.
 @end quotation
 
 @node Contributing,,FAQ,Contents
-@anchor{contrib doc}@anchor{40}@anchor{contrib contributing}@anchor{41}
+@anchor{contrib doc}@anchor{44}@anchor{contrib contributing}@anchor{45}
 @section Contributing
 
 
@@ -1553,7 +1611,7 @@ package you’re using, its version and how you installed it.
 @end menu
 
 @node Reporting issues,Suggesting features,,Contributing
-@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{42}
+@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{46}
 @subsection Reporting issues
 
 
@@ -1637,21 +1695,21 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib issue-tracker}@anchor{43}@anchor{contrib suggesting-features}@anchor{44}
+@anchor{contrib issue-tracker}@anchor{47}@anchor{contrib suggesting-features}@anchor{48}
 @subsection Suggesting features
 
 
 Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
-@anchor{contrib asking-questions}@anchor{45}
+@anchor{contrib asking-questions}@anchor{49}
 @subsection Asking questions
 
 
 Open an issue on the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} with your question.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
-@anchor{contrib code-contributions}@anchor{46}
+@anchor{contrib code-contributions}@anchor{4a}
 @subsection Code contributions
 
 
@@ -1669,7 +1727,7 @@ tests passing reliably when run using @code{eldev test} is what
 matters.
 
 @node Documentation contributions,,Code contributions,Contributing
-@anchor{contrib documentation-contributions}@anchor{47}@anchor{contrib eldev}@anchor{48}
+@anchor{contrib documentation-contributions}@anchor{4b}@anchor{contrib eldev}@anchor{4c}
 @subsection Documentation contributions
 
 

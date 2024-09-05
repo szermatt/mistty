@@ -385,6 +385,43 @@ By default, this calls the function
 the option variable `mistty-simulate-self-insert-command' is
 non-nil.")
 
+(defvar mistty-after-process-start-hook nil
+  "Report that the MistTTY process started.
+
+This hook is called from `mistty-work-buffer` just after the
+shell process has been started and attached to the MisTTY window.
+The process is available in `mistty-proc` and the terminal buffer
+in `mistty-term-buffer`. Note that the process might not have
+output anything yet; the buffer is likely empty.")
+
+(defvar mistty-after-process-end-hook nil
+  "Report that the MisTTY process ended.
+
+This hook is called with PROC as an argument from
+`mistty-work-buffer` just after the shell process ended. PROC is
+guaranteed to be a dead process. Its status can be checked with
+`process-status`.
+
+At the point this hook is called `mistty-proc` is unset and
+`mistty-term-buffer` has already been killed.
+
+Note that this hook might never be called, in particular when the
+MisTTY buffer is killed while the process is still running.
+
+This hook can be used to kill the buffer after the shell ended
+successfully. See `mistty-kill-buffer` and
+`mistty-kill-buffer-and-window`.")
+
+(defvar mistty-entered-fullscreen-hook nil
+  "Report that MisTTY just entered fullscreen mode.
+
+At the point this hook is called, `mistty-fullscreen` is non-nil.")
+
+(defvar mistty-left-fullscreen-hook nil
+  "Report that MisTTY just left fullscreen mode.
+
+At the point this hook is called, `mistty-fullscreen` is nil.")
+
 (defvar-local mistty-work-buffer nil
   "The main `mistty-mode' buffer.
 
@@ -715,7 +752,8 @@ The buffer is switched to `mistty-mode'."
       ;;height
       (floor (with-selected-window win (window-screen-lines))))))
   (mistty--wrap-capf-functions)
-  (mistty--update-mode-lines))
+  (mistty--update-mode-lines)
+  (run-hooks 'mistty-after-process-start-hook))
 
 (defun mistty--attach (term-buffer)
   "Attach the current `mistty-mode' buffer to TERM-BUFFER.
@@ -749,11 +787,7 @@ buffer and `mistty-proc' to that buffer's process."
     (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
     (add-hook 'before-change-functions #'mistty--before-change-on-work nil t)
     (add-hook 'pre-command-hook #'mistty--pre-command nil t)
-    (add-hook 'post-command-hook #'mistty--post-command nil t)
-
-    (mistty--refresh)
-    (when proc
-      (mistty-goto-cursor))))
+    (add-hook 'post-command-hook #'mistty--post-command nil t)))
 
 (defun mistty--create-or-reuse-marker (m initial-pos)
   "Create the marker M set to INITIAL-POS or move it to that position.
@@ -966,7 +1000,9 @@ a special string describing the new process state."
         (insert-before-markers "\n\nTerminal killed.\n")))
 
      ((buffer-live-p term-buffer)
-      (kill-buffer term-buffer)))))
+      (kill-buffer term-buffer)))
+    (mistty--with-live-buffer work-buffer
+      (run-hook-with-args 'mistty-after-process-end-hook proc))))
 
 (defun mistty--fs-process-sentinel (proc msg)
   "Process sentinel for MisTTY shell processes in fullscreen mode.
@@ -985,7 +1021,9 @@ special string describing the new process state."
      ((and process-dead (not (buffer-live-p term-buffer)) (buffer-live-p work-buffer))
       (let ((kill-buffer-query-functions nil))
         (kill-buffer (process-get proc 'mistty-work-buffer)))
-      (term-sentinel proc msg))
+      (term-sentinel proc msg)
+      (mistty--with-live-buffer work-buffer
+        (run-hooks 'mistty-after-process-end-hook)))
      (t (term-sentinel proc msg)))))
 
 (defun mistty--process-filter (proc str)
@@ -2591,6 +2629,7 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
 
     (mistty--update-mode-lines proc)
+    (run-hooks 'mistty-entered-fullscreen-hook)
     (when (length> terminal-sequence 0)
       (funcall (process-filter proc) proc terminal-sequence))))
 
@@ -2632,6 +2671,9 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
         (setq mistty-fullscreen nil))
 
       (mistty--attach (process-buffer proc))
+      (mistty--refresh)
+      (when (and proc (process-live-p proc))
+        (mistty-goto-cursor))
 
       (let ((bufname (buffer-name mistty-term-buffer)))
         (with-current-buffer mistty-term-buffer
@@ -2643,6 +2685,7 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
         (font-lock-mode -1))
 
       (mistty--update-mode-lines proc)
+      (run-hooks 'mistty-left-fullscreen-hook)
       (when (length> terminal-sequence 0)
         (funcall (process-filter proc) proc terminal-sequence)))))
 
@@ -3210,6 +3253,40 @@ autosuggestions. For details, see the option
         (narrow-to-region (point-min) (point))
         (apply func args))
     (apply func args)))
+
+(defun mistty-kill-buffer (proc)
+  "Kill MisTTY work buffer if PROC ended successfully.
+
+This is meant to be added to `mistty-after-process-end-hook` if
+you don't want a MisTTY buffer to remain after the shell ends. Be
+sure that you never care for the buffer content after the shell
+ends, as, in this case, it is simply lost.
+
+Usage example:
+
+  (add-hook \='mistty-after-process-end-hook
+            \='mistty-kill-buffer)"
+  (when (eq 'exit (process-status proc))
+    (kill-buffer)))
+
+(defun mistty-kill-buffer-and-window (proc)
+  "Kill MisTTY work buffer and window if PROC ended successfully.
+
+This is meant to be added to `mistty-after-process-end-hook` if
+you don't want a MisTTY buffer and window to remain after the
+shell ends. Be sure that you never care for the buffer content
+after the shell ends, as, in this case, it is simply lost.
+
+Usage example:
+
+  (add-hook \='mistty-after-process-end-hook
+            \='mistty-kill-buffer-and-window)"
+  (when (eq 'exit (process-status proc))
+    (let ((buf (current-buffer))
+          (win (get-buffer-window)))
+      (if (and (kill-buffer buf)
+               (window-parent win))
+          (ignore-errors (delete-window))))))
 
 (provide 'mistty)
 

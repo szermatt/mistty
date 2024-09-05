@@ -60,6 +60,52 @@ This might not always work and have unintended effects, so you might
 prefer to trigger the auto-completion UI yourself by adding your own
 function to this hook and turning the above option off.
 
+mistty-after-process-start-hook
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:code:`mistty-after-process-start-hook` is a normal hook called from
+within a new MisTTY work buffer just after starting the process,
+usually a shell. The process itself is available as
+:code:`mistty-proc`. At the time this hook is called, the buffer is
+typically empty, as no output from the process has been processed.
+
+mistty-after-process-end-hook
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:code:`mistty-after-process-end-hook` is called from within a MisTTY
+work buffer just after the process ended. The process is passed as an
+argument to the hook and its status can be accessed using
+:code:`process-status`.
+
+This can be used to, for example, kill the MisTTY work buffer after
+the shell exits successfully, with :code:`mistty-kill-buffer` or
+:code:`mistty-kill-buffer-and-window`.
+
+.. code-block:: elisp
+
+  (add-hook 'mistty-after-process-end-hook
+            'mistty-kill-buffer-and-window)
+
+mistty-entered-fullscreen-hook
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:code:`mistty-entered-fullscreen-hook` is a normal hook called from
+within a MisTTY work buffer just after switching to fullscreen mode.
+
+In this mode, :code:`mistty-fullscreen` is non-nil and user commands
+run within the terminal buffer, available as
+:code:`mistty-term-buffer`. The work buffer is kept, but usually
+buried until :code:`mistty-toggle-buffers` is called.
+
+mistty-left-fullscreen-hook
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:code:`mistty-left-fullscreen-hook` is a normal hook called from
+within a MisTTY work buffer just after switching back to normal mode.
+
+In this mode, :code:`mistty-fullscreen` is nil and user commands run
+in the work buffer.
+
 .. _osc:
 
 OSC Sequences

@@ -389,6 +389,35 @@
     (mistty-wait-for-output :str "ech\t")
     (should (equal "$ ech\t  <> world" (mistty-test-content :show (point))))))
 
+(ert-deftest mistty-test-process-hooks-with-normal-exit ()
+  (let (calls
+        mistty-after-process-start-hook
+        mistty-after-process-end-hook
+        term-buffer
+        term-proc)
+    (add-hook 'mistty-after-process-start-hook
+              (lambda () (push `(start
+                                 ,(eq (current-buffer) mistty-work-buffer)
+                                 ,(and (process-live-p mistty-proc) t)
+                                 ,(buffer-live-p mistty-term-buffer))
+                               calls)))
+    (add-hook 'mistty-after-process-end-hook
+              (lambda (proc) (push `(end
+                                     ,(eq (current-buffer) mistty-work-buffer)
+                                     ,(not (and (process-live-p proc) t))
+                                     ,(eq 'exit (and (processp proc) (process-status proc)))
+                                     ,(null mistty-proc)
+                                     ,(not (buffer-live-p mistty-term-buffer)))
+                                   calls)))
+    (mistty-with-test-buffer ()
+      (setq term-proc mistty-proc)
+      (setq term-buffer mistty-term-buffer)
+      (should (equal (length calls) 1))
+      (mistty-send-text "exit")
+      (mistty-send-command)
+      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
+      (should (equal '((start t t t) (end t t t t t)) (nreverse calls))))))
+
 (ert-deftest mistty-test-kill-term-buffer-when-work-buffer-is-killed ()
   (let* ((buffer-and-proc (mistty-with-test-buffer ()
                             (cons mistty-term-buffer mistty-proc)))
@@ -397,13 +426,22 @@
     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
 
 (ert-deftest mistty-test-kill-term-buffer-but-keep-work-buffer ()
-  (mistty-with-test-buffer ()
-    (let* ((term-buffer mistty-term-buffer)
-           (term-proc mistty-proc))
-      (kill-buffer term-buffer)
-      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
-      (mistty-wait-for-output :str "Terminal killed." :start (point-min))
-      (should (equal (point) (point-max))))))
+  (let* ((calls (list))
+         (mistty-after-process-start-hook nil)
+         (mistty-after-process-end-hook nil))
+    (add-hook 'mistty-after-process-end-hook
+              (lambda (proc)
+                (push `(end ,(and (processp proc) (process-status proc)))
+                      calls)))
+
+    (mistty-with-test-buffer ()
+      (let* ((term-buffer mistty-term-buffer)
+             (term-proc mistty-proc))
+        (kill-buffer term-buffer)
+        (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
+        (mistty-wait-for-output :str "Terminal killed." :start (point-min))
+        (should (equal (point) (point-max)))))
+    (should (equal '((end signal)) calls))))
 
 (ert-deftest mistty-test-term-buffer-exits ()
   (mistty-with-test-buffer ()
@@ -1414,6 +1452,56 @@
 (ert-deftest mistty-test-enter-fullscreen-1049 ()
   (mistty-with-test-buffer (:selected t)
     (mistty-test-enter-fullscreen "[?1049h" "[?1049l")))
+
+(ert-deftest mistty-test-call-fullscreen-hooks ()
+  (let (calls
+        mistty-after-process-end-hook
+        mistty-entered-fullscreen-hook
+        mistty-left-fullscreen-hook)
+    (add-hook 'mistty-after-process-end-hook
+              (lambda (proc)
+                (push `(end
+                        ,(not mistty-fullscreen)
+                        ,(not (process-live-p proc)))
+                      calls)))
+    (add-hook 'mistty-entered-fullscreen-hook
+              (lambda ()
+                (push `(enter ,mistty-fullscreen) calls)))
+    (add-hook 'mistty-left-fullscreen-hook
+              (lambda ()
+                (push `(leave ,(not mistty-fullscreen)) calls)))
+
+    (mistty-with-test-buffer (:selected t)
+      (mistty-test-enter-fullscreen "[?47h" "[?47l"))
+
+    (should (equal '((enter t) (leave t)) (nreverse calls)))))
+
+(ert-deftest mistty-test-killed-while-fullscreen ()
+  (let (calls
+        mistty-after-process-end-hook
+        mistty-entered-fullscreen-hook
+        mistty-left-fullscreen-hook)
+    (add-hook 'mistty-after-process-end-hook
+              (lambda (proc)
+                (push `(end
+                        ,(not mistty-fullscreen)
+                        ,(not (process-live-p proc)))
+                      calls)))
+    (add-hook 'mistty-entered-fullscreen-hook
+              (lambda ()
+                (push `(enter ,mistty-fullscreen) calls)))
+    (add-hook 'mistty-left-fullscreen-hook
+              (lambda ()
+                (push `(leave ,(not mistty-fullscreen)) calls)))
+
+    (mistty-with-test-buffer ()
+      (let ((term-buffer mistty-term-buffer)
+            (term-proc mistty-proc))
+        (mistty-send-text "printf '\\e[?47h'; echo fullscreen on; exit")
+        (mistty-send-command)
+        (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
+
+    (should (equal '((enter t) (leave t) (end t t)) (nreverse calls)))))
 
 (ert-deftest mistty-test-live-buffer-p ()
   (mistty-with-test-buffer ()

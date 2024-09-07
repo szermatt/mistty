@@ -49,6 +49,21 @@ if one already exists."
                       (project-prefixed-buffer-name "mistty"))))
     mistty-buf))
 
+(defun mistty-in-project-other-window ()
+  "Start or go to a MisTTY buffer in the project's root in another window.
+
+See the documentation of the function `mistty-other-window' and
+`mistty-in-project' for details."
+  (interactive)
+  (let* ((pr (project-current t))
+         (bufs (project-buffers pr))
+         (default-directory (project-root pr))
+         (mistty-buf (mistty 'other-window (lambda (buf) (memq buf bufs)))))
+    (unless (memq mistty-buf bufs)
+      (rename-buffer (generate-new-buffer-name
+                      (project-prefixed-buffer-name "mistty"))))
+    mistty-buf))
+
 (defun mistty-project-init-kill-buffer ()
   "Have `project-kill-buffers' treat MisTTY buffers as comint.
 

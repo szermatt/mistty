@@ -2986,6 +2986,42 @@
 
       (should (not mistty--forbid-edit)))))
 
+(ert-deftest mistty-test-forbid-edit-map ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish :selected t)
+      (mistty-send-text "echo first")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo second")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo third")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+
+      (should mistty--forbid-edit)
+      (execute-kbd-macro (kbd "e c h"))
+
+      (should (equal (concat
+                      "search: <>\n"
+                      "► echo third  ► echo second  ► echo first")
+                     (mistty-test-content
+                      :start (mistty-test-pos "search:") :show (point))))
+
+      ;; "echo third", the first option is selected by default.
+      ;; select the second option (echo second) and accept it.
+      (execute-kbd-macro (kbd "<right>"))
+      (mistty-send-command)
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (not (search-forward "search:" nil t)))))
+
+      (should (equal "$ echo second<>"
+                     (mistty-test-content
+                      :start mistty-sync-marker :show (point)))))))
+
 (ert-deftest mistty-test-forbid-edit-insert ()
   (let ((mistty-forbid-edit-regexps
          '("^search: .*\n\\(►\\|(no matches)\\)")))

@@ -154,7 +154,12 @@ Set to 0 to disable truncation."
 
 These regexps are meant to detect modes in which shells turn off
 line editing in favor of direct interactions. The shell's reverse
-history search are typically such a mode."
+history search are typically such a mode.
+
+`mistty-forbid-edit-map' is the active map in the synced region
+of the buffer as long as one of these regexps matches. By
+default, this means that arrow keys are sent directly to the
+terminal."
   :group 'mistty
   :type '(list regexp))
 
@@ -333,6 +338,22 @@ terminal."
 
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that forwards everything to`mistty-send-last-key'.")
+
+(defvar-keymap mistty-forbid-edit-map
+  :parent mistty-prompt-map
+  :doc "Keymap active when line editing is off.
+
+This map is active on the part of `mistty-mode' synced with the
+terminal when of of `mistty-forbid-edit-regexps' has been
+detected and replay is limited to insert and delete.
+
+In practice, `mistty-forbid-edit-regexps' is used to detect shell
+search mode, and in such a mode, it's convenient if arrow keys
+are sent directly to the terminal."
+  "<up>" #'mistty-send-last-key
+  "<down>" #'mistty-send-last-key
+  "<left>" #'mistty-send-last-key
+  "<right>" #'mistty-send-last-key)
 
 (defvar-keymap mistty-fullscreen-map
   :parent term-raw-map
@@ -682,7 +703,7 @@ is echoed back, call `mistty-interactive-insert-hook'.")
   (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
   (setq mistty--ignored-overlays (list mistty--sync-ov))
 
-  (overlay-put mistty--sync-ov 'local-map mistty-prompt-map)
+  (overlay-put mistty--sync-ov 'local-map (mistty--active-prompt-map))
 
   (when mistty-fringe-enabled
     (mistty-fringe-mode 'on)))
@@ -1319,9 +1340,11 @@ Also updates prompt and point."
            (cond
             ((and forbid-edit (not mistty--forbid-edit))
              (setq mistty--forbid-edit t)
+             (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
              (mistty-log "FORBID EDIT on"))
             ((and (not forbid-edit) mistty--forbid-edit)
              (setq mistty--forbid-edit nil)
+             (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
              (mistty-log "FORBID EDIT off"))))
 
          (mistty--with-live-buffer mistty-term-buffer
@@ -2388,7 +2411,7 @@ change, unless NOSCHEDULE evaluates to true."
     (setq mistty--inhibit (delq sym mistty--inhibit))
     (unless mistty--inhibit
       (mistty-log "Long-running command OFF")
-      (overlay-put mistty--sync-ov 'keymap mistty-prompt-map)
+      (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
       (mistty--update-mode-lines)
       (unless noschedule
         (run-with-idle-timer
@@ -3287,6 +3310,13 @@ Usage example:
       (if (and (kill-buffer buf)
                (window-parent win))
           (ignore-errors (delete-window))))))
+
+(defun mistty--active-prompt-map ()
+  "Return the map active in the synced region."
+  (cond
+   (mistty--inhibit nil)
+   (mistty--forbid-edit mistty-forbid-edit-map)
+   (t mistty-prompt-map)))
 
 (provide 'mistty)
 

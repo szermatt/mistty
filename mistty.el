@@ -156,6 +156,9 @@ These regexps are meant to detect modes in which shells turn off
 line editing in favor of direct interactions. The shell's reverse
 history search are typically such a mode.
 
+While the forbid edit mode is active, the status mode line shows
+\"FE:run\" instead of just \":run\".
+
 `mistty-forbid-edit-map' is the active map in the synced region
 of the buffer as long as one of these regexps matches. By
 default, this means that arrow keys are sent directly to the
@@ -1341,10 +1344,12 @@ Also updates prompt and point."
             ((and forbid-edit (not mistty--forbid-edit))
              (setq mistty--forbid-edit t)
              (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
+             (mistty--update-mode-lines)
              (mistty-log "FORBID EDIT on"))
             ((and (not forbid-edit) mistty--forbid-edit)
              (setq mistty--forbid-edit nil)
              (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
+             (mistty--update-mode-lines)
              (mistty-log "FORBID EDIT off"))))
 
          (mistty--with-live-buffer mistty-term-buffer
@@ -2736,15 +2741,27 @@ Ignores buffers that don't exist."
      (mistty-proc
       (setq mode-line-process
             (concat
-             (when mistty--inhibit
+             (cond
+              (mistty--inhibit
                (propertize
                 " CMD"
-                'help-echo "mouse-1: ignore command and re-enable MisTTY replays"
+                'help-echo "Long-running command, mouse-1: ignore command and re-enable MisTTY replays"
                 'mouse-face 'mode-line-highlight
                 'local-map '(keymap
                              (mode-line
                               keymap
                               (down-mouse-1 . mistty-ignore-long-running-command)))))
+              (mistty--forbid-edit
+               (propertize
+                " FE"
+                'help-echo "Forbid Edit mode, see mouse-1: customize mistty-forbid-edit-regexps"
+                'mouse-face 'mode-line-highlight
+                'local-map '(keymap
+                             (mode-line
+                              keymap
+                              (down-mouse-1 . (lambda ()
+                                                (interactive)
+                                                (customize-option 'mistty-forbid-edit-regexps))))))))
              (format ":%s" (process-status mistty-proc)))))
      (t
       (setq mode-line-process ":no process"))))

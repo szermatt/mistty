@@ -2967,6 +2967,7 @@
       (mistty-send-key 1 (kbd "C-r"))
       (mistty-wait-for-output :str "search:" :start (point-min))
       (should mistty--forbid-edit)
+      (should (equal " FE:run" mode-line-process))
 
       ;; following the cursor is disabled
       (let ((cursor (mistty-cursor)))
@@ -2984,7 +2985,8 @@
                  (goto-char (point-min))
                  (not (search-forward "search:" nil t)))))
 
-      (should (not mistty--forbid-edit)))))
+      (should (not mistty--forbid-edit))
+      (should (equal ":run" mode-line-process)))))
 
 (ert-deftest mistty-test-forbid-edit-map ()
   (let ((mistty-forbid-edit-regexps

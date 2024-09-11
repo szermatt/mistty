@@ -167,20 +167,20 @@ Returns the newly-created interaction."
   (functionp (mistty--interact-call interact)))
 
 (defsubst mistty--interact-done (&optional _)
-  "Return \=='done from an interact.
+  "Return \\='done from an interact.
 
 This is equivalent to calling:
-  (mistty--interact-return interact \=='done)
+  (mistty--interact-return interact \\='done)
 
 This function accepts an optional argument so that it can safely
 be pass to a :then argument in `mistty--interact-return'."
   (throw 'mistty--interact-return 'done))
 
 (defsubst mistty--interact-keep-waiting ()
-  "Return \=='keep-waiting from an interact.
+  "Return \\='keep-waiting from an interact.
 
 This is equivalent to calling:
-  (mistty--interact-return interact \=='keep-waiting)"
+  (mistty--interact-return interact \\='keep-waiting)"
   (throw 'mistty--interact-return 'keep-waiting))
 
 (defsubst mistty--queue-empty-p (queue)
@@ -393,7 +393,7 @@ This passes VAL to `mistty-interact-cb'."
     (prog1
         (catch 'mistty--interact-return
           (let ((ret (funcall (mistty--interact-cb interact) val)))
-            (error "unexpected return value from %s: %s"
+            (error "Unexpected return value from %s: %s"
                    (mistty--interact-type interact) ret)))
       (setf (mistty--interact-buf interact) (current-buffer)))))
 

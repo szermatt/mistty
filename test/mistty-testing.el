@@ -385,7 +385,7 @@ a list of such positions. Positions that are nil are ignored.
 STRIP-LAST-PROMPT, if t, removes the last, empty prompt from the
 returned content.
 
-SHOW-PROPERTY \=='(PROP VAL) puts section with text-property PROP
+SHOW-PROPERTY \\='(PROP VAL) puts section with text-property PROP
 set to VAL within brackets.
 
 Unless TRIM is set to nil, trailing newlines are always stripped

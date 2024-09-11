@@ -24,7 +24,7 @@ MisTTY 1.0.9
 
 Stephane Zermatten
 
-Copyright @copyright{} 2023, Stephane Zermatten
+Copyright @copyright{} 2023-2024, Stephane Zermatten
 @end quotation
 
 @end copying

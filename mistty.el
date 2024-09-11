@@ -516,7 +516,7 @@ If t, this variable tells `mistty--refresh' that it should move
 the point to the cursor next time it copies the state of the
 terminal to the work buffer.
 
-If \=='off, this variable tells `mistty--refresh' not to move the
+If \\='off, this variable tells `mistty--refresh' not to move the
 point to the cursor, even if it would normally do it.
 
 If nil, this variable lets `mistty-refresh' do what it think is
@@ -3304,8 +3304,8 @@ ends, as, in this case, it is simply lost.
 
 Usage example:
 
-  (add-hook \='mistty-after-process-end-hook
-            \='mistty-kill-buffer)"
+  (add-hook \\='mistty-after-process-end-hook
+            \\='mistty-kill-buffer)"
   (when (eq 'exit (process-status proc))
     (kill-buffer)))
 
@@ -3319,8 +3319,8 @@ after the shell ends, as, in this case, it is simply lost.
 
 Usage example:
 
-  (add-hook \='mistty-after-process-end-hook
-            \='mistty-kill-buffer-and-window)"
+  (add-hook \\='mistty-after-process-end-hook
+            \\='mistty-kill-buffer-and-window)"
   (when (eq 'exit (process-status proc))
     (let ((buf (current-buffer))
           (win (get-buffer-window)))

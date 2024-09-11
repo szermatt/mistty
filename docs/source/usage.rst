@@ -137,8 +137,7 @@ directly to the terminal, bypassing Emacs:
   :kbd:`C-p` to the terminal.
 - :kbd:`M-n` to ask it to go down, or down the command history,
   sending :kbd:`C-n` to the terminal.
-- :kbd:`M-r` to ask it to do backward history search, sending
-  :kbd:`C-r` to the terminal.
+- :kbd:`M-r` to ask it to do :ref:`bs`, sending :kbd:`C-r` to the terminal.
 - :kbd:`M-.` to ask the shell to insert the last history argument.
 
 In addition, :kbd:`C-c C-c` sends the TERM signal to the terminal.
@@ -311,7 +310,7 @@ available in MisTTY using the following shortcuts:
 
 - :kbd:`M-p` moves up command history
 - :kbd:`M-n` moves down command history
-- :kbd:`M-r` triggers a backward search in command history
+- :kbd:`M-r` triggers a :ref:`bs` in command history
 - :kbd:`M-.` insert the last argument from command history
 
 To get the same key bindings you'd get in a normal terminal, you can
@@ -323,6 +322,39 @@ in the terminal zone of the MisTTY buffer. For example:
     (keymap-set mistty-prompt-map "C-p" #'mistty-send-key)
     (keymap-set mistty-prompt-map "C-n" #'mistty-send-key)
     (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
+
+.. _bs:
+
+Backward Search
+---------------
+
+.. index::
+   pair: map; mistty-forbid-edit-map
+   pair: variable; mistty-forbid-edit-regexps
+   pair: variable; mistty-forbid-edit-map
+
+Within the different shells :kbd:`C-r` or :kbd:`M-r` triggers a
+special backward search mode, during which edition is very limited.
+MisTTY detects this mode based on the regular expressions configured
+in :kbd:`M-x customize-option mistty-forbid-edit-regexps`.
+
+While this mode is active:
+
+- text can be appended or deleted, but not modified. While it is still
+  possible to yank text or delete a word in this mode, most Emacs
+  edition command will not work.
+
+- the status modeline shows "FE:run", for Forbid Edit mode
+
+- arrow keys are sent directly to the terminal. This is useful when
+  the shell offers multiple choices that can be selected, as the Fish
+  shell does. To customize this behavior, add or remove key bindings
+  from :code:`mistty-forbid-edit-map`, which extends
+  :code:`mistty-prompt-map` while this mode is active.
+
+- C-g is forwarded to the terminal. It normally exits the backward
+  search mode without selecting anything.
+
 
 .. _dirtrack:
 

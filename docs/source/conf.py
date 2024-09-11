@@ -3,7 +3,7 @@
 # -- Project information
 
 project = 'MisTTY'
-copyright = '2023, Stephane Zermatten'
+copyright = '2023-2024, Stephane Zermatten'
 author = 'Stephane Zermatten'
 
 release = '1.0.9'

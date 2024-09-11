@@ -2384,7 +2384,9 @@ This function fails if there is no current or previous output."
         (message "MisTTY: Canceling replay")
         (mistty--cancel-queue mistty--queue))
       (mistty--ignore-foreign-overlays)
-      (mistty--inhibit-clear 'noschedule)))
+      (mistty--inhibit-clear 'noschedule)
+      (when mistty--forbid-edit
+        (mistty-send-key 1 "\C-g"))))
 
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
     ;; Show cursor again if the command moved the point.

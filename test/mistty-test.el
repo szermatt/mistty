@@ -2988,6 +2988,27 @@
       (should (not mistty--forbid-edit))
       (should (equal ":run" mode-line-process)))))
 
+(ert-deftest mistty-test-exit-forbid-edit ()
+  (let ((mistty-forbid-edit-regexps
+         '("^search: .*\n\\(►\\|(no matches)\\)")))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-key 1 (kbd "C-r"))
+      (mistty-wait-for-output :str "search:" :start (point-min))
+      (should mistty--forbid-edit)
+
+      ;; C-g
+      (let ((this-command 'keyboard-quit))
+        (mistty--pre-command)
+        (mistty--post-command))
+
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (not (search-forward "search:" nil t)))))
+
+      (should (not mistty--forbid-edit)))))
+
 (ert-deftest mistty-test-forbid-edit-map ()
   (let ((mistty-forbid-edit-regexps
          '("^search: .*\n\\(►\\|(no matches)\\)")))

@@ -1705,7 +1705,7 @@ If N is unset, send DEL once. If N is negative, send Control d
 that many times instead."
   (interactive "p")
   (if mistty--inhibit
-      (backward-delete-char n)
+      (call-interactively 'backward-delete-char)
     (if (and (numberp n) (< n 0))
         (mistty-send-key (abs n) "\C-d" 'positional)
       (mistty-send-key n "\x7f" 'positional))))

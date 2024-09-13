@@ -210,6 +210,7 @@ window while BODY is running."
              "bind \\eOD backward-char; "
              "bind \\ca beginning-of-line; "
              "bind \\ce end-of-line; "
+             "bind \\cg cancel; "
              "bind \\b backward-delete-char; "))
     (mistty-run-command)
     (mistty-send-and-wait-for-prompt (lambda ())))

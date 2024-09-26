@@ -79,7 +79,7 @@ This can be used as a drop-in replacement for
        ((and mistty-allow-tramp-paths
              (not (string= hostname (system-name)))
              (not (file-remote-p path)))
-        (setq default-directory (concat "/" hostname ":" path))))))
+        (setq default-directory (concat "/-:" hostname ":" path))))))
 
    ;; A TRAMP remote path.
    ((and mistty-allow-tramp-paths

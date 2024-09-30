@@ -392,8 +392,7 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
 This variable evaluates to true when bracketed paste is turned on
 by the command that controls, to false otherwise.
 
-This variable is available in the work buffer.")
-
+This variable is available in both the work and term buffers.")
 
 (defvar-local mistty--term-properties-to-add-alist nil
   "An alist of id to text properties to add to the term buffer.
@@ -464,11 +463,13 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
               (unless (eq ?\n (char-before (point)))
                 (add-text-properties (mistty--bol (point)) (point) props))
               (mistty-register-text-properties 'mistty-bracketed-paste props))
+            (setq mistty-bracketed-paste t)
             (mistty--with-live-buffer work-buffer
               (setq mistty-bracketed-paste t)))
            ((equal ext "[?2004l") ; disable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty-unregister-text-properties 'mistty-bracketed-paste)
+            (setq mistty-bracketed-paste nil)
             (mistty--with-live-buffer work-buffer
               (setq mistty-bracketed-paste nil)))
            ((equal ext "[?25h") ; make cursor visible
@@ -596,22 +597,23 @@ BEG and END define the region that was modified."
       (put-text-property pos fake-nl-end 'yank-handler '(nil "" nil nil))
       (setq beg fake-nl-end)))
 
-  ;; Detect and mark right prompts.
-  (let ((bol (mistty--bol beg))
-        (eol (mistty--eol beg)))
-    (when (and (> beg bol)
-               (<= end eol)
-               (get-text-property (1- beg) 'mistty-skip)
-               (not (get-text-property bol 'mistty-skip)))
-      (add-text-properties
-       beg end '(mistty-skip t mistty-right-prompt t yank-handler (nil "" nil nil))))))
+  (when mistty-bracketed-paste
+    ;; Detect and mark right prompts.
+    (let ((bol (mistty--bol beg))
+          (eol (mistty--eol beg)))
+      (when (and (> beg bol)
+                 (<= end eol)
+                 (get-text-property (1- beg) 'mistty-skip)
+                 (not (get-text-property bol 'mistty-skip)))
+        (add-text-properties
+         beg end '(mistty-skip t mistty-right-prompt t yank-handler (nil "" nil nil)))))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-skip t to spaces added when just moving.
 
 ORIG-FUN is the original `move-to-column' function that's being
 advised and ARGS are its arguments."
-  (if (eq 'term-mode major-mode)
+  (if (and (eq 'term-mode major-mode) mistty-bracketed-paste)
     (let ((initial-end (line-end-position)))
       (apply orig-fun args)
       (when (> (point) initial-end)

@@ -2823,6 +2823,17 @@
       (yank)
       (should (equal "$ echo hello" (mistty-test-content))))))
 
+(ert-deftest mistty-test-not-right-prompt-yank-in-output ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-send-string "printf 'foo\\t") ; \t would confuse mistty-send-text
+    (mistty-send-text "bar\n'")
+    (let ((start (point)))
+      (mistty-send-and-wait-for-prompt)
+      (copy-region-as-kill (mistty--bol start 2) (mistty--eol start 2)))
+    (with-temp-buffer
+      (yank)
+      (should (equal "foo     bar" (mistty-test-content))))))
+
 (ert-deftest mistty-test-fish-right-prompt-skip-empty-spaces-at-prompt ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-setup-fish-right-prompt)

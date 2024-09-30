@@ -3308,7 +3308,8 @@ Usage example:
 
   (add-hook \\='mistty-after-process-end-hook
             \\='mistty-kill-buffer)"
-  (when (eq 'exit (process-status proc))
+  (when (and (eq 'exit (process-status proc))
+             (zerop (process-exit-status proc)))
     (kill-buffer)))
 
 (defun mistty-kill-buffer-and-window (proc)
@@ -3323,7 +3324,8 @@ Usage example:
 
   (add-hook \\='mistty-after-process-end-hook
             \\='mistty-kill-buffer-and-window)"
-  (when (eq 'exit (process-status proc))
+  (when (and (eq 'exit (process-status proc))
+             (zerop (process-exit-status proc)))
     (let ((buf (current-buffer))
           (win (get-buffer-window)))
       (if (and (kill-buffer buf)

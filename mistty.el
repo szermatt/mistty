@@ -697,7 +697,7 @@ is echoed back, call `mistty-interactive-insert-hook'.")
   ;; the end of the window. This seems to be more in-line with what
   ;; commands such as more expect than the default Emacs behavior.
   (setq-local scroll-conservatively 1024)
-  (setq window-point-insertion-type t)
+  (setq-local window-point-insertion-type t)
 
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)

@@ -179,40 +179,41 @@ window while BODY is running."
 (defun mistty-test-setup (shell)
   (cond
    ((eq shell 'bash)
-    (mistty--exec mistty-test-bash-exe "--noprofile" "--norc" "-i")
+    (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
     (mistty-run-command)
     (mistty-test-set-ps1))
 
    ((eq shell 'zsh)
-    (mistty--exec mistty-test-zsh-exe "-i" "--no-rcs")
+    (mistty--exec (list mistty-test-zsh-exe "-i" "--no-rcs"))
     (mistty-run-command)
     (mistty-test-set-ps1))
 
    ((eq shell 'fish)
     (mistty--exec
-     mistty-test-fish-exe
-     "-i" "-N" "-C"
-     (concat "function fish_prompt; printf '$ '; end; "
-             ;; This enables bracketed-paste; this is normally done in
-             ;; __fish_config_interactive.fish but is disabled by -N.
-             "function __fish_enable_bracketed_paste --on-event fish_prompt --on-event fish_read; "
-             "  printf \"\\e[?2004h\";"
-             "end;"
-             "function __fish_disable_bracketed_paste --on-event fish_preexec --on-event fish_exit; "
-             "  printf \"\\e[?2004l\";"
-             "end; "
-             ;; Older version of fish, such as 3.3.1, ignore termcap
-             ;; entries. \eOA-\eOD is part of the default key binding,
-             ;; bypassed here by -N, so it's only a problem in these
-             ;; tests
-             "bind \\eOA up-line; "
-             "bind \\eOB down-line; "
-             "bind \\eOC forward-char; "
-             "bind \\eOD backward-char; "
-             "bind \\ca beginning-of-line; "
-             "bind \\ce end-of-line; "
-             "bind \\cg cancel; "
-             "bind \\b backward-delete-char; "))
+     (list
+      mistty-test-fish-exe
+      "-i" "-N" "-C"
+      (concat "function fish_prompt; printf '$ '; end; "
+              ;; This enables bracketed-paste; this is normally done in
+              ;; __fish_config_interactive.fish but is disabled by -N.
+              "function __fish_enable_bracketed_paste --on-event fish_prompt --on-event fish_read; "
+              "  printf \"\\e[?2004h\";"
+              "end;"
+              "function __fish_disable_bracketed_paste --on-event fish_preexec --on-event fish_exit; "
+              "  printf \"\\e[?2004l\";"
+              "end; "
+              ;; Older version of fish, such as 3.3.1, ignore termcap
+              ;; entries. \eOA-\eOD is part of the default key binding,
+              ;; bypassed here by -N, so it's only a problem in these
+              ;; tests
+              "bind \\eOA up-line; "
+              "bind \\eOB down-line; "
+              "bind \\eOC forward-char; "
+              "bind \\eOD backward-char; "
+              "bind \\ca beginning-of-line; "
+              "bind \\ce end-of-line; "
+              "bind \\cg cancel; "
+              "bind \\b backward-delete-char; ")))
     (mistty-run-command)
     (mistty-send-and-wait-for-prompt (lambda ())))
 

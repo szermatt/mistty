@@ -39,6 +39,7 @@
 (require 'text-property-search)
 (require 'fringe)
 (eval-when-compile
+  (require 'files-x) ; with-connection-local-variables
   (require 'minibuffer)
   (require 'cl-lib))
 
@@ -771,15 +772,22 @@ differently from modifications made inside of the synced region."
   "Asserts that the current buffer has a live process."
   (unless (process-live-p mistty-proc) (error "No running process")))
 
-(defun mistty--exec (program &rest args)
-  "Execute PROGRAM ARGS in the current buffer.
+(defun mistty--exec (program)
+  "Execute PROGRAM in the current buffer.
+
+PROGRAM can be either a string or a list. If it is a string, it
+should be the name of an executable to run, without arguments. If
+it is a string, it should be a list of executable and its
+arguments.
 
 The buffer is switched to `mistty-mode'."
   (mistty-mode)
-  (let ((win (or (get-buffer-window (current-buffer)) (selected-window))))
+  (let ((win (or (get-buffer-window (current-buffer)) (selected-window)))
+        (command (if (consp program) (car program) program))
+        (args (if (consp program) (cdr program) nil)))
     (mistty--attach
      (mistty--create-term
-      (concat " mistty tty " (buffer-name)) program args
+      (concat " mistty tty " (buffer-name)) command args
       ;; local-map
       mistty-fullscreen-map
       ;; width
@@ -968,8 +976,11 @@ The shell that is run can be configured by setting
 `explicit-shell-file-name', `shell-file-name' or come implicitly
 from the ESHELL or SHELL environment variables.
 
-Set COMMAND to specify instead the command to run just for the
-current call.
+Set COMMAND to specify instead the command to run for the current
+call. COMMAND can be either a string or a list. If it is a
+string, it should be the name of an executable to run, without
+arguments. If it is a string, it should be a list of executable
+and its arguments.
 
 If OTHER-WINDOW is nil, execute the default action configured by
 `display-comint-buffer-action'. If OTHER-WINDOW is a function, it
@@ -985,10 +996,12 @@ Upon success, the function returns the newly-created buffer."
     (mistty--pop-to-buffer buf other-window)
     (with-current-buffer buf
       (mistty--exec (or command
-                        explicit-shell-file-name
-                        shell-file-name
-                        (getenv "ESHELL")
-                        (getenv "SHELL")))
+                        (with-connection-local-variables
+                         (or
+                          explicit-shell-file-name
+                          shell-file-name
+                          (getenv "ESHELL")
+                          (getenv "SHELL")))))
       buf)))
 
 ;;;###autoload

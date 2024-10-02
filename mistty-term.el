@@ -22,6 +22,8 @@
 
 (require 'term)
 (require 'subr-x)
+(eval-when-compile
+  (require 'cl-lib))
 
 (require 'mistty-util)
 
@@ -573,7 +575,7 @@ This function returns the newly-created buffer."
       (setq-local term-set-terminal-size t)
       (setq-local term-width width)
       (setq-local term-height height)
-      (term-exec term-buffer (buffer-name term-buffer) program nil args)
+      (mistty-term--exec program args)
       (set-process-window-size (get-buffer-process term-buffer) height width)
       (setq-local term-raw-map local-map)
       (term-char-mode)
@@ -581,6 +583,46 @@ This function returns the newly-created buffer."
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
 
     term-buffer))
+
+(defun mistty-term--exec (program args)
+  "Execute PROGRAM with ARGS in the terminal buffer.
+
+Must be called from the term buffer."
+  (let ((buffer (current-buffer))
+        (name (buffer-name)))
+    (if (not (file-remote-p default-directory))
+        (term-exec buffer name program nil args)
+
+      ;; term.el calls start-process, which doesn't support starting
+      ;; processes with TRAMP. The following intercepts replace
+      ;; start-process with start-file process, which does support
+      ;; TRAMP.
+      (cl-letf*
+          ((real-start-process (symbol-function 'start-process))
+           (called nil)
+           ((symbol-function 'start-process)
+            (lambda (name buffer program &rest program-args)
+              (if called
+                  (apply real-start-process name buffer program program-args)
+                (setq called t)
+                (let* ((process-environment
+                        ;; TERMINFO references a local file. This is
+                        ;; not useful on a remote host, so let's
+                        ;; remove it. A description of the terminal is
+                        ;; available in TERMCAP.
+                        (delq nil
+                              (mapcar (lambda (var)
+                                        (if (string-prefix-p "TERMINFO=" var)
+                                            nil
+                                          var))
+                                      process-environment)))
+                       (proc (apply #'start-file-process name buffer program program-args)))
+
+                  ;; start-file-process doesn't always respect
+                  ;; coding-system-for-read set by term.el. Force it.
+                  (set-process-coding-system proc 'binary (cdr (process-coding-system proc)))
+                  proc)))))
+        (term-exec buffer name program nil args)))))
 
 (defun mistty--after-change-on-term (beg end _old-length)
   "Function registered to `after-change-functions' by `mistty--create-term'.

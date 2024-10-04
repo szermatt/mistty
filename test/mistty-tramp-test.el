@@ -74,6 +74,25 @@
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buf))))))
 
+(ert-deftest mistty-tramp-test-termcap ()
+  (let* ((sg-prefix (mistty-tramp-test-prefix))
+         (default-directory (concat sg-prefix "/"))
+         (term-term-name "eterm-test"))
+    (mistty-with-test-buffer ()
+
+      ;; TERMINFO shouldn't be set in remote shells.
+      (mistty-send-text "echo TERMINFO=${TERMINFO}.")
+      (should (equal "TERMINFO=." (mistty-send-and-capture-command-output)))
+
+      ;; TERMCAP should be set.
+      (mistty-send-text "if [ -n \"$TERMCAP\" ]; then echo set; else echo unset; fi")
+      (should (equal "set" (mistty-send-and-capture-command-output)))
+
+      ;; captoinfo reads and processes the TERMCAP env variable. This
+      ;; makes sure that the content of TERMCAP is valid.
+      (mistty-send-text "captoinfo")
+      (should (string-match "eterm-test,\n +am, mir.*" (mistty-send-and-capture-command-output))))))
+
 (defun mistty-tramp-test-prefix ()
   "Build a TRAMP file prefix for a remote file for testing."
   (let* ((groups (split-string (shell-command-to-string "groups") " " 'omit-nulls))

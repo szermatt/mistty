@@ -593,12 +593,22 @@ Must be called from the term buffer."
     (if (not (file-remote-p default-directory))
         (term-exec buffer name program nil args)
 
-      ;; term.el calls start-process, which doesn't support starting
-      ;; processes with TRAMP. The following intercepts replace
-      ;; start-process with start-file process, which does support
-      ;; TRAMP.
       (cl-letf*
-          ((real-start-process (symbol-function 'start-process))
+          ;; On MacOS, the length of the termcap entry, heavily
+          ;; escaped by TRAMP, plus the other env variables is enough
+          ;; to hit the 1024 byte limit of the tty cache used in
+          ;; canonical mode (on Linux, it is 4095, so there's no
+          ;; problem.) Adding a newline to the termcap entry avoids
+          ;; hitting that limit while remaining valid. An alternative
+          ;; would be to have TRAMP disable canonical mode with stty
+          ;; -icanon before sending out the command.
+          ((term-termcap-format (concat term-termcap-format "\n"))
+
+           ;; term.el calls start-process, which doesn't support starting
+           ;; processes with TRAMP. The following intercepts replace
+           ;; start-process with start-file process, which does support
+           ;; TRAMP.
+           (real-start-process (symbol-function 'start-process))
            (called nil)
            ((symbol-function 'start-process)
             (lambda (name buffer program &rest program-args)

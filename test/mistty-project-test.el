@@ -18,7 +18,7 @@
 
 (ert-deftest mistty-project-test-mistty-in-project ()
   (ert-with-temp-directory project-dir
-    (let* ((explicit-shell-file-name mistty-test-bash-exe)
+    (let* ((mistty-shell-command mistty-test-bash-exe)
            (default-directory project-dir)
            (project-current-directory-override project-dir)
            (fake-project (list 'fake project-dir))

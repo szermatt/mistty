@@ -44,12 +44,13 @@
       (should (equal (format "%s,term:%s,tramp:%s" emacs-version term-protocol-version tramp-version)
                      (mistty-send-and-capture-command-output))))))
 
-(ert-deftest mistty-tramp-test-connection-local ()
+(ert-deftest mistty-tramp-test-connection-local-explicit-shell-file-name ()
   (skip-unless mistty-test-zsh-exe)
   (let* ((sg-prefix (mistty-tramp-test-prefix))
          (default-directory (concat sg-prefix "/"))
          (connection-local-profile-alist nil)
          (connection-local-criteria-alist nil)
+         (mistty-shell-command nil)
          (explicit-shell-file-name "/bin/sh")
          buf)
 
@@ -61,6 +62,36 @@
     ;; This makes sure the connection-local setup above works.
     (should (equal mistty-test-zsh-exe
                    (with-connection-local-variables explicit-shell-file-name)))
+
+    (unwind-protect
+        (progn
+          (setq buf (mistty-create))
+          (should (process-get mistty-proc 'remote-command))
+          ;; This makes sure that the connection-local value of
+          ;; explicit-shell-file-name is the one that's used, and not
+          ;; the global value.
+          (should (equal mistty-test-zsh-exe (mistty-tramp-test-remote-command))))
+      (when (buffer-live-p buf)
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer buf))))))
+
+(ert-deftest mistty-tramp-test-connection-local-explicit-mistty-shell-command ()
+  (skip-unless mistty-test-zsh-exe)
+  (let* ((sg-prefix (mistty-tramp-test-prefix))
+         (default-directory (concat sg-prefix "/"))
+         (connection-local-profile-alist nil)
+         (connection-local-criteria-alist nil)
+         (mistty-shell-command "/bin/sh")
+         buf)
+
+    (connection-local-set-profile-variables
+     'test-profile
+     `((mistty-shell-command . ,mistty-test-zsh-exe)))
+    (connection-local-set-profiles '(:method "sg") 'test-profile)
+
+    ;; This makes sure the connection-local setup above works.
+    (should (equal mistty-test-zsh-exe
+                   (with-connection-local-variables mistty-shell-command)))
 
     (unwind-protect
         (progn

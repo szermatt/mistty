@@ -3552,8 +3552,37 @@
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
+(ert-deftest mistty-test-create-command-with-args ()
+  (let* ((buf (mistty-create
+               (list mistty-test-bash-exe "--norc" "--noprofile" "--restricted"))))
+    (unwind-protect
+        (with-current-buffer buf
+          ;; The normal setup hasn't been done, so we can't rely on
+          ;; the usual helpers.
+          (mistty--send-string mistty-proc "cd /\n")
+          (mistty-wait-for-output
+           :test (lambda ()
+                   (string-match ".*bash: cd: restricted.*" (mistty-test-content)))))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf)))))
+
+(ert-deftest mistty-test-create-mistty-shell-command ()
+  (let* ((mistty-shell-command
+          (list mistty-test-bash-exe "--norc" "--noprofile" "--restricted"))
+         (buf (mistty-create)))
+    (unwind-protect
+        (with-current-buffer buf
+          ;; The normal setup hasn't been done, so we can't rely on
+          ;; the usual helpers.
+          (mistty--send-string mistty-proc "cd /\n")
+          (mistty-wait-for-output
+           :test (lambda ()
+                   (string-match ".*bash: cd: restricted.*" (mistty-test-content)))))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf)))))
+
 (ert-deftest mistty-test-mistty-other-window ()
-  (let* ((explicit-shell-file-name mistty-test-bash-exe)
+  (let* ((mistty-shell-command mistty-test-bash-exe)
          (buf (mistty-other-window)))
     (unwind-protect
         (with-current-buffer buf

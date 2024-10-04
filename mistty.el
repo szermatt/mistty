@@ -57,6 +57,28 @@
   "Shell/Comint alternative with a real terminal."
   :group 'shell)
 
+(defcustom mistty-shell-command nil
+  "The command MisTTY should use to start a shell.
+
+This should either be a single string, containing the name of an
+executable, or a list of string containing the name of the
+executable followed by any command-line arguments.
+
+This is used by `mistty' and `mistty-create', when not given any
+command argument.
+
+If unset, `mistty-create' and `mistty' try to use, in order:
+ - `explicit-shell-file-name', without arguments
+ - `shell-file-name'
+ - the value of the ESHELL env variable
+ - the value of the SHELL env variable.
+
+When using TRAMP, it is possible to specify different values for
+this variable for different hosts by setting mistty-shell-command
+as a connection-local variable."
+  :type '(repeat string)
+  :group 'mistty)
+
 (defcustom mistty-prompt-regexp
   "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
   "Regexp used to identify prompts.
@@ -973,8 +995,9 @@ action. Otherwise, display the buffer in another window."
   "Create a new MisTTY buffer, running a shell.
 
 The shell that is run can be configured by setting
-`explicit-shell-file-name', `shell-file-name' or come implicitly
-from the ESHELL or SHELL environment variables.
+`mistty-shell-command', `explicit-shell-file-name',
+`shell-file-name' or come implicitly from the ESHELL or SHELL
+environment variables.
 
 Set COMMAND to specify instead the command to run for the current
 call. COMMAND can be either a string or a list. If it is a
@@ -995,13 +1018,15 @@ Upon success, the function returns the newly-created buffer."
     ;; of the terminal from the very beginning.
     (mistty--pop-to-buffer buf other-window)
     (with-current-buffer buf
-      (mistty--exec (or command
-                        (with-connection-local-variables
-                         (or
-                          explicit-shell-file-name
-                          shell-file-name
-                          (getenv "ESHELL")
-                          (getenv "SHELL")))))
+      (mistty--exec
+       (or command
+           (with-connection-local-variables
+            (or
+             mistty-shell-command
+             explicit-shell-file-name
+             shell-file-name
+             (getenv "ESHELL")
+             (getenv "SHELL")))))
       buf)))
 
 ;;;###autoload

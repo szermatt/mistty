@@ -715,6 +715,16 @@ Whenever a character is inserted by `mistty-self-insert', it is added
 to this. When a character or a series of such self-inserted character
 is echoed back, call `mistty-interactive-insert-hook'.")
 
+(defvar mistty-chain-start nil
+  "The buffer that was current at the start of the `mistty' chain.
+
+The `mistty' command is meant to be called multiple times, to
+iterate through multiple buffers and possibly eventually creating
+a new one. In such a scenario, it's useful to keep track of the
+buffer `mistty' was called for the first time, so inherit the
+`default-directory' of that buffer and possibly use TRAMP to
+connect to the same host.")
+
 (eval-when-compile
   ;; defined in term.el
   (defvar term-home-marker))
@@ -937,32 +947,66 @@ one.
 To create a new buffer unconditionally, call `mistty-create'.
 
 If OTHER-WINDOW is nil, execute the default action configured by
-`display-comint-buffer-action'. If OTHER-WINDOW is a function, it
-is passed to `pop-to-buffer` to be used as a `display-buffer'
-action. Otherwise, display the buffer in another window.
+`display-comint-buffer-action'. If OTHER-WINDOW is a function, it is
+passed to `pop-to-buffer` to be used as a `display-buffer' action.
+Otherwise, display the buffer in another window.
 
-ACCEPT-BUFFER, if specified, must be a function that takes in a
-buffer and return non-nil if that buffer should be taken into
-account by this command. This can be used to manage distinct
-group of buffers, such as buffers belonging to different
-projects."
+Passing ACCEPT-BUFFER is deprecated. Call `mistty-cycle-or-create'
+instead. See that function for details on that argument.
+
+    This function is for interactive use only. When building similar
+    commands, call `mistty-cycle-or-create' instead."
   (interactive)
+  (when (not (eq this-command last-command))
+    (setq mistty-chain-start (current-buffer)))
+
+  (mistty-cycle-or-create
+   accept-buffer
+   (lambda (other-window)
+     (if mistty-chain-start
+       (with-current-buffer mistty-chain-start
+         (mistty-create nil other-window))
+       (mistty-create nil other-window)))
+   other-window))
+
+(defun mistty-cycle-or-create (accept-buffer create-buffer other-window)
+  "Cycle through existing buffers, creating one if necessary.
+
+This function implements the behavior of `mistty' in a configurable way.
+
+The first time this command is called, it creates a new MisTTY
+buffer. Afterwards, this command goes to a MisTTY buffer. If
+already on a MisTTY buffer, go to the next one or create another
+one.
+
+ACCEPT-BUFFER, if specified, must be a function that takes in a live
+MisTTY buffer and return non-nil if that buffer should be taken into
+account as existing buffer by this command. This can be used to manage
+distinct group of buffers, such as buffers belonging to different
+projects.
+
+CREATE-BUFFER must be a function that creates a new buffer. It takes a
+single argument, OTHER-WINDOW. It must return the newly created buffer.
+
+If OTHER-WINDOW is nil, execute the default action configured by
+`display-comint-buffer-action' to pop to the existing or newly-created
+buffer. If OTHER-WINDOW is a function, it is passed to `pop-to-buffer`
+to be used as a `display-buffer' action. Otherwise, display the buffer
+in another window."
   (let ((existing (mistty-list-live-buffers accept-buffer)))
     (if (or current-prefix-arg         ; command prefix was given
             (null existing)            ; there are no mistty buffers
             (and (null (cdr existing)) ; the current buffer is the only mistty buffer
                  (eq (current-buffer) (car existing))))
-        ;; create a new one
-        (mistty-create nil other-window)
+        (funcall create-buffer other-window)
       (mistty--goto-next existing other-window))))
 
 ;;;###autoload
 (defun mistty-other-window ()
   "Go to the next MisTTY buffer in another window.
 
-See the documentation of the function `mistty' for details..
-
-If OTHER-WINDOW is non-nil, put the buffer into another window."
+    This function is for interactive use only. When building similar
+    commands, consider calling `mistty-cycle-or-create' instead."
   (interactive)
   (mistty 'other-window))
 

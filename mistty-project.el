@@ -25,11 +25,12 @@
 ;; like comint buffers are. See that function docstring.
 
 (require 'project)
+(require 'mistty)
 
 ;;; Code:
 
 ;;;###autoload
-(defun mistty-in-project ()
+(defun mistty-in-project (&optional other-window)
   "Start or go to a MisTTY buffer in the project's root directory.
 
 If a MisTTY buffer already exists for running a shell in the
@@ -38,16 +39,26 @@ create a new buffer in that project, like `mistty' does.
 
 Otherwise, create a new MisTTY shell buffer. With
 \\[universal-argument] prefix arg, create a new shell buffer even
-if one already exists."
+if one already exists.
+
+If OTHER-WINDOW is nil, execute the default action configured by
+`display-comint-buffer-action' to pop to the existing or newly-created
+buffer. If OTHER-WINDOW is a function, it is passed to `pop-to-buffer`
+to be used as a `display-buffer' action. Otherwise, display the buffer
+in another window.
+"
   (interactive)
   (let* ((pr (project-current t))
-         (bufs (project-buffers pr))
-         (default-directory (project-root pr))
-         (mistty-buf (mistty nil (lambda (buf) (memq buf bufs)))))
-    (unless (memq mistty-buf bufs)
-      (rename-buffer (generate-new-buffer-name
-                      (project-prefixed-buffer-name "mistty"))))
-    mistty-buf))
+         (bufs (project-buffers pr)))
+    (mistty-cycle-or-create
+     (lambda (buf) (memq buf bufs))
+     (lambda (other-window)
+       (let ((default-directory (project-root pr)))
+         (with-current-buffer (mistty-create nil other-window)
+           (rename-buffer (generate-new-buffer-name
+                           (project-prefixed-buffer-name "mistty")))
+           (current-buffer))))
+     other-window)))
 
 (defun mistty-in-project-other-window ()
   "Start or go to a MisTTY buffer in the project's root in another window.
@@ -55,14 +66,7 @@ if one already exists."
 See the documentation of the function `mistty-other-window' and
 `mistty-in-project' for details."
   (interactive)
-  (let* ((pr (project-current t))
-         (bufs (project-buffers pr))
-         (default-directory (project-root pr))
-         (mistty-buf (mistty 'other-window (lambda (buf) (memq buf bufs)))))
-    (unless (memq mistty-buf bufs)
-      (rename-buffer (generate-new-buffer-name
-                      (project-prefixed-buffer-name "mistty"))))
-    mistty-buf))
+  (mistty-in-project 'other-window))
 
 (defun mistty-project-init-kill-buffer ()
   "Have `project-kill-buffers' treat MisTTY buffers as comint.

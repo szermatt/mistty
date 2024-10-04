@@ -3581,6 +3581,141 @@
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
+(ert-deftest mistty-test-cycle-and-create ()
+  (let ((mistty-shell-command mistty-test-bash-exe)
+        (start-buf (current-buffer))
+        (first-buf nil)
+        (second-buf nil)
+        (third-buf nil)
+        (last-command nil)
+        (this-command nil)
+        (current-prefix-arg nil)
+        (bufs nil))
+    (unwind-protect
+        (let ((call-mistty (lambda ()
+                             (setq this-command 'mistty)
+                             (let ((buf (mistty nil (lambda (buf) (memq buf bufs)))))
+                               (cl-pushnew buf bufs)
+                               (setq last-command this-command)
+                               buf))))
+
+          ;; first call creates a new buffer
+          (setq first-buf (funcall call-mistty))
+          (should (buffer-live-p first-buf))
+          (with-current-buffer first-buf
+            (should (equal 'mistty-mode major-mode)))
+
+          ;; second call goes back to that buffer
+          (pop-to-buffer start-buf)
+          (should (progn
+                    "create first-buf"
+                    (equal first-buf (funcall call-mistty))))
+
+          ;; another call creates a second mistty buffer
+          (setq second-buf (funcall call-mistty))
+          (should (progn
+                    "create second-buf"
+                    (buffer-live-p second-buf)))
+          (should-not (equal first-buf second-buf))
+          (with-current-buffer second-buf
+            (should (equal 'mistty-mode major-mode)))
+
+          ;; some time later
+          (pop-to-buffer start-buf)
+          (setq last-command nil)
+          (should (progn
+                    "first call goes back to 1st buffer"
+                    (equal first-buf (funcall call-mistty))))
+          (should (progn
+                    "second call goes back to 2nd buffer"
+                    (equal second-buf (funcall call-mistty))))
+          (should (progn
+                    "...and back to the 1st"
+                    (equal first-buf (funcall call-mistty))))
+
+          ;; calling mistty with an argument creates a 3rd buffer
+          (let ((current-prefix-arg 1))
+            (setq third-buf (funcall call-mistty)))
+          (should (progn
+                    "C-u M-x mistty should have create a 3rd buffer"
+                    (and (not (eq third-buf first-buf))
+                         (not (eq third-buf second-buf)))))
+          (with-current-buffer third-buf
+            (should (equal 'mistty-mode major-mode)))
+
+          ;; and later on, we cycle through the three buffers again.
+          (setq last-command nil)
+          (pop-to-buffer start-buf)
+          (should (progn
+                    "cycle through 3 buffers, first call"
+                    (equal first-buf (funcall call-mistty))))
+          (should (progn
+                    "cycle through 3 buffers, second call"
+                    (equal second-buf (funcall call-mistty))))
+          (should (progn
+                    "cycle through 3 buffers, third call"
+                    (equal third-buf (funcall call-mistty))))
+          (should (progn
+                    "cycle through 3 buffers, 4th call"
+                    (equal first-buf (funcall call-mistty)))))
+
+      ;; unwind
+      (let ((kill-buffer-query-functions nil))
+        (dolist (buf bufs)
+          (kill-buffer buf))))))
+
+(ert-deftest mistty-test-cycle-and-create-default-directory ()
+  (let ((mistty-shell-command mistty-test-bash-exe)
+        (home (expand-file-name (getenv "HOME")))
+        (start-buf (current-buffer))
+        (first-buf nil)
+        (second-buf nil)
+        (last-command nil)
+        (this-command nil)
+        (bufs nil))
+    (unwind-protect
+        (let ((start-buf (let ((buf (generate-new-buffer "start-buf")))
+                           (push buf bufs)
+                           buf))
+              (call-mistty (lambda ()
+                             (setq this-command 'mistty)
+                             (let ((buf (mistty nil (lambda (buf) (memq buf bufs)))))
+                               (cl-pushnew buf bufs)
+                               (setq last-command this-command)
+                               buf))))
+
+          ;; start with a buffer in home
+          (pop-to-buffer start-buf)
+          (should (eq start-buf (current-buffer)))
+          (setq default-directory home)
+
+          (setq first-buf (funcall call-mistty))
+          (with-current-buffer first-buf
+            (should (equal home default-directory)))
+
+          ;; some time later, start-buf is in a different directory
+          (pop-to-buffer start-buf)
+          (should (eq start-buf (current-buffer)))
+          (setq default-directory "/")
+          (setq last-command nil)
+          (should (progn
+                    "first call goes back to 1st buffer"
+                    (equal first-buf (funcall call-mistty))))
+          (setq second-buf (funcall call-mistty))
+          (should-not (progn "second call creates a new buffer"
+                             (equal first-buf second-buf)))
+
+          ;; second-buf is in "/", the default-directory of start-buf,
+          ;; even though when mistty was called, the current buffer
+          ;; was first-buf, whose default-directory is home.
+          (with-current-buffer second-buf
+            (should (equal "/" default-directory))))
+
+      ;; unwind
+      (let ((kill-buffer-query-functions nil))
+        (dolist (buf bufs)
+          (kill-buffer buf))))))
+
 (ert-deftest mistty-test-mistty-other-window ()
   (let* ((mistty-shell-command mistty-test-bash-exe)
          (buf (mistty-other-window)))

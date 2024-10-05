@@ -944,7 +944,14 @@ buffer. Afterwards, this command goes to a MisTTY buffer. If
 already on a MisTTY buffer, go to the next one or create another
 one.
 
-To create a new buffer unconditionally, call `mistty-create'.
+If called with an argument, create a new buffer unconditionally,
+so you can call `mistty' multiple times to visit existing MisTTY
+buffers, and then, if it turns out to be necessary, call it a
+final time with an argument to create a new one.
+
+When creating a new buffer, the `default-directory' of that
+buffer is taken from the buffer from which the chain of calls
+`mistty' was started.
 
 If OTHER-WINDOW is nil, execute the default action configured by
 `display-comint-buffer-action'. If OTHER-WINDOW is a function, it is
@@ -1048,6 +1055,11 @@ call. COMMAND can be either a string or a list. If it is a
 string, it should be the name of an executable to run, without
 arguments. If it is a string, it should be a list of executable
 and its arguments.
+
+The command is executed in the `default-directory' of the current
+buffer. If that directory is a remote file, the command is
+executed on the remote host, if the TRAMP method supports it. See
+Info node `(mistty)Remote Shells with TRAMP' for details.
 
 If OTHER-WINDOW is nil, execute the default action configured by
 `display-comint-buffer-action'. If OTHER-WINDOW is a function, it

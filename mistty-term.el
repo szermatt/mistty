@@ -575,6 +575,7 @@ This function returns the newly-created buffer."
       (setq-local term-set-terminal-size t)
       (setq-local term-width width)
       (setq-local term-height height)
+      (setq-local term-command-function #'mistty--term-command-hook)
       (mistty-term--exec program args)
       (set-process-window-size (get-buffer-process term-buffer) height width)
       (setq-local term-raw-map local-map)
@@ -717,6 +718,32 @@ If N is specified, the string is repeated N times."
      (t
       (error "Key unknown in mistty-term-key-map: %s"
              (key-description key))))))
+
+(defun mistty--term-command-hook (string)
+  "TRAMP-aware alternative to `term-command-hook'.
+
+This function is meant to be bound to `term-command-function' to
+catch Emacs-specific control sequences \\032...\n.
+
+When `default-directory' is remote, this function interprets paths
+sent by the terminal as being local to the TRAMP connection. The
+result is that it sends remote paths to `cd'.
+
+This works well with Bash which, by default, sends out directory paths
+with every prompt if the env variable INSIDE_EMACS is set."
+  (if (= (aref string 0) ?/)
+      (let ((path (substring string 1)))
+        (unless (file-remote-p path)
+          (when-let ((prefix (file-remote-p default-directory)))
+            (setq path (concat prefix path))))
+        ;; Not using cd here, to avoid a remote connection being made to
+        ;; check the path.
+        (setq path (file-name-as-directory path))
+        (setq path (expand-file-name path))
+        (setq default-directory path))
+
+    ;; unknown or unsupported Emacs-specific control sequence.
+    (term-command-hook string)))
 
 (provide 'mistty-term)
 

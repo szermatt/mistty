@@ -25,13 +25,10 @@
 
 (ert-deftest mistty-tramp-test-shell-start ()
   (let* ((sg-prefix (mistty-tramp-test-prefix))
-         (home (file-name-directory (getenv "HOME")))
-         (default-directory (concat sg-prefix home))
-         ;; Disable directory tracking for this test; it doesn't work
-         ;; properly with TRAMP yet.
-         (term-command-function (lambda (str))))
+         (home (file-name-directory "/"))
+         (default-directory (concat sg-prefix home)))
     (mistty-with-test-buffer ()
-      (should (equal (concat sg-prefix home)
+      (should (equal (concat sg-prefix "/")
                      (buffer-local-value 'default-directory (current-buffer))))
       (should (equal mistty-test-bash-exe (mistty-tramp-test-remote-command)))
 
@@ -123,6 +120,33 @@
       ;; makes sure that the content of TERMCAP is valid.
       (mistty-send-text "captoinfo")
       (should (string-match "eterm-test,\n +am, mir.*" (mistty-send-and-capture-command-output))))))
+
+(ert-deftest mistty-tramp-test-dirtrack-on-sg ()
+  (let* ((sg-prefix (mistty-tramp-test-prefix))
+         (default-directory (concat sg-prefix "/")))
+    (mistty-with-test-buffer ()
+      (should (equal (concat sg-prefix "/") default-directory))
+
+      ;; Bash updates the current directory with \032 <local path> \n.
+      ;; MisTTY must use it to update the buffer default-directory,
+      ;; keeping within the same prefix.
+
+      (mistty-send-text "cd /var/log")
+      (mistty-send-and-wait-for-prompt)
+
+      (should (equal (concat sg-prefix "/var/log/") default-directory))
+
+      (mistty-send-text "cd ..")
+      (mistty-send-and-wait-for-prompt)
+
+      (should (equal (concat sg-prefix "/var/") default-directory))
+
+      (mistty-send-text "cd ~")
+      (mistty-send-and-wait-for-prompt)
+      (should (equal (concat sg-prefix
+                             (expand-file-name
+                              (file-name-as-directory (getenv "HOME"))))
+                     default-directory)))))
 
 (defun mistty-tramp-test-prefix ()
   "Build a TRAMP file prefix for a remote file for testing."

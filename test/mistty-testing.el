@@ -228,7 +228,7 @@ window while BODY is running."
    (t (error "Unsupported shell %s" shell))))
 
 (defun mistty-test-set-ps1 ()
-  (mistty-wait-for-output :test (lambda () (= (point-min) (point-max))))
+  (mistty-wait-for-output :test (lambda () (< (point-min) (point-max))))
   ;; Sending the PS1 might happen too early for mistty-send-text,
   ;; which expects the text it sends to appear after the text that's
   ;; already there. It's enough to wait for the prompt anyways.

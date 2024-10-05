@@ -64,10 +64,7 @@ This can be used as a drop-in replacement for
           (path (url-unhex-string (match-string 2 osc-seq))))
       (setq path
             (file-name-as-directory
-             (decode-coding-string
-              path (or file-name-coding-system
-                       default-file-name-coding-system)
-              'nocopy)))
+             (decode-coding-string path 'utf-8 'nocopy)))
       (cond
        ;; A local paths.
        ((and (string= hostname (system-name))

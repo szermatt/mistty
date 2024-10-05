@@ -46,6 +46,10 @@ as the current directory for the current shell.
 By default, only local paths are taken into account. To allow
 remote paths, configure `mistty-allow-tramp-paths.
 
+The remote paths that are generated use the default TRAMP method, which
+can be configured using `tramp-default-method' and
+`tramp-default-method-alist'.
+
 Such sequences are typically printed out by shells just before
 printing a prompt by a command such as:
 
@@ -58,30 +62,32 @@ This can be used as a drop-in replacement for
  so such paths look better
 
  - it has optional supports for remote paths."
-  (cond
-   ((string-match "file://\\([^/]*\\)\\(/.*\\)" osc-seq)
+  (when (string-match "file://\\([^/]*\\)\\(/.*\\)" osc-seq)
     (let ((hostname (url-unhex-string (match-string 1 osc-seq)))
-          (path (url-unhex-string (match-string 2 osc-seq))))
-      (setq path
-            (file-name-as-directory
-             (decode-coding-string path 'utf-8 'nocopy)))
+          (path (file-name-as-directory
+                 (decode-coding-string
+                  (url-unhex-string (match-string 2 osc-seq))
+                  'utf-8
+                  'nocopy))))
+      (when (or (string= hostname "")
+                (string= hostname "localhost"))
+        (setq hostname (system-name)))
       (cond
-       ;; A local paths.
-       ((and (string= hostname (system-name))
-             (not (file-remote-p path)))
-        (ignore-errors
-          (cd-absolute path)))
+       ;; Interpret path as being in the same TRAMP connection as
+       ;; default-directory if the host names match. This is useful
+       ;; for things like the sudo method, where the hostname is the
+       ;; same, but accessed differently.
+       ((equal (file-remote-p default-directory 'host) hostname)
+        (setq default-directory
+              (concat (file-remote-p default-directory) path)))
 
-       ;; Build TRAMP remote paths from the path and hostname.
-       ((and mistty-allow-tramp-paths
-             (not (string= hostname (system-name)))
-             (not (file-remote-p path)))
-        (setq default-directory (concat "/-:" hostname ":" path))))))
+       ;; Interpret path as a straightforward local path.
+       ((string= hostname (system-name))
+        (ignore-errors (cd-absolute path)))
 
-   ;; A TRAMP remote path.
-   ((and mistty-allow-tramp-paths
-         (file-remote-p osc-seq))
-    (setq default-directory (file-name-as-directory osc-seq)))))
+       ;; Build a TRAMP remote path from the path and hostname.
+       (mistty-allow-tramp-paths
+        (setq default-directory (expand-file-name (concat "/-:" hostname ":" path))))))))
 
 (provide 'mistty-osc7)
 

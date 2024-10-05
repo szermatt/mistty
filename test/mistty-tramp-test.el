@@ -24,13 +24,13 @@
 (require 'mistty-testing)
 
 (ert-deftest mistty-tramp-test-shell-start ()
-  (let* ((sg-prefix (mistty-tramp-test-prefix))
+  (let* ((sg-prefix (mistty-test-sg-prefix))
          (home (file-name-directory "/"))
          (default-directory (concat sg-prefix home)))
     (mistty-with-test-buffer ()
       (should (equal (concat sg-prefix "/")
                      (buffer-local-value 'default-directory (current-buffer))))
-      (should (equal mistty-test-bash-exe (mistty-tramp-test-remote-command)))
+      (should (equal mistty-test-bash-exe (mistty-test-remote-command)))
 
       ;; This just makes sure the shell is functional.
       (mistty-send-text "echo hello")
@@ -43,7 +43,7 @@
 
 (ert-deftest mistty-tramp-test-connection-local-explicit-shell-file-name ()
   (skip-unless mistty-test-zsh-exe)
-  (let* ((sg-prefix (mistty-tramp-test-prefix))
+  (let* ((sg-prefix (mistty-test-sg-prefix))
          (default-directory (concat sg-prefix "/"))
          (connection-local-profile-alist nil)
          (connection-local-criteria-alist nil)
@@ -67,14 +67,14 @@
           ;; This makes sure that the connection-local value of
           ;; explicit-shell-file-name is the one that's used, and not
           ;; the global value.
-          (should (equal mistty-test-zsh-exe (mistty-tramp-test-remote-command))))
+          (should (equal mistty-test-zsh-exe (mistty-test-remote-command))))
       (when (buffer-live-p buf)
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buf))))))
 
 (ert-deftest mistty-tramp-test-connection-local-explicit-mistty-shell-command ()
   (skip-unless mistty-test-zsh-exe)
-  (let* ((sg-prefix (mistty-tramp-test-prefix))
+  (let* ((sg-prefix (mistty-test-sg-prefix))
          (default-directory (concat sg-prefix "/"))
          (connection-local-profile-alist nil)
          (connection-local-criteria-alist nil)
@@ -97,13 +97,13 @@
           ;; This makes sure that the connection-local value of
           ;; explicit-shell-file-name is the one that's used, and not
           ;; the global value.
-          (should (equal mistty-test-zsh-exe (mistty-tramp-test-remote-command))))
+          (should (equal mistty-test-zsh-exe (mistty-test-remote-command))))
       (when (buffer-live-p buf)
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buf))))))
 
 (ert-deftest mistty-tramp-test-termcap ()
-  (let* ((sg-prefix (mistty-tramp-test-prefix))
+  (let* ((sg-prefix (mistty-test-sg-prefix))
          (default-directory (concat sg-prefix "/"))
          (term-term-name "eterm-test"))
     (mistty-with-test-buffer ()
@@ -122,7 +122,7 @@
       (should (string-match "eterm-test,\n +am, mir.*" (mistty-send-and-capture-command-output))))))
 
 (ert-deftest mistty-tramp-test-dirtrack-on-sg ()
-  (let* ((sg-prefix (mistty-tramp-test-prefix))
+  (let* ((sg-prefix (mistty-test-sg-prefix))
          (default-directory (concat sg-prefix "/")))
     (mistty-with-test-buffer ()
       (should (equal (concat sg-prefix "/") default-directory))
@@ -147,18 +147,3 @@
                              (expand-file-name
                               (file-name-as-directory (getenv "HOME"))))
                      default-directory)))))
-
-(defun mistty-tramp-test-prefix ()
-  "Build a TRAMP file prefix for a remote file for testing."
-  (let* ((groups (split-string (shell-command-to-string "groups") " " 'omit-nulls))
-         (host (system-name))
-         (group (or (nth 2 groups) (car groups))))
-    (format "/sg:%s@%s:" group host)))
-
-(defun mistty-tramp-test-remote-command ()
-  "Return the remote command, as reported by TRAMP or nil."
-  ;; tramp-handle-make-process sets remote-command on the processes
-  ;; it starts.
-  (pcase-let ((`("/bin/sh" "-c" ,_ ".." ,command . _)
-               (process-get mistty-proc 'remote-command)))
-    command))

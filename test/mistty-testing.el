@@ -524,6 +524,21 @@ redraw everything."
       ;; make sure we get something back from the shell right away.
       (mistty--send-string mistty-proc "\C-g"))))
 
+(defun mistty-test-sg-prefix ()
+  "Build a TRAMP file prefix for a remote file for testing."
+  (let* ((groups (split-string (shell-command-to-string "groups") " " 'omit-nulls))
+         (host (system-name))
+         (group (or (nth 2 groups) (car groups))))
+    (format "/sg:%s@%s:" group host)))
+
+(defun mistty-test-remote-command ()
+  "Return the remote command, as reported by TRAMP or nil."
+  ;; tramp-handle-make-process sets remote-command on the processes
+  ;; it starts.
+  (pcase-let ((`("/bin/sh" "-c" ,_ ".." ,command . _)
+               (process-get mistty-proc 'remote-command)))
+    command))
+
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.
 

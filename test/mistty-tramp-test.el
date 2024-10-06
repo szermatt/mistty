@@ -124,26 +124,16 @@
 (ert-deftest mistty-tramp-test-dirtrack-on-sg ()
   (let* ((sg-prefix (mistty-test-sg-prefix))
          (default-directory (concat sg-prefix "/")))
-    (mistty-with-test-buffer ()
+    (mistty-with-test-buffer (:shell zsh)
+      ;; Not using bash, because it sends \032 dirtrack, which would
+      ;; interfere with this test.
+
       (should (equal (concat sg-prefix "/") default-directory))
 
-      ;; Bash updates the current directory with \032 <local path> \n.
-      ;; MisTTY must use it to update the buffer default-directory,
-      ;; keeping within the same prefix.
-
-      (mistty-send-text "cd /var/log")
-      (mistty-send-and-wait-for-prompt)
-
+      (mistty--send-string mistty-proc "printf '\\032//var/log\\nok\\n'")
+      (should (equal "ok" (mistty-send-and-capture-command-output)))
       (should (equal (concat sg-prefix "/var/log/") default-directory))
 
-      (mistty-send-text "cd ..")
-      (mistty-send-and-wait-for-prompt)
-
-      (should (equal (concat sg-prefix "/var/") default-directory))
-
-      (mistty-send-text "cd ~")
-      (mistty-send-and-wait-for-prompt)
-      (should (equal (concat sg-prefix
-                             (expand-file-name
-                              (file-name-as-directory (getenv "HOME"))))
-                     default-directory)))))
+      (mistty--send-string mistty-proc "printf '\\032//home\\nok\\n'")
+      (should (equal "ok" (mistty-send-and-capture-command-output)))
+      (should (equal (concat sg-prefix "/home/") default-directory)))))

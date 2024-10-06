@@ -56,6 +56,15 @@
       (mistty-send-and-wait-for-prompt)
       (should (equal "/ssh:testmachine.example:/var/log/" default-directory)))))
 
+(ert-deftest mistty-test-osc7-remote-path-disallowed ()
+  (mistty-with-test-buffer (:shell zsh)
+    (let ((mistty-osc-handlers '(("7" . mistty-osc7)))
+          (mistty-allow-tramp-paths nil)
+          (orig-default-directory default-directory))
+      (mistty-test-send-osc7 "testmachine.example" "/var/log")
+      (mistty-send-and-wait-for-prompt)
+      (should (equal orig-default-directory default-directory)))))
+
 (ert-deftest mistty-test-osc7-remote-path-with-host-default ()
   (mistty-with-test-buffer (:shell zsh)
     (let ((mistty-osc-handlers '(("7" . mistty-osc7)))

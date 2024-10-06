@@ -99,3 +99,19 @@ FAQ
     Please see :ref:`lrc` or `file a bug
     <https://github.com/szermatt/mistty/issues>`_ mentioning the
     package you're using, its version and how you installed it.
+
+**Why am I getting connection errors from TRAMP?**
+
+    MisTTY tries to track the current directory whenever possible,
+    including from remote shells. You might get connection errors if
+    you connect to a remote or special shell from an existing MisTTY
+    that Emacs cannot access through TRAMP and then Emacs tries to
+    access a nonexisting remote file.
+
+    The best solution in such case is to configure TRAMP to connect to
+    that host, but if that's not possible or if you don't want to
+    bother, you might find it convenient to disable the generation of
+    TRAMP paths using :kbd:`M-x configure-option
+    mistty-allow-tramp-paths`.
+
+    For more details, see :ref:`dirtrack`.

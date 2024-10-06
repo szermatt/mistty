@@ -25,10 +25,8 @@
 
 ;;; Code:
 
-(defcustom mistty-allow-tramp-paths nil
+(defcustom mistty-allow-tramp-paths t
   "If true, allow TRAMP paths as shell-specified directory.
-
-Make sure tramps works before enabling.
 
 This affects directories set using OSC 7, which can then build
 TRAMP remote paths based on the hostname specified in the file://

@@ -813,17 +813,16 @@ host.
 Other shells need to be configured to do the same. See @ref{f,,Shells}
 for shell-specific instructions.
 
-@geindex variable; mistty-allow-tramp-path
-
-If you have configured TRAMP and know that the hosts you ssh into are
-accessible with the default TRAMP method, you might consider allowing
-MisTTY to report remote paths on @code{M-x configure-option
-mistty-allow-tramp-paths}.
-
 The TRAMP paths that are generated use the default TRAMP methods. If
 that doesn’t work for you, you can configure it globally using
 @code{M-x configure-option tramp-default-method} or on a per-host
 basis using @code{M-x configure-option tramp-default-method-alist}.
+
+@geindex variable; mistty-allow-tramp-path
+
+If TRAMP is causing you trouble and you don’t want MisTTY to generate
+paths with the default method, unset the option @code{M-x
+configure-option mistty-allow-tramp-paths}.
 
 @node Fancy prompts,,Directory tracking and TRAMP,Usage
 @anchor{usage fancy-prompts}@anchor{20}
@@ -1676,6 +1675,25 @@ The good news is that it’s likely easy to make it work again by
 detecting the specific kind of overlays the package is using.
 Please see @ref{1b,,Long-running commands} or file a bug@footnote{https://github.com/szermatt/mistty/issues} mentioning the
 package you’re using, its version and how you installed it.
+@end quotation
+
+`Why am I getting connection errors from TRAMP?'
+
+@quotation
+
+MisTTY tries to track the current directory whenever possible,
+including from remote shells. You might get connection errors if
+you connect to a remote or special shell from an existing MisTTY
+that Emacs cannot access through TRAMP and then Emacs tries to
+access a nonexisting remote file.
+
+The best solution in such case is to configure TRAMP to connect to
+that host, but if that’s not possible or if you don’t want to
+bother, you might find it convenient to disable the generation of
+TRAMP paths using @code{M-x configure-option
+mistty-allow-tramp-paths}.
+
+For more details, see @ref{1f,,Directory tracking and TRAMP}.
 @end quotation
 
 @node Contributing,,FAQ,Contents

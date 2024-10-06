@@ -477,17 +477,16 @@ host.
 Other shells need to be configured to do the same. See :ref:`shells`
 for shell-specific instructions.
 
-.. index:: pair: variable; mistty-allow-tramp-path
-
-If you have configured TRAMP and know that the hosts you ssh into are
-accessible with the default TRAMP method, you might consider allowing
-MisTTY to report remote paths on :kbd:`M-x configure-option
-mistty-allow-tramp-paths`.
-
 The TRAMP paths that are generated use the default TRAMP methods. If
 that doesn't work for you, you can configure it globally using
 :kbd:`M-x configure-option tramp-default-method` or on a per-host
 basis using :kbd:`M-x configure-option tramp-default-method-alist`.
+
+.. index:: pair: variable; mistty-allow-tramp-path
+
+If TRAMP is causing you trouble and you don't want MisTTY to generate
+paths with the default method, unset the option :kbd:`M-x
+configure-option mistty-allow-tramp-paths`.
 
 Fancy prompts
 -------------

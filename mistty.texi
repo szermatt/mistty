@@ -778,7 +778,7 @@ the shell with the method, user and host `of that path'.
 For this to work, MisTTY needs to know the shell executable to use on
 that host. The value of @code{mistty-shell-command} or
 @code{explicit-shell-file-name} is interpreted as a local file within
-that host.
+that host, which might not always work.
 
 To run different shells on different hosts, define different
 connection local profiles that set @code{mistty-shell-command} and
@@ -805,11 +805,13 @@ Example:
 In order for Emacs to know your shell’s current directory, the shell
 has to tell MisTTY about it. This is usually done from the prompt.
 
-@code{Bash} does it by default, for local shells, when it detects
-a terminal of type @code{TERM=eterm-color} run from inside Emacs.
+@code{Bash} does it by default, when it detects a terminal of type
+@code{TERM=eterm-color} run from inside Emacs. This works on remote
+shells, but not if you ssh from an existing MisTTY buffer to another
+host.
 
-Other shells need to be configured to do the same. For more details,
-see @ref{f,,Shells}.
+Other shells need to be configured to do the same. See @ref{f,,Shells}
+for shell-specific instructions.
 
 @geindex variable; mistty-allow-tramp-path
 
@@ -817,6 +819,11 @@ If you have configured TRAMP and know that the hosts you ssh into are
 accessible with the default TRAMP method, you might consider allowing
 MisTTY to report remote paths on @code{M-x configure-option
 mistty-allow-tramp-paths}.
+
+The TRAMP paths that are generated use the default TRAMP methods. If
+that doesn’t work for you, you can configure it globally using
+@code{M-x configure-option tramp-default-method} or on a per-host
+basis using @code{M-x configure-option tramp-default-method-alist}.
 
 @node Fancy prompts,,Directory tracking and TRAMP,Usage
 @anchor{usage fancy-prompts}@anchor{20}
@@ -892,12 +899,14 @@ prompt or go up the command history to a previous multi-line command.
 
 Recent versions of @code{bash} already send the current directory
 when they detects that it’s called from Emacs with
-@code{TERM=eterm-color}, so as long as you don’t want TRAMP remote
-paths, you don’t have to do anything.
+@code{TERM=eterm-color}. This works fine for local shell as well as remote
+shells run with TRAMP.
 
-If you do want to use TRAMP remote paths, extend your prompt to send
-out an OSC7 sequence to have @code{bash} send the current
-directory and hostname to MisTTY.
+If you ssh into a host from an existing MisTTY buffer, however,
+@code{bash} will not send the remote directory. If you want this
+use case to work, extend your prompt to send out an OSC7 sequence to
+have @code{bash} send the current directory and hostname to
+MisTTY.
 
 To do that, you might add the following to @code{~/.bashrc}:
 

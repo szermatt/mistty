@@ -442,7 +442,7 @@ the shell with the method, user and host *of that path*.
 For this to work, MisTTY needs to know the shell executable to use on
 that host. The value of :code:`mistty-shell-command` or
 :code:`explicit-shell-file-name` is interpreted as a local file within
-that host.
+that host, which might not always work.
 
 To run different shells on different hosts, define different
 connection local profiles that set :code:`mistty-shell-command` and
@@ -469,11 +469,13 @@ Directory tracking and TRAMP
 In order for Emacs to know your shell's current directory, the shell
 has to tell MisTTY about it. This is usually done from the prompt.
 
-:program:`Bash` does it by default, for local shells, when it detects
-a terminal of type :code:`TERM=eterm-color` run from inside Emacs.
+:program:`Bash` does it by default, when it detects a terminal of type
+:code:`TERM=eterm-color` run from inside Emacs. This works on remote
+shells, but not if you ssh from an existing MisTTY buffer to another
+host.
 
-Other shells need to be configured to do the same. For more details,
-see :ref:`shells`.
+Other shells need to be configured to do the same. See :ref:`shells`
+for shell-specific instructions.
 
 .. index:: pair: variable; mistty-allow-tramp-path
 
@@ -481,6 +483,11 @@ If you have configured TRAMP and know that the hosts you ssh into are
 accessible with the default TRAMP method, you might consider allowing
 MisTTY to report remote paths on :kbd:`M-x configure-option
 mistty-allow-tramp-paths`.
+
+The TRAMP paths that are generated use the default TRAMP methods. If
+that doesn't work for you, you can configure it globally using
+:kbd:`M-x configure-option tramp-default-method` or on a per-host
+basis using :kbd:`M-x configure-option tramp-default-method-alist`.
 
 Fancy prompts
 -------------

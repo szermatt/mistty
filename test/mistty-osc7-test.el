@@ -37,6 +37,15 @@
       (mistty-send-and-wait-for-prompt)
       (should (equal "/" default-directory)))))
 
+(ert-deftest mistty-test-osc7-utf8-path ()
+  (mistty-with-test-buffer (:shell zsh)
+    (ert-with-temp-directory tempdir
+      (let ((utf8-dir (file-name-as-directory (expand-file-name "αβγδ" tempdir))))
+        (make-directory utf8-dir)
+        (mistty-test-send-osc7 (system-name) (concat tempdir (url-hexify-string "αβγδ")))
+        (mistty-send-and-wait-for-prompt)
+        (should (equal utf8-dir default-directory))))))
+
 (ert-deftest mistty-test-osc7-remote-path ()
   (mistty-with-test-buffer (:shell zsh)
     (let ((mistty-osc-handlers '(("7" . mistty-osc7)))

@@ -958,6 +958,10 @@ If OTHER-WINDOW is nil, execute the default action configured by
 passed to `pop-to-buffer` to be used as a `display-buffer' action.
 Otherwise, display the buffer in another window.
 
+    On Emacs 30, you might prefer configuring `display-buffer-alist' for
+    comint category buffers to get the exact behavior you want instead
+    of passing OTHER-WINDOW.
+
 Passing ACCEPT-BUFFER is deprecated. Call `mistty-cycle-or-create'
 instead. See that function for details on that argument.
 
@@ -999,7 +1003,11 @@ If OTHER-WINDOW is nil, execute the default action configured by
 `display-comint-buffer-action' to pop to the existing or newly-created
 buffer. If OTHER-WINDOW is a function, it is passed to `pop-to-buffer`
 to be used as a `display-buffer' action. Otherwise, display the buffer
-in another window."
+in another window.
+
+    On Emacs 30, you might prefer configuring `display-buffer-alist' for
+    comint category buffers to get the exact behavior you want instead
+    of passing OTHER-WINDOW."
   (let ((existing (mistty-list-live-buffers accept-buffer)))
     (if (or current-prefix-arg         ; command prefix was given
             (null existing)            ; there are no mistty buffers
@@ -1011,6 +1019,10 @@ in another window."
 ;;;###autoload
 (defun mistty-other-window ()
   "Go to the next MisTTY buffer in another window.
+
+    On Emacs 30, you might prefer configuring `display-buffer-alist' for
+    comint category buffers and calling `mistty' directly to get the
+    exact behavior you want instead of using `mistty-other-window'.
 
     This function is for interactive use only. When building similar
     commands, consider calling `mistty-cycle-or-create' instead."

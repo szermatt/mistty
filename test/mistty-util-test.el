@@ -72,6 +72,15 @@
     (should (equal "abcdefghi\n"
                    (mistty--safe-bufstring (point-min) (point-max))))))
 
+(ert-deftest mistty-util-test-remove-fake-nl-in-range ()
+  (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
+    (insert fake-nl "abc" fake-nl fake-nl "def" fake-nl "gh" fake-nl "i\n" fake-nl )
+
+    (mistty--remove-fake-newlines
+     (mistty-test-pos "abc") (mistty-test-pos "gh"))
+    (should (equal (concat fake-nl "abcdefgh" fake-nl "i\n" fake-nl)
+                   (buffer-string)))))
+
 (ert-deftest mistty-util-test-remove-skipped-spaces ()
   (insert (propertize "   " 'mistty-skip t) "abc "
           (propertize "   " 'mistty-skip t) "def"

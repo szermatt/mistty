@@ -662,6 +662,17 @@ This is a list of symbols, that represent the reason why normal
 operations are inhibited. This allows dealing with more than one
 running command at a time.")
 
+(defvar mistty--inhibit-fake-nl-cleanup nil
+  "Inhibit deletion of fake newline when moving the sync marker.
+
+Normally, fake newlines are removed by mistty--set-sync-mark-,
+when the terminal zone is moved, so they don't confuse cursor
+movements.
+
+Setting this variable to non-nil inhibit this behavior, which
+might be useful in tests, to avoid tests being confused when
+old positions are invalidated")
+
 (defvar-local mistty--ignored-overlays nil
   "Foreign overlays that should just be ignored.
 
@@ -1618,8 +1629,12 @@ instead `mistty--move-sync-mark-with-shift' or
                 (marker-position mistty-sync-marker)
                 sync-pos)
     (setq mistty--has-active-prompt nil)
-    (move-marker mistty-sync-marker sync-pos)
-    (move-overlay mistty--sync-ov sync-pos (point-max))
+    (let ((old-marker-position (marker-position mistty-sync-marker)))
+      (move-marker mistty-sync-marker sync-pos)
+      (when (and (< old-marker-position sync-pos)
+                 (not mistty--inhibit-fake-nl-cleanup))
+        (mistty--remove-fake-newlines old-marker-position sync-pos)))
+    (move-overlay mistty--sync-ov mistty-sync-marker (point-max))
     (mistty--sync-history-push)))
 
 (defun mistty--last-non-ws ()

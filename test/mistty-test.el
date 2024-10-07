@@ -1388,6 +1388,21 @@
          (setq goal-pos (mistty-test-goto count)))
         (should (equal (mistty-cursor) goal-pos))))))
 
+(ert-deftest mistty-test-delete-fake-nl-after-long-prompts ()
+  (mistty-with-test-buffer ()
+    (let ((mistty--inhibit-fake-nl-cleanup nil))
+      (mistty--set-process-window-size 20 20)
+
+      (mistty-run-command
+       (insert "echo one two three four five six seven eight nine"))
+      (mistty-wait-for-output :str "nine" :cursor-at-end t)
+      (mistty-send-and-wait-for-prompt)
+
+      (should (equal (concat "$ echo one two three four five six seven eight nine\n"
+                             "one two three four five six seven eight nine\n"
+                             "$")
+                     (mistty-test-content))))))
+
 (ert-deftest mistty-test-enter-fullscreen ()
   (mistty-with-test-buffer (:selected t)
     (let ((bufname (buffer-name))

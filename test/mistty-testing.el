@@ -109,6 +109,7 @@ window while BODY is running."
                (mistty-backlog-size 500)
                (mistty-test-ok nil)
                (mistty-test-had-issues nil)
+               (mistty--inhibit-fake-nl-cleanup t)
                (mistty-log nil))
            (mistty-test-setup (quote ,shell))
            (unwind-protect

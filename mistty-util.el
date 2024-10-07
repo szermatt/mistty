@@ -124,6 +124,15 @@ of failing."
       (let ((next-pos (next-single-property-change pos prop nil (point-max))))
         (delete-region pos next-pos)))))
 
+(defun mistty--remove-fake-newlines (start end)
+  "Remove newlines marked \='term-line-wrap between START and END."
+  (save-excursion
+    (goto-char start)
+    (while (search-forward "\n" end 'noerror)
+      (when (get-text-property (1- (point)) 'term-line-wrap)
+        (setq end (1- end))
+        (replace-match "" nil t)))))
+
 (defun mistty-self-insert-p (key)
   "Return non-nil if KEY is a key that is normally just inserted."
   (and (length= key 1)

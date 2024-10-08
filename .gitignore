@@ -3,6 +3,7 @@
 /docs/build
 /dist
 /dir
+/venv
 mistty.info
 .cask
 *-autoloads.el*

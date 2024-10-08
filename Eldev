@@ -77,7 +77,12 @@
     (write-file "mistty.texi")))
 
 (eldev-defcommand mistty-html-doc (&rest parameters)
-  "Generate documentation HTML into docs/build/html."
+  "Generate documentation HTML into docs/build/html.
+
+First install Sphinx with:
+  python3 -m venv venv
+  . venv/bin/activate
+  pip3 install -r docs/requirements.txt"
   :command        documentation
   :aliases        (html)
   (eldev-call-process "sphinx-build" '("-M" "html" "docs/source" "docs/build")

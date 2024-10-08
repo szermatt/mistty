@@ -577,7 +577,12 @@ This function returns the newly-created buffer."
       (setq-local term-height height)
       (setq-local term-command-function #'mistty--term-command-hook)
       (mistty-term--exec program args)
-      (set-process-window-size (get-buffer-process term-buffer) height width)
+      (let ((proc (get-buffer-process term-buffer)))
+        ;; TRAMP sets adjust-window-size-function to #'ignore, which
+        ;; prevents normal terminal resizing from working. This turns
+        ;; it on again.
+        (process-put proc 'adjust-window-size-function nil)
+        (set-process-window-size proc height width))
       (setq-local term-raw-map local-map)
       (term-char-mode)
       (advice-add 'move-to-column :around #'mistty--around-move-to-column)

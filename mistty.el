@@ -2741,6 +2741,7 @@ only spaces with ==\'mistty-skip t between them."
                             window-adjust-process-window-size-function))
            (size (funcall adjust-func mistty-proc
                           (get-buffer-window-list mistty-work-buffer nil t))))
+      (mistty-log "set-process-window-size %s" size)
       (when size
         (let ((width (- (car size) left-margin-width))
               (height (cdr size)))

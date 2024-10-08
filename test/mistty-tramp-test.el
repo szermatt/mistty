@@ -137,3 +137,23 @@
       (mistty--send-string mistty-proc "printf '\\032//home\\nok\\n'")
       (should (equal "ok" (mistty-send-and-capture-command-output)))
       (should (equal (concat sg-prefix "/home/") default-directory)))))
+
+(ert-deftest mistty-tramp-test-window-size ()
+  (let* ((sg-prefix (mistty-test-sg-prefix))
+         (home (file-name-directory "/"))
+         (default-directory (concat sg-prefix home)))
+    (mistty-with-test-buffer (:selected t)
+      (let ((win (selected-window))
+            cols-before cols-after)
+        (mistty-send-text "tput cols")
+        (setq cols-before (string-to-number (mistty-send-and-capture-command-output)))
+
+        (split-window-horizontally nil win)
+        (mistty--window-size-change win)
+
+        ;; This makes sure the terminal is told about the window size
+        ;; change.
+        (mistty-send-text "tput cols")
+        (setq cols-after (string-to-number (mistty-send-and-capture-command-output)))
+        (should-not (equal cols-before cols-after))
+        (should (< cols-after cols-before))))))

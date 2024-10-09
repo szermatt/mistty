@@ -18,7 +18,7 @@ FAQ
      doesn't know about the terminal :code:`eterm-color` or
      :code:`eterm-direct`.
 
-     .. code-block::
+     .. code-block:: text
 
        warning: Could not set up terminal.
        warning: TERM environment variable set to 'eterm-color'.

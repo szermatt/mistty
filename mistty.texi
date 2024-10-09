@@ -1555,6 +1555,66 @@ Here’s an example of code that would detect
 @section FAQ
 
 
+`The display is all messed up'
+
+@quotation
+
+First, check the value of the environment variable @code{TERM}.
+It MUST be @code{eterm-color} or @code{eterm-direct}; nothing
+else will work reliably.
+
+If that still doesn’t work, please file a bug as described on
+@ref{3,,Reporting issues}.
+@end quotation
+
+`warning: Could not set up terminal'
+
+@quotation
+
+If you’re getting errors such as the following from programs such
+as @code{less} or @code{vi}, this means that the
+@code{TERM} environment variable is set properly, but the host
+doesn’t know about the terminal @code{eterm-color} or
+@code{eterm-direct}.
+
+@example
+warning: Could not set up terminal.
+warning: TERM environment variable set to 'eterm-color'.
+warning: Check that this terminal type is supported on this system.
+@end example
+
+This might easily happen if you ssh into another host from inside
+a MisTTY buffer. SSH typically forwards the value of the
+@code{TERM} environment variable, which contains the terminal
+name, but not @code{TERMCAP} environment variable, which contains
+the terminal definition.
+
+To fix this issue, you can do any one of the following:
+
+
+@itemize -
+
+@item 
+Connect using TRAMP, as described in @ref{1d,,Remote Shells with TRAMP}. TRAMP takes
+care of setting all necessary environment variables.
+
+@item 
+Add the definition of @code{eterm-color} to all hosts you
+regularly log into. To do that, follow the instructions in
+@code{<data-directory>/e/README}, where
+@code{<data-directory>} is the “etc” directory of your Emacs
+installation, as shown by @cite{M-x describe-variable data-directory} - usually, that’s
+@code{/usr/share/emacs/<emacs version>/etc/e/README}
+
+@item 
+Tell ssh to forward the @code{TERMCAP} environment variable. This
+requires changing `both' the server and client configuration. On the
+server @code{sshd_config}, add @code{AcceptEnv TERMCAP}. On the
+client, add @code{SendEnv TERMCAP} to @code{ssh_config} or to
+@code{~/.ssh/config}
+@end itemize
+@end quotation
+
 `What are all those OCOCOCO or ODODODO that appear on the screen?'
 
 @quotation

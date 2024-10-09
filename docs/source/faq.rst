@@ -1,6 +1,54 @@
 FAQ
 ===
 
+**The display is all messed up**
+
+     First, check the value of the environment variable :code:`TERM`.
+     It MUST be :code:`eterm-color` or :code:`eterm-direct`; nothing
+     else will work reliably.
+
+     If that still doesn't work, please file a bug as described on
+     :ref:`reporting`.
+
+**warning: Could not set up terminal**
+
+     If you're getting errors such as the following from programs such
+     as :program:`less` or :program:`vi`, this means that the
+     :code:`TERM` environment variable is set properly, but the host
+     doesn't know about the terminal :code:`eterm-color` or
+     :code:`eterm-direct`.
+
+     .. code-block::
+
+       warning: Could not set up terminal.
+       warning: TERM environment variable set to 'eterm-color'.
+       warning: Check that this terminal type is supported on this system.
+
+     This might easily happen if you ssh into another host from inside
+     a MisTTY buffer. SSH typically forwards the value of the
+     :code:`TERM` environment variable, which contains the terminal
+     name, but not :code:`TERMCAP` environment variable, which contains
+     the terminal definition.
+
+     To fix this issue, you can do any one of the following:
+
+     - Connect using TRAMP, as described in :ref:`tramp`. TRAMP takes
+       care of setting all necessary environment variables.
+
+     - Add the definition of :code:`eterm-color` to all hosts you
+       regularly log into. To do that, follow the instructions in
+       :file:`<data-directory>/e/README`, where
+       :code:`<data-directory>` is the "etc" directory of your Emacs
+       installation, as shown by `M-x describe-variable
+       data-directory` - usually, that's
+       :file:`/usr/share/emacs/<emacs version>/etc/e/README`
+
+     - Tell ssh to forward the :code:`TERMCAP` environment variable. This
+       requires changing *both* the server and client configuration. On the
+       server :file:`sshd_config`, add :code:`AcceptEnv TERMCAP`. On the
+       client, add :code:`SendEnv TERMCAP` to :file:`ssh_config` or to
+       :file:`~/.ssh/config`
+
 **What are all those OCOCOCO or ODODODO that appear on the screen?**
 
      .. index:: pair: variable; mistty-forbid-edit-regexps

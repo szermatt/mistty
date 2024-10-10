@@ -342,15 +342,13 @@ The queue remains usable, but empty."
 
 (defun mistty--cancel-timeout (queue)
   "Cancel the timeout timer in QUEUE."
-  (cl-assert (mistty--queue-p queue))
-  (when (timerp (mistty--queue-timeout queue))
+  (when (and (mistty--queue-p queue) (timerp (mistty--queue-timeout queue)))
     (cancel-timer (mistty--queue-timeout queue))
     (setf (mistty--queue-timeout queue) nil)))
 
 (defun mistty--cancel-timer (queue)
   "Cancel the timer in QUEUE."
-  (cl-assert (mistty--queue-p queue))
-  (when (timerp (mistty--queue-timer queue))
+  (when (and (mistty--queue-p queue) (timerp (mistty--queue-timer queue)))
     (cancel-timer (mistty--queue-timer queue))
     (setf (mistty--queue-timer queue) nil)))
 

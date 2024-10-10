@@ -34,7 +34,7 @@
 
             ;; create new with a specific name
             (setq buf (mistty-in-project))
-            (should (equal (project-prefixed-buffer-name "mistty") (buffer-name buf)))
+            (should (equal "*fake-mistty*" (buffer-name buf)))
             (setcdr (cdr fake-project) (list buf))
             (should (equal (list buf) (project-buffers fake-project)))
 

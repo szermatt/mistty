@@ -4060,3 +4060,16 @@
         (mistty-send-text "exit 10")
         (mistty-send-command)
         (mistty-wait-for-output :test (lambda () called))))))
+
+(ert-deftest mistty-test-buffer-name ()
+  (let ((mistty-buffer-name '("mistty")))
+    (should (equal "*mistty*" (mistty-new-buffer-name)))))
+
+(ert-deftest mistty-test-buffer-name-shell ()
+  (let ((mistty-buffer-name '(mistty-buffer-name-shell))
+        (mistty-shell-command "/usr/local/bin/zsh"))
+    (should (equal "*zsh*" (mistty-new-buffer-name))))
+
+  (let ((mistty-buffer-name '(mistty-buffer-name-shell))
+        (mistty-shell-command '("/usr/bin/fish" "-i")))
+    (should (equal "*fish*" (mistty-new-buffer-name)))))

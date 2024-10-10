@@ -56,11 +56,10 @@ in another window.
     (mistty-cycle-or-create
      (lambda (buf) (memq buf bufs))
      (lambda (other-window)
-       (let ((default-directory (project-root pr)))
-         (with-current-buffer (mistty-create nil other-window)
-           (rename-buffer (generate-new-buffer-name
-                           (project-prefixed-buffer-name "mistty")))
-           (current-buffer))))
+       (let ((default-directory (project-root pr))
+             (mistty-buffer-name
+              (cons (concat (project-name pr) "-") mistty-buffer-name)))
+         (mistty-create nil other-window)))
      other-window)))
 
 (defun mistty-in-project-other-window ()

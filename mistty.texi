@@ -218,6 +218,7 @@ regularly, you’ll want to bind some of these to global shortcuts:
 @geindex variable; mistty-shell-command
 @geindex variable; explicit-shell-file-name
 @geindex variable; shell-file-name
+@geindex variable; mistty-buffer-name
 
 
 @itemize -
@@ -244,6 +245,9 @@ With a prefix argument, this command asks for a directory for the
 new shell, instead of using the current buffer’s current
 directory. This is particularly useful if you want to run a
 @ref{c,,Remote Shells with TRAMP}.
+
+To change the way new buffers are named, @code{M-x
+customize-option mistty-buffer-name}.
 @end itemize
 
 @geindex command; mistty-create-other-window
@@ -809,6 +813,10 @@ Example:
 (connection-local-set-profiles '(:machine "myhost.example")
  'profile-usr-local-fish)
 @end example
+
+By default, the name of TRAMP shells include the user and hostname. If
+you don’t want that, run @code{M-x customize-option
+mistty-buffer-name} to change the way buffers are named.
 
 @node Directory tracking and TRAMP,Fancy prompts,Remote Shells with TRAMP,Usage
 @anchor{usage directory-tracking-and-tramp}@anchor{1e}@anchor{usage dirtrack}@anchor{1f}

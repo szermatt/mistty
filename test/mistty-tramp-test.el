@@ -157,3 +157,12 @@
         (setq cols-after (string-to-number (mistty-send-and-capture-command-output)))
         (should-not (equal cols-before cols-after))
         (should (< cols-after cols-before))))))
+
+(ert-deftest mistty-tramp-test-buffer-name ()
+  (let ((mistty-buffer-name '("mistty" mistty-buffer-name-user mistty-buffer-name-host)))
+    (let ((default-directory "/ssh:someuser@test.example:/"))
+      (should (equal "*mistty-someuser@test.example*" (mistty-new-buffer-name))))
+    (let ((default-directory "/ssh:test.example:/"))
+      (should (equal "*mistty@test.example*" (mistty-new-buffer-name))))
+    (let ((default-directory "/sudo::/"))
+      (should (equal "*mistty-root*" (mistty-new-buffer-name))))))

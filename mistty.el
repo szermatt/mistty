@@ -148,6 +148,32 @@ spaces, such as the indentation spaces fish adds."
   :type '(boolean)
   :group 'mistty)
 
+(defcustom mistty-buffer-name '("mistty" mistty-buffer-name-user mistty-buffer-name-host)
+  "Name for MisTTY buffers.
+
+Elements of this list should be either strings or functions
+returning strings. `mistty-create' evaluates each one in order to
+create the full buffer name, then adds * around and possible <1>
+<2> to make them unique.
+
+By default, for non-TRAMP buffers, this the default is usually
+just \"*mistty*\". If connected to another host, it could become
+\"*mistty@myhost.example\". If using the sudo method, it could
+become \"*mistty-root*\".
+
+The functions on this list should look at the current
+environment, primarily, `default-directory' and
+`mistty-shell-command', set to the current command by
+`mistty-create', to make their choice. Note that they're not
+called from the mistty buffer, but rather from the environment
+the buffer will be created."
+  :type '(repeat (choice string
+                         (function-item mistty-buffer-name-shell)
+                         (function-item mistty-buffer-name-user)
+                         (function-item mistty-buffer-name-host)
+                         function))
+  :group 'mistty)
+
 (defface mistty-fringe-face '((t (:foreground "#1b345a")))
   "Color of the left fringe or margin that highlights the synced region.
 
@@ -1091,21 +1117,21 @@ Upon success, the function returns the newly-created buffer."
                    current-prefix-arg
                    (mistty--read-default-directory))
               default-directory))
-         (buf (generate-new-buffer "*mistty*")))
+         (mistty-shell-command (or command
+                                   (with-connection-local-variables
+                                    (or
+                                     mistty-shell-command
+                                     explicit-shell-file-name
+                                     shell-file-name
+                                     (getenv "ESHELL")
+                                     (getenv "SHELL")))))
+         (buf (generate-new-buffer (mistty-new-buffer-name))))
     ;; Note that it's important to attach the buffer to a window
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.
     (mistty--pop-to-buffer buf other-window)
     (with-current-buffer buf
-      (mistty--exec
-       (or command
-           (with-connection-local-variables
-            (or
-             mistty-shell-command
-             explicit-shell-file-name
-             shell-file-name
-             (getenv "ESHELL")
-             (getenv "SHELL")))))
+      (mistty--exec mistty-shell-command)
       buf)))
 
 ;;;###autoload
@@ -3486,6 +3512,54 @@ Usage example:
    (mistty--inhibit nil)
    (mistty--forbid-edit mistty-forbid-edit-map)
    (t mistty-prompt-map)))
+
+(defun mistty-new-buffer-name ()
+  "Generate a name for a new MisTTY buffer.
+
+This function interprets the customization option
+`mistty-buffer-name' within the current context and returns the
+result."
+  (with-connection-local-variables
+   (concat "*"
+           (mapconcat
+            (lambda (part)
+              (if (functionp part)
+                 (funcall part)
+                part))
+            mistty-buffer-name)
+           "*")))
+
+(defun mistty-buffer-name-shell ()
+  "Return the short name of the shell to be run.
+
+For example, if the command that's run is \"/usr/bin/bash\", this
+function returns \"bash\".
+
+This function is meant to be used in the configuration option
+`mistty-buffer-name'. It relies on `mistty-shell-command' being
+set by `mistty-create' in the environment the function is called."
+  (file-name-sans-extension
+   (file-name-nondirectory (if (consp mistty-shell-command)
+                               (car mistty-shell-command)
+                             mistty-shell-command))))
+
+(defun mistty-buffer-name-user ()
+  "TRAMP user, if not the current user, as \"-<user>\".
+
+This function is meant to be used in the configuration option
+`mistty-buffer-name'."
+  (when-let ((remote-user (file-remote-p default-directory 'user)))
+    (unless (string= (getenv "USER") remote-user)
+      (concat "-" remote-user))))
+
+(defun mistty-buffer-name-host ()
+  "TRAMP host, if not localhost, as \"@<host>\".
+
+This function is meant to be used in the configuration option
+`mistty-buffer-name'."
+  (when-let ((remote-host (file-remote-p default-directory 'host)))
+    (unless (string= remote-host (system-name))
+      (concat "@" remote-host))))
 
 (provide 'mistty)
 

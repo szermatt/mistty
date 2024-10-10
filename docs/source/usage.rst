@@ -49,6 +49,7 @@ regularly, you'll want to bind some of these to global shortcuts:
      pair: variable; mistty-shell-command
      pair: variable; explicit-shell-file-name
      pair: variable; shell-file-name
+     pair: variable; mistty-buffer-name
 
   - :kbd:`M-x mistty-create` launches a new interactive shell in a
     MisTTY buffer. The shell that is launched is the one that's
@@ -65,6 +66,9 @@ regularly, you'll want to bind some of these to global shortcuts:
     new shell, instead of using the current buffer's current
     directory. This is particularly useful if you want to run a
     :ref:`tramp`.
+
+    To change the way new buffers are named, :kbd:`M-x
+    customize-option mistty-buffer-name`.
 
   .. index:: pair: command; mistty-create-other-window
 
@@ -471,6 +475,10 @@ Example:
 
   (connection-local-set-profiles '(:machine "myhost.example")
    'profile-usr-local-fish)
+
+By default, the name of TRAMP shells include the user and hostname. If
+you don't want that, run :kbd:`M-x customize-option
+mistty-buffer-name` to change the way buffers are named.
 
 .. _dirtrack:
 

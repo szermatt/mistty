@@ -1608,7 +1608,7 @@ To fix this issue, you can do any one of the following:
 @itemize -
 
 @item 
-Connect using TRAMP, as described in @ref{1d,,Remote Shells with TRAMP}. TRAMP takes
+Connect using TRAMP, as described in @ref{c,,Remote Shells with TRAMP}. TRAMP takes
 care of setting all necessary environment variables.
 
 @item 

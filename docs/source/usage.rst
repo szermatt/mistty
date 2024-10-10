@@ -61,6 +61,11 @@ regularly, you'll want to bind some of these to global shortcuts:
     :kbd:`M-x customize-option display-comint-buffer-action` lets you
     configure how the buffer is displayed.
 
+    With a prefix argument, this command asks for a directory for the
+    new shell, instead of using the current buffer's current
+    directory. This is particularly useful if you want to run a
+    :ref:`tramp`.
+
   .. index:: pair: command; mistty-create-other-window
 
   - :kbd:`M-x mistty-create-other-window` does the same, but opens the
@@ -438,6 +443,12 @@ Remote Shells with TRAMP
 If the `default-directory` that is current when a new MisTTY buffer is
 created contains a TRAMP path whose method supports it, MisTTY runs
 the shell with the method, user and host *of that path*.
+
+.. tip::
+
+  :kbd:`C-u M-x mistty-create` asks for a directory instead of using
+  the default one. This makes it possible to open a remote shell on a
+  host that no buffer is visiting. See :ref:`launching`.
 
 For this to work, MisTTY needs to know the shell executable to use on
 that host. The value of :code:`mistty-shell-command` or

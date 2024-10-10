@@ -3543,7 +3543,7 @@
         (kill-buffer newbuf)))))
 
 (ert-deftest mistty-test-create ()
-  (let* ((buf (mistty-create mistty-test-bash-exe)))
+  (let ((buf (mistty-create mistty-test-bash-exe)))
     (unwind-protect
         (with-current-buffer buf
           (should (equal 'mistty-mode major-mode))
@@ -3552,9 +3552,37 @@
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
+(ert-deftest mistty-test-create-with-prefix-arg ()
+  (let ((buf (let* ((default-directory (getenv "HOME"))
+                    (mistty-shell-command mistty-test-bash-exe)
+                    (current-prefix-arg 1)
+                    (this-command 'mistty-create)
+                    (read-file-name-function #'read-file-name-default))
+             (ert-simulate-keys '(?/ ?/ ?\C-j) (mistty-create)))))
+    (unwind-protect
+        (with-current-buffer buf
+          (should (equal 'mistty-mode major-mode))
+          (should (equal "/" default-directory)))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf)))))
+
+(ert-deftest mistty-test-create-other-window-with-prefix-arg ()
+  (let ((buf (let* ((default-directory (getenv "HOME"))
+                    (mistty-shell-command mistty-test-bash-exe)
+                    (current-prefix-arg 1)
+                    (this-command 'mistty-create-other-window)
+                    (read-file-name-function #'read-file-name-default))
+             (ert-simulate-keys '(?/ ?/ ?\C-j) (mistty-create-other-window)))))
+    (unwind-protect
+        (with-current-buffer buf
+          (should (equal 'mistty-mode major-mode))
+          (should (equal "/" default-directory)))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf)))))
+
 (ert-deftest mistty-test-create-command-with-args ()
-  (let* ((buf (mistty-create
-               (list mistty-test-bash-exe "--norc" "--noprofile" "--restricted"))))
+  (let ((buf (mistty-create
+              (list mistty-test-bash-exe "--norc" "--noprofile" "--restricted"))))
     (unwind-protect
         (with-current-buffer buf
           ;; The normal setup hasn't been done, so we can't rely on

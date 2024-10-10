@@ -239,6 +239,11 @@ the environment variables
 
 @code{M-x customize-option display-comint-buffer-action} lets you
 configure how the buffer is displayed.
+
+With a prefix argument, this command asks for a directory for the
+new shell, instead of using the current buffer’s current
+directory. This is particularly useful if you want to run a
+@ref{c,,Remote Shells with TRAMP}.
 @end itemize
 
 @geindex command; mistty-create-other-window
@@ -297,7 +302,7 @@ project-kill-buffer-conditions} about MisTTY.
 @end quotation
 
 @node Terminal vs Scrollback,Navigating the scrollback zone,Launching,Usage
-@anchor{usage term-vs-scroll}@anchor{c}@anchor{usage terminal-vs-scrollback}@anchor{d}
+@anchor{usage term-vs-scroll}@anchor{d}@anchor{usage terminal-vs-scrollback}@anchor{e}
 @subsection Terminal vs. Scrollback
 
 
@@ -356,7 +361,7 @@ program.
 sending @code{C-n} to the terminal.
 
 @item 
-@code{M-r} to ask it to do @ref{e,,Backward Search}, sending @code{C-r} to the terminal.
+@code{M-r} to ask it to do @ref{f,,Backward Search}, sending @code{C-r} to the terminal.
 
 @item 
 @code{M-.} to ask the shell to insert the last history argument.
@@ -375,7 +380,7 @@ MisTTY will not work if you’ve configured your shell to turn on
 `VI mode' by default. Please `turn it off' before trying out
 MisTTY, for details on how to turn off VI mode only of MisTTY
 buffers and leave it on otherwise, check out the instructions in
-@ref{f,,Shells} for details. VI mode must be turned off even if you
+@ref{10,,Shells} for details. VI mode must be turned off even if you
 just end up controlling it with VI commands using Evil.
 @end quotation
 @end cartouche
@@ -466,7 +471,7 @@ you press to the terminal until you press @code{C-g}.
 @end quotation
 
 @node Navigating the scrollback zone,Fullscreen Mode,Terminal vs Scrollback,Usage
-@anchor{usage navigating-the-scrollback-zone}@anchor{10}@anchor{usage navigation}@anchor{11}
+@anchor{usage navigating-the-scrollback-zone}@anchor{11}@anchor{usage navigation}@anchor{12}
 @subsection Navigating the scrollback zone
 
 
@@ -549,7 +554,7 @@ previous command output.
 previous command input, that is, the previous prompt. While this
 is a way of going back the command you’ve previously input, it’s
 best to use the shell native command history, as discussed in
-@ref{12,,Command History}.
+@ref{13,,Command History}.
 @end itemize
 
 @geindex command; mistty-goto-next-input
@@ -563,7 +568,7 @@ best to use the shell native command history, as discussed in
 @end quotation
 
 @node Fullscreen Mode,Command History,Navigating the scrollback zone,Usage
-@anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{13}
+@anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{14}
 @subsection Fullscreen Mode
 
 
@@ -591,7 +596,7 @@ When the program exits, the two buffers are again merged. Note that
 the output of the full screen app isn’t available in the scrollback.
 
 @node Command History,Backward Search,Fullscreen Mode,Usage
-@anchor{usage command-history}@anchor{14}@anchor{usage history}@anchor{12}
+@anchor{usage command-history}@anchor{15}@anchor{usage history}@anchor{13}
 @subsection Command History
 
 
@@ -611,7 +616,7 @@ available in MisTTY using the following shortcuts:
 @code{M-n} moves down command history
 
 @item 
-@code{M-r} triggers a @ref{e,,Backward Search} in command history
+@code{M-r} triggers a @ref{f,,Backward Search} in command history
 
 @item 
 @code{M-.} insert the last argument from command history
@@ -628,7 +633,7 @@ in the terminal zone of the MisTTY buffer. For example:
 @end example
 
 @node Backward Search,Completion-at-point,Command History,Usage
-@anchor{usage backward-search}@anchor{15}@anchor{usage bs}@anchor{e}
+@anchor{usage backward-search}@anchor{16}@anchor{usage bs}@anchor{f}
 @subsection Backward Search
 
 
@@ -667,7 +672,7 @@ search mode without selecting anything.
 @end itemize
 
 @node Completion-at-point,Template Expansion,Backward Search,Usage
-@anchor{usage cap}@anchor{16}@anchor{usage completion-at-point}@anchor{17}
+@anchor{usage cap}@anchor{17}@anchor{usage completion-at-point}@anchor{18}
 @subsection Completion-at-point
 
 
@@ -700,7 +705,7 @@ Emacs @cite{hippie-expand} also works. That’s not completion, but it’s
 close.
 
 Other packages might work or might be made to work with some efforts.
-Auto-completion is usually the main challenge. See @ref{18,,Auto-complete}
+Auto-completion is usually the main challenge. See @ref{19,,Auto-complete}
 for some pointers. Please @ref{3,,file a bug} if you
 encounter issues with other completion packages.
 
@@ -710,7 +715,7 @@ encounter issues with other completion packages.
 @end menu
 
 @node Autosuggestions,,,Completion-at-point
-@anchor{usage autosuggestions}@anchor{19}
+@anchor{usage autosuggestions}@anchor{1a}
 @subsubsection Autosuggestions
 
 
@@ -738,13 +743,13 @@ autosuggestions, you can turn this off with @code{M-x customize-option
 mistty-wrap-capf-functions}
 
 @node Template Expansion,Remote Shells with TRAMP,Completion-at-point,Usage
-@anchor{usage template-expansion}@anchor{1a}
+@anchor{usage template-expansion}@anchor{1b}
 @subsection Template Expansion
 
 
 Template expansion and other form of long-running editing command
 might be confused by the way MisTTY work in the terminal region. See
-@ref{1b,,Long-running commands} for details.
+@ref{1c,,Long-running commands} for details.
 
 The following template expansion packages are known to work with
 MisTTY out of the box, if enabled:
@@ -767,13 +772,21 @@ Please @ref{3,,file a bug} if you encounter issues with
 other packages.
 
 @node Remote Shells with TRAMP,Directory tracking and TRAMP,Template Expansion,Usage
-@anchor{usage remote-shells-with-tramp}@anchor{1c}@anchor{usage tramp}@anchor{1d}
+@anchor{usage remote-shells-with-tramp}@anchor{1d}@anchor{usage tramp}@anchor{c}
 @subsection Remote Shells with TRAMP
 
 
 If the @cite{default-directory} that is current when a new MisTTY buffer is
 created contains a TRAMP path whose method supports it, MisTTY runs
 the shell with the method, user and host `of that path'.
+
+@cartouche
+@quotation Tip 
+@code{C-u M-x mistty-create} asks for a directory instead of using
+the default one. This makes it possible to open a remote shell on a
+host that no buffer is visiting. See @ref{1,,Launching}.
+@end quotation
+@end cartouche
 
 For this to work, MisTTY needs to know the shell executable to use on
 that host. The value of @code{mistty-shell-command} or
@@ -810,7 +823,7 @@ has to tell MisTTY about it. This is usually done from the prompt.
 shells, but not if you ssh from an existing MisTTY buffer to another
 host.
 
-Other shells need to be configured to do the same. See @ref{f,,Shells}
+Other shells need to be configured to do the same. See @ref{10,,Shells}
 for shell-specific instructions.
 
 The TRAMP paths that are generated use the default TRAMP methods. If
@@ -837,7 +850,7 @@ If you suspect your shell prompt is causing issues, please first try
 setting a traditional prompt to confirm, then @ref{3,,file a bug}, whatever the outcome.
 
 @node Shells,Extending MisTTY,Usage,Contents
-@anchor{shells doc}@anchor{21}@anchor{shells id1}@anchor{22}@anchor{shells shells}@anchor{f}
+@anchor{shells doc}@anchor{21}@anchor{shells id1}@anchor{22}@anchor{shells shells}@anchor{10}
 @section Shells
 
 
@@ -1226,7 +1239,7 @@ for text that is inserted or displayed by the shell.
 
 This hook provides an appropriate time to trigger auto-completion UI,
 which, by default, doesn’t work in the terminal region, as discussed
-in @ref{18,,Auto-complete}.
+in @ref{19,,Auto-complete}.
 
 Auto-completion doesn’t work in the terminal region because it often
 requires calling a post-command function. To work around that, in most
@@ -1445,7 +1458,7 @@ keymap that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node Auto-complete,Long-running commands,Terminal Keymap,Extending MisTTY
-@anchor{extensions auto-complete}@anchor{45}@anchor{extensions autocomplete}@anchor{18}
+@anchor{extensions auto-complete}@anchor{45}@anchor{extensions autocomplete}@anchor{19}
 @subsection Auto-complete
 
 
@@ -1469,7 +1482,7 @@ should be possible to build a custom bridge between this hook and the
 auto-completion package.
 
 @node Long-running commands,,Auto-complete,Extending MisTTY
-@anchor{extensions long-running-commands}@anchor{46}@anchor{extensions lrc}@anchor{1b}
+@anchor{extensions long-running-commands}@anchor{46}@anchor{extensions lrc}@anchor{1c}
 @subsection Long-running commands
 
 
@@ -1646,7 +1659,7 @@ knows it should not attempt to move the cursor. The default value
 identifies most shell backward search prompts.
 @end itemize
 
-See the section @ref{c,,Terminal vs. Scrollback} for more details.
+See the section @ref{d,,Terminal vs. Scrollback} for more details.
 @end quotation
 
 `The shell isn’t answering!'
@@ -1665,7 +1678,7 @@ mistty-detect-foreign-overlays} or, if you know which package is
 causing trouble, remove the corresponding property in in @code{M-x
 customize-option mistty-foreign-overlay-properties}.
 
-For details, see @ref{1b,,Long-running commands}
+For details, see @ref{1c,,Long-running commands}
 
 If this keeps happening and the modeline does not contain CMD,
 this is likely a bug. Please see @ref{3,,Reporting issues} for details on
@@ -1694,7 +1707,7 @@ terminal, meaning that it is not fully editable and that some
 shortcuts, such as @code{TAB} are sent directly to the program
 controlling the terminal.
 
-This is covered in depth in the section @ref{c,,Terminal vs. Scrollback}.
+This is covered in depth in the section @ref{d,,Terminal vs. Scrollback}.
 
 If you just don’t want to see that line, turn it off with
 @code{M-x customize-option mistty-fring-enabled}
@@ -1711,10 +1724,10 @@ than just editing text.
 One such issue is with interactivly editing the buffer over
 multiple Emacs command, which MisTTY calls a long-running command.
 There are ways of making such commands work if they don’t already,
-described in @ref{1b,,Long-running commands}.
+described in @ref{1c,,Long-running commands}.
 
 Another such issue is with autocomplete, with can also be made to
-work as described in @ref{18,,Auto-complete}.
+work as described in @ref{19,,Auto-complete}.
 
 While this works with some packages, it might not necessarily work
 with the package you want - it might even not be possible to make
@@ -1727,13 +1740,13 @@ such a package you’d like to work with MisTTY.
 @quotation
 
 Older versions used to detect any unknown overlay as a
-long-running command, described in @ref{1b,,Long-running commands}. Unfortunately, this
+long-running command, described in @ref{1c,,Long-running commands}. Unfortunately, this
 caused problems with many packages which, leaving overlays around
 for a long time, prevented MisTTY from working at all.
 
 The good news is that it’s likely easy to make it work again by
 detecting the specific kind of overlays the package is using.
-Please see @ref{1b,,Long-running commands} or file a bug@footnote{https://github.com/szermatt/mistty/issues} mentioning the
+Please see @ref{1c,,Long-running commands} or file a bug@footnote{https://github.com/szermatt/mistty/issues} mentioning the
 package you’re using, its version and how you installed it.
 @end quotation
 

@@ -1068,10 +1068,16 @@ string, it should be the name of an executable to run, without
 arguments. If it is a string, it should be a list of executable
 and its arguments.
 
-The command is executed in the `default-directory' of the current
-buffer. If that directory is a remote file, the command is
-executed on the remote host, if the TRAMP method supports it. See
-Info node `(mistty)Remote Shells with TRAMP' for details.
+If this command is called with no prefix arg, it is executed in
+the `default-directory' of the current buffer. If that directory
+is a remote file, and if the TRAMP method supports it, the
+command is executed on the remote host. This also works for
+same-host methods, such as sudo. See Info node `(mistty)Remote
+Shells with TRAMP' for details.
+
+If this command is called with a prefix arg, it asks for the
+value of `default-directory'. This is useful if you want start a
+shell to a remote host without opening a file first.
 
 If OTHER-WINDOW is nil, execute the default action configured by
 `display-comint-buffer-action'. If OTHER-WINDOW is a function, it
@@ -1080,7 +1086,12 @@ action. Otherwise, display the buffer in another window.
 
 Upon success, the function returns the newly-created buffer."
   (interactive)
-  (let ((buf (generate-new-buffer "*mistty*")))
+  (let* ((default-directory
+          (or (and (memq this-command '(mistty-create mistty-create-other-window))
+                   current-prefix-arg
+                   (mistty--read-default-directory))
+              default-directory))
+         (buf (generate-new-buffer "*mistty*")))
     ;; Note that it's important to attach the buffer to a window
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.
@@ -1101,12 +1112,27 @@ Upon success, the function returns the newly-created buffer."
 (defun mistty-create-other-window (&optional command)
   "Create a new MisTTY buffer, running a shell, in another window.
 
+If this command is called with no prefix arg, it is executed in
+the `default-directory' of the current buffer. If that directory
+is a remote file, and if the TRAMP method supports it, the
+command is executed on the remote host. This also works for
+same-host methods, such as sudo. See Info node `(mistty)Remote
+Shells with TRAMP' for details.
+
+If this command is called with a prefix arg, it asks for the
+value of `default-directory'. This is useful if you want start a
+shell to a remote host without opening a file first.
+
 COMMAND, if specified, is the command to execute instead of the
 shell.
 
 See the documentation of `mistty-create' for details."
   (interactive)
   (mistty-create command 'other-window))
+
+(defun mistty--read-default-directory ()
+  "Get the default directory "
+  (read-directory-name "Default directory: " default-directory default-directory t nil))
 
 (defun mistty--process-sentinel (proc msg)
   "Process sentinel for MisTTY shell processes.

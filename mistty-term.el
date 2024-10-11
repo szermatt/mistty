@@ -728,7 +728,8 @@ If N is specified, the string is repeated N times."
   "TRAMP-aware alternative to `term-command-hook'.
 
 This function is meant to be bound to `term-command-function' to
-catch Emacs-specific control sequences \\032...\n.
+catch Emacs-specific control sequences \\032...\\n. The STRING
+argument includes everything between \\032 and \\n.
 
 When `default-directory' is remote, this function interprets paths
 sent by the terminal as being local to the TRAMP connection. The

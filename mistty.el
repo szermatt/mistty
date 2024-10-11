@@ -1186,7 +1186,7 @@ See the documentation of `mistty-create' for details."
   (mistty-create command 'other-window))
 
 (defun mistty--read-default-directory ()
-  "Get the default directory "
+  "Get the default directory."
   (read-directory-name "Default directory: " default-directory default-directory t nil))
 
 (defun mistty--process-sentinel (proc msg)

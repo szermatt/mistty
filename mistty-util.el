@@ -125,7 +125,7 @@ of failing."
         (delete-region pos next-pos)))))
 
 (defun mistty--remove-fake-newlines (start end)
-  "Remove newlines marked \='term-line-wrap between START and END."
+  "Remove newlines marked \\='term-line-wrap between START and END."
   (save-excursion
     (goto-char start)
     (while (search-forward "\n" end 'noerror)

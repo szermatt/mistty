@@ -492,26 +492,38 @@ Directory tracking and TRAMP
 In order for Emacs to know your shell's current directory, the shell
 has to tell MisTTY about it. This is usually done from the prompt.
 
-:program:`Bash` does it by default, when it detects a terminal of type
-:code:`TERM=eterm-color` run from inside Emacs. This works on remote
-shells, but not if you ssh from an existing MisTTY buffer to another
-host.
+.. tip::
 
-Other shells need to be configured to do the same. See :ref:`shells`
-for shell-specific instructions.
+   The simplest way to connect a host or docker instance you don't
+   want to configure is to start it as described in :ref:`tramp` and
+   use :program:`Bash` as your shell. Everything then just work out of
+   the box.
 
-The TRAMP paths that are generated use the default TRAMP methods. If
-that doesn't work for you, you can configure it globally using
-:kbd:`M-x configure-option tramp-default-method` or on a per-host
-basis using :kbd:`M-x configure-option tramp-default-method-alist`.
+When :program:`Bash` detects a terminal of type
+:code:`TERM=eterm-color` run from inside Emacs, it keeps MisTTY
+updated at each prompt. This works with :ref:`tramp`.
+
+For all other cases, the shell needs to be configured to do the same.
+See :ref:`shells` for shell-specific instructions on how to hide file:
+URL in the prompts for MisTTY . The rest of this section applies to
+all shells and assumes that the shell have been configured as
+described.
+
+The TRAMP paths that are generated for non-local file: URLs use the
+default TRAMP methods. If that doesn't work for you, you can configure
+it globally using :kbd:`M-x configure-option tramp-default-method` or
+on a per-host basis using :kbd:`M-x configure-option
+tramp-default-method-alist`.
 
 If you need to configure more than just the method, you can map host
 names to the TRAMP path MisTTY should generate for dirtrack using
-:kbd:`M-x configure-option mistty-host-to-tramp-path-alist`.
+:kbd:`M-x configure-option mistty-host-to-tramp-path-alist`. You can
+also disable directory tracking for specific hosts, if necessary,
+using this option.
 
-If TRAMP is causing you too much trouble and you don't want MisTTY to
-generate paths with the default method, unset the option :kbd:`M-x
-configure-option mistty-allow-tramp-paths`.
+If everything fails, TRAMP is causing you too much trouble and you
+just don't want MisTTY to generate remote paths unset the option
+:kbd:`M-x configure-option mistty-allow-tramp-paths`.
 
 Fancy prompts
 -------------

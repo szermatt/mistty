@@ -26,11 +26,14 @@
 ;;; Code:
 
 (defcustom mistty-allow-tramp-paths t
-  "If true, allow TRAMP paths as shell-specified directory.
+  "If true, allow generating TRAMP paths as shell-specified directory.
 
 This affects directories set using OSC 7, which can then build
 TRAMP remote paths based on the hostname specified in the file://
-URL, using the default method."
+URL, using the default method.
+
+This option doesn't affect hosts configured using
+`mistty-host-to-tramp-path-alist'."
 
   :group 'mistty
   :type '(boolean))
@@ -91,7 +94,9 @@ This can be used as a drop-in replacement for
                  (decode-coding-string
                   (url-unhex-string (match-string 2 osc-seq))
                   'utf-8
-                  'nocopy))))
+                  'nocopy)))
+          host-config
+          host-remote-path)
       (when (or (string= hostname "")
                 (string= hostname "localhost"))
         (setq hostname (system-name)))
@@ -108,20 +113,23 @@ This can be used as a drop-in replacement for
        ((string= hostname (system-name))
         (ignore-errors (cd-absolute path)))
 
-       ;; Build a TRAMP remote path from the path and hostname.
-       ;;
-       ;; The call to file-remote-p validates the value from
-       ;; mistty-host-to-tramp-path-alist as well as expand defaults.
+       ;; Host disabled in mistty-host-to-tramp-path-alist. Do
+       ;; nothing.
+       ((and (setq host-config
+                   (assoc hostname mistty-host-to-tramp-path-alist))
+             (null (cdr host-config))))
+
+       ;; Using remote path from mistty-host-to-tramp-path-alist, if
+       ;; it's valid.
+       ((and (cdr host-config)
+             (setq host-remote-path (file-remote-p (cdr host-config))))
+        (setq default-directory (concat host-remote-path path)))
+
+       ;; Generate default paths for a host, if enabled.
        (mistty-allow-tramp-paths
-        (let ((mapped (assoc hostname
-                             mistty-host-to-tramp-path-alist)))
-          (unless (and mapped (null (cdr mapped)))
-            (setq default-directory
-                  (concat
-                   (or
-                    (when mapped (file-remote-p (cdr mapped)))
-                    (file-remote-p (concat "/-:" hostname ":")))
-                   path)))))))))
+        (setq default-directory
+              (concat (file-remote-p (concat "/-:" hostname ":"))
+                      path)))))))
 
 (provide 'mistty-osc7)
 

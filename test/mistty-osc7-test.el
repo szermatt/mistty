@@ -80,7 +80,7 @@
 (ert-deftest mistty-test-osc7-host-to-tramp-path ()
   (mistty-with-test-buffer (:shell zsh)
     (let ((mistty-osc-handlers '(("7" . mistty-osc7)))
-          (mistty-allow-tramp-paths t)
+          (mistty-allow-tramp-paths nil)
           (tramp-default-method "ssh")
           (mistty-host-to-tramp-path-alist '(("testmachine" . "/scp:testmachine.example:"))))
       (mistty-test-send-osc7 "testmachine" "/var/log")

@@ -1940,7 +1940,9 @@ The documentation is written in reStructuredText. You’ll need to
 install Sphinx@footnote{https://www.sphinx-doc.org} to build it:
 
 @example
-pip install sphinx sphinx-rtd-theme
+python3 -m venv venv
+. venv/bin/activate # or activate.fish on fish
+pip3 install -r docs/requirements.txt
 @end example
 
 Then run @code{eldev html} to build the documentation.

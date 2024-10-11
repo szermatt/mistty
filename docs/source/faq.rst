@@ -157,9 +157,11 @@ FAQ
     access a nonexisting remote file.
 
     The best solution in such case is to configure TRAMP to connect to
-    that host, but if that's not possible or if you don't want to
-    bother, you might find it convenient to disable the generation of
-    TRAMP paths using :kbd:`M-x configure-option
-    mistty-allow-tramp-paths`.
+    that host, adding an entry to :kbd:`M-x configure-option
+    mistty-host-to-tramp-path-alist`, if that's necessary.
+
+    If that's not possible or if you don't want to bother, you might
+    find it convenient to just disable the generation of TRAMP paths
+    using :kbd:`M-x configure-option mistty-allow-tramp-paths`.
 
     For more details, see :ref:`dirtrack`.

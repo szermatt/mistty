@@ -823,6 +823,9 @@ mistty-buffer-name} to change the way buffers are named.
 @subsection Directory tracking and TRAMP
 
 
+@geindex variable; mistty-allow-tramp-path
+@geindex variable; mistty-host-to-tramp-path-alist
+
 In order for Emacs to know your shell’s current directory, the shell
 has to tell MisTTY about it. This is usually done from the prompt.
 
@@ -839,10 +842,12 @@ that doesn’t work for you, you can configure it globally using
 @code{M-x configure-option tramp-default-method} or on a per-host
 basis using @code{M-x configure-option tramp-default-method-alist}.
 
-@geindex variable; mistty-allow-tramp-path
+If you need to configure more than just the method, you can map host
+names to the TRAMP path MisTTY should generate for dirtrack using
+@code{M-x configure-option mistty-host-to-tramp-path-alist}.
 
-If TRAMP is causing you trouble and you don’t want MisTTY to generate
-paths with the default method, unset the option @code{M-x
+If TRAMP is causing you too much trouble and you don’t want MisTTY to
+generate paths with the default method, unset the option @code{M-x
 configure-option mistty-allow-tramp-paths}.
 
 @node Fancy prompts,,Directory tracking and TRAMP,Usage
@@ -1769,10 +1774,12 @@ that Emacs cannot access through TRAMP and then Emacs tries to
 access a nonexisting remote file.
 
 The best solution in such case is to configure TRAMP to connect to
-that host, but if that’s not possible or if you don’t want to
-bother, you might find it convenient to disable the generation of
-TRAMP paths using @code{M-x configure-option
-mistty-allow-tramp-paths}.
+that host, adding an entry to @code{M-x configure-option
+mistty-host-to-tramp-path-alist}, if that’s necessary.
+
+If that’s not possible or if you don’t want to bother, you might
+find it convenient to just disable the generation of TRAMP paths
+using @code{M-x configure-option mistty-allow-tramp-paths}.
 
 For more details, see @ref{1f,,Directory tracking and TRAMP}.
 @end quotation

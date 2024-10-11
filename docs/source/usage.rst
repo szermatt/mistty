@@ -485,6 +485,10 @@ mistty-buffer-name` to change the way buffers are named.
 Directory tracking and TRAMP
 ----------------------------
 
+.. index::
+   pair: variable; mistty-allow-tramp-path
+   pair: variable; mistty-host-to-tramp-path-alist
+
 In order for Emacs to know your shell's current directory, the shell
 has to tell MisTTY about it. This is usually done from the prompt.
 
@@ -501,10 +505,12 @@ that doesn't work for you, you can configure it globally using
 :kbd:`M-x configure-option tramp-default-method` or on a per-host
 basis using :kbd:`M-x configure-option tramp-default-method-alist`.
 
-.. index:: pair: variable; mistty-allow-tramp-path
+If you need to configure more than just the method, you can map host
+names to the TRAMP path MisTTY should generate for dirtrack using
+:kbd:`M-x configure-option mistty-host-to-tramp-path-alist`.
 
-If TRAMP is causing you trouble and you don't want MisTTY to generate
-paths with the default method, unset the option :kbd:`M-x
+If TRAMP is causing you too much trouble and you don't want MisTTY to
+generate paths with the default method, unset the option :kbd:`M-x
 configure-option mistty-allow-tramp-paths`.
 
 Fancy prompts

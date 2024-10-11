@@ -90,9 +90,11 @@ Request`_ with your proposed modifications.
 The documentation is written in reStructuredText. You'll need to
 install `Sphinx <https://www.sphinx-doc.org>`_ to build it:
 
-.. code-block:: sh
+.. code-block:: bash
 
-   pip install sphinx sphinx-rtd-theme
+   python3 -m venv venv
+   . venv/bin/activate # or activate.fish on fish
+   pip3 install -r docs/requirements.txt
 
 Then run :command:`eldev html` to build the documentation.
 

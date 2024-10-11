@@ -336,6 +336,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-z" #'mistty-send-last-key
   "C-c C-\\" #'mistty-send-last-key
   "C-c C-g" #'mistty-send-last-key
+  ;;   when adding a new entry above, update mistty-fullscreen-map, too.
 
   ;; Bind history search backward, previous history and next history
   ;; to meta keys, like comint does.
@@ -419,6 +420,34 @@ mapping somewhat consistent between fullscreen and normal mode."
 
     "C-q" mistty-send-last-key-map
     "C-c C-q" #'mistty-send-key-sequence
+
+    ;; Mirror keybindings from mistty-mode-map, for consistency.
+    "C-c C-c" #'mistty-send-last-key
+    "C-c C-z" #'mistty-send-last-key
+    "C-c C-\\" #'mistty-send-last-key
+    "C-c C-g" #'mistty-send-last-key
+
+    ;; Overwrite mapping from term-raw-map so they can be remapped
+    ;; with mistty-term-key-map, if necessary.
+    "<up>" #'mistty-send-key
+    "<down>" #'mistty-send-key
+    "<right>" #'mistty-send-key
+    "<left>" #'mistty-send-key
+    "C-<up>" #'mistty-send-key
+    "C-<down>" #'mistty-send-key
+    "C-<right>" #'mistty-send-key
+    "C-<left>" #'mistty-send-key
+    "<delete>" #'mistty-send-key
+    "<deletechar>" #'mistty-send-key
+    "<backspace>" #'mistty-send-key
+    "<home>" #'mistty-send-key
+    "<end>" #'mistty-send-key
+    "<insert>" #'mistty-send-key
+    "<prior>" #'mistty-send-key
+    "<next>" #'mistty-send-key
+
+    ;; This only applies if term-bind-function-keys is non-nil.
+    "<remap> <term-send-function-key>" #'mistty-send-key
 
     ;; Disable the "Terminal" menu; nothing that it contains should be
     ;; used on Term buffers used by MisTTY.

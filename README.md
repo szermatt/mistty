@@ -17,7 +17,8 @@ MisTTY feels very much like `comint` mode: you can move around freely
 and run any Emacs command you want - until you press TAB and end up
 with the native completion or notice the shell autosuggestions. With
 MisTTY you have access to both Emacs and the shell commands and
-editing tools.
+editing tools. Like `comint`, MisTTY supports [remote shells with
+TRAMP](https://mistty.readthedocs.io/en/latest/usage.html#tramp).
 
 Additionally, commands that take over the entire screen, such as
 `less` or `vi` also work, temporarily taking over the window, while
@@ -115,13 +116,16 @@ in `mistty-prompt-map`. For example:
          ("M-<right>" . mistty-send-key)))
 ```
 
+In addition to that, unless you're using Bash, which supports it out
+of the box, you'll also likely want to enable directory tracking [in
+your shell](https://mistty.readthedocs.io/en/latest/shells.html).
+
 See also [the documentation](https://mistty.readthedocs.io/en/latest/)
-for more details on configuring MisTTY [for different
-shells](https://mistty.readthedocs.io/en/latest/shells.html).
+for more details on configuring MisTTY .
 
 ## SOMETHING IS WRONG !
 
-Please check the [FAQ](https://mistty.readthedocs.io/en/latest/faq.html) 
+Please check the [FAQ](https://mistty.readthedocs.io/en/latest/faq.html)
 and, if that doesn't help, take the time to [file a bug report](https://mistty.readthedocs.io/en/latest/contrib.html#reporting-issues).
 
 ## CONTRIBUTING

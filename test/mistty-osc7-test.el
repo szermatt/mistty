@@ -20,6 +20,8 @@
 (require 'mistty)
 (require 'mistty-osc7)
 
+(require 'mistty-testing)
+
 (ert-deftest mistty-test-osc7-local-path ()
   (mistty-with-test-buffer (:shell zsh)
     (let ((mistty-osc-handlers '(("7" . mistty-osc7))))

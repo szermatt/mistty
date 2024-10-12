@@ -498,7 +498,7 @@ The interaction waits for TEXT, but never sends it, so it'll wait
 forever - or until the test calls mistty--send-text directly."
   (mistty--interact stuck (interact)
     (if (with-current-buffer mistty-term-buffer
-          (looking-back (regexp-quote text)))
+          (looking-back (regexp-quote text) nil))
         (mistty--interact-done)
       (mistty--interact-keep-waiting))))
 

@@ -32,7 +32,7 @@ FAQ
 
      To fix this issue, you can do any one of the following:
 
-     - Connect using TRAMP, as described in :ref:`tramp`. TRAMP takes
+     - Connect using TRAMP, as described in :ref:`remote_shells`. TRAMP takes
        care of setting all necessary environment variables.
 
      - Add the definition of :code:`eterm-color` to all hosts you

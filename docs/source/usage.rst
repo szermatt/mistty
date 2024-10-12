@@ -13,27 +13,17 @@ To use MisTTY, first install its package,
    package-install mistty`
  - from source using :kbd:`M-x package-vc-install https://github.com/szermatt/mistty`
 
-You can then call it, as described in :ref:`launching`.
+And then launch it with :kbd:`M-x mistty`, as described in :ref:`launching`.
 
-However, you'll likely want to configure it and add some key bindings
-you use often in shells, for example:
+You'll likely want to eventually bind that to some shortcut:
 
 .. code-block:: elisp
 
     (use-package mistty
-      :bind (("C-c s" . mistty) ;; or mistty-in-project
+      :bind (("C-c s" . mistty)))
 
-             ;; bind here the shortcuts you'd like the
-             ;; shell to handle instead of Emacs.
-             :map mistty-prompt-map
-
-             ;; fish: dir history, more history manipulation
-             ("M-<up>" . mistty-send-key)
-             ("M-<down>" . mistty-send-key)
-             ("M-<left>" . mistty-send-key)
-             ("M-<right>" . mistty-send-key)))
-
-Read on for details on the commands and key bindings configured above.
+and, unless you're using :program:`Bash`, configure your shell for
+:ref:`dirtrack`, but read on for more details.
 
 .. _launching:
 
@@ -41,41 +31,40 @@ Launching
 ---------
 
 To create a new interactive shell buffer in MisTTY mode, call
-:kbd:`M-x mistty` or :kbd:`M-x mistty-create`. If you use MisTTY
-regularly, you'll want to bind some of these to global shortcuts:
+:kbd:`M-x mistty`, which either creates a new shell or goes to an
+existing MisTTY buffer, or :kbd:`M-x mistty-create`, which creates a
+new MisTTY buffer.
+
+Here's a quick list of the commands defined by the MisTTY package,
+their behavior and arguments:
 
   .. index::
      pair: command; mistty-create
+     pair: command; mistty
+     pair: command; mistty-create-other-window
+     pair: command; mistty-other-window
      pair: variable; mistty-shell-command
      pair: variable; explicit-shell-file-name
      pair: variable; shell-file-name
      pair: variable; mistty-buffer-name
 
   - :kbd:`M-x mistty-create` launches a new interactive shell in a
-    MisTTY buffer. The shell that is launched is the one that's
-    configured on :kbd:`M-x configure-option mistty-shell-command`
+    MisTTY buffer in the current buffer's :code:`default-directory`.
 
-    If :code:`mistty-shell-command` is not set, MisTTY falls back to
+    The shell that is launched is the one that's configured on
+    :kbd:`M-x configure-option mistty-shell-command`. If
+    :code:`mistty-shell-command` is not set, MisTTY falls back to
     :code:`explicit-shell-file-name`, :code:`shell-file-name`, then
     the environment variables :envvar:`ESHELL` and :envvar:`SHELL`.
-
-    :kbd:`M-x customize-option display-comint-buffer-action` lets you
-    configure how the buffer is displayed.
 
     With a prefix argument, this command asks for a directory for the
     new shell, instead of using the current buffer's current
     directory. This is particularly useful if you want to run a
-    :ref:`tramp`.
+    :ref:`remote_shells`.
 
-    To change the way new buffers are named, :kbd:`M-x
+    By default, new buffers are called "\*mistty\*", or, if you use
+    TRAMP "\*mistty\@hostname\*". You can configure this on :kbd:`M-x
     customize-option mistty-buffer-name`.
-
-  .. index:: pair: command; mistty-create-other-window
-
-  - :kbd:`M-x mistty-create-other-window` does the same, but opens the
-    buffer in another window.
-
-  .. index:: pair: command; mistty
 
   - :kbd:`M-x mistty` creates a new MisTTY buffer the first time it is
     called. Afterwards, it'll try to guess what's most appropriate,
@@ -85,12 +74,25 @@ regularly, you'll want to bind some of these to global shortcuts:
 
   .. index:: pair: command; mistty-other-window
 
-  - :kbd:`M-x mistty-other-window` does the same, but opens the buffer
-    in another window.
+  - :kbd:`M-x mistty-other-window` does the same as :code:`mistty`,
+    but opens the buffer in another window.
+
+  - :kbd:`M-x mistty-create-other-window` does the same as
+    :code:`mistty-create`, but opens the buffer in another window.
+
+        If you need more control on how MisTTY windows are handled
+        than what's provided by the :code:`-other-window` variants,
+        you can configure it using :kbd:`M-x customize-option
+        display-comint-buffer-action` or :kbd:`M-x customize-option
+        display-buffer-alist`. In the latter case, note that MisTTY
+        buffers belong to the :code:`comint` category, just like shell
+        buffers.
+
+        See the section "Window Choice" of the Emacs manual for
+        details.
 
   .. index::
      pair: command; mistty-in-project
-     pair: function; mistty-project-init-kill-buffer
 
   - :kbd:`M-x mistty-in-project` creates a new MisTTY buffer in the
     root directory of the current project the first time it is called.
@@ -365,7 +367,6 @@ While this mode is active:
 - C-g is forwarded to the terminal. It normally exits the backward
   search mode without selecting anything.
 
-
 .. _cap:
 
 Completion-at-point
@@ -439,7 +440,26 @@ Other packages might work or might be made to work with some efforts.
 Please :ref:`file a bug <reporting>` if you encounter issues with
 other packages.
 
-.. _tramp:
+.. _dirtrack:
+
+Directory Tracking
+------------------
+
+If you're using :program:`Bash` as a shell, you'll discover that Emacs
+keeps track of the shell's current directory, so commands like
+:kbd:`M-x find-file` know where to start from.
+
+If you're using another shell, however, you'll need to configure it to
+tell Emacs about its current directory, as described in the sections
+:ref:`Directory Tracking for Fish <fish_dirtrack>` and :ref:`Directory
+Tracking for Zsh <zsh_dirtrack>`.
+
+:program:`Bash` out-of-the-box directory tracking also doesn't work in
+shells you start using :program:`ssh` or :program:`docker`. For that
+to work, the simplest solution is to start :ref:`remote shells with
+TRAMP <remote_shells>`.
+
+.. _remote_shells:
 
 Remote Shells with TRAMP
 ------------------------
@@ -476,11 +496,11 @@ Example:
   (connection-local-set-profiles '(:machine "myhost.example")
    'profile-usr-local-fish)
 
-By default, the name of TRAMP shells include the user and hostname. If
-you don't want that, run :kbd:`M-x customize-option
-mistty-buffer-name` to change the way buffers are named.
+By default, the name of TRAMP shells include the user and hostname, if
+different from the current one. If you don't want that, configure it
+on :kbd:`M-x customize-option mistty-buffer-name`.
 
-.. _dirtrack:
+.. _tramp_dirtrack:
 
 Directory tracking and TRAMP
 ----------------------------
@@ -489,41 +509,69 @@ Directory tracking and TRAMP
    pair: variable; mistty-allow-tramp-path
    pair: variable; mistty-host-to-tramp-path-alist
 
-In order for Emacs to know your shell's current directory, the shell
-has to tell MisTTY about it. This is usually done from the prompt.
+:ref:`Directory tracking <dirtrack>` normally just works in TRAMP
+shells started described in the previous section.
+
+This isn't necessarily true of shells started from a MisTTY buffers,
+by calling :program:`ssh`, :program:`docker` or :program:`sudo`, but
+it is possible to make that work, as described below.
 
 .. tip::
 
    The simplest way to connect a host or docker instance you don't
-   want to configure is to start it as described in :ref:`tramp` and
-   use :program:`Bash` as your shell. Everything then just work out of
-   the box.
+   want to configure is to just start it as described in
+   :ref:`remote_shells` and use :program:`Bash` as your shell.
+   Everything then just work out of the box.
 
-When :program:`Bash` detects a terminal of type
-:code:`TERM=eterm-color` run from inside Emacs, it keeps MisTTY
-updated at each prompt. This works with :ref:`tramp`.
+If you haven't already, configure your shell to tell Emacs about
+directory changes, even :program:`Bash`. This is described in
+:ref:`Directory Tracking for Bash <bash_dirtrack>`, :ref:`Directory
+Tracking for Fish <fish_dirtrack>` or :ref:`Directory Tracking for Zsh
+<zsh_dirtrack>`.
 
-For all other cases, the shell needs to be configured to do the same.
-See :ref:`shells` for shell-specific instructions on how to hide file:
-URL in the prompts for MisTTY . The rest of this section applies to
-all shells and assumes that the shell have been configured as
-described.
+Once this is done, the shell sends out file: URLs that include the
+host name. By default, MisTTY will then use that to set the default
+directory to remote file paths that include that hostname using the
+default TRAMP method. For example, given the file: URL
+:code:`file:/example.com/var/log` reported by the shell, MisTTY will
+set the directory of its buffer to :code:`/-:example.com:/var/log`.
 
-The TRAMP paths that are generated for non-local file: URLs use the
-default TRAMP methods. If that doesn't work for you, you can configure
-it globally using :kbd:`M-x configure-option tramp-default-method` or
-on a per-host basis using :kbd:`M-x configure-option
-tramp-default-method-alist`.
+If you always connect to hosts using SSH, this is likely all you need,
+if not, you can still make it work as follows:
 
-If you need to configure more than just the method, you can map host
-names to the TRAMP path MisTTY should generate for dirtrack using
-:kbd:`M-x configure-option mistty-host-to-tramp-path-alist`. You can
-also disable directory tracking for specific hosts, if necessary,
-using this option.
+- If you're using some other way of connecting to your host, configure
+  it in :kbd:`M-x configure-option tramp-default-method`. You can also
+  configure that on a per-host basis using :kbd:`M-x configure-option
+  tramp-default-method-alist`
+
+- If you're connecting to hosts in more diverse ways, you can
+  configure the TRAMP path MisTTY should generate using :kbd:`M-x
+  configure-option mistty-host-to-tramp-path-alist`
+
+- If you want to configure the TRAMP path on the hosts, you can send
+  it from the prompt as Emacs-specific :code:`\\032/...\\n` code
+  containing a TRAMP path instead of the standard file: URL
+  recommended in :ref:`Directory Tracking for Bash <bash_dirtrack>`,
+  :ref:`Directory Tracking for Fish <fish_dirtrack>` or
+  :ref:`Directory Tracking for Zsh <zsh_dirtrack>`. Here's an example
+  of such a code for :program:`Bash` that tells TRAMP to connect to
+  the current docker instance:
+
+  .. code-block:: bash
+
+    if [ "$TERM" = "eterm-color" ]; then
+        PS1='\032//docker:$HOSTNAME:/$PWD\n'$PS1
+    fi
+
+
+That said, if you need more than just SSH to connect to other hosts,
+it might be overall just easier to start :ref:`remote shells with
+TRAMP <remote_shells>` instead of the command line, because directory
+tracking just works in that case.
 
 If everything fails, TRAMP is causing you too much trouble and you
-just don't want MisTTY to generate remote paths unset the option
-:kbd:`M-x configure-option mistty-allow-tramp-paths`.
+just don't want MisTTY to generate remote paths at all, unset the
+option :kbd:`M-x configure-option mistty-allow-tramp-paths`.
 
 Fancy prompts
 -------------

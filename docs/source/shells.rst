@@ -38,6 +38,8 @@ earlier version with bracketed paste mode turned on.
 You'll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
+.. _bash_dirtrack:
+
 Directory tracking
 ^^^^^^^^^^^^^^^^^^
 
@@ -135,6 +137,7 @@ up/down/left/right directly to :program:`fish`, you can:
 
 - :kbd:`C-c C-q` to temporarily send all send key presses to :program:`fish`
 
+.. _fish_dirtrack:
 
 Directory tracking
 ^^^^^^^^^^^^^^^^^^
@@ -207,6 +210,8 @@ this is normally bound to an Emacs point movement.
 
 The recommended way of accepting an autosuggestion in MisTTY is to
 type :kbd:`C-e`. This works in normal terminals as well.
+
+.. _zsh_dirtrack:
 
 Directory tracking
 ^^^^^^^^^^^^^^^^^^

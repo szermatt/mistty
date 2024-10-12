@@ -47,9 +47,9 @@ buffer. If OTHER-WINDOW is a function, it is passed to `pop-to-buffer`
 to be used as a `display-buffer' action. Otherwise, display the buffer
 in another window.
 
-    On Emacs 30, you might prefer configuring `display-buffer-alist' for
-    comint category buffers to get the exact behavior you want instead
-    of passing OTHER-WINDOW."
+    You might prefer configuring `display-buffer-alist' for
+    comint category buffers to get the exact behavior you want
+    instead of passing OTHER-WINDOW."
   (interactive)
   (let* ((pr (project-current t))
          (bufs (project-buffers pr)))
@@ -65,9 +65,9 @@ in another window.
 (defun mistty-in-project-other-window ()
   "Start or go to a MisTTY buffer in the project's root in another window.
 
-    On Emacs 30, you might prefer configuring `display-buffer-alist' for
-    comint category buffers and calling `mistty-in-project' directly to
-    get the exact behavior you want instead of using
+    You might prefer configuring `display-buffer-alist' for
+    comint category buffers and calling `mistty-in-project'
+    directly to get the exact behavior you want instead of using
     `mistty-in-project-other-window'.
 
 See the documentation of the function `mistty-other-window' and

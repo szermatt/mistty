@@ -20,7 +20,7 @@
 
 @copying
 @quotation
-MisTTY 1.1
+MisTTY 1.1.9
 
 Stephane Zermatten
 

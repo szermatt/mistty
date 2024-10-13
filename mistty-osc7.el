@@ -59,7 +59,7 @@ configuration option you need to a host to ~/.ssh/config."
   :group 'mistty
   :type '(alist :key-type (string :tag "Host")
                 :value-type (choice (string :tag "TRAMP Path")
-                                    (const nil :tag "Disable Host"))))
+                                    (const nil))))
 
 (defun mistty-osc7 (_ osc-seq)
   "Store OSC-SEQ as path to the current directory.

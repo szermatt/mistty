@@ -1147,21 +1147,22 @@ Upon success, the function returns the newly-created buffer."
                    current-prefix-arg
                    (mistty--read-default-directory))
               default-directory))
-         (mistty-shell-command (or command
-                                   (with-connection-local-variables
-                                    (or
-                                     mistty-shell-command
-                                     explicit-shell-file-name
-                                     shell-file-name
-                                     (getenv "ESHELL")
-                                     (getenv "SHELL")))))
-         (buf (generate-new-buffer (mistty-new-buffer-name))))
+         (command (or command
+                      (with-connection-local-variables
+                       (or
+                        mistty-shell-command
+                        explicit-shell-file-name
+                        shell-file-name
+                        (getenv "ESHELL")
+                        (getenv "SHELL")))))
+         (buf (let ((mistty-shell-command command))
+                (generate-new-buffer (mistty-new-buffer-name)))))
     ;; Note that it's important to attach the buffer to a window
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.
     (mistty--pop-to-buffer buf other-window)
     (with-current-buffer buf
-      (mistty--exec mistty-shell-command)
+      (mistty--exec command)
       buf)))
 
 ;;;###autoload

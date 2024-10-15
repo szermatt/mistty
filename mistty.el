@@ -865,10 +865,9 @@ differently from modifications made inside of the synced region."
 PROGRAM can be either a string or a list. If it is a string, it
 should be the name of an executable to run, without arguments. If
 it is a string, it should be a list of executable and its
-arguments.
-
-The buffer is switched to `mistty-mode'."
-  (mistty-mode)
+arguments."
+  (unless (derived-mode-p 'mistty-mode)
+    (error "Not a mistty-mode buffer"))
   (let ((win (or (get-buffer-window (current-buffer)) (selected-window)))
         (command (if (consp program) (car program) program))
         (args (if (consp program) (cdr program) nil)))
@@ -1157,13 +1156,13 @@ Upon success, the function returns the newly-created buffer."
                         (getenv "SHELL")))))
          (buf (let ((mistty-shell-command command))
                 (generate-new-buffer (mistty-new-buffer-name)))))
+    (with-current-buffer buf (mistty-mode))
     ;; Note that it's important to attach the buffer to a window
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.
     (mistty--pop-to-buffer buf other-window)
-    (with-current-buffer buf
-      (mistty--exec command)
-      buf)))
+    (with-current-buffer buf (mistty--exec command))
+    buf))
 
 ;;;###autoload
 (defun mistty-create-other-window (&optional command)

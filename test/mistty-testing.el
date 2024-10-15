@@ -177,6 +177,7 @@ window while BODY is running."
   (narrow-to-region start (point-max)))
 
 (defun mistty-test-setup (shell)
+  (mistty-mode)
   (cond
    ((eq shell 'bash)
     (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))

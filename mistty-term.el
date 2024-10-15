@@ -410,6 +410,15 @@ This variable is available in the work buffer.")
 
 They'll be processed once more data is passed to the next call.")
 
+(defvar-local mistty--original-cursor nil
+  "The local value `cursor-type' had before it was hidden.
+
+Will be nil even though the cursor is hidden if the cursor had no
+local value. `mistty--show-cursor' then restores the global
+value.
+
+Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
+
 (defun mistty--emulate-terminal (proc str work-buffer)
   "Handle process output as a terminal would.
 
@@ -477,11 +486,11 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
            ((equal ext "[?25h") ; make cursor visible
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty--with-live-buffer work-buffer
-              (setq cursor-type t)))
+              (mistty--show-cursor)))
            ((equal ext "[?25l") ; make cursor invisible
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty--with-live-buffer work-buffer
-              (setq cursor-type nil)))
+              (mistty--hide-cursor)))
            ((and osc (length= osc-terminator 0))
             (term-emulate-terminal proc (substring str start seq-start))
             ;; sequence is not finished; save it for later
@@ -750,6 +759,26 @@ with every prompt if the env variable INSIDE_EMACS is set."
 
     ;; unknown or unsupported Emacs-specific control sequence.
     (term-command-hook string)))
+
+(defun mistty--hide-cursor ()
+  "Temporarily hide the cursor.
+
+Does nothing if the cursor is already hidden."
+  (when cursor-type
+    (if (local-variable-p 'cursor-type)
+        (setq mistty--original-cursor cursor-type)
+      (setq mistty--original-cursor nil))
+    (setq cursor-type nil)))
+
+(defun mistty--show-cursor ()
+  "Show the cursor again, after `mistty--hide-cursor'.
+
+Does nothing if the cursor is already shown."
+  (when (and (local-variable-p 'cursor-type) (null cursor-type))
+    (if mistty--original-cursor
+        (setq cursor-type mistty--original-cursor
+              mistty--original-cursor nil)
+      (kill-local-variable 'cursor-type))))
 
 (provide 'mistty-term)
 

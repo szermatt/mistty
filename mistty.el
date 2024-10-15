@@ -2595,7 +2595,7 @@ This function fails if there is no current or previous output."
   (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
     ;; Show cursor again if the command moved the point.
     (when point-moved
-      (setq cursor-type t))
+      (mistty--show-cursor))
 
     (run-with-idle-timer
      0 nil #'mistty--post-command-1

@@ -939,18 +939,24 @@ setting a traditional prompt to confirm, then @ref{3,,file a bug}, whatever the 
 @subsection Bash
 
 
-A recent version of Bash is preferable. Bash 5.1 and later work best,
-as bracketed paste mode is on by default in that version.
+A recent version of Bash is preferable. Bash 5.1 or later is
+recommended.
 
-Older versions of Bash work, but with limitations, and it might
-behaves unexpectedly when yanking text containing special characters.
+MisTTY works best with shells that support bracketed paste. Without
+bracketed paste support, MisTTY will still work, but might behaves
+unexpectedly when yanking text containing special characters.
 
-To use Bash between 4.4 and 5.0 without these limitations, add the
-following to your @code{.inputrc}:
+Bash 4.5 to 5.0 supports bracketed paste, but it must be turned
+on in your @code{.inputrc}, as follows:
 
 @example
 set enable-bracketed-paste on
 @end example
+
+Bash versions older than 4.5 don’t support bracketed paste.
+
+Additionally, Bash versions older than 4.4 require extra setup to
+enable directory tracking, as documented in @ref{24,,Directory tracking}.
 
 @menu
 * Multi-line prompts:: 
@@ -982,6 +988,8 @@ prompt or go up the command history to a previous multi-line command.
 @subsubsection Directory tracking
 
 
+@geindex variable; mistty-set-EMACS
+
 Recent versions of @code{bash} already send the current directory
 when they detects that it’s called from Emacs with
 @code{TERM=eterm-color}. This works fine for local shell as well as remote
@@ -1003,6 +1011,26 @@ fi
 
 Such sequence are either ignored or understood by most terminals, so
 you don’t absolutely need to check TERM.
+
+Versions of @code{bash} older than 4.4 only enable directory
+tracking if the env variable EMACS is set. You can have MisTTY set
+this env variable when it starts a shell by going to @cite{M-x customize-option mistty-set-EMACS}. @code{mistty-set-EMACS} also
+works as a connection-local variable, to set the EMACS env variable
+only on some hosts that use an old version of @code{bash}.
+
+For example:
+
+@example
+(connection-local-set-profile-variables
+ 'profile-old-bash
+ '((mistty-set-EMACS . t)
+   (mistty-shell-command . ("/bin/bash" "-i"))))
+
+(connection-local-set-profiles '(:machine "oldhost.example.com")
+ 'profile-old-bash)
+(connection-local-set-profiles '(:protocol "docker")
+ 'profile-old-bash)"
+@end example
 
 @node VI mode,,Directory tracking,Bash
 @anchor{shells vi-mode}@anchor{2c}

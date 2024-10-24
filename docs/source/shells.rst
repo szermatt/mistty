@@ -8,19 +8,24 @@ Shells
 Bash
 ----
 
-A recent version of Bash is preferable. Bash 5.1 and later work best,
-as bracketed paste mode is on by default in that version.
+A recent version of Bash is preferable. Bash 5.1 or later is
+recommended.
 
-Older versions of Bash work, but with limitations, and it might
-behaves unexpectedly when yanking text containing special characters.
+MisTTY works best with shells that support bracketed paste. Without
+bracketed paste support, MisTTY will still work, but might behaves
+unexpectedly when yanking text containing special characters.
 
-To use Bash between 4.4 and 5.0 without these limitations, add the
-following to your :file:`.inputrc`:
+Bash 4.5 to 5.0 supports bracketed paste, but it must be turned
+on in your :file:`.inputrc`, as follows:
 
 .. code-block::
 
   set enable-bracketed-paste on
 
+Bash versions older than 4.5 don't support bracketed paste.
+
+Additionally, Bash versions older than 4.4 require extra setup to
+enable directory tracking, as documented in :ref:`bash_dirtrack`.
 
 Multi-line prompts
 ^^^^^^^^^^^^^^^^^^
@@ -43,6 +48,8 @@ prompt or go up the command history to a previous multi-line command.
 Directory tracking
 ^^^^^^^^^^^^^^^^^^
 
+.. index:: pair: variable; mistty-set-EMACS
+
 Recent versions of :program:`bash` already send the current directory
 when they detects that it's called from Emacs with
 :code:`TERM=eterm-color`. This works fine for local shell as well as remote
@@ -64,6 +71,27 @@ To do that, you might add the following to :file:`~/.bashrc`:
 
 Such sequence are either ignored or understood by most terminals, so
 you don't absolutely need to check TERM.
+
+Versions of :program:`bash` older than 4.4 only enable directory
+tracking if the env variable EMACS is set. You can have MisTTY set
+this env variable when it starts a shell by going to `M-x
+customize-option mistty-set-EMACS`. :code:`mistty-set-EMACS` also
+works as a connection-local variable, to set the EMACS env variable
+only on some hosts that use an old version of :program:`bash`.
+
+For example:
+
+.. code-block:: elisp
+
+  (connection-local-set-profile-variables
+   'profile-old-bash
+   '((mistty-set-EMACS . t)
+     (mistty-shell-command . ("/bin/bash" "-i"))))
+
+  (connection-local-set-profiles '(:machine "oldhost.example.com")
+   'profile-old-bash)
+  (connection-local-set-profiles '(:protocol "docker")
+   'profile-old-bash)"
 
 VI mode
 ^^^^^^^

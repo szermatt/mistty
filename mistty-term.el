@@ -64,6 +64,37 @@ the terminal buffer."
   :group 'mistty
   :type '(alist :key-type string :value-type function))
 
+(defcustom mistty-set-EMACS nil
+  "Whether the EMACS env variable should be set, for Bash 4.3 and older.
+
+You only need to set this if:
+ - you're stuck using a very old version of Bash (4.3 or older)
+ - you don't want to set up directory tracking using OSC7
+   as described in the manual
+
+When set, MisTTY sets the EMACS env variable, which Bash 4.3 and
+older check to decide whether to send out directory tracking
+information. (Newer version check INSIDE_EMACS instead.)
+
+As this is usually host-specific, it can be set as a
+connection-local variable. This might be useful when connecting
+with TRAMP to hosts or docker instances that use a very old
+version of Bash that you don't want to configure.
+
+For example:
+
+  (connection-local-set-profile-variables
+   \\='profile-old-bash
+   \\='((mistty-set-EMACS . t)
+     (mistty-shell-command . (\"/bin/bash\" \"-i\"))))
+
+  (connection-local-set-profiles \\='(:machine \"oldhost.example.com\")
+   \\='profile-old-bash)
+  (connection-local-set-profiles \\='(:protocol \"docker\")
+   \\='profile-old-bash)"
+  :group 'mistty
+  :type 'boolean)
+
 (defconst mistty-right-str "\eOC"
   "Sequence to send to the process when the rightarrow is pressed.")
 
@@ -604,7 +635,21 @@ This function returns the newly-created buffer."
 
 Must be called from the term buffer."
   (let ((buffer (current-buffer))
-        (name (buffer-name)))
+        (name (buffer-name))
+        ;; Bash versions older than 4.4 only turn on directory
+        ;; tracking if the env variable EMACS is set. To deal with
+        ;; that, term.el detects whether a version of bash older than
+        ;; 4.4 is installed and if it is, set this variable to 43.
+        ;; This logic doesn't work well on remote hosts. MisTTY
+        ;; disables that and replaces it with mistty-set-EMACS.
+        (term--bash-needs-EMACS-status 0)
+        (process-environment
+         (if (with-connection-local-variables mistty-set-EMACS)
+             (cons (format "EMACS=%s (term:%s)"
+                           emacs-version term-protocol-version)
+                   process-environment)
+           process-environment)))
+
     (if (not (file-remote-p default-directory))
         (term-exec buffer name program nil args)
 

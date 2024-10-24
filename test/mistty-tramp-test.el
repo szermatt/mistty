@@ -166,3 +166,27 @@
       (should (equal "*mistty@test.example*" (mistty-new-buffer-name))))
     (let ((default-directory "/sudo::/"))
       (should (equal "*mistty-root*" (mistty-new-buffer-name))))))
+
+(ert-deftest mistty-tramp-test-set-EMACS ()
+  (let* ((sg-prefix (mistty-test-sg-prefix))
+         (home (file-name-directory "/"))
+         (default-directory (concat sg-prefix home))
+         (connection-local-profile-alist nil)
+         (connection-local-criteria-alist nil)
+         (mistty-set-EMACS nil))
+
+    (mistty-with-test-buffer ()
+      (mistty-send-text "if test -n \"$EMACS\"; then echo set; else echo unset; fi")
+      (should (equal "unset" (mistty-send-and-capture-command-output))))
+
+    (connection-local-set-profile-variables
+     'test-profile
+     '((mistty-set-EMACS . t)))
+    (connection-local-set-profiles '(:protocol "sg") 'test-profile)
+
+    ;; This makes sure the connection-local setup above works.
+    (should (equal t (with-connection-local-variables mistty-set-EMACS)))
+
+    (mistty-with-test-buffer ()
+      (mistty-send-text "if test -n \"$EMACS\"; then echo set; else echo unset; fi")
+      (should (equal "set" (mistty-send-and-capture-command-output))))))

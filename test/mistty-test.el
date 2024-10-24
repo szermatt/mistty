@@ -4095,3 +4095,15 @@
   (let ((mistty-buffer-name '(mistty-buffer-name-shell))
         (mistty-shell-command '("/usr/bin/fish" "-i")))
     (should (equal "*fish*" (mistty-new-buffer-name)))))
+
+(ert-deftest mistty-test-set-EMACS ()
+  (let ((mistty-set-EMACS nil))
+    (mistty-with-test-buffer ()
+      (mistty-send-text "echo EMACS=${EMACS}")
+      (should (equal "EMACS=" (mistty-send-and-capture-command-output)))))
+  (let ((mistty-set-EMACS t))
+    (mistty-with-test-buffer ()
+      (mistty-send-text "echo EMACS=${EMACS}")
+      (should (equal (format "EMACS=%s (term:%s)"
+                           emacs-version term-protocol-version)
+                     (mistty-send-and-capture-command-output))))))

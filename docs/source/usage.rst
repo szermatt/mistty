@@ -521,7 +521,8 @@ it is possible to make that work, as described below.
    The simplest way to connect a host or docker instance you don't
    want to configure is to just start it as described in
    :ref:`remote_shells` and use :program:`Bash` as your shell.
-   Everything then just work out of the box.
+   Everything then just work out of the box, at least for :ref:`Bash
+   4.4 and later <bash_dirtrack>`.
 
 If you haven't already, configure your shell to tell Emacs about
 directory changes, even :program:`Bash`. This is described in

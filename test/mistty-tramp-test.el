@@ -54,7 +54,7 @@
     (connection-local-set-profile-variables
      'test-profile
      `((explicit-shell-file-name . ,mistty-test-zsh-exe)))
-    (connection-local-set-profiles '(:method "sg") 'test-profile)
+    (connection-local-set-profiles '(:protocol "sg") 'test-profile)
 
     ;; This makes sure the connection-local setup above works.
     (should (equal mistty-test-zsh-exe
@@ -84,7 +84,7 @@
     (connection-local-set-profile-variables
      'test-profile
      `((mistty-shell-command . ,mistty-test-zsh-exe)))
-    (connection-local-set-profiles '(:method "sg") 'test-profile)
+    (connection-local-set-profiles '(:protocol "sg") 'test-profile)
 
     ;; This makes sure the connection-local setup above works.
     (should (equal mistty-test-zsh-exe

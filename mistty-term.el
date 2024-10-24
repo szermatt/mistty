@@ -637,11 +637,12 @@ Must be called from the term buffer."
   (let ((buffer (current-buffer))
         (name (buffer-name))
         ;; Bash versions older than 4.4 only turn on directory
-        ;; tracking if the env variable EMACS is set. To deal with
-        ;; that, term.el detects whether a version of bash older than
-        ;; 4.4 is installed and if it is, set this variable to 43.
-        ;; This logic doesn't work well on remote hosts. MisTTY
-        ;; disables that and replaces it with mistty-set-EMACS.
+        ;; tracking if the env variable EMACS is set and contains
+        ;; "term". To deal with that, term.el detects whether a
+        ;; version of bash older than 4.4 is installed and if it is,
+        ;; set this variable to 43. This logic doesn't work well on
+        ;; remote hosts. MisTTY disables that and replaces it with
+        ;; mistty-set-EMACS.
         (term--bash-needs-EMACS-status 0)
         (process-environment
          (if (with-connection-local-variables mistty-set-EMACS)

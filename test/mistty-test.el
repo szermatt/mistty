@@ -1917,9 +1917,10 @@
 
 (ert-deftest mistty-test-eof ()
   (mistty-with-test-buffer ()
-    (mistty-send-text mistty-test-bash-exe)
-    (mistty-send-and-wait-for-prompt)
-    (mistty-send-and-wait-for-prompt (lambda () (mistty-send-key 1 "\C-d")))))
+    (mistty-send-key 1 "\C-d")
+    (let ((buf term-buffer)
+          (proc term-proc))
+    (mistty-wait-for-term-buffer-and-proc-to-die buf proc-proc))))
 
 (ert-deftest mistty-test-nobracketed-paste-delchar ()
   (mistty-with-test-buffer (:shell bash)

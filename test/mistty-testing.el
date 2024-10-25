@@ -33,8 +33,6 @@
   (defvar term-home-marker))
 
 (defvar mistty-test-bash-exe (executable-find "bash"))
-(defvar mistty-test-python-exe (or (executable-find "python3")
-                                   (executable-find "python")))
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
 
@@ -88,14 +86,14 @@ the symbol of the expected issues, in order.")
   "Run BODY in a MisTTY buffer.
 
 SHELL specifies the program that is run in that buffer, bash,
-zsh, fish or python.
+zsh, or fish.
 
 If SELECTED is non-nil, make sure the buffer is in a selected
 window while BODY is running."
   (declare (indent 1))
   (let ((exec-var (intern (concat "mistty-test-" (symbol-name shell) "-exe"))))
     `(progn
-       ,(if (memq shell '(bash python))
+       ,(if (memq shell '(bash))
             `(should ,exec-var)
           `(skip-unless ,exec-var))
        (ert-with-test-buffer ()
@@ -103,9 +101,6 @@ window while BODY is running."
                (mistty-max-try-count mistty-test-max-try-count)
                (mistty-timeout-s mistty-test-timeout-s)
                (mistty-stable-delay-s mistty-test-stable-delay-s)
-               (mistty-test-prompt ,(if (eq shell 'python)
-                                        ">>> "
-                                      'mistty-test-prompt))
                (mistty-backlog-size 500)
                (mistty-test-ok nil)
                (mistty-test-had-issues nil)
@@ -217,14 +212,6 @@ window while BODY is running."
               "bind \\b backward-delete-char; ")))
     (mistty-run-command)
     (mistty-send-and-wait-for-prompt (lambda ())))
-
-   ((eq shell 'python)
-    (mistty--exec mistty-test-python-exe)
-    (mistty-wait-for-output :str ">>> ")
-    (mistty-run-command)
-    (save-excursion
-      (mistty-test-goto ">>> ")
-      (mistty-test-narrow (point))))
 
    (t (error "Unsupported shell %s" shell))))
 
@@ -539,6 +526,12 @@ redraw everything."
   (pcase-let ((`("/bin/sh" "-c" ,_ ".." ,command . _)
                (process-get mistty-proc 'remote-command)))
     command))
+
+(defun mistty-test-nobracketed-paste ()
+  "Disable bracketed paste in a Bash shell."
+  (mistty-send-text "bind 'set enable-bracketed-paste off'")
+  (setq next-prompt-start (mistty-send-and-wait-for-prompt))
+  (mistty-test-narrow next-prompt-start))
 
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.

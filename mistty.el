@@ -2072,8 +2072,8 @@ forwards the argument to it."
              (eq last-command this-command)
              mistty-proc ;; doesn't have to be running
              (/= (point) (mistty-cursor)))
-        (mistty-goto-cursor)
-      (mistty-end-of-line n))))
+        (progn (mistty-log "goto cursor") (mistty-goto-cursor))
+      (progn (mistty-log "goto eol %s" n) (mistty-end-of-line n)))))
 
 (defun mistty-end-of-line (&optional n)
   "Move the point to the end of the Nth line.

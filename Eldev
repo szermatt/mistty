@@ -37,13 +37,6 @@
   :for-command    test
   (setq mistty-test-fish-exe (executable-find path)))
 
-(eldev-defoption mistty-test-python-exe (&optional path)
-  "Tests look for Python at PATH."
-  :options        (--python)
-  :optional-value PATH
-  :for-command    test
-  (setq mistty-test-python-exe (executable-find path)))
-
 (defvar mistty-test-ci nil)
 (eldev-defoption mistty-test-ci ()
   "Let tests know they're running on CI."

@@ -104,15 +104,16 @@
                            " <>")
                    (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-reconcile-delete-python ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "print")
+(ert-deftest mistty-test-reconcile-delete-nobracketed-paste ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+    (mistty-send-text "echo")
 
     (mistty-run-command
-     (delete-region (mistty-test-pos "print")
-                    (mistty-test-pos-after "print")))
+     (delete-region (mistty-test-pos "echo")
+                    (mistty-test-pos-after "echo")))
 
-    (should (equal ">>> <>" (mistty-test-content :show (point))))))
+    (should (equal "$ <>" (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-reconcile-large-multiline-delete ()
   (mistty-with-test-buffer (:shell fish)
@@ -514,47 +515,73 @@
      (call-interactively #'mistty-end-of-line-or-goto-cursor))
     (should (equal (point) (mistty-test-goto-after "world")))))
 
-(ert-deftest mistty-test-bol-eol-in-possible-prompt ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "print('hello, world %d' % (1+1))")
+(ert-deftest mistty-test-no-bracketed-paste-bol-eol-in-possible-prompt ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+
+    (mistty-send-text "txt=world; echo hello $txt")
     (mistty-send-and-wait-for-prompt)
-    (mistty-send-text "2+3+4")
+    (mistty-send-text "echo foo")
 
-    (mistty-test-goto "world %d")
+    ;; on an old prompt
+    (mistty-test-goto "hello $txt")
+    (should (equal
+             "$ txt=world; echo <>hello $txt\nhello world\n$ echo foo"
+             (mistty-test-content :show (point))))
     (mistty-run-command
-     (call-interactively #'mistty-end-of-line-or-goto-cursor))
-    (should (equal (point) (mistty-test-goto-after "1+1))")))
+     (let ((last-command nil)
+           (this-command 'mistty-end-of-line-or-goto-cursor))
+       (call-interactively #'mistty-end-of-line-or-goto-cursor)))
+    (should (equal
+             "$ txt=world; echo hello $txt<>\nhello world\n$ echo foo"
+             (mistty-test-content :show (point))))
 
     (mistty-run-command
-     (call-interactively #'mistty-beginning-of-line))
-    (should (equal (point) (mistty-test-goto ">>> print")))
+     (let ((last-command nil)
+           (this-command 'mistty-beginning-of-line))
+       (call-interactively #'mistty-beginning-of-line)))
+    (should (equal
+             "<>$ txt=world; echo hello $txt\nhello world\n$ echo foo"
+             (mistty-test-content :show (point))))
 
     ;; not on any prompt
-    (mistty-test-goto "world 2")
+    (mistty-test-goto "hello world")
     (mistty-run-command
-     (call-interactively #'mistty-beginning-of-line))
-    (should (equal (point) (mistty-test-goto "hello, world 2")))
+     (let ((last-command nil)
+           (this-command 'mistty-beginning-of-line))
+       (call-interactively #'mistty-beginning-of-line)))
+    (should (equal
+             "$ txt=world; echo hello $txt\n<>hello world\n$ echo foo"
+             (mistty-test-content :show (point))))
 
-    (mistty-test-goto "world 2")
+    (mistty-test-goto "hello world")
     (mistty-run-command
-     (call-interactively #'mistty-end-of-line-or-goto-cursor))
-    (should (equal (point) (mistty-test-goto-after "hello, world 2")))
+     (let ((last-command nil)
+           (this-command 'mistty-end-of-line-or-goto-cursor))
+       (call-interactively #'mistty-end-of-line-or-goto-cursor)))
+    (should (equal
+             "$ txt=world; echo hello $txt\nhello world<>\n$ echo foo"
+             (mistty-test-content :show (point))))
 
     ;; on the (new) prompt (sending C-a/C-e, so the BOL position
     ;; doesn't include the prompt and we must use wait-for-output.)
-    (mistty-test-goto "3")
+    (mistty-test-goto "foo")
     (mistty-run-command
-     (call-interactively #'mistty-beginning-of-line))
+     (let ((last-command nil)
+           (this-command 'mistty-beginning-of-line))
+       (call-interactively #'mistty-beginning-of-line)))
     (mistty-wait-for-output
      :test (lambda ()
-             (equal (point) (mistty-test-goto "2+3+4"))))
+             (equal (point) (mistty-test-goto "echo foo"))))
 
-    (mistty-test-goto "3")
+    (mistty-test-goto "foo")
     (mistty-run-command
-     (call-interactively #'mistty-end-of-line-or-goto-cursor))
+     (let ((last-command nil)
+           (this-command 'mistty-beginning-of-line))
+       (call-interactively #'mistty-end-of-line-or-goto-cursor)))
     (mistty-wait-for-output
      :test (lambda ()
-             (equal (point) (mistty-test-goto-after "2+3+4"))))))
+             (equal (point) (mistty-test-goto-after "echo foo"))))))
 
 (ert-deftest mistty-test-eol-empty-prompt ()
   (mistty-with-test-buffer ()
@@ -977,21 +1004,22 @@
                     "$ echo current")
             (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-next-input-python ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "1 + 1")
-    (mistty-send-and-wait-for-prompt nil ">>> ")
-    (mistty-send-text "2 + 2")
+(ert-deftest mistty-test-next-input-nobracketed-paste ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+    (mistty-send-text "echo $((1 + 1))")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo $((2 + 2))")
     (goto-char mistty-test-content-start)
     (mistty-next-input 1)
-    (should (equal (concat ">>> 1 + 1\n"
+    (should (equal (concat "$ echo $((1 + 1))\n"
                            "2\n"
-                           "<>>>> 2 + 2")
+                           "<>$ echo $((2 + 2))")
                    (mistty-test-content :show (point))))
     (mistty-previous-input 1)
-    (should (equal (concat "<>>>> 1 + 1\n"
+    (should (equal (concat "<>$ echo $((1 + 1))\n"
                            "2\n"
-                           ">>> 2 + 2")
+                           "$ echo $((2 + 2))")
                    (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-next-output ()
@@ -1863,67 +1891,70 @@
               "say something>> ")
              mistty--possible-prompt))))
 
-(ert-deftest mistty-test-python-just-type ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "1 + 1")
-    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+(ert-deftest mistty-test-nobracketed-paste-just-type ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+    (mistty-send-text "echo ok")
+    (should (equal "ok" (mistty-send-and-capture-command-output)))
 
     ;; the input was identified and labelled
     (mistty-previous-input 1)
-    (should (looking-at (regexp-quote ">>> 1 + 1")))))
+    (should (looking-at (regexp-quote "$ echo ok")))))
 
-(ert-deftest mistty-test-python-move-and-type ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "10 * 10")
+(ert-deftest mistty-test-nobracketed-paste-move-and-type ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+    (mistty-send-text "echo ack")
     (mistty-run-command
-     (mistty-test-goto "10 * 10")
-     (goto-char (1+ (point))))
+     (mistty-test-goto "ack"))
     (mistty-run-command
-     (mistty-send-key 1 "0"))
-    (should (equal "1000" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+     (mistty-send-key 1 "n"))
+    (should (equal "nack" (mistty-send-and-capture-command-output)))
 
     ;; the input was identified and labelled
     (mistty-previous-input 1)
-    (should (looking-at (regexp-quote ">>> 100 * 10")))))
+    (should (looking-at (regexp-quote "$ echo nack")))))
 
-(ert-deftest mistty-test-python-eof ()
+(ert-deftest mistty-test-eof ()
   (mistty-with-test-buffer ()
-    (should mistty-test-python-exe)
-    (mistty-send-text mistty-test-python-exe)
-    (mistty-send-and-wait-for-prompt nil ">>> ")
+    (mistty-send-text mistty-test-bash-exe)
+    (mistty-send-and-wait-for-prompt)
     (mistty-send-and-wait-for-prompt (lambda () (mistty-send-key 1 "\C-d")))))
 
-(ert-deftest mistty-test-python-delchar ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "11 + 1")
+(ert-deftest mistty-test-nobracketed-paste-delchar ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+    (mistty-send-text "echo nok")
     (mistty-run-command
-     (mistty-test-goto "11 + 1")
+     (mistty-test-goto "nok")
      (mistty-send-key 1 "\C-d"))
     ;; deleted the first 1, the command-line is now 1 + 1
-    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))))
+    (should (equal "ok" (mistty-send-and-capture-command-output)))))
 
-(ert-deftest mistty-test-python-edit-prompt ()
-  (mistty-with-test-buffer (:shell python)
-    (let ((start (- (point) 4)))
-      (mistty-run-command
-       (insert "10 * 10"))
+(ert-deftest mistty-test-nobracketed-paste-edit-prompt ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+    (mistty-run-command
+     (insert "echo ok"))
 
-      (should (equal "100" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+    (should (equal "ok" (mistty-send-and-capture-command-output)))
 
-      ;; the input was identified and labelled
-      (mistty-previous-input 1)
-      (should (equal "<>>>> 10 * 10\n100\n>>>"
-                     (mistty-test-content :start start :show (point)))))))
+    ;; the input was identified and labelled
+    (mistty-previous-input 1)
+    (should (equal "<>$ echo ok\nok\n$"
+                   (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-python-edit-before-prompt ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "1 + 1")
+(ert-deftest mistty-test-nobracketed-paste-edit-before-prompt ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+
+    (mistty-send-text "echo $((1 + 1))")
     (should (equal "2" (mistty-send-and-capture-command-output)))
 
-    (mistty-send-text "3 + 3")
+    (mistty-send-text "echo $((3 + 3))")
     (should (equal "6" (mistty-send-and-capture-command-output)))
 
-    (mistty-send-text "5 + 5")
+    (mistty-send-text "echo $((5 + 5))")
 
     (mistty-run-command
      (goto-char (point-min))
@@ -1931,29 +1962,7 @@
        (replace-match "*")))
 
     ;; The last prompt became 5 * 5
-    (should (equal "25" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
-
-    ;; the text of the previous prompts was modified, too.
-    (mistty-test-goto "1 * 1")
-    (mistty-test-goto "3 * 3")))
-
-(ert-deftest mistty-test-more-edit-before-prompt ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "1 + 1")
-    (should (equal "2" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
-
-    (mistty-send-text "3 + 3")
-    (should (equal "6" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
-
-    (mistty-send-text "5 + 5")
-
-    (mistty-run-command
-     (goto-char (point-min))
-     (while (search-forward "+" nil 'noerror)
-       (replace-match "*")))
-
-    ;; The last prompt became 5 * 5
-    (should (equal "25" (mistty-send-and-capture-command-output nil nil nil ">>> ")))
+    (should (equal "25" (mistty-send-and-capture-command-output)))
 
     ;; the text of the previous prompts was modified, too.
     (mistty-test-goto "1 * 1")
@@ -2350,15 +2359,16 @@
       "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n"
       (mistty--safe-bufstring mistty-sync-marker (point-max))))))
 
-(ert-deftest mistty-test-end-prompt-python ()
-  (mistty-with-test-buffer (:shell python)
-    (mistty-send-text "print('hello, world')")
+(ert-deftest mistty-test-end-prompt-nobracketed-paste ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-nobracketed-paste)
+    (mistty-send-text "echo 'hello, world'")
     (mistty-send-and-wait-for-prompt)
     (should (equal
              (concat
-              ">>> print('hello, world')\n"
+              "$ echo 'hello, world'\n"
               "<>hello, world\n"
-              ">>>")
+              "$")
              (mistty-test-content
               :show mistty-sync-marker)))))
 

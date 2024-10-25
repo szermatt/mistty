@@ -1917,10 +1917,10 @@
 
 (ert-deftest mistty-test-eof ()
   (mistty-with-test-buffer ()
-    (let ((buf term-buffer)
-          (proc term-proc))
+    (let ((buf mistty-term-buffer)
+          (proc mistty-proc))
       (mistty-send-key 1 "\C-d")
-      (mistty-wait-for-term-buffer-and-proc-to-die buf proc-proc))))
+      (mistty-wait-for-term-buffer-and-proc-to-die buf proc))))
 
 (ert-deftest mistty-test-nobracketed-paste-delchar ()
   (mistty-with-test-buffer (:shell bash)

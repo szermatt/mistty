@@ -89,3 +89,8 @@
   (mistty--remove-text-with-property 'mistty-skip t)
   (should (equal "abc def"
                  (mistty--safe-bufstring (point-min) (point-max)))))
+
+(ert-deftest mistty-util-test-truncate-string ()
+  (should (equal "abcd" (mistty--truncate-string "abcd" 5)))
+  (should (equal "abcd" (mistty--truncate-string "abcd" 4)))
+  (should (equal "abc..." (mistty--truncate-string "abcd" 3))))

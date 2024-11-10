@@ -2543,7 +2543,20 @@ With an argument, clear from the end of the last Nth output."
 
 If called with no arguments and the point is on an output, create
 a buffer with that output."
-  (interactive "BNew buffer name: \nP")
+  (interactive
+   (list (read-buffer
+          "New buffer name: "
+          ;; Generate a reasonable default new buffer name.
+          (generate-new-buffer-name
+           (mistty--truncate-string
+            (or
+             (condition-case nil
+                 (mistty--command-for-output
+                  current-prefix-arg)
+               (error nil))
+             "command output")
+            30)))
+          current-prefix-arg))
   (let ((range (mistty--current-or-previous-output-range n))
         (buffer (generate-new-buffer buffer-name)))
     (copy-to-buffer buffer (car range) (cdr range))
@@ -2551,6 +2564,35 @@ a buffer with that output."
       (set-auto-mode 'keep-mode-if-sane))
     (pop-to-buffer buffer)
     buffer))
+
+(defun mistty--command-for-output (&optional n)
+  "Extract command for the Nth output, if possible.
+
+Note that this is VERY UNRELIABLE. It won't work with multi-line
+commands and might contain parts of the prompt. Use it only in
+cases where reliability doesn't matter.
+
+Return nil if no command could be extracted."
+  (let* ((range (mistty--current-or-previous-output-range n))
+         (eol (mistty--eol (car range) 0))
+         (bol (mistty--bol eol))
+         (command
+          (save-excursion
+            (goto-char bol)
+            (when (search-forward-regexp
+                   "\\(^\\|[[:blank:]]\\)\\([[:alpha:]]+\\)"
+                   eol 'noerror)
+              (goto-char (match-beginning 2)))
+            (string-trim
+             (buffer-substring-no-properties
+              (point)
+              (or (text-property-any
+                   (point) eol 'mistty-right-prompt t)
+                  eol))))))
+    (when (and (length> command 0)
+               (not (string-match-p
+                     "^\\(end\\|done\\|fi\\)" command)))
+      command)))
 
 (defun mistty--current-or-previous-output-range (&optional n)
   "Return the range of the current or the Nth output.

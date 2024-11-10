@@ -141,6 +141,14 @@ of failing."
                      (get-char-code-property (aref key 0)
                                              'general-category)))))
 
+(defun mistty--truncate-string (str n)
+  "Truncate STR to N chars, if necessary.
+
+Add an ellipsis if STR is truncated."
+  (if (length> str n)
+      (concat (substring str 0 n) "...")
+    str))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

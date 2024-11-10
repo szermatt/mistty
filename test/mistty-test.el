@@ -3551,15 +3551,51 @@
   (mistty-with-test-buffer ()
     (mistty-send-text "printf '#!/bin/bash\\necho ok\\n'")
     (mistty-send-and-wait-for-prompt)
-    (let* ((bufname (concat "new buffer for %s" (buffer-name)))
-           (newbuf (mistty-create-buffer-with-output bufname)))
+    (let ((newbuf (ert-simulate-keys
+                   (kbd "RET")
+                   (call-interactively 'mistty-create-buffer-with-output))))
       (unwind-protect
           (with-current-buffer newbuf
-            (should (equal bufname (buffer-name)))
             (should (equal "#!/bin/bash\necho ok\n"
                            (buffer-substring-no-properties (point-min) (point-max))))
+            (should (equal "printf '#!/bin/bash\\necho ok\\n..."
+                           (buffer-name)))
             ;; mode should be recognized thanks to the shebang
             (should (equal 'sh-mode major-mode)))
+        (kill-buffer newbuf)))))
+
+(ert-deftest mistty-test-create-buffer-with-prev-n-output ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo world")
+    (mistty-send-and-wait-for-prompt)
+    (let* ((current-prefix-arg 2)
+           (newbuf (ert-simulate-keys
+                   (kbd "RET")
+                   (call-interactively 'mistty-create-buffer-with-output))))
+      (unwind-protect
+          (with-current-buffer newbuf
+            (should (equal "hello\n"
+                           (buffer-substring-no-properties (point-min) (point-max))))
+            (should (equal "echo hello"
+                           (buffer-name))))
+        (kill-buffer newbuf)))))
+
+(ert-deftest mistty-test-create-buffer-with-prev-output-multiline ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "for i in hello world; do\n echo $i\n done"))
+    (mistty-send-and-wait-for-prompt)
+    (let ((newbuf (ert-simulate-keys
+                   (kbd "RET")
+                   (call-interactively 'mistty-create-buffer-with-output))))
+      (unwind-protect
+          (with-current-buffer newbuf
+            (should (equal "hello\nworld\n"
+                           (buffer-substring-no-properties (point-min) (point-max))))
+            ;; Extracting the command line failed
+            (should (equal "command output" (buffer-name))))
         (kill-buffer newbuf)))))
 
 (ert-deftest mistty-test-create-buffer-with-current-output ()
@@ -3568,11 +3604,13 @@
     (mistty-send-and-wait-for-prompt)
     (mistty-test-goto "echo content")
     (forward-line)
-    (let* ((bufname (concat "new buffer for %s" (buffer-name)))
-           (newbuf (mistty-create-buffer-with-output bufname)))
+    (let ((newbuf (ert-simulate-keys
+                   (kbd "RET")
+                   (call-interactively 'mistty-create-buffer-with-output))))
       (unwind-protect
           (with-current-buffer newbuf
-            (should (equal "content" (mistty-test-content))))
+            (should (equal "content" (mistty-test-content)))
+            (should (equal "echo content" (buffer-name))))
         (kill-buffer newbuf)))))
 
 (ert-deftest mistty-test-create ()

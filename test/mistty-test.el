@@ -4156,3 +4156,20 @@
       (should (equal (format "EMACS=%s (term:%s)"
                            emacs-version term-protocol-version)
                      (mistty-send-and-capture-command-output))))))
+
+(ert-deftest mistty-test-change-term-colors ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo hello")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo world")
+
+    ;; This just tests that there's no background or foreground color
+    ;; set. Anything that deals with actual color is going to fail
+    ;; when run from batch, so we can't look at the real colors in
+    ;; this test.
+    (pcase-dolist (`(,beg ,end ,props) (mistty--save-properties (point-min)))
+      (pcase (plist-get props 'font-lock-face)
+        (`(,face-props . rest)
+         (should (equal nil (plist-get (car pvalue) :foreground)))
+         (should (equal nil (plist-get (car pvalue) :background))))
+        (_)))))

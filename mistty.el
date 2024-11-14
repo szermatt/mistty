@@ -2250,7 +2250,7 @@ returns nil."
            (move-marker old-end (1- old-end))
            (setq old-length (1- old-length)))
 
-         (mistty-log "replay: %s %s %s old-content: %s (limit: [%s-%s])"
+         (mistty-log "replay: %s %s %s old-content: '%s' (limit: [%s-%s])"
                      (marker-position orig-beg)
                      content
                      old-length

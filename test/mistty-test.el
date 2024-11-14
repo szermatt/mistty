@@ -4185,3 +4185,31 @@
          (should (equal nil (plist-get (car pvalue) :foreground)))
          (should (equal nil (plist-get (car pvalue) :background))))
         (_)))))
+
+(ert-deftest mistty-test-scroll-window-up ()
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (let ((win (selected-window)))
+      (dotimes (_ (window-height))
+        (mistty-send-text "echo hello")
+        (mistty-send-and-wait-for-prompt))
+      (mistty-send-text "fi")
+      (recenter nil 'redisplay)
+      ;; Command completion should display a few lines below the
+      ;; prompt. Since we're at the bottom of the window, these
+      ;; lines would normally not be visible.
+      (mistty-run-command
+       (mistty-tab-command))
+      (let ((wstart (window-start win))
+            (wend (if (interactive-p)
+                      (window-end win t)
+                    ;; We can't trust (window-end win t) in batch tests, so
+                    ;; we compute the end manually.
+                    (save-excursion
+                      (goto-char (window-start win))
+                      (forward-line (1+ (window-height)))
+                      (point)))))
+        (should (equal "" (mistty-test-content :start wend)))
+        (should (> (point) wstart))
+        (should (< (point) wend))
+        (should (> (point-max) wstart))
+        (should (<= (point-max) wend))))))

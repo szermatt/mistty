@@ -1310,6 +1310,21 @@ PROC is the calling shell process and STR the string it sent."
 
         (mistty--cancel-timeout mistty--queue)
         (mistty--refresh)
+
+        ;; If there's something below the point in a prompt, scroll
+        ;; the window up so it's visible. Emacs won't do it on its
+        ;; own, since the point would still be visible in such a case.
+        (when (and (equal (point) (mistty-cursor))
+                   (mistty-on-prompt-p (point))
+            (let* ((pos (point))
+                   (end (mistty--last-non-ws))
+                   (lines-after-point (count-lines (point) end)))
+              (when (> lines-after-point 1)
+                (dolist (win (get-buffer-window-list))
+                  (when (and (equal pos (window-point win))
+                             (not (pos-visible-in-window-p end win)))
+                    (recenter (- lines-after-point))))))))
+
         (mistty--maybe-truncate-when-idle)
         (mistty--dequeue mistty--queue 'intermediate)
         (mistty--dequeue-with-timer mistty--queue 'stable))))))

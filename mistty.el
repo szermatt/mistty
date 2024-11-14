@@ -2238,9 +2238,20 @@ returns nil."
 
          (move-marker beg orig-beg)
          (if (< old-length 0)
-             (progn
-               (setq old-length (- (point-max) orig-beg))
-               (move-marker old-end (point-max)))
+             (let ((end
+                    ;; When looking for the end of the text to be
+                    ;; deleted marked with old-length=-1, ignore the
+                    ;; final \n or anything marked mistty-skip, as
+                    ;; these cannot be deleted.
+                    (save-excursion
+                      (goto-char (point-max))
+                      (when (eq (char-before) ?\n)
+                        (goto-char (1- (point))))
+                      (while (get-text-property (1- (point)) 'mistty-skip)
+                        (goto-char (1- (point))))
+                      (point))))
+               (setq old-length (if (> end orig-beg) (- end orig-beg) 0))
+               (move-marker old-end (max orig-beg end)))
            (move-marker old-end (+ orig-beg old-length)))
 
          ;; never delete the final \n that some shells add.

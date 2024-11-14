@@ -2898,6 +2898,18 @@
             (should (string-match "\\$ <>" (mistty-test-content :show (point)))))
         (advice-remove 'mistty--refresh after-refresh)))))
 
+(ert-deftest mistty-test-fish-right-prompt-delete-whole-line ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-setup-fish-right-prompt)
+
+    (mistty-send-text "echo hello")
+    (mistty-run-command
+     (mistty-beginning-of-line))
+    (should (string-match "^\$ <>echo hello +< right$" (mistty-test-content :show (mistty-cursor))))
+    (mistty-run-command
+     (kill-line))
+    (should (string-match "^\$ <> +< right$" (mistty-test-content :show (mistty-cursor))))))
+
 (ert-deftest mistty-test-distance-with-fake-nl ()
   (ert-with-test-buffer ()
     (let ((fake-nl (propertize "\n" 'term-line-wrap t)))

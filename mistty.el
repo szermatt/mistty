@@ -194,7 +194,7 @@ Set to 0 to disable truncation."
 
 (defcustom mistty-forbid-edit-regexps
   '( ;; fish:
-    "^search: .*\n\\(►\\|(no matches)\\)"
+    "^search: "
     ;; bash:
     "^(reverse-i-search)"
     ;; zsh:
@@ -203,7 +203,9 @@ Set to 0 to disable truncation."
 
 These regexps are meant to detect modes in which shells turn off
 line editing in favor of direct interactions. The shell's reverse
-history search are typically such a mode.
+history search are typically such a mode. The regexps apply to
+the region starting at the beginning of the line containing the
+point. They usually start with ^ to detect a specialized prompt.
 
 While the forbid edit mode is active, the status mode line shows
 \"FE:run\" instead of just \":run\".
@@ -1556,7 +1558,7 @@ Also updates prompt and point."
                (setq mistty--has-active-prompt (> cursor prompt-beg)))))
 
          ;; Turn mistty-forbid-edit on or off
-         (let ((forbid-edit (mistty--match-forbid-edit-regexp-p mistty-sync-marker)))
+         (let ((forbid-edit (mistty--match-forbid-edit-regexp-p)))
            (cond
             ((and forbid-edit (not mistty--forbid-edit))
              (setq mistty--forbid-edit t)
@@ -1648,18 +1650,26 @@ For `mistty-simulate-self-insert'."
   ;; call the next hooks
   nil)
 
-(defun mistty--match-forbid-edit-regexp-p (beg)
+(defun mistty--match-forbid-edit-regexp-p ()
   "Return t if `mistty-forbid-edit-regexp' matches, nil otherwise.
 
-The region searched is BEG to end of buffer."
-  (let ((regexps mistty-forbid-edit-regexps)
-        (match nil))
-    (while (and (not match) regexps)
-      (save-excursion
-        (goto-char beg)
-        (setq match (search-forward-regexp
-                     (pop regexps) nil 'noerror))))
-    (if match t nil)))
+The region searched is from the line containing the cursor to end
+of buffer. The match must start on the line containing the
+cursor to be considered."
+  (when (process-live-p mistty-proc)
+    (let* ((pos (mistty-cursor))
+           (bol (mistty--bol pos))
+           (eol (mistty--eol pos))
+           (regexps mistty-forbid-edit-regexps)
+           (match nil))
+      (while (and (not match) regexps)
+        (save-excursion
+          (goto-char bol)
+          (when (and (search-forward-regexp (pop regexps) nil 'noerror)
+                     (>= (match-beginning 0) bol)
+                     (< (match-beginning 0) eol))
+            (setq match t))))
+      match)))
 
 (defun mistty--sync-buffer (source-buffer &optional quick)
   "Copy the sync region of SOURCE-BUFFER to the current buffer.

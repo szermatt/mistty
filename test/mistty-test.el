@@ -3032,8 +3032,7 @@
       (should killed))))
 
 (ert-deftest mistty-test-forbid-edit ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-key 1 (kbd "C-r"))
       (mistty-wait-for-output :str "search:" :start (point-min))
@@ -3060,8 +3059,7 @@
       (should (equal ":run" mode-line-process)))))
 
 (ert-deftest mistty-test-exit-forbid-edit ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-key 1 (kbd "C-r"))
       (mistty-wait-for-output :str "search:" :start (point-min))
@@ -3081,8 +3079,7 @@
       (should (not mistty--forbid-edit)))))
 
 (ert-deftest mistty-test-forbid-edit-map ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish :selected t)
       (mistty-send-text "echo first")
       (mistty-send-and-wait-for-prompt)
@@ -3117,8 +3114,7 @@
                       :start mistty-sync-marker :show (point)))))))
 
 (ert-deftest mistty-test-forbid-edit-insert ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-text "echo first")
       (mistty-send-and-wait-for-prompt)
@@ -3145,8 +3141,7 @@
                      (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-forbid-edit-ignore-insert-after-cursor ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-text "echo first")
       (mistty-send-and-wait-for-prompt)
@@ -3175,8 +3170,7 @@
                      (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-forbid-edit-ignore-insert-before-cursor ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-text "echo first")
       (mistty-send-and-wait-for-prompt)
@@ -3204,8 +3198,7 @@
                      (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-forbid-edit-delete ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-text "echo first")
       (mistty-send-and-wait-for-prompt)
@@ -3231,8 +3224,7 @@
                      (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-forbid-edit-ignore-delete-after-cursor ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-text "echo first")
       (mistty-send-and-wait-for-prompt)
@@ -3260,8 +3252,7 @@
                      (mistty-test-content))))))
 
 (ert-deftest mistty-test-forbid-edit-ignore-delete-before-cursor ()
-  (let ((mistty-forbid-edit-regexps
-         '("^search: .*\n\\(►\\|(no matches)\\)")))
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
     (mistty-with-test-buffer (:shell fish)
       (mistty-send-text "echo first")
       (mistty-send-and-wait-for-prompt)
@@ -3286,6 +3277,44 @@
                              "search: echo se\n"
                              "► echo second")
                      (mistty-test-content))))))
+
+(ert-deftest mistty-test-forbid-edit-search-in-completion ()
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
+    (mistty-with-test-buffer (:shell fish)
+      (dotimes (i 4)
+        (mistty-send-text (format "function foobar_%s; echo foobar %s; end" i i))
+        (mistty-send-and-wait-for-prompt))
+      (mistty-send-text "fooba")
+      (let ((start (point)))
+        (mistty-run-command
+         (mistty-tab-command))
+        (mistty-wait-for-output :str "foobar_" :start start)
+        (mistty-send-key 1 (kbd "C-s"))
+        (mistty-wait-for-output :str "search:" :start (point-min))
+        (should mistty--forbid-edit)
+
+        (mistty-send-text "2")
+
+        ;; 1st RET leaves the mode, 2nd executes the command.
+        (mistty-send-key 2 (kbd "RET"))
+
+        (mistty-wait-for-output :str "foobar 2" :start start)
+        (should-not mistty--forbid-edit)))))
+
+(ert-deftest mistty-test-forbid-wrong-position ()
+  (let ((mistty-forbid-edit-regexps '("^search: ")))
+    ;; This test tries to confuse MisTTY by having fish
+    ;; echo search:.
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo foobar")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo search:")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo")
+      (mistty-run-command
+       (mistty-tab-command))
+      (mistty-wait-for-output :str "search:")
+      (should-not mistty--forbid-edit))))
 
 (ert-deftest mistty-test-sync-history ()
   (mistty-with-test-buffer ()

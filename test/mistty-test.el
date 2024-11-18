@@ -4242,3 +4242,35 @@
         (should (< (point) wend))
         (should (> (point-max) wstart))
         (should (<= (point-max) wend))))))
+
+(ert-deftest mistty-test-keep-active-mark-on-prompt ()
+  (mistty-with-test-buffer ()
+    (transient-mark-mode 1)
+
+    (mistty-send-text "echo hello, world")
+    (mistty-test-goto "hello")
+
+    ;; The terminal moving the cursor should not deactivate the mark.
+    (mistty-run-command
+     (set-mark (point)))
+    (mistty-run-command
+     (call-interactively #'mistty-end-of-line-or-goto-cursor))
+    (should mark-active)
+    (should (equal "hello, world"
+                   (buffer-substring-no-properties (mark) (point))))))
+
+(ert-deftest mistty-test-deactivate-mark-on-send ()
+  (mistty-with-test-buffer ()
+    (transient-mark-mode 1)
+
+    (mistty-send-text "echo hello, world")
+    (mistty-run-command
+     (mistty-test-goto "hello")
+     (set-mark (point)))
+    (mistty-send-text "hello,")
+    (mistty-send-and-wait-for-prompt #'mistty-send-command)
+    (should-not mark-active)
+
+    ;; The mark is still available, just inactive.
+    (should (equal "$ echo hello,hello, world\nhello,hello, world\n$ "
+                   (buffer-substring-no-properties (mark) (point))))))

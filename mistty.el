@@ -1351,15 +1351,11 @@ PROC is the calling shell process and STR the string it sent."
       (mistty--detect-possible-prompt (point)))))
 
 (defun mistty-goto-cursor ()
-  "Move the point to the terminal's cursor.
-
-This also deactivates the mark, as the resulting of moving the
-point while the mark is active can be surprising."
+  "Move the point to the terminal's cursor."
   (interactive)
   (mistty--require-proc)
   (let ((cursor (mistty--safe-pos (mistty-cursor))))
     (when (/= cursor (point))
-      (deactivate-mark)
       (goto-char cursor)
       (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
         (when (= cursor (window-point win))
@@ -1866,8 +1862,12 @@ instead `mistty--move-sync-mark-with-shift' or
   (mistty--enqueue-str mistty--queue str))
 
 (defun mistty-send-command ()
-  "Send the current command to the shell."
+  "Send the current command to the shell.
+
+This also deactivates the mark, as it looks strange otherwise to
+have the command prompt and output marked."
   (interactive)
+  (deactivate-mark)
   (mistty--require-proc)
   (mistty--enqueue
    mistty--queue

@@ -37,6 +37,12 @@
   :for-command    test
   (setq mistty-test-fish-exe (executable-find path)))
 
+(eldev-defoption mistty-test-log ()
+  "Enable mistty-log when running tests."
+  :options        (--enable-test-log)
+  :for-command    test
+  (setq mistty-test-log t))
+
 (defvar mistty-test-ci nil)
 (eldev-defoption mistty-test-ci ()
   "Let tests know they're running on CI."

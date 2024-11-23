@@ -35,6 +35,8 @@
 (defvar mistty-test-bash-exe (executable-find "bash"))
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
+(defvar mistty-test-log nil
+  "Set to t to enable logging for all tests using mistty-with-test-buffer.")
 
 (defvar mistty-wait-for-output-timeout-s
   (if noninteractive 10 3)
@@ -105,7 +107,7 @@ window while BODY is running."
                (mistty-test-ok nil)
                (mistty-test-had-issues nil)
                (mistty--inhibit-fake-nl-cleanup t)
-               (mistty-log nil))
+               (mistty-log mistty-test-log))
            (mistty-test-setup (quote ,shell))
            (unwind-protect
                (prog1

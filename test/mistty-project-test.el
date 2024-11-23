@@ -7,7 +7,7 @@
 (require 'project)
 
 ;; defines a project type 'fake
-(cl-defmethod project-name ((project (head fake)))
+(cl-defmethod project-name ((_project (head fake)))
   "fake")
 
 (cl-defmethod project-root ((project (head fake)))

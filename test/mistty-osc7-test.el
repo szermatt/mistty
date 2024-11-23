@@ -16,6 +16,7 @@
 
 (require 'ert)
 (require 'ert-x)
+(require 'tramp)
 
 (require 'mistty)
 (require 'mistty-osc7)

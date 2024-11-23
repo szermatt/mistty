@@ -530,8 +530,7 @@ redraw everything."
 (defun mistty-test-nobracketed-paste ()
   "Disable bracketed paste in a Bash shell."
   (mistty-send-text "bind 'set enable-bracketed-paste off'")
-  (setq next-prompt-start (mistty-send-and-wait-for-prompt))
-  (mistty-test-narrow next-prompt-start))
+  (mistty-test-narrow (mistty-send-and-wait-for-prompt)))
 
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.

@@ -16,6 +16,10 @@
 
 (require 'ert)
 (require 'ert-x)
+(require 'term)
+(defvar term-height) ;; term.el
+(defvar term-home-marker) ;; term.el
+
 (eval-when-compile
   (require 'cl-lib))
 
@@ -24,6 +28,7 @@
 (require 'mistty-changeset)
 (require 'mistty-log)
 (require 'mistty-queue)
+
 
 (ert-deftest mistty-test-simple-command ()
   (mistty-with-test-buffer ()
@@ -1205,7 +1210,7 @@
      (insert "echo current"))
 
     (mistty-select-output)
-    (equal (concat "$ echo one\n"
+    (should (equal (concat "$ echo one\n"
                    "one\n"
                    "$ echo two\n"
                    "two\n"
@@ -1213,12 +1218,12 @@
                    "$ echo three\n"
                    "<>three\n<1>"
                    "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))
+                   (mistty-test-content :show (list (point) (mark)))))
 
     (mistty-test-goto "echo two")
     (forward-line 1)
     (mistty-select-output)
-    (equal (concat "$ echo one\n"
+    (should (equal (concat "$ echo one\n"
                    "one\n"
                    "$ echo two\n"
                    "<>two\n<1>"
@@ -1226,11 +1231,11 @@
                    "$ echo three\n"
                    "three\n"
                    "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))
+                   (mistty-test-content :show (list (point) (mark)))))
 
     (goto-char (1+ (point)))
     (mistty-select-output)
-    (equal (concat "$ echo one\n"
+    (should (equal (concat "$ echo one\n"
                    "one\n"
                    "$ echo two\n"
                    "<>two\n<1>"
@@ -1238,10 +1243,10 @@
                    "$ echo three\n"
                    "three\n"
                    "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))
+                   (mistty-test-content :show (list (point) (mark)))))
 
     (mistty-select-output 1)
-    (equal (concat "$ echo one\n"
+    (should (equal (concat "$ echo one\n"
                    "<>one\n<1>"
                    "$ echo two\n"
                    "two\n"
@@ -1249,11 +1254,11 @@
                    "$ echo three\n"
                    "three\n"
                    "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))
+                   (mistty-test-content :show (list (point) (mark)))))
 
     (mistty-test-goto "current")
     (mistty-select-output 2)
-    (equal (concat "$ echo one\n"
+    (should (equal (concat "$ echo one\n"
                    "one\n"
                    "$ echo two\n"
                    "<>two\n<1>"
@@ -1261,7 +1266,7 @@
                    "$ echo three\n"
                    "three\n"
                    "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))
+                   (mistty-test-content :show (list (point) (mark)))))
 
     (mistty-test-goto "echo one")
     (should-error (mistty-select-output))))
@@ -1295,15 +1300,15 @@
     (delete-region (point-min) (point))
 
     (mistty-select-output)
-    (equal (concat "<>one\n<1>"
+    (should (equal (concat "<>one\n<1>"
                    "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))
+                   (mistty-test-content :show (list (point) (mark)))))
 
     (goto-char (1+ (point)))
     (mistty-select-output)
-    (equal (concat "<>one\n<1>"
+    (should (equal (concat "<>one\n<1>"
                    "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))
+                   (mistty-test-content :show (list (point) (mark)))))
 
     (goto-char (point-max))
     (mistty-select-output)
@@ -2278,7 +2283,7 @@
     (let ((start (mistty--bol (point))))
       (mistty--enqueue
        mistty--queue
-       (let (hello-f enter-f bar-f)
+       (let (enter-f bar-f)
          (mistty--interact test (interact)
            (setq enter-f
                  (lambda ()
@@ -3807,7 +3812,6 @@
 (ert-deftest mistty-test-cycle-and-create-default-directory ()
   (let ((mistty-shell-command mistty-test-bash-exe)
         (home (expand-file-name (getenv "HOME")))
-        (start-buf (current-buffer))
         (first-buf nil)
         (second-buf nil)
         (last-command nil)
@@ -3914,13 +3918,12 @@
 (ert-deftest mistty-test-ignore-unlabelled-foreign-overlays ()
   (let ((mistty-detect-foreign-overlays t))
     (mistty-with-test-buffer ()
-      (let (test-overlay)
-        (mistty-send-text "echo hello, world")
-        (mistty-run-command
-         (mistty-test-goto "hello")
-         (setq test-overlay (make-overlay (point) (+ 5 (point)))))
+      (mistty-send-text "echo hello, world")
+      (mistty-run-command
+       (mistty-test-goto "hello")
+       (make-overlay (point) (+ 5 (point))))
 
-        (should-not mistty--inhibit)))))
+      (should-not mistty--inhibit))))
 
 (ert-deftest mistty-test-ignore-detected-foreign-overlays-after-C-g ()
   (let ((mistty-detect-foreign-overlays t))
@@ -4011,8 +4014,7 @@
 
 (ert-deftest mistty-test-replays-are-queued ()
   (mistty-with-test-buffer ()
-    (let ((pos (point))
-          (unfreeze (mistty-test-freeze-queue)))
+    (let ((unfreeze (mistty-test-freeze-queue)))
       ;; the queue is frozen for now
 
       ;; put two replays in the queue
@@ -4066,8 +4068,7 @@
 
 (ert-deftest mistty-test-simulate-self-insert-commands ()
   (mistty-with-test-buffer ()
-    (let ((start (point))
-          (mistty-interactive-insert-hook '(mistty-simulate-self-insert-command))
+    (let ((mistty-interactive-insert-hook '(mistty-simulate-self-insert-command))
           (mistty-simulate-self-insert-command t)
           pre-calls
           post-calls)
@@ -4138,13 +4139,11 @@
         (mistty-after-process-end-hook nil)
         (called nil))
     (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer)
-    (add-hook 'mistty-after-process-end-hook (lambda (proc) (setq called t)) 100)
+    (add-hook 'mistty-after-process-end-hook (lambda (_proc) (setq called t)) 100)
     (mistty-with-test-buffer ()
-      (let ((term-proc mistty-proc)
-            (term-buffer mistty-term-buffer))
-        (mistty-send-text "exit 10")
-        (mistty-send-command)
-        (mistty-wait-for-output :test (lambda () called))))))
+      (mistty-send-text "exit 10")
+      (mistty-send-command)
+      (mistty-wait-for-output :test (lambda () called)))))
 
 (ert-deftest mistty-kill-buffer-and-window-after-exit ()
   (let ((mistty-after-process-start-hook nil)
@@ -4165,13 +4164,11 @@
         (mistty-after-process-end-hook nil)
         (called nil))
     (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer-and-window)
-    (add-hook 'mistty-after-process-end-hook (lambda (proc) (setq called t)) 100)
+    (add-hook 'mistty-after-process-end-hook (lambda (_proc) (setq called t)) 100)
     (mistty-with-test-buffer ()
-      (let ((term-proc mistty-proc)
-            (term-buffer mistty-term-buffer))
-        (mistty-send-text "exit 10")
-        (mistty-send-command)
-        (mistty-wait-for-output :test (lambda () called))))))
+      (mistty-send-text "exit 10")
+      (mistty-send-command)
+      (mistty-wait-for-output :test (lambda () called)))))
 
 (ert-deftest mistty-test-buffer-name ()
   (let ((mistty-buffer-name '("mistty")))
@@ -4208,11 +4205,11 @@
     ;; set. Anything that deals with actual color is going to fail
     ;; when run from batch, so we can't look at the real colors in
     ;; this test.
-    (pcase-dolist (`(,beg ,end ,props) (mistty--save-properties (point-min)))
+    (pcase-dolist (`(_ _ ,props) (mistty--save-properties (point-min)))
       (pcase (plist-get props 'font-lock-face)
         (`(,face-props . rest)
-         (should (equal nil (plist-get (car pvalue) :foreground)))
-         (should (equal nil (plist-get (car pvalue) :background))))
+         (should (equal nil (plist-get (car face-props) :foreground)))
+         (should (equal nil (plist-get (car face-props) :background))))
         (_)))))
 
 (ert-deftest mistty-test-scroll-window-up ()
@@ -4229,7 +4226,7 @@
       (mistty-run-command
        (mistty-tab-command))
       (let ((wstart (window-start win))
-            (wend (if (interactive-p)
+            (wend (if (called-interactively-p 'any)
                       (window-end win t)
                     ;; We can't trust (window-end win t) in batch tests, so
                     ;; we compute the end manually.

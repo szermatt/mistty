@@ -61,6 +61,7 @@
     (let ((noninteractive t)
           (mistty-log nil)
           (mistty-backlog-size 0)
+          (mistty-log-buffer nil)
           log-buffer)
       (ert-with-message-capture messages
         (should (not mistty-log))
@@ -88,7 +89,11 @@
   (ert-with-test-buffer ()
     (let ((noninteractive nil)
           (mistty-log nil)
-          (log-buffer (save-excursion (mistty-start-log))))
+          (mistty-log-buffer nil)
+          (log-buffer nil))
+      ;; Make sure not to call (mistty-start-log) outside of the (let
+      ;; mistty-log ...)
+      (setq log-buffer (save-excursion (mistty-start-log)))
       (unwind-protect
           (progn
             (mistty-log "dummy entry")
@@ -102,6 +107,7 @@
   (ert-with-test-buffer ()
     (let ((noninteractive nil)
           (mistty-log nil)
+          (mistty-log-buffer nil)
           (mistty-backlog-size 3)
           log-buffer)
       (dotimes (i 10)

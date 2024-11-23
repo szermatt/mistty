@@ -13,8 +13,8 @@
 (eldev-add-loading-roots 'test "test")
 (eldev-add-extra-dependencies
  '(test emacs)
- '(:package tempel :version "0.8" :optional t)
- '(:package yasnippet :version "0.14.0" :optional t))
+ '(:package tempel :version "0.8")
+ '(:package yasnippet :version "0.14.0"))
 
 (eldev-defoption mistty-test-bash-exe (&optional path)
   "Tests look for Bash at PATH."

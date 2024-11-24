@@ -38,10 +38,10 @@
 (require 'pcase)
 (require 'text-property-search)
 (require 'fringe)
+(require 'cl-lib)
 (eval-when-compile
   (require 'files-x) ; with-connection-local-variables
-  (require 'minibuffer)
-  (require 'cl-lib))
+  (require 'minibuffer))
 
 (require 'mistty-changeset)
 (require 'mistty-term)

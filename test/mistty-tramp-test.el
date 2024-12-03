@@ -168,6 +168,8 @@
       (should (equal "*mistty-root*" (mistty-new-buffer-name))))))
 
 (ert-deftest mistty-tramp-test-set-EMACS ()
+  (setenv "EMACS" nil) ;; Sometimes set to run Eldev
+
   (let* ((sg-prefix (mistty-test-sg-prefix))
          (home (file-name-directory "/"))
          (default-directory (concat sg-prefix home))

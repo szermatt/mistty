@@ -4184,6 +4184,8 @@
     (should (equal "*fish*" (mistty-new-buffer-name)))))
 
 (ert-deftest mistty-test-set-EMACS ()
+  (setenv "EMACS" nil) ;; Sometimes set to run Eldev
+
   (let ((mistty-set-EMACS nil))
     (mistty-with-test-buffer ()
       (mistty-send-text "echo EMACS=${EMACS}")

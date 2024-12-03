@@ -667,7 +667,7 @@ since been modified.
 This variable is available in the work buffer.")
 
 (defvar-local mistty--cursor-after-last-refresh nil
-  "The position of the cursor at the end of `mistty--refresh'.
+  "A marker on the cursor at the end of `mistty--refresh'.
 
 This variable is meant for `mistty--refresh' to detect
 whether the cursor has moved since its last call. It's not meant
@@ -1481,7 +1481,8 @@ Also updates prompt and point."
       (setq mistty--need-refresh t)
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
-          (old-point (point)))
+          (point-was-at-cursor (or (null mistty--cursor-after-last-refresh)
+                                   (= (point) mistty--cursor-after-last-refresh))))
       (mistty--inhibit-undo
        (save-restriction
          (widen)
@@ -1588,11 +1589,11 @@ Also updates prompt and point."
          ;; Move the point to the cursor, if necessary.
          (when (process-live-p mistty-proc)
            (when (and (not (eq mistty-goto-cursor-next-time 'off))
-                      (or mistty-goto-cursor-next-time
-                          (null mistty--cursor-after-last-refresh)
-                          (= old-point mistty--cursor-after-last-refresh)))
+                      (or mistty-goto-cursor-next-time point-was-at-cursor))
              (mistty-goto-cursor))
-           (setq mistty--cursor-after-last-refresh (mistty-cursor)))
+           (unless mistty--cursor-after-last-refresh
+             (setq mistty--cursor-after-last-refresh (make-marker)))
+           (move-marker mistty--cursor-after-last-refresh (mistty-cursor)))
          (setq mistty-goto-cursor-next-time nil))))
 
     (mistty--report-self-inserted-text)))

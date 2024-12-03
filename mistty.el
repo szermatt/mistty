@@ -1346,8 +1346,7 @@ PROC is the calling shell process and STR the string it sent."
     (mistty--emulate-terminal proc str mistty-work-buffer)
     (goto-char (process-mark proc))
     (mistty--sync-history-remove-above nil term-home-marker)
-    (when (or (/= mistty-sync-marker old-sync-position)
-              (< (point) mistty-sync-marker))
+    (when (/= mistty-sync-marker old-sync-position)
       (mistty--with-live-buffer mistty-work-buffer
         (mistty-log "RESET; unexpected change")
         (mistty--reset-markers (mistty--sync-history-find))))

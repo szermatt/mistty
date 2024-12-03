@@ -18,17 +18,18 @@
 (require 'ert-x)
 (require 'tramp)
 (eval-when-compile
-  (require 'cl-lib))
+(require 'cl-lib))
 
 (require 'mistty)
 (require 'mistty-testing)
 
 (ert-deftest mistty-tramp-test-shell-start ()
-  (let* ((sg-prefix (mistty-test-sg-prefix))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
          (home (file-name-directory "/"))
-         (default-directory (concat sg-prefix home)))
+         (default-directory (concat tramp-prefix home)))
     (mistty-with-test-buffer ()
-      (should (equal (concat sg-prefix "/")
+      (should (equal (concat tramp-prefix "/")
                      (buffer-local-value 'default-directory (current-buffer))))
       (should (equal mistty-test-bash-exe (mistty-test-remote-command)))
 
@@ -43,8 +44,9 @@
 
 (ert-deftest mistty-tramp-test-connection-local-explicit-shell-file-name ()
   (skip-unless mistty-test-zsh-exe)
-  (let* ((sg-prefix (mistty-test-sg-prefix))
-         (default-directory (concat sg-prefix "/"))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (default-directory (concat tramp-prefix "/"))
          (connection-local-profile-alist nil)
          (connection-local-criteria-alist nil)
          (mistty-shell-command nil)
@@ -54,7 +56,7 @@
     (connection-local-set-profile-variables
      'test-profile
      `((explicit-shell-file-name . ,mistty-test-zsh-exe)))
-    (connection-local-set-profiles '(:protocol "sg") 'test-profile)
+    (connection-local-set-profiles (mistty-test-tramp-protocol) 'test-profile)
 
     ;; This makes sure the connection-local setup above works.
     (should (equal mistty-test-zsh-exe
@@ -74,8 +76,9 @@
 
 (ert-deftest mistty-tramp-test-connection-local-explicit-mistty-shell-command ()
   (skip-unless mistty-test-zsh-exe)
-  (let* ((sg-prefix (mistty-test-sg-prefix))
-         (default-directory (concat sg-prefix "/"))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (default-directory (concat tramp-prefix "/"))
          (connection-local-profile-alist nil)
          (connection-local-criteria-alist nil)
          (mistty-shell-command "/bin/sh")
@@ -84,7 +87,7 @@
     (connection-local-set-profile-variables
      'test-profile
      `((mistty-shell-command . ,mistty-test-zsh-exe)))
-    (connection-local-set-profiles '(:protocol "sg") 'test-profile)
+    (connection-local-set-profiles (mistty-test-tramp-protocol) 'test-profile)
 
     ;; This makes sure the connection-local setup above works.
     (should (equal mistty-test-zsh-exe
@@ -103,8 +106,9 @@
           (kill-buffer buf))))))
 
 (ert-deftest mistty-tramp-test-termcap ()
-  (let* ((sg-prefix (mistty-test-sg-prefix))
-         (default-directory (concat sg-prefix "/"))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (default-directory (concat tramp-prefix "/"))
          (term-term-name "eterm-test"))
     (mistty-with-test-buffer ()
 
@@ -122,26 +126,28 @@
       (should (string-match "eterm-test,\n +am, mir.*" (mistty-send-and-capture-command-output))))))
 
 (ert-deftest mistty-tramp-test-dirtrack-on-sg ()
-  (let* ((sg-prefix (mistty-test-sg-prefix))
-         (default-directory (concat sg-prefix "/")))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (default-directory (concat tramp-prefix "/")))
     (mistty-with-test-buffer (:shell zsh)
       ;; Not using bash, because it sends \032 dirtrack, which would
       ;; interfere with this test.
 
-      (should (equal (concat sg-prefix "/") default-directory))
+      (should (equal (concat tramp-prefix "/") default-directory))
 
       (mistty--send-string mistty-proc "printf '\\032//var/log\\nok\\n'")
       (should (equal "ok" (mistty-send-and-capture-command-output)))
-      (should (equal (concat sg-prefix "/var/log/") default-directory))
+      (should (equal (concat tramp-prefix "/var/log/") default-directory))
 
       (mistty--send-string mistty-proc "printf '\\032//home\\nok\\n'")
       (should (equal "ok" (mistty-send-and-capture-command-output)))
-      (should (equal (concat sg-prefix "/home/") default-directory)))))
+      (should (equal (concat tramp-prefix "/home/") default-directory)))))
 
 (ert-deftest mistty-tramp-test-window-size ()
-  (let* ((sg-prefix (mistty-test-sg-prefix))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
          (home (file-name-directory "/"))
-         (default-directory (concat sg-prefix home)))
+         (default-directory (concat tramp-prefix home)))
     (mistty-with-test-buffer (:selected t)
       (let ((win (selected-window))
             cols-before cols-after)
@@ -170,9 +176,10 @@
 (ert-deftest mistty-tramp-test-set-EMACS ()
   (setenv "EMACS" nil) ;; Sometimes set to run Eldev
 
-  (let* ((sg-prefix (mistty-test-sg-prefix))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
          (home (file-name-directory "/"))
-         (default-directory (concat sg-prefix home))
+         (default-directory (concat tramp-prefix home))
          (connection-local-profile-alist nil)
          (connection-local-criteria-alist nil)
          (mistty-set-EMACS nil))
@@ -184,7 +191,7 @@
     (connection-local-set-profile-variables
      'test-profile
      '((mistty-set-EMACS . t)))
-    (connection-local-set-profiles '(:protocol "sg") 'test-profile)
+    (connection-local-set-profiles (mistty-test-tramp-protocol) 'test-profile)
 
     ;; This makes sure the connection-local setup above works.
     (should (equal t (with-connection-local-variables mistty-set-EMACS)))

@@ -514,12 +514,22 @@ redraw everything."
       ;; make sure we get something back from the shell right away.
       (mistty--send-string mistty-proc "\C-g"))))
 
-(defun mistty-test-sg-prefix ()
+(defun mistty-test-tramp-methods ()
+  "A value for `test-tramp-methods' with a dummy test protocol."
+  '(("dummy"
+     (tramp-login-program "/bin/sh")
+     (tramp-login-args nil)
+     (tramp-remote-shell "/bin/sh")
+     (tramp-remote-shell-args ("-c"))
+     (tramp-connection-timeout 10))))
+
+(defun mistty-test-tramp-prefix ()
   "Build a TRAMP file prefix for a remote file for testing."
-  (let* ((groups (split-string (shell-command-to-string "groups") " " 'omit-nulls))
-         (host (system-name))
-         (group (or (nth 2 groups) (car groups))))
-    (format "/sg:%s@%s:" group host)))
+  (format "/dummy:%s:" (system-name)))
+
+(defun mistty-test-tramp-protocol ()
+  "The TRAMP protocol used for testing."
+  '(:protocol "dummy"))
 
 (defun mistty-test-remote-command ()
   "Return the remote command, as reported by TRAMP or nil."

@@ -109,30 +109,32 @@
       (should-not (file-remote-p default-directory)))))
 
 (ert-deftest mistty-test-osc7-keep-prefix-when-host-matches ()
-  (let* ((sg-prefix (mistty-test-sg-prefix))
-         (default-directory (concat sg-prefix "/")))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (default-directory (concat tramp-prefix "/")))
     (mistty-with-test-buffer (:shell zsh)
 
       (mistty-test-send-osc7 (system-name) "/var/log")
       (mistty-send-and-wait-for-prompt)
-      (should (equal (concat sg-prefix "/var/log/") default-directory))
+      (should (equal (concat tramp-prefix "/var/log/") default-directory))
 
       (mistty-test-send-osc7 (system-name) "/")
       (mistty-send-and-wait-for-prompt)
-      (should (equal (concat sg-prefix "/") default-directory)))))
+      (should (equal (concat tramp-prefix "/") default-directory)))))
 
 (ert-deftest mistty-test-osc7-keep-prefix-when-localhost ()
-  (let* ((sg-prefix (mistty-test-sg-prefix))
-         (default-directory (concat sg-prefix "/")))
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (default-directory (concat tramp-prefix "/")))
     (mistty-with-test-buffer (:shell zsh)
 
       (mistty-test-send-osc7 "" "/var/log")
       (mistty-send-and-wait-for-prompt)
-      (should (equal (concat sg-prefix "/var/log/") default-directory))
+      (should (equal (concat tramp-prefix "/var/log/") default-directory))
 
       (mistty-test-send-osc7 "localhost" "/")
       (mistty-send-and-wait-for-prompt)
-      (should (equal (concat sg-prefix "/") default-directory)))))
+      (should (equal (concat tramp-prefix "/") default-directory)))))
 
 (defun mistty-test-send-osc7 (host path)
   (mistty--send-string

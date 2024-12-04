@@ -1338,7 +1338,11 @@ PROC is the calling shell process and STR the string it sent."
     (goto-char (process-mark proc))
     (when (/= mistty-sync-marker old-sync-position)
       (mistty-log "RESET; unexpected change")
-      (mistty--reset-markers))
+      (pcase-let ((`(,work-sync . ,term-sync) (mistty--align-buffers)))
+        (if (or work-sync term-sync)
+            (mistty-log "ALIGN %s <-> %s" work-sync term-sync)
+          (mistty-log "ALIGN failed; fallback to default"))
+        (mistty--reset-markers work-sync term-sync)))
     (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
       (mistty--detect-possible-prompt (point)))))
 
@@ -1377,35 +1381,41 @@ of the terminal buffer has been updated."
                       (nth 1 mistty--possible-prompt)
                       (nth 2 mistty--possible-prompt)))))))
 
-(defun mistty--reset-markers ()
+(defun mistty--reset-markers (&optional work-sync term-sync)
   "Reset the sync marker on both the term and work buffer.
+
+If specified WORK-SYNC is the new position of sync mark in the
+work buffer, and TERM-SYNC the corresponding mark in the term
+buffer.
 
 This function should be called to fix a situation where the
 markers have gone out-of-sync."
-    (let ((old-work-sync (mistty--with-live-buffer mistty-work-buffer (marker-position mistty-sync-marker)))
-          (old-term-sync (mistty--with-live-buffer mistty-term-buffer (marker-position mistty-sync-marker)))
-          (work-sync (mistty--with-live-buffer mistty-work-buffer
-                       (let ((inhibit-read-only t)
-                             (inhibit-modification-hooks t))
-                         (delete-region (mistty--last-non-ws) (point-max))
-                         (insert "\n")
-                         (point-max))))
-          (term-sync (mistty--with-live-buffer mistty-term-buffer
-                       (save-excursion
-                         (goto-char term-home-marker)
-                         (skip-chars-forward mistty--ws)
-                         (point)))))
-      (mistty--with-live-buffer mistty-work-buffer
-        (setq mistty--end-prompt nil)
-        (setq mistty--cursor-after-last-refresh nil)
-        (move-marker mistty-sync-marker work-sync))
-      (mistty--with-live-buffer mistty-term-buffer
-        (move-marker mistty-sync-marker term-sync))
-      (mistty-log "RESET SYNC MARKER %s/%s to %s/%s term home: %s"
-                  old-work-sync old-term-sync
-                  work-sync term-sync
-                  (mistty--with-live-buffer mistty-term-buffer
-                    (marker-position term-home-marker)))))
+  (let ((old-work-sync (mistty--with-live-buffer mistty-work-buffer (marker-position mistty-sync-marker)))
+        (old-term-sync (mistty--with-live-buffer mistty-term-buffer (marker-position mistty-sync-marker)))
+        (work-sync (or work-sync
+                       (mistty--with-live-buffer mistty-work-buffer
+                         (let ((inhibit-read-only t)
+                               (inhibit-modification-hooks t))
+                           (delete-region (mistty--last-non-ws) (point-max))
+                           (insert "\n")
+                           (point-max)))))
+        (term-sync (or term-sync
+                       (mistty--with-live-buffer mistty-term-buffer
+                         (save-excursion
+                           (goto-char term-home-marker)
+                           (skip-chars-forward mistty--ws)
+                           (point))))))
+    (mistty--with-live-buffer mistty-work-buffer
+      (setq mistty--end-prompt nil)
+      (setq mistty--cursor-after-last-refresh nil)
+      (move-marker mistty-sync-marker work-sync))
+    (mistty--with-live-buffer mistty-term-buffer
+      (move-marker mistty-sync-marker term-sync))
+    (mistty-log "RESET SYNC MARKER %s/%s to %s/%s term home: %s"
+                old-work-sync old-term-sync
+                work-sync term-sync
+                (mistty--with-live-buffer mistty-term-buffer
+                  (marker-position term-home-marker)))))
 
 (defun mistty--fs-process-filter (proc str)
   "Process filter for MisTTY in fullscreen mode.
@@ -3570,6 +3580,34 @@ This function is meant to be used in the configuration option
   (when-let ((remote-host (file-remote-p default-directory 'host)))
     (unless (string= remote-host (system-name))
       (concat "@" remote-host))))
+
+(defun mistty--align-buffers()
+  "Return reasonable sync marks for the work and term buffers.
+
+Return nil or \\='(WORK-SYNC . TERM-SYNC) with WORK-SYNC
+aposition on the work buffer and TERM-SYNC the position on the
+term buffer."
+  (mistty--require-term-buffer)
+
+  (when (buffer-live-p mistty-work-buffer)
+    (let ((prelude (buffer-substring-no-properties
+                    (point-min) term-home-marker)))
+      (when (string-match-p "[^[:space:]]" prelude)
+        (let* ((term-lines (count-lines (point-min) (point-max)))
+               (work-sync (with-current-buffer mistty-work-buffer
+                            (let ((limit
+                                   (save-excursion
+                                     (goto-char (point-max))
+                                     (forward-line (- term-lines))
+                                     (point))))
+
+                              (save-excursion
+                                (goto-char (point-max))
+                                (when (search-backward prelude limit 'noerror)
+                                  (goto-char (match-end 0))
+                                  (point)))))))
+          (when work-sync
+            (cons work-sync (marker-position term-home-marker))))))))
 
 (provide 'mistty)
 

@@ -284,6 +284,7 @@ details.
 
 @geindex command; mistty-in-project
 @geindex command; mistty-ssh
+@geindex command; mistty-docker
 
 
 @itemize -
@@ -306,6 +307,12 @@ project-kill-buffer-conditions} about MisTTY.
 @code{M-x mistty-ssh} creates a new MisTTY buffer connected to
 another host using SSH. This is just a shortcut that uses TRAMP to
 connect to a remote host. See @ref{d,,Remote Shells with TRAMP} for details.
+
+@item 
+@code{M-x mistty-docker} creates a new MisTTY buffer connected to
+a docker instance. This requires the docker command-line tool to
+be installed. This is just a shortcut that uses TRAMP to connect
+to a remote host. See @ref{d,,Remote Shells with TRAMP} for details.
 @end itemize
 @end quotation
 

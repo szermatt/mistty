@@ -283,6 +283,7 @@ details.
 @end itemize
 
 @geindex command; mistty-in-project
+@geindex command; mistty-ssh
 
 
 @itemize -
@@ -300,6 +301,11 @@ buffers, you’ll want to execute
 @code{mistty-project-init-kill-buffer} somewhere in your
 configuration or tell @code{M-x configure-option
 project-kill-buffer-conditions} about MisTTY.
+
+@item 
+@code{M-x mistty-ssh} creates a new MisTTY buffer connected to
+another host using SSH. This is just a shortcut that uses TRAMP to
+connect to a remote host. See @ref{d,,Remote Shells with TRAMP} for details.
 @end itemize
 @end quotation
 

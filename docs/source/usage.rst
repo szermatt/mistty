@@ -93,6 +93,7 @@ their behavior and arguments:
 
   .. index::
      pair: command; mistty-in-project
+     pair: command; mistty-ssh
 
   - :kbd:`M-x mistty-in-project` creates a new MisTTY buffer in the
     root directory of the current project the first time it is called.
@@ -106,6 +107,10 @@ their behavior and arguments:
     :code:`mistty-project-init-kill-buffer` somewhere in your
     configuration or tell :kbd:`M-x configure-option
     project-kill-buffer-conditions` about MisTTY.
+
+  - :kbd:`M-x mistty-ssh` creates a new MisTTY buffer connected to
+    another host using SSH. This is just a shortcut that uses TRAMP to
+    connect to a remote host. See :ref:`remote_shells` for details.
 
 .. _term-vs-scroll:
 

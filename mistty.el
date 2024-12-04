@@ -164,9 +164,9 @@ become \"*mistty-root*\".
 The functions on this list should look at the current
 environment, primarily, `default-directory' and
 `mistty-shell-command', set to the current command by
-`mistty-create', to make their choice. Note that they're not
-called from the mistty buffer, but rather from the environment
-the buffer will be created."
+`mistty-create', to make their choice. At the point this function
+is called, the buffer is not a mistty buffer yet and just has a
+temporary name."
   :type '(repeat (choice string
                          (function-item mistty-buffer-name-shell)
                          (function-item mistty-buffer-name-user)
@@ -1148,17 +1148,21 @@ Upon success, the function returns the newly-created buffer."
                    current-prefix-arg
                    (mistty--read-default-directory))
               default-directory))
+
+         (buf (generate-new-buffer " *mistty-new"))
          (command (or command
-                      (with-connection-local-variables
-                       (or
-                        mistty-shell-command
-                        explicit-shell-file-name
-                        shell-file-name
-                        (getenv "ESHELL")
-                        (getenv "SHELL")))))
-         (buf (let ((mistty-shell-command command))
-                (generate-new-buffer (mistty-new-buffer-name)))))
-    (with-current-buffer buf (mistty-mode))
+                      (with-current-buffer buf
+                        (with-connection-local-variables
+                         (or
+                          mistty-shell-command
+                          explicit-shell-file-name
+                          shell-file-name
+                          (getenv "ESHELL")
+                          (getenv "SHELL")))))))
+    (with-current-buffer buf
+      (setq-local mistty-shell-command command)
+      (rename-buffer (generate-new-buffer-name (mistty-new-buffer-name)))
+      (mistty-mode))
     ;; Note that it's important to attach the buffer to a window
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.

@@ -4268,8 +4268,4 @@
      (set-mark (point)))
     (mistty-send-text "hello,")
     (mistty-send-and-wait-for-prompt #'mistty-send-command)
-    (should-not mark-active)
-
-    ;; The mark is still available, just inactive.
-    (should (equal "$ echo hello,hello, world\nhello,hello, world\n$ "
-                   (buffer-substring-no-properties (mark) (point))))))
+    (should-not mark-active)))

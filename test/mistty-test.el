@@ -4174,7 +4174,7 @@
 
     ;; Make sure that there's more text in the term buffer than the
     ;; window height allows.
-    (dotimes (i 40)
+    (dotimes (i 20)
       (mistty-send-text (format "echo line %d" i))
       (mistty-send-and-wait-for-prompt))
 
@@ -4232,3 +4232,58 @@
       (mistty-test-content
        :start (save-excursion (goto-char (point-min))
                               (mistty-test-pos "$ echo one")))))))
+
+(ert-deftest mistty-test-sync-autoreset-recovery-despite-fakenl-cleanup ()
+  (let ((mistty--inhibit-fake-nl-cleanup nil))
+    (mistty-with-test-buffer ()
+      (mistty--set-process-window-size 20 20)
+
+      ;; Insert text that'll be too long for the window, so term
+      ;; inserts fake newlines, which later get cleaned up when the
+      ;; zone transitions to scrollback. These changes should not
+      ;; throw off recovery.
+      (dotimes (i 20)
+        (mistty-send-text (format "echo one two three four five six seven eight nine %d" i))
+        (mistty-send-and-wait-for-prompt))
+
+      (mistty-send-text "echo one")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo two")
+      (mistty-send-and-wait-for-prompt)
+
+      ;; Using mistty-send-string directly as the lines will get fake
+      ;; newlines, which confuses mistty-send-text.
+      (mistty--send-string
+       mistty-proc
+       (concat "for i in {0..5}; do"
+               "\n  echo -n \"$ \""
+               "\n  read"
+               "\n  echo \"line $i\""
+               "\ndone ; printf \"\\r\\e[6;AMODIFIED\\r\\e[6;BDONE\\n\""))
+      (dotimes (_ 7)
+        (mistty-send-and-wait-for-prompt)
+        (mistty-send-key 1 (kbd "C-a")))
+      (mistty-send-text "echo three")
+      (mistty-send-and-wait-for-prompt)
+      (should
+       (equal
+        (concat
+         "$ ^A\n"
+         "line 0\n"
+         "$ ^A\n"
+         "line 1\n"
+         "$ ^A\n"
+         "line 2\n"
+         "MODIFIED\n"
+         "line 3\n"
+         "$ ^A\n"
+         "line 4\n"
+         "$ ^A\n"
+         "line 5\n"
+         "DONE\n"
+         "$ echo three\n"
+         "three\n"
+         "$")
+        (mistty-test-content
+         :start (save-excursion (goto-char (point-min))
+                                (mistty-test-pos "$ ^A\nline 0\n"))))))))

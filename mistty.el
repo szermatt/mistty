@@ -1843,10 +1843,21 @@ instead `mistty--move-sync-mark-with-shift' or
     (setq mistty--has-active-prompt nil)
     (let ((old-marker-position (marker-position mistty-sync-marker)))
       (move-marker mistty-sync-marker sync-pos)
-      (when (and (< old-marker-position sync-pos)
-                 (not mistty--inhibit-fake-nl-cleanup))
-        (mistty--remove-fake-newlines old-marker-position sync-pos)))
+      (when (< old-marker-position sync-pos)
+        (mistty--prepare-for-scrollback old-marker-position mistty-sync-marker)))
     (move-overlay mistty--sync-ov mistty-sync-marker (point-max))))
+
+(defun mistty--prepare-for-scrollback (beg end)
+  "Transition a region from the terminal to the scrollback zone.
+
+This function modifies the region from BEG to END as appropriate
+for a scrollback area that's not going to be refreshed from the
+terminal anymore.
+
+It removes the fake newlines which are not useful anymore and
+just tend to cause issues."
+  (when (not mistty--inhibit-fake-nl-cleanup)
+    (mistty--remove-fake-newlines beg end)))
 
 (defun mistty--last-non-ws ()
   "Return the position of the last non-whitespace in the buffer."
@@ -3590,8 +3601,14 @@ term buffer."
   (mistty--require-term-buffer)
 
   (when (buffer-live-p mistty-work-buffer)
-    (let ((prelude (buffer-substring-no-properties
-                    (point-min) term-home-marker)))
+    (let* ((term-home term-home-marker)
+           (term-buffer mistty-term-buffer)
+           (prelude
+            (with-temp-buffer
+              (insert-buffer-substring term-buffer nil term-home)
+              (mistty--prepare-for-scrollback (point-min) (point-max))
+              (buffer-substring-no-properties (point-min) (point-max)))))
+      (mistty-log "prelude: [%s]" prelude)
       (when (string-match-p "[^[:space:]]" prelude)
         (let* ((term-lines (count-lines (point-min) (point-max)))
                (work-sync (with-current-buffer mistty-work-buffer

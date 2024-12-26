@@ -19,6 +19,7 @@
 (require 'term)
 (defvar term-height) ;; term.el
 (defvar term-home-marker) ;; term.el
+(require 'turtles)
 
 (eval-when-compile
   (require 'cl-lib))
@@ -4287,3 +4288,25 @@
         (mistty-test-content
          :start (save-excursion (goto-char (point-min))
                                 (mistty-test-pos "$ ^A\nline 0\n"))))))))
+
+;; https://github.com/szermatt/mistty/issues/27
+(ert-deftest mistty-test-bash-reverse-i-search-and-nl ()
+  (turtles-ert-test)
+
+  ;; This has to be a turtles test, because the problem only appears
+  ;; in interactive emacs.
+  (mistty-with-test-buffer (:shell bash :selected t)
+    (mistty-test-nobracketed-paste)
+    (mistty-send-text "(sleep 0.0 && echo hi)")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty--send-string mistty-proc "\C-rec\n")
+    (mistty-send-and-wait-for-prompt)
+
+    (turtles-with-grab-buffer (:win (selected-window))
+      (should (equal (concat "$ (sleep 0.0 && echo hi)\n"
+                             "hi\n"
+                             "$ (sleep 0.0 && echo hi)\n"
+                             "hi\n"
+                             "$")
+                     (buffer-string))))))

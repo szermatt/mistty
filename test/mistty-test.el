@@ -4293,10 +4293,9 @@
 (ert-deftest mistty-test-bash-reverse-i-search-and-nl ()
   (turtles-ert-test)
 
-  ;; This has to be a turtles test, because the problem only appears
-  ;; in interactive emacs.
+  ;; This is a turtles test, because the problem only appears when you
+  ;; take invisibility into account.
   (mistty-with-test-buffer (:shell bash :selected t)
-    (mistty-test-nobracketed-paste)
     (mistty-send-text "(sleep 0.0 && echo hi)")
     (mistty-send-and-wait-for-prompt)
 

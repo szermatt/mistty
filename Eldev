@@ -48,6 +48,13 @@
   :for-command    test
   (setq mistty-test-fish-exe (executable-find path)))
 
+(eldev-defoption mistty-test-ipython-exe (&optional path)
+  "Tests look for Ipython at PATH. Empty to skip ipython tests."
+  :options        (--ipython)
+  :optional-value PATH
+  :for-command    test
+  (setq mistty-test-ipython-exe (executable-find path)))
+
 (eldev-defoption mistty-test-log ()
   "Enable mistty-log when running tests."
   :options        (--enable-test-log)

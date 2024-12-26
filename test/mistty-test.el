@@ -2253,7 +2253,8 @@
 
 (ert-deftest mistty-test-multiple-replace-at-prompt ()
   (mistty-with-test-buffer ()
-    (let ((mistty-test-prompt "cmd-cmd-cmd> "))
+    (let* ((mistty-test-prompt "cmd-cmd-cmd> ")
+           (mistty-test-prompt-re "^cmd-cmd-cmd> "))
       (mistty-send-text "PS1='cmd-cmd-cmd> '")
       (mistty-send-and-wait-for-prompt)
 
@@ -4342,3 +4343,8 @@
                              "hi\n"
                              "$")
                      (buffer-string))))))
+
+(ert-deftest mistty-test-ipython ()
+  (mistty-with-test-buffer (:shell ipython)
+    (mistty-send-text "print('hello')")
+    (should (equal "hello" (mistty-send-and-capture-command-output)))))

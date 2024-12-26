@@ -36,6 +36,7 @@
 (defvar mistty-test-bash-exe (executable-find "bash"))
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
+(defvar mistty-test-ipython-exe (executable-find "ipython"));; optional
 (defvar mistty-test-log nil
   "Set to t to enable logging for all tests using mistty-with-test-buffer.")
 
@@ -72,7 +73,14 @@ problems.")
 (defvar mistty-test-stable-delay-s mistty-stable-delay-s
   "Value of `mistty-stable-delay-s' active in tests.")
 
-(defvar mistty-test-prompt "$ ")
+(defconst mistty-test-prompt "$ "
+  "Default shell prompt set by `mistty-test-set-ps1'.")
+
+(defvar mistty-test-prompt-re nil
+  "Current test prompt regexp.
+
+This is set by `mistty-test-setup', usually by
+`mistty-test-set-ps1'.")
 
 (defvar mistty-test-had-issues nil
   "When this is non-nil, the test will fail.
@@ -116,16 +124,17 @@ window while BODY is running."
                (mistty-test-had-issues nil)
                (mistty--inhibit-fake-nl-cleanup t)
                (mistty-log mistty-test-log))
-           (mistty-test-setup (quote ,shell))
-           (unwind-protect
-               (prog1
-                 ,(if selected
-                      `(with-selected-window (display-buffer (current-buffer))
-                         ,@body)
-                    `(progn ,@body))
-                 (should-not mistty-test-had-issues)
-                 (setq mistty-test-ok 'ok))
-             (unless mistty-test-ok (mistty-start-log))))))))
+           (ert-with-temp-directory mistty-tempdir
+             (mistty-test-setup (quote ,shell) mistty-tempdir)
+             (unwind-protect
+                 (prog1
+                     ,(if selected
+                          `(with-selected-window (display-buffer (current-buffer))
+                             ,@body)
+                        `(progn ,@body))
+                   (should-not mistty-test-had-issues)
+                   (setq mistty-test-ok 'ok))
+               (unless mistty-test-ok (mistty-start-log)))))))))
 
 (cl-defmacro mistty-simulate-scrollback-buffer (&body body)
   "Run BODY in a simulated scrollback buffer."
@@ -181,7 +190,7 @@ window while BODY is running."
   (setq mistty-test-content-start start)
   (narrow-to-region start (point-max)))
 
-(defun mistty-test-setup (shell)
+(defun mistty-test-setup (shell tempdir)
   (mistty-mode)
   (cond
    ((eq shell 'bash)
@@ -223,6 +232,15 @@ window while BODY is running."
     (mistty-run-command)
     (mistty-send-and-wait-for-prompt (lambda ())))
 
+   ((eq shell 'ipython)
+    (mistty--exec (list mistty-test-ipython-exe
+                        "--quick"
+                        "--no-banner"
+                        "--no-confirm-exit"
+                        (concat "--BaseIPythonApplication.ipython_dir=" tempdir)))
+    (mistty-run-command)
+    (setq mistty-test-prompt-re "^\\(In \\[[0-9]+\\]\\|   ...\\): "))
+
    (t (error "Unsupported shell %s" shell))))
 
 (defun mistty-test-set-ps1 ()
@@ -231,6 +249,7 @@ window while BODY is running."
   ;; which expects the text it sends to appear after the text that's
   ;; already there. It's enough to wait for the prompt anyways.
   (mistty--send-string mistty-proc (concat "PS1='" mistty-test-prompt "'"))
+  (setq mistty-test-prompt-re (concat "^" (regexp-quote mistty-test-prompt)))
   (mistty-test-narrow (mistty-send-and-wait-for-prompt)))
 
 (defun mistty-setup-fish-right-prompt ()
@@ -341,7 +360,9 @@ of the beginning of the prompt."
   (let ((before-send (point)))
     (funcall (or send-command-func #'mistty-send-command))
     (mistty-wait-for-output
-     :regexp (concat "^" (regexp-quote (or prompt mistty-test-prompt)))
+     :regexp (or (if prompt (concat "^" (regexp-quote prompt)))
+                 mistty-test-prompt-re
+                 (error "mistty-test-prompt-re not set"))
      :start before-send)
     (match-beginning 0)))
 

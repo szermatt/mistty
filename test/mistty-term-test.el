@@ -51,7 +51,7 @@
     (insert (concat (propertize "    " 'mistty-maybe-skip t) "echo ok " (propertize "  " 'mistty-maybe-skip t) "\n"))
     (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
 
-    (goto-char (point-min))
+    (put-text-property (point-min) (point-max) 'mistty-changed t)
     (mistty--prepare-term-for-refresh (current-buffer) (point-min))
 
     (should (equal (concat "$ for i in a b c [    ]\n"
@@ -65,10 +65,27 @@
 
     (insert (concat "$ echo " (propertize "  " 'mistty-maybe-skip t) "ok " (propertize "    " 'mistty-maybe-skip t) "\n"))
 
-    (goto-char (point-min))
+    (put-text-property (point-min) (point-max) 'mistty-changed t)
     (mistty--prepare-term-for-refresh (current-buffer) (point-min))
 
     (should (equal "$ echo   ok [    ]"
+                   (mistty-test-content :show-property '(mistty-skip t))))))
+
+(ert-deftest mistty-test-prepare-term-for-refresh-ignore-unchanged ()
+  (ert-with-test-buffer ()
+    (setq-local term-width 80)
+
+    (insert (concat "$ for i in a b c " (propertize "    " 'mistty-maybe-skip t) "\n"))
+    (insert (concat (propertize "    " 'mistty-maybe-skip t) "echo ok " (propertize "  " 'mistty-maybe-skip t) "\n"))
+    (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
+
+    (goto-char (point-min))
+    (put-text-property (search-forward "end") (point-max) 'mistty-changed t)
+    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+
+    (should (equal (concat "$ for i in a b c\n"
+                           "    echo ok\n"
+                           "end[    ]")
                    (mistty-test-content :show-property '(mistty-skip t))))))
 
 (ert-deftest mistty-test-prepare-term-for-refresh-ignore-nonws ()
@@ -77,7 +94,7 @@
 
     (insert (propertize "$ echo foo bar" 'mistty-maybe-skip t))
 
-    (goto-char (point-min))
+    (put-text-property (point-min) (point-max) 'mistty-changed t)
     (mistty--prepare-term-for-refresh (current-buffer) (point-min))
 
     (should (equal "$ echo foo bar"
@@ -99,6 +116,7 @@
       (should (= (current-column) w))
       (insert "\n")
 
+      (put-text-property (point-min) (point-max) 'mistty-changed t)
       (mistty--prepare-term-for-refresh (current-buffer) (point-min)))
 
     (should (string-match "^ left > \\[ + < right \\]$"

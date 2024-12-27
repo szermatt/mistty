@@ -42,3 +42,66 @@
 
   (should (equal mistty-left-str (mistty-translate-key (kbd "<left>") 1)))
   (should (equal mistty-right-str (mistty-translate-key (kbd "<right>") 1))))
+
+(ert-deftest mistty-test-prepare-term-for-refresh-indent-and-end ()
+  (ert-with-test-buffer ()
+    (setq-local term-width 80)
+
+    (insert (concat "$ for i in a b c " (propertize "    " 'mistty-maybe-skip t) "\n"))
+    (insert (concat (propertize "    " 'mistty-maybe-skip t) "echo ok " (propertize "  " 'mistty-maybe-skip t) "\n"))
+    (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
+
+    (goto-char (point-min))
+    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+
+    (should (equal (concat "$ for i in a b c [    ]\n"
+                           "[    ]echo ok [  ]\n"
+                           "end[    ]")
+                   (mistty-test-content :show-property '(mistty-skip t))))))
+
+(ert-deftest mistty-test-prepare-term-for-refresh-ignore-skip-in-the-middle ()
+  (ert-with-test-buffer ()
+    (setq-local term-width 80)
+
+    (insert (concat "$ echo " (propertize "  " 'mistty-maybe-skip t) "ok " (propertize "    " 'mistty-maybe-skip t) "\n"))
+
+    (goto-char (point-min))
+    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+
+    (should (equal "$ echo   ok [    ]"
+                   (mistty-test-content :show-property '(mistty-skip t))))))
+
+(ert-deftest mistty-test-prepare-term-for-refresh-ignore-nonws ()
+  (ert-with-test-buffer ()
+    (setq-local term-width 80)
+
+    (insert (propertize "$ echo foo bar" 'mistty-maybe-skip t))
+
+    (goto-char (point-min))
+    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+
+    (should (equal "$ echo foo bar"
+                   (mistty-test-content :show-property '(mistty-skip t))))))
+
+(ert-deftest mistty-test-prepare-term-for-refresh-right-prompt ()
+  (ert-with-test-buffer ()
+    (select-window (display-buffer (current-buffer)))
+    (delete-other-windows)
+    (setq-local term-width 80)
+
+    (let* ((w term-width)
+           (left-prompt " left > ")
+           (right-prompt " < right ")
+           (spaces (- w (length left-prompt) (length right-prompt))))
+      (insert left-prompt)
+      (insert (propertize (make-string spaces ?\ ) 'mistty-maybe-skip t))
+      (insert right-prompt)
+      (should (= (current-column) w))
+      (insert "\n")
+
+      (mistty--prepare-term-for-refresh (current-buffer) (point-min)))
+
+    (should (string-match "^ left > \\[ + < right \\]$"
+                          (mistty-test-content :show-property '(mistty-skip t))))
+    (should (string-match "^ left >  +\\[ < right \\]$"
+                          (mistty-test-content :show-property '(mistty-right-prompt t))))))

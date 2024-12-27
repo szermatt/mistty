@@ -33,6 +33,8 @@
 ;;
 
 (require 'term)
+(defvar term-width nil) ;; defined in term.el
+
 (require 'seq)
 (require 'subr-x)
 (require 'pcase)
@@ -1477,7 +1479,8 @@ Also updates prompt and point."
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (point-was-at-cursor (or (null mistty--cursor-after-last-refresh)
-                                   (= (point) mistty--cursor-after-last-refresh))))
+                                   (= (point) mistty--cursor-after-last-refresh)))
+          on-prompt)
       (mistty--inhibit-undo
        (save-restriction
          (widen)
@@ -1486,25 +1489,30 @@ Also updates prompt and point."
            (cancel-timer mistty--refresh-timer)
            (setq mistty--refresh-timer nil))
 
-         (let ((quick (not (and
-                            mistty-proc ;; doesn't need to be live
-                            (buffer-live-p mistty-term-buffer)
-                            (mistty-on-prompt-p (mistty-cursor))))))
-           (mistty-log "refresh (%s)" (if quick "quick" "complete"))
-           (mistty--sync-buffer mistty-term-buffer quick))
+         (setq on-prompt (and mistty-proc ;; doesn't need to be live
+                              (buffer-live-p mistty-term-buffer)
+                              (mistty-on-prompt-p (mistty-cursor))))
+
+         (when on-prompt
+           (mistty--with-live-buffer mistty-term-buffer
+             (mistty--set-mistty-skip mistty-sync-marker term-width)))
+
+         (mistty-log "refresh (%s)" (if on-prompt "complete" "quick"))
+         (mistty--sync-buffer mistty-term-buffer (not on-prompt))
 
          ;; Make fake newlines invisible. They're not really "visible"
          ;; to begin with, since they're at the end of the window, but
          ;; marking them invisible allows kill-line to go "through"
          ;; them, as it should.
+         ;; TODO: ignore those that are not at the end of the window
+         ;; using (window-max-chars-per-line)
          (save-excursion
            (goto-char mistty-sync-marker)
            (while-let ((prop-match
                         (text-property-search-forward 'term-line-wrap t t)))
-             (put-text-property (prop-match-beginning prop-match)
+             (add-text-properties (prop-match-beginning prop-match)
                                 (prop-match-end prop-match)
-                                'invisible 'term-line-wrap)))
-
+                                '(invisible term-line-wrap yank-handler (nil "" nil nil)))))
 
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.
@@ -3219,10 +3227,12 @@ The current buffer must be a backstage buffer, created by
 
 The point is set to the equivalent of proc marker
 position (cursor) in the buffer."
-  (mistty--sync-buffer (process-buffer mistty-proc))
-  (goto-char
-   (mistty--from-pos-of
-    (process-mark mistty-proc) (process-buffer mistty-proc))))
+  (let ((buf (process-buffer mistty-proc)))
+    (mistty--with-live-buffer buf
+      (mistty--set-mistty-skip mistty-sync-marker term-width))
+    (mistty--sync-buffer buf)
+    (goto-char
+     (mistty--from-pos-of (process-mark mistty-proc) buf))))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."
@@ -3625,6 +3635,50 @@ term buffer."
                                   (point)))))))
           (when work-sync
             (cons work-sync (marker-position term-home-marker))))))))
+
+(defun mistty--set-mistty-skip (region-start window-width)
+  (let ((inhibit-read-only t))
+    (save-excursion
+      (goto-char region-start)
+      (remove-text-properties
+       (point) (point-max)
+       '(mistty-skip nil mistty-right-prompt nil yank-handler nil))
+      (while
+          (progn
+            (save-excursion
+              (let* ((bol (pos-bol))
+                     (eol (pos-eol))
+                     (pos bol))
+                (when (> eol bol)
+                  ;; Turn maybe-skip into skip t on indent at bol
+                  (while (and (eq (char-after pos) ?\ )
+                              (get-text-property pos 'mistty-maybe-skip))
+                    (cl-incf pos))
+                  (when (> pos bol)
+                    (put-text-property bol pos 'mistty-skip t))
+
+                  ;; Set mistty-right-prompt t on text at eol
+                  (goto-char (1- eol))
+                  (when (and (<= 0 (- window-width (current-column)) 3)
+                             (not (get-text-property (point) 'mistty-maybe-skip)))
+                    (when-let ((first-not-skip (previous-single-property-change eol 'mistty-maybe-skip nil bol)))
+                      (when (eq (char-before first-not-skip) ?\ )
+                        (put-text-property first-not-skip eol 'mistty-right-prompt t)
+                        (goto-char (1- first-not-skip)))))
+
+                  ;; Turn maybe-skip into skip on trailing spaces, also set
+                  ;; skip and yank-handler on right prompt.
+                  (while (and (> (point) bol)
+                              (eq (char-after (point)) ?\ )
+                              (get-text-property (point) 'mistty-maybe-skip))
+                    (goto-char (1- (point))))
+                  (when (< (point) (1- eol))
+                    (add-text-properties
+                     (1+ (point)) eol
+                     '(mistty-skip t yank-handler (nil "" nil nil)))))))
+
+            ;; continue if there is a next line
+            (= 0 (forward-line 1)))))))
 
 (provide 'mistty)
 

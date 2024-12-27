@@ -713,27 +713,10 @@ BEG and END define the region that was modified."
   (when (and mistty--term-properties-to-add-alist (> end beg))
     (when-let ((props (apply #'append
                        (mapcar #'cdr mistty--term-properties-to-add-alist))))
-      (add-text-properties beg end props)))
-
-  ;; Add property to fake newlines so they're not yanked.
-  (while-let ((pos (text-property-any beg end 'term-line-wrap t)))
-    (let ((fake-nl-end (next-single-property-change pos 'term-line-wrap nil end)))
-      (put-text-property pos fake-nl-end 'yank-handler '(nil "" nil nil))
-      (setq beg fake-nl-end)))
-
-  (when mistty-bracketed-paste
-    ;; Detect and mark right prompts.
-    (let ((bol (mistty--bol beg))
-          (eol (mistty--eol beg)))
-      (when (and (> beg bol)
-                 (<= end eol)
-                 (get-text-property (1- beg) 'mistty-skip)
-                 (not (get-text-property bol 'mistty-skip)))
-        (add-text-properties
-         beg end '(mistty-skip t mistty-right-prompt t yank-handler (nil "" nil nil)))))))
+      (add-text-properties beg end props))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
-  "Add property \\='mistty-skip t to spaces added when just moving.
+  "Add property \\='mistty-maybe-skip t to spaces added when just moving.
 
 ORIG-FUN is the original `move-to-column' function that's being
 advised and ARGS are its arguments."
@@ -741,9 +724,8 @@ advised and ARGS are its arguments."
     (let ((initial-end (line-end-position)))
       (apply orig-fun args)
       (when (> (point) initial-end)
-        (add-text-properties
-         initial-end (point)
-         '(mistty-skip t yank-handler (nil "" nil nil)))))
+        (put-text-property
+         initial-end (point) 'mistty-maybe-skip t)))
     (apply orig-fun args)))
 
 (defun mistty--maybe-bracketed-str (str)

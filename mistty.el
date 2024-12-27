@@ -2172,7 +2172,7 @@ at the wrong position after a refresh."
   (when (and mistty-sync-marker (>= end mistty-sync-marker))
     (when-let ((right-prompt
                 (text-property-any
-                 beg (mistty--eol end) 'mistty-right-prompt t)))
+                 beg (mistty--eol end) 'mistty-skip 'right-prompt)))
       (when (and (> right-prompt (point-min))
                  (get-text-property (1- right-prompt) 'mistty-skip))
         (when-let ((real-start
@@ -2408,8 +2408,8 @@ returns nil."
 
            ;; ignore term-line-wrap and mistty-skip when
            ;; building and running the detector.
-           (mistty--remove-text-with-property 'term-line-wrap t)
-           (mistty--remove-text-with-property 'mistty-skip t)
+           (mistty--remove-text-with-property 'term-line-wrap)
+           (mistty--remove-text-with-property 'mistty-skip)
            (setq inserted-detector-regexp
                  (concat
                   "^"
@@ -2423,8 +2423,8 @@ returns nil."
             interact term-seq
             :wait-until (lambda ()
                           (mistty--update-backstage)
-                          (mistty--remove-text-with-property 'term-line-wrap t)
-                          (mistty--remove-text-with-property 'mistty-skip t)
+                          (mistty--remove-text-with-property 'term-line-wrap)
+                          (mistty--remove-text-with-property 'mistty-skip)
                           (looking-back inserted-detector-regexp (point-min)))
             :then after-insert-and-delete-f)))
        (funcall next-modification-f)))
@@ -2638,7 +2638,7 @@ Return nil if no command could be extracted."
              (buffer-substring-no-properties
               (point)
               (or (text-property-any
-                   (point) eol 'mistty-right-prompt t)
+                   (point) eol 'mistty-skip 'right-prompt)
                   eol))))))
     (when (and (length> command 0)
                (not (string-match-p
@@ -2901,12 +2901,12 @@ post-command hook."
   "Return non-nil if POSA and POSB are the same, skipped spaces.
 
 This returns non-nil if POSA and POSB are equal or if there are
-only spaces with ==\'mistty-skip t between them."
+only spaces with ==\'mistty-skip between them."
   (if (= posa posb)
       t
     (let ((low (min posa posb))
           (high (max posa posb)))
-      (not (text-property-not-all low high 'mistty-skip t)))))
+      (not (text-property-any low high 'mistty-skip nil)))))
 
 (defun mistty--window-size-change (_win)
   "Update the process terminal size, reacting to _WIN changing size."

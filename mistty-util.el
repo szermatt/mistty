@@ -117,12 +117,17 @@ of failing."
   "Return non-nil if positions A and B are on the same line."
   (= (mistty--bol a) (mistty--bol b)))
 
-(defun mistty--remove-text-with-property (prop val)
-  "Remove spaces with text property PROP set to VAL from the current buffer."
-  (let ((pos (point-min)))
-    (while (setq pos (text-property-any pos (point-max) prop val))
+(defun mistty--remove-text-with-property (prop &optional pred)
+  "Remove text with property PROP whose value matches PRED.
+
+If PRED is unspecified, remove any PROP with a non-nil value."
+  (let ((pos (point-min))
+        (pred (or pred #'identity)))
+    (while (setq pos (text-property-not-all pos (point-max) prop nil))
       (let ((next-pos (next-single-property-change pos prop nil (point-max))))
-        (delete-region pos next-pos)))))
+        (if (funcall pred (get-text-property pos prop))
+            (delete-region pos next-pos)
+          (setq pos next-pos))))))
 
 (defun mistty--remove-fake-newlines (start end)
   "Remove newlines marked \\='term-line-wrap between START and END."

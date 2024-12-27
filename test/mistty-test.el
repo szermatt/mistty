@@ -1383,7 +1383,7 @@
                            "[  ]end")
                    (mistty-test-content
                     :strip-last-prompt t
-                    :show-property '(mistty-skip t))))))
+                    :show-property '(mistty-skip indent))))))
 
 (ert-deftest mistty-test-insert-long-prompt ()
   (mistty-with-test-buffer ()

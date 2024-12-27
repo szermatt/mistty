@@ -68,7 +68,7 @@
   (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
     (insert fake-nl "abc" fake-nl fake-nl "def" fake-nl "ghi\n" fake-nl )
 
-    (mistty--remove-text-with-property 'term-line-wrap t)
+    (mistty--remove-text-with-property 'term-line-wrap)
     (should (equal "abcdefghi\n"
                    (mistty--safe-bufstring (point-min) (point-max))))))
 
@@ -86,8 +86,17 @@
           (propertize "   " 'mistty-skip t) "def"
           (propertize "   " 'mistty-skip t))
 
-  (mistty--remove-text-with-property 'mistty-skip t)
+  (mistty--remove-text-with-property 'mistty-skip)
   (should (equal "abc def"
+                 (mistty--safe-bufstring (point-min) (point-max)))))
+
+(ert-deftest mistty-util-test-remove-specific-val ()
+  (insert (propertize "---" 'mistty-skip 'indent) "abc "
+          (propertize "..." 'mistty-skip 'trailing) "def"
+          (propertize "<<<" 'mistty-skip 'right-prompt))
+
+  (mistty--remove-text-with-property 'mistty-skip (lambda (val) (eq 'trailing val)))
+  (should (equal "---abc def<<<"
                  (mistty--safe-bufstring (point-min) (point-max)))))
 
 (ert-deftest mistty-util-test-truncate-string ()

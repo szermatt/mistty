@@ -54,10 +54,15 @@
     (put-text-property (point-min) (point-max) 'mistty-changed t)
     (mistty--prepare-term-for-refresh (current-buffer) (point-min))
 
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
+    (should (equal (concat "$ for i in a b c\n"
+                           "[    ]echo ok\n"
+                           "end")
+                   (mistty-test-content :show-property '(mistty-skip indent))))
     (should (equal (concat "$ for i in a b c [    ]\n"
-                           "[    ]echo ok [  ]\n"
+                           "    echo ok [  ]\n"
                            "end[    ]")
-                   (mistty-test-content :show-property '(mistty-skip t))))))
+                   (mistty-test-content :show-property '(mistty-skip trailing))))))
 
 (ert-deftest mistty-test-prepare-term-for-refresh-ignore-skip-in-the-middle ()
   (ert-with-test-buffer ()
@@ -69,7 +74,7 @@
     (mistty--prepare-term-for-refresh (current-buffer) (point-min))
 
     (should (equal "$ echo   ok [    ]"
-                   (mistty-test-content :show-property '(mistty-skip t))))))
+                   (mistty-test-content :show-property '(mistty-skip trailing))))))
 
 (ert-deftest mistty-test-prepare-term-for-refresh-ignore-unchanged ()
   (ert-with-test-buffer ()
@@ -83,10 +88,12 @@
     (put-text-property (search-forward "end") (point-max) 'mistty-changed t)
     (mistty--prepare-term-for-refresh (current-buffer) (point-min))
 
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should (equal (concat "$ for i in a b c\n"
                            "    echo ok\n"
                            "end[    ]")
-                   (mistty-test-content :show-property '(mistty-skip t))))))
+                   (mistty-test-content :show-property '(mistty-skip trailing))))))
 
 (ert-deftest mistty-test-prepare-term-for-refresh-ignore-nonws ()
   (ert-with-test-buffer ()
@@ -97,8 +104,9 @@
     (put-text-property (point-min) (point-max) 'mistty-changed t)
     (mistty--prepare-term-for-refresh (current-buffer) (point-min))
 
-    (should (equal "$ echo foo bar"
-                   (mistty-test-content :show-property '(mistty-skip t))))))
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))))
 
 (ert-deftest mistty-test-prepare-term-for-refresh-right-prompt ()
   (ert-with-test-buffer ()
@@ -119,7 +127,7 @@
       (put-text-property (point-min) (point-max) 'mistty-changed t)
       (mistty--prepare-term-for-refresh (current-buffer) (point-min)))
 
-    (should (string-match "^ left > \\[ + < right \\]$"
-                          (mistty-test-content :show-property '(mistty-skip t))))
+    (should (string-match "^ left > \\[ +\\] < right"
+                          (mistty-test-content :show-property '(mistty-skip trailing))))
     (should (string-match "^ left >  +\\[ < right \\]$"
-                          (mistty-test-content :show-property '(mistty-right-prompt t))))))
+                          (mistty-test-content :show-property '(mistty-skip right-prompt))))))

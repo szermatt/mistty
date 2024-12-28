@@ -198,7 +198,9 @@ Set to 0 to disable truncation."
     ;; bash:
     "^(reverse-i-search)"
     ;; zsh:
-    "^bck-i-search:.*_ *$")
+    "^bck-i-search:.*_ *$"
+    ;; ipython
+    "^I-search\\( backward\\)?: ")
   "Regexps that turn off replaying of Emacs modifications.
 
 These regexps are meant to detect modes in which shells turn off

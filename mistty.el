@@ -2173,12 +2173,7 @@ at the wrong position after a refresh."
     (when-let ((right-prompt
                 (text-property-any
                  beg (mistty--eol end) 'mistty-skip 'right-prompt)))
-      (when (and (> right-prompt (point-min))
-                 (get-text-property (1- right-prompt) 'mistty-skip))
-        (when-let ((real-start
-                    (previous-single-property-change
-                     (1- right-prompt) 'mistty-skip)))
-          (delete-region real-start (mistty--eol right-prompt)))))))
+      (delete-region right-prompt (mistty--eol right-prompt)))))
 
 (defun mistty--after-change-on-work (beg end old-length)
   "Handler for modifications made to the work buffer.
@@ -3249,7 +3244,7 @@ This is meant to be added to `pre-redisplay-functions'"
         (when (eq (car last-state) (current-buffer))
           (setq last-pos (cdr last-state))))
       (pcase-dolist (`(,beg . ,end) (mistty--cursor-skip-ranges
-                                     pos '(indent trailing right-prompt)))
+                                     pos '(indent right-prompt)))
         (unless move-to
           (setq
            move-to

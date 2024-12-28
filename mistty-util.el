@@ -59,6 +59,12 @@ only after a rollover."
     (goto-char pos)
     (pos-eol n)))
 
+(defun mistty--line-width ()
+  "Return the column number at EOL."
+  (save-excursion
+    (goto-char (pos-eol))
+    (current-column)))
+
 (defun mistty--repeat-string (n segment)
   "Return a string containing SEGMENT N times."
   (let ((segment-len (length segment)))

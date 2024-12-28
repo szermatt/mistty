@@ -103,3 +103,15 @@
   (should (equal "abcd" (mistty--truncate-string "abcd" 5)))
   (should (equal "abcd" (mistty--truncate-string "abcd" 4)))
   (should (equal "abc..." (mistty--truncate-string "abcd" 3))))
+
+(ert-deftest mistty-util-test-line-width ()
+  (ert-with-test-buffer ()
+    (insert "line 1: \n")
+    (insert "line 2: 123\n")
+    (insert "line 3: 123         \n")
+    (insert "line 4: 123                  \n")
+
+    (goto-char (point-min))
+    (while (= 0 (forward-line 1))
+      (should (equal (length (buffer-substring (pos-bol) (pos-eol)))
+                     (mistty--line-width))))))

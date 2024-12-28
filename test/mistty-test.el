@@ -3096,16 +3096,28 @@
 
       (should mistty--forbid-edit)
       (execute-kbd-macro (kbd "e c h"))
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion)
+               (goto-char (point-min))
+               (search-forward "search: ech" nil 'noerror)))
 
       (should (equal (concat
-                      "search: <>\n"
+                      "search: ech<>\n"
                       "► echo third  ► echo second  ► echo first")
                      (mistty-test-content
                       :start (mistty-test-pos "search:") :show (point))))
 
       ;; "echo third", the first option is selected by default.
       ;; select the second option (echo second) and accept it.
-      (execute-kbd-macro (kbd "<right> RET"))
+      (execute-kbd-macro (kbd "<right>"))
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (search-forward-regexp "\\$ echo second *\nsearch: " nil t))))
+
+      (execute-kbd-macro (kbd "RET"))
       (mistty-wait-for-output
        :test (lambda ()
                (save-excursion

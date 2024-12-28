@@ -73,9 +73,6 @@ problems.")
 (defvar mistty-test-stable-delay-s mistty-stable-delay-s
   "Value of `mistty-stable-delay-s' active in tests.")
 
-(defconst mistty-test-prompt "$ "
-  "Default shell prompt set by `mistty-test-set-ps1'.")
-
 (defvar mistty-test-prompt-re nil
   "Current test prompt regexp.
 
@@ -123,6 +120,7 @@ window while BODY is running."
                (mistty-test-ok nil)
                (mistty-test-had-issues nil)
                (mistty--inhibit-fake-nl-cleanup t)
+               (mistty-test-prompt-re nil)
                (mistty-log mistty-test-log))
            (ert-with-temp-directory mistty-tempdir
              (mistty-test-setup (quote ,shell) mistty-tempdir)
@@ -196,12 +194,14 @@ window while BODY is running."
    ((eq shell 'bash)
     (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
     (mistty-run-command)
-    (mistty-test-set-ps1))
+    (mistty-wait-for-initial-output)
+    (mistty-test-narrow (mistty-test-set-ps1 "$ ")))
 
    ((eq shell 'zsh)
     (mistty--exec (list mistty-test-zsh-exe "-i" "--no-rcs"))
     (mistty-run-command)
-    (mistty-test-set-ps1))
+    (mistty-wait-for-initial-output)
+    (mistty-test-narrow (mistty-test-set-ps1 "$ ")))
 
    ((eq shell 'fish)
     (mistty--exec
@@ -230,6 +230,7 @@ window while BODY is running."
               "bind \\cg cancel; "
               "bind \\b backward-delete-char; ")))
     (mistty-run-command)
+    (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
     (mistty-send-and-wait-for-prompt (lambda ())))
 
    ((eq shell 'ipython)
@@ -238,19 +239,23 @@ window while BODY is running."
                         "--no-banner"
                         "--no-confirm-exit"
                         (concat "--BaseIPythonApplication.ipython_dir=" tempdir)))
-    (mistty-run-command)
-    (setq mistty-test-prompt-re "^\\(In \\[[0-9]+\\]\\|   ...\\): "))
+    (setq mistty-test-prompt-re "^\\(In \\[[0-9]+\\]\\|   ...\\): ")
+    (mistty-run-command))
 
    (t (error "Unsupported shell %s" shell))))
 
-(defun mistty-test-set-ps1 ()
-  (mistty-wait-for-output :test (lambda () (< (point-min) (point-max))))
+(defun mistty-wait-for-initial-output ()
+  "Wait for program to output anything to the buffer."
+  (mistty-wait-for-output :test (lambda () (< (point-min) (point-max)))))
+
+(defun mistty-test-set-ps1 (prompt)
+  "Set PS1 to PROMPT and setup the prompt regexp for the test."
   ;; Sending the PS1 might happen too early for mistty-send-text,
   ;; which expects the text it sends to appear after the text that's
   ;; already there. It's enough to wait for the prompt anyways.
-  (mistty--send-string mistty-proc (concat "PS1='" mistty-test-prompt "'"))
-  (setq mistty-test-prompt-re (concat "^" (regexp-quote mistty-test-prompt)))
-  (mistty-test-narrow (mistty-send-and-wait-for-prompt)))
+  (mistty--send-string mistty-proc (concat "PS1='" prompt "'"))
+  (setq mistty-test-prompt-re (concat "^" (regexp-quote prompt)))
+  (mistty-send-and-wait-for-prompt))
 
 (defun mistty-setup-fish-right-prompt ()
   (mistty-send-text "function fish_right_prompt; printf '< right'; end")

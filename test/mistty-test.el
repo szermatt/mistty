@@ -2253,30 +2253,27 @@
 
 (ert-deftest mistty-test-multiple-replace-at-prompt ()
   (mistty-with-test-buffer ()
-    (let* ((mistty-test-prompt "cmd-cmd-cmd> ")
-           (mistty-test-prompt-re "^cmd-cmd-cmd> "))
-      (mistty-send-text "PS1='cmd-cmd-cmd> '")
-      (mistty-send-and-wait-for-prompt)
+    (mistty-test-set-ps1 "cmd-cmd-cmd> ")
 
-      (mistty-send-text "echo cmd")
+    (mistty-send-text "echo cmd")
 
-      ;; Replace "cmd" with "command". There's "cmd" in the scrollback
-      ;; area, at prompt and in the prompt. Replacements at prompt get
-      ;; reverted, replacement in the prompt gets replayed. There's
-      ;; only one hard-timeout, for the first cmd at prompt, after
-      ;; that replay remembers the limit.
-      (let ((mistty-expected-issues '(hard-timeout)))
-        (mistty-run-command
-         (goto-char (point-min))
-         (while (search-forward "cmd" nil t)
-           (replace-match "command" nil t))
-         (mistty-test-goto "echo command")))
+    ;; Replace "cmd" with "command". There's "cmd" in the scrollback
+    ;; area, at prompt and in the prompt. Replacements at prompt get
+    ;; reverted, replacement in the prompt gets replayed. There's
+    ;; only one hard-timeout, for the first cmd at prompt, after
+    ;; that replay remembers the limit.
+    (let ((mistty-expected-issues '(hard-timeout)))
+      (mistty-run-command
+       (goto-char (point-min))
+       (while (search-forward "cmd" nil t)
+         (replace-match "command" nil t))
+       (mistty-test-goto "echo command")))
 
-      (should
-       (equal
-        (concat "$ PS1='command-command-command> '\n"
-                "cmd-cmd-cmd> echo command")
-        (mistty-test-content))))))
+    (should
+     (equal
+      (concat "$ PS1='command-command-command> '\n"
+              "cmd-cmd-cmd> echo command")
+      (mistty-test-content)))))
 
 (ert-deftest mistty-reset-during-replay ()
   (mistty-with-test-buffer ()

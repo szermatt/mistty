@@ -4141,32 +4141,38 @@
       (disable-theme theme))))
 
 (ert-deftest mistty-test-scroll-window-up ()
+  (turtles-ert-test)
+
   (mistty-with-test-buffer (:shell fish :selected t)
-    (let ((win (selected-window)))
-      (dotimes (_ (window-height))
+    (let ((win (selected-window))
+          (testbuf (current-buffer))
+          (lastline (lambda (&optional buf)
+                      (with-current-buffer (or buf (current-buffer))
+                        (save-excursion
+                          (goto-char (point-max))
+                          (buffer-substring (pos-bol) (pos-eol)))))))
+      (delete-other-windows)
+
+      ;; Make sure "fi" is at the bottom of the window
+      (dotimes (_ (+ 5 (window-height)))
         (mistty-send-text "echo hello")
         (mistty-send-and-wait-for-prompt))
       (mistty-send-text "fi")
+
       (recenter nil 'redisplay)
+      (turtles-with-grab-buffer (:win win)
+        (should (equal "$ fi" (funcall lastline))))
+
       ;; Command completion should display a few lines below the
       ;; prompt. Since we're at the bottom of the window, these
       ;; lines would normally not be visible.
       (mistty-run-command
        (mistty-tab-command))
-      (let ((wstart (window-start win))
-            (wend (if (called-interactively-p 'any)
-                      (window-end win t)
-                    ;; We can't trust (window-end win t) in batch tests, so
-                    ;; we compute the end manually.
-                    (save-excursion
-                      (goto-char (window-start win))
-                      (forward-line (1+ (window-height)))
-                      (point)))))
-        (should (equal "" (mistty-test-content :start wend)))
-        (should (> (point) wstart))
-        (should (< (point) wend))
-        (should (> (point-max) wstart))
-        (should (<= (point-max) wend))))))
+      (turtles-with-grab-buffer (:win win)
+        (goto-char (point-max))
+        (should (equal
+                 (funcall lastline testbuf)
+                 (funcall lastline)))))))
 
 (ert-deftest mistty-test-keep-active-mark-on-prompt ()
   (mistty-with-test-buffer ()

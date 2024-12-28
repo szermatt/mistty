@@ -1310,12 +1310,12 @@ PROC is the calling shell process and STR the string it sent."
         (let ((old-point-max (point-max)))
           (mistty--refresh)
 
-        ;; If there's something below the point in a prompt, scroll
-        ;; the window up so it's visible. Emacs won't do it on its
-        ;; own, since the point would still be visible in such a case.
-        (when (and (> (point-max) old-point-max)
-                   (equal (point) (mistty-cursor))
-                   (mistty-on-prompt-p (point)))
+          ;; If there's something below the point in a prompt, scroll
+          ;; the window up so it's visible. Emacs won't do it on its
+          ;; own, since the point would still be visible in such a case.
+          (when (and (> (point-max) old-point-max)
+                     (equal (point) (mistty-cursor))
+                     (mistty-on-prompt-p (point)))
             (let* ((pos (point))
                    (end (mistty--last-non-ws))
                    (lines-after-point (count-lines (point) end)))

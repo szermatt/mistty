@@ -20,7 +20,7 @@
 
 (ert-deftest mistty-log-test-start-stop-log-in-buffer ()
   (ert-with-test-buffer ()
-    (let ((noninteractive nil)
+    (let ((mistty-log-to-messages nil)
           (mistty-log nil)
           (mistty-backlog-size 0)
           log-buffer)
@@ -48,7 +48,7 @@
 
 (ert-deftest mistty-log-test-disable-log-when-buffer-is-killed ()
   (ert-with-test-buffer ()
-    (let ((noninteractive nil)
+    (let ((mistty-log-to-messages nil)
           (mistty-log nil)
           (mistty-backlog-size 0)
           log-buffer)
@@ -56,12 +56,13 @@
       (kill-buffer log-buffer)
       (should-not mistty-log))))
 
-(ert-deftest mistty-log-test-start-stop-log-in-batch-mode ()
+(ert-deftest mistty-log-test-start-stop-log-logging-to-messages ()
   (ert-with-test-buffer ()
-    (let ((noninteractive t)
+    (let ((mistty-log-to-messagse t)
           (mistty-log nil)
           (mistty-backlog-size 0)
           (mistty-log-buffer nil)
+          (inhibit-message t)
           log-buffer)
       (ert-with-message-capture messages
         (should (not mistty-log))
@@ -87,7 +88,7 @@
 
 (ert-deftest mistty-log-test-drop-log ()
   (ert-with-test-buffer ()
-    (let ((noninteractive nil)
+    (let ((mistty-log-to-messages nil)
           (mistty-log nil)
           (mistty-log-buffer nil)
           (log-buffer nil))
@@ -105,7 +106,7 @@
 
 (ert-deftest mistty-log-test-backlog ()
   (ert-with-test-buffer ()
-    (let ((noninteractive nil)
+    (let ((mistty-log-to-messages nil)
           (mistty-log nil)
           (mistty-log-buffer nil)
           (mistty-backlog-size 3)

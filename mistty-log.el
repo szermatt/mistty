@@ -40,6 +40,9 @@ This is usually set by calling `mistty-start-log'.
 
 Calling the function `mistty-log' is a no-op unless this is set.")
 
+(defvar mistty-log-to-messages noninteractive
+  "If non-nil, send log to messages instead of mistty log buffer.")
+
 (defcustom mistty-backlog-size 0
   "Log entries to track when logging is disabled.
 
@@ -147,7 +150,7 @@ exit already."
        (list format-str args event-time)))
 
      ;; enabled; interactive: log to buffer
-     ((and mistty-log (not noninteractive))
+     ((and mistty-log (not mistty-log-to-messages))
       (with-current-buffer
           (or (and (buffer-live-p mistty-log-buffer) mistty-log-buffer)
               (setq mistty-log-buffer
@@ -167,7 +170,7 @@ exit already."
         (insert-before-markers "\n")))
 
      ;; enabled; batch: output
-     ((and mistty-log noninteractive)
+     ((and mistty-log mistty-log-to-messages)
       (message "%s %s"
                (mistty--log-header event-time calling-buffer)
                (apply #'format format-str (mapcar #'mistty--format-log-arg args)))))))

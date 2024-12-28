@@ -4097,21 +4097,48 @@
                      (mistty-send-and-capture-command-output))))))
 
 (ert-deftest mistty-test-change-term-colors ()
-  (mistty-with-test-buffer ()
-    (mistty-send-text "echo hello")
-    (mistty-send-and-wait-for-prompt)
-    (mistty-send-text "echo world")
+  (turtles-ert-test)
 
-    ;; This just tests that there's no background or foreground color
-    ;; set. Anything that deals with actual color is going to fail
-    ;; when run from batch, so we can't look at the real colors in
-    ;; this test.
-    (pcase-dolist (`(_ _ ,props) (mistty--save-properties (point-min)))
-      (pcase (plist-get props 'font-lock-face)
-        (`(,face-props . rest)
-         (should (equal nil (plist-get (car face-props) :foreground)))
-         (should (equal nil (plist-get (car face-props) :background))))
-        (_)))))
+  (unwind-protect
+      (progn
+        (load-theme 'modus-vivendi 'no-confirm) ;; dark theme
+        (mistty-with-test-buffer ()
+          ;; A prompt that sets a color and switches back to the default.
+          (mistty--send-string mistty-proc "PS1='\\e[48;5;94m\\e[38;5;15m$ \\e[0m'")
+          (mistty-send-and-wait-for-prompt)
+
+          ;; Text should still reference the default face and not
+          ;; specific colors.
+          (mistty-send-text "echo hello")
+          (mistty-send-and-wait-for-prompt)
+
+          (mistty-send-text "echo world")
+
+          (disable-theme 'modus-vivendi)
+          (load-theme 'modus-operandi 'no-confirm) ;; light theme
+
+          ;; Allow some time for terminal refresh.
+          (accept-process-output mistty-proc 0.1)
+          (while (accept-process-output mistty-proc 0))
+
+          ;; We switched from a dark to a light  theme. Make sure the
+          ;; background of normal text is light .
+          (turtles-with-grab-buffer ()
+            (goto-char (point-min))
+
+            ;; scrollback region
+            (search-forward "echo hello")
+            (goto-char (match-beginning 0))
+            (should (equal (color-values (background-color-at-point))
+                           (color-values (modus-themes-color 'bg-main))))
+
+            ;; terminal region
+            (search-forward "echo hello")
+            (goto-char (match-beginning 0))
+            (should (equal (color-values (background-color-at-point))
+                           (color-values (modus-themes-color 'bg-main)))))))
+    (dolist (theme custom-enabled-themes)
+      (disable-theme theme))))
 
 (ert-deftest mistty-test-scroll-window-up ()
   (mistty-with-test-buffer (:shell fish :selected t)

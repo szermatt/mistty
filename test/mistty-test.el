@@ -3105,8 +3105,7 @@
 
       ;; "echo third", the first option is selected by default.
       ;; select the second option (echo second) and accept it.
-      (execute-kbd-macro (kbd "<right>"))
-      (mistty-send-command)
+      (execute-kbd-macro (kbd "<right> RET"))
       (mistty-wait-for-output
        :test (lambda ()
                (save-excursion

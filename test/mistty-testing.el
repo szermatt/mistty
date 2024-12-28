@@ -21,6 +21,7 @@
 (require 'seq)
 (eval-when-compile
   (require 'cl-lib))
+(require 'turtles)
 
 (require 'mistty-changeset)
 (require 'mistty-log)
@@ -37,6 +38,13 @@
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
 (defvar mistty-test-log nil
   "Set to t to enable logging for all tests using mistty-with-test-buffer.")
+
+(turtles-definstance mistty (:width 80 :height 24 :forward '(mistty-test-bash-exe
+                                                             mistty-test-zsh-exe
+                                                             mistty-test-fish-exe
+                                                             mistty-test-log))
+  "Emacs instance that runs mistty tests."
+  (setq mistty-log-to-messages t))
 
 (defvar mistty-wait-for-output-timeout-s
   (if noninteractive 10 3)

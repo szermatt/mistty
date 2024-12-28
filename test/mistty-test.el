@@ -4097,7 +4097,7 @@
                      (mistty-send-and-capture-command-output))))))
 
 (ert-deftest mistty-test-change-term-colors ()
-  (turtles-ert-test)
+  (turtles-ert-test :instance 'mistty)
 
   (unwind-protect
       (progn
@@ -4141,7 +4141,7 @@
       (disable-theme theme))))
 
 (ert-deftest mistty-test-scroll-window-up ()
-  (turtles-ert-test)
+  (turtles-ert-test :instance 'mistty)
 
   (mistty-with-test-buffer (:shell fish :selected t)
     (let ((win (selected-window))
@@ -4324,7 +4324,7 @@
 
 ;; https://github.com/szermatt/mistty/issues/27
 (ert-deftest mistty-test-bash-reverse-i-search-and-nl ()
-  (turtles-ert-test)
+  (turtles-ert-test :instance 'mistty)
 
   ;; This is a turtles test, because the problem only appears when you
   ;; take invisibility into account.

@@ -119,6 +119,12 @@ definition, because it doesn't allow editing what's above."
 (defconst mistty-left-str "\eOD"
   "Sequence to send to the process when the left arrow is pressed.")
 
+(defconst mistty-up-str "\eOA"
+  "Sequence to send to the process when the uparrow is pressed.")
+
+(defconst mistty-down-str "\eOB"
+  "Sequence to send to the process when the left arrow is pressed.")
+
 (defvar mistty-term-key-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "<tab>") "\t")

@@ -2914,6 +2914,43 @@
      (kill-line))
     (should (string-match "^\$ <> +< right$" (mistty-test-content :show (mistty-cursor))))))
 
+(ert-deftest mistty-test-vertical-distance ()
+  (ert-with-test-buffer ()
+    (insert "echo one tw\n"
+            "o three fou\n"
+            "r five six \n"
+            "seven eight\n"
+            "nine")
+    (should (equal 0 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "echo"))))
+    (should (equal 1 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "three"))))
+    (should (equal 2 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "five"))))
+    (should (equal 3 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "seven"))))
+    (should (equal 4 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "nine"))))
+    (should (equal -4 (mistty--vertical-distance (mistty-test-pos "nine")
+                                                 (mistty-test-pos "one"))))))
+
+(ert-deftest mistty-test-vertical-distance-fake-nl ()
+  (ert-with-test-buffer ()
+    (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
+    (insert "echo one tw" fake-nl "o three four\n"
+            "five six se" fake-nl "ven eight\n"
+            "nine")
+    (should (equal 0 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "four"))))
+    (should (equal 1 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "six"))))
+    (should (equal 1 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "eight"))))
+    (should (equal 2 (mistty--vertical-distance (mistty-test-pos "one")
+                                                (mistty-test-pos "nine"))))
+    (should (equal -2 (mistty--vertical-distance (mistty-test-pos "nine")
+                                                 (mistty-test-pos "one")))))))
+
 (ert-deftest mistty-test-distance-with-fake-nl ()
   (ert-with-test-buffer ()
     (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
@@ -4395,3 +4432,62 @@
                (mistty-test-content
                 :show (point)
                 :start (pos-bol) :end (pos-eol)))))))
+
+(ert-deftest mistty-test-ipython-reconcile-in-another-line ()
+  (mistty-with-test-buffer (:shell ipython)
+    (let ((mistty--can-move-vertically t))
+      (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
+      (mistty-wait-for-output :test (lambda () (save-excursion
+                                                 (goto-char (point-min))
+                                                 (and (search-forward "...:" nil 'noerror)
+                                                      (search-forward "...:" nil 'noerror)))))
+      (let ((start (save-excursion
+                     (goto-char (point-min))
+                     (search-forward "In [")
+                     (match-beginning 0))))
+
+
+        (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                               "   ...:     if i > 2:\n"
+                               "   ...:         print(i)")
+                       (mistty-test-content :start start)))
+
+        (mistty-run-command
+         (goto-char (point-min))
+         (search-forward "(1, 2, 3)")
+         (replace-match "(10, 11)" nil t)
+         (goto-char (point-min)))
+
+        (should (equal (concat "In [1]: for i in (10, 11):\n"
+                               "   ...:     if i > 2:\n"
+                               "   ...:         print(i)")
+                       (mistty-test-content :start start)))))))
+
+
+(ert-deftest mistty-test-ipython-reconcile-multiline-delete ()
+  (mistty-with-test-buffer (:shell ipython)
+    (let ((mistty--can-move-vertically t))
+      (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
+      (mistty-wait-for-output :test (lambda () (save-excursion
+                                                 (goto-char (point-min))
+                                                 (and (search-forward "...:" nil 'noerror)
+                                                      (search-forward "...:" nil 'noerror)))))
+      (let ((start (save-excursion
+                     (goto-char (point-min))
+                     (search-forward "In [")
+                     (match-beginning 0))))
+
+        (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                               "   ...:     if i > 2:\n"
+                               "   ...:         print(i)")
+                       (mistty-test-content :start start)))
+
+        (mistty-run-command
+         (goto-char (point-min))
+         (search-forward-regexp "if i > 2\\(.\\|\n\\)*print(i)")
+         (replace-match "total += i" nil t))
+         (goto-char (point-min))
+
+         (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                                "   ...:     total += i")
+                        (mistty-test-content :start start)))))))

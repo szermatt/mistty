@@ -41,7 +41,10 @@
   (should (equal "\ea\ea\ea" (mistty-translate-key (kbd "M-a") 3)))
 
   (should (equal mistty-left-str (mistty-translate-key (kbd "<left>") 1)))
-  (should (equal mistty-right-str (mistty-translate-key (kbd "<right>") 1))))
+  (should (equal mistty-right-str (mistty-translate-key (kbd "<right>") 1)))
+
+  (should (equal mistty-up-str (mistty-translate-key (kbd "<up>") 1)))
+  (should (equal mistty-down-str (mistty-translate-key (kbd "<down>") 1))))
 
 (ert-deftest mistty-test-prepare-term-for-refresh-indent-and-end ()
   (ert-with-test-buffer ()

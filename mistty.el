@@ -2218,7 +2218,7 @@ changeset is released and the call returns t, otherwise the call
 returns nil."
   (let ((interact (mistty--make-interact 'replay))
         next-modification-f
-        move-to-target-f after-move-to-target-f
+        move-to-target-f after-move-vertically-f after-move-to-target-f
         insert-and-delete-f after-insert-and-delete-f
 
         ;; mistty--changeset-modification extracts modification from
@@ -2343,22 +2343,37 @@ returns nil."
          (funcall next-modification-f))
 
         (t
-         (setq distance (mistty--distance (point) target))
          (when inhibit-moves
-           (mistty-log "INHIBITED: to target: %s -> %s distance: %s"
-                       (point) target distance)
+           (mistty-log "INHIBITED: to target: %s -> %s" (point) target)
            (funcall after-move-to-target-f))
 
-         (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
-         (let ((term-seq (mistty--move-horizontally-str distance)))
-           (when (mistty--nonempty-str-p term-seq)
-               (mistty--interact-return
-                interact term-seq
-                :wait-until (lambda ()
-                              (mistty--update-backstage)
-                              (= (point) target))
-                :then after-move-to-target-f)))
-         (funcall insert-and-delete-f)))))
+         (when mistty--can-move-vertically
+           (let ((distance (mistty--vertical-distance (point) target)))
+             (mistty-log "to target: %s -> %s lines: %s"
+                         (point) target distance)
+             (let ((term-seq (mistty--move-vertically-str distance)))
+               (when (mistty--nonempty-str-p term-seq)
+                 (mistty--interact-return
+                  interact term-seq
+                  :wait-until (lambda ()
+                                (mistty--update-backstage)
+                                (mistty--same-line-p (point) target))
+                  :then after-move-vertically-f)))))
+         (funcall after-move-vertically-f)))))
+
+    (setq after-move-vertically-f
+          (lambda ()
+            (setq distance (mistty--distance (point) target))
+            (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
+            (let ((term-seq (mistty--move-horizontally-str distance)))
+              (when (mistty--nonempty-str-p term-seq)
+                (mistty--interact-return
+                 interact term-seq
+                 :wait-until (lambda ()
+                               (mistty--update-backstage)
+                               (= (point) target))
+                 :then after-move-to-target-f)))
+            (funcall insert-and-delete-f)))
 
     (setq
      after-move-to-target-f
@@ -2505,6 +2520,21 @@ left (negative)."
            (if (< direction 0)
                mistty-left-str
              mistty-right-str)))
+      (mistty--repeat-string distance towards-str))))
+
+(defun mistty--move-vertically-str (direction)
+  "Return a key sequence to move vertically.
+
+The absolute value of DIRECTION specifies the number of lines
+to move and the sign specifies whether to go down (positive) or
+up (negative)."
+  (if (zerop direction)
+      ""
+    (let ((distance (abs direction))
+          (towards-str
+           (if (< direction 0)
+               mistty-up-str
+             mistty-down-str)))
       (mistty--repeat-string distance towards-str))))
 
 (defun mistty-next-input (n)
@@ -3393,6 +3423,23 @@ of them."
        (t
         (setq stop t)))))
   pos)
+
+(defun mistty--vertical-distance (beg end)
+  "Compute the number up/down key presses to get from BEG to END.
+
+Note that moving that distance vertically only gets the cursor to
+the *line* on which END is."
+  (save-excursion
+    (let ((count 0)
+          (sign (if (> beg end) -1 1))
+          (beg (min beg end))
+          (end (max beg end)))
+      (goto-char beg)
+      (while (search-forward "\n" end 'noerror)
+        (unless (get-text-property (match-beginning 0) 'term-line-wrap)
+          (cl-incf count)))
+
+      (* sign count))))
 
 (defun mistty--distance (beg end)
   "Compute the number left/right key presses to get from BEG to END.

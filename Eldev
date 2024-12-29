@@ -16,11 +16,10 @@
  '(:package tempel :version "0.8")
  '(:package yasnippet :version "0.14.0"))
 
-;; Install turtles test dependency as a git submodule, as it is not
-;; yet stable enough to be treated as a package.
-(eldev-add-extra-dependencies
- '(test emacs) 'turtles)
-(eldev-use-local-dependency "./deps/turtles")
+(eldev-add-extra-dependencies '(test emacs) 'turtles)
+(eldev-use-vc-repository
+ 'turtles :github "szermatt/turtles"
+ :commit "e2b0de8d6684e9f4d75282f5836e110cc7736c31")
 
 ;; Exclude work and build files so Eldev doctor ignores them.
 (setf eldev-standard-excludes

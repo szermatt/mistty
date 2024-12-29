@@ -761,66 +761,76 @@ properties, detecting the following regions in a prompt line:
                          (text-property-any
                           region-start (point-max) 'mistty-changed t)))
           (goto-char changed-start)
+          (goto-char (pos-bol))
 
           (remove-text-properties
-           (pos-bol) (point-max)
+           (point) (point-max)
            '(mistty-skip nil yank-handler nil mistty-changed nil))
           (while
               (progn
-                (let* ((bol (pos-bol))
-                       (eol (pos-eol))
-                       (indent-pos nil)
-                       (has-righ-prompt nil)
-                       pos)
+                (let ((bol (pos-bol))
+                      (eol (pos-eol)))
                   (when (> eol bol)
-                    ;; Set mistty-right-prompt t on text at eol
-                    (setq pos (1- eol))
-                    (when (and (>= 3 (- term-width (mistty--line-width)))
-                               (not (get-text-property pos 'mistty-maybe-skip)))
-                      (when-let ((first-maybe-skip (previous-single-property-change eol 'mistty-maybe-skip nil bol)))
-                        (when (and (eq (char-before first-maybe-skip) ?\ )
-                                   (> first-maybe-skip bol))
-                          (setq pos (1- first-maybe-skip))
-                          (while (and (>= pos bol)
-                                      (eq (char-after pos) ?\ )
-                                      (get-text-property pos 'mistty-maybe-skip))
-                            (cl-decf pos))
-                          (cl-incf pos)
-                          (add-text-properties
-                           pos eol '(mistty-skip right-prompt yank-handler (nil "" nil nil)))
-                          (setq has-righ-prompt t))))
+                    (unless (mistty--detect-right-prompt bol eol)
+                      (let ((indent (mistty--detect-indent bol eol)))
+                        (mistty--detect-trailing-spaces indent eol)))))
 
-                    ;; Turn maybe-skip into skip t on indent at bol
-                    (unless has-righ-prompt
-                      (setq pos bol)
-                      (while (and (eq (char-after pos) ?\ )
-                                  (get-text-property pos 'mistty-maybe-skip))
-                        (cl-incf pos))
-                      (when (> pos bol)
-                        (setq indent-pos pos)
-                        (put-text-property bol pos 'mistty-skip 'indent))
+                ;; process next line?
+                (forward-line 1)
+                (not (eobp)))))))))
 
-                      ;; Turn maybe-skip into skip on trailing spaces.
-                      (setq pos (1- eol))
-                      (while (and (>= pos bol)
-                                  (eq (char-after pos) ?\ )
-                                  (get-text-property pos 'mistty-maybe-skip))
-                        (cl-decf pos))
-                      (cl-incf pos)
+(defun mistty--detect-right-prompt (bol eol)
+  "Detect right prompt and return its left position or nil.
 
-                      ;; It's all skipped spaces; choose between trailing and indent.
-                      (when (and indent-pos (<= pos indent-pos))
-                        (let ((prev (mistty--previous-line-indent)))
-                          (setq pos (min indent-pos (+ bol prev)))))
+BOL and EOL define the region to look in."
+  (let ((pos (1- eol)))
+    (when (and (>= 3 (- term-width (mistty--line-width)))
+               (not (get-text-property pos 'mistty-maybe-skip)))
+      (when-let ((first-maybe-skip (previous-single-property-change eol 'mistty-maybe-skip nil bol)))
+        (when (and (eq (char-before first-maybe-skip) ?\ )
+                   (> first-maybe-skip bol))
+          (setq pos (1- first-maybe-skip))
+          (while (and (>= pos bol)
+                      (eq (char-after pos) ?\ )
+                      (get-text-property pos 'mistty-maybe-skip))
+            (cl-decf pos))
+          (cl-incf pos)
+          (add-text-properties
+           pos eol '(mistty-skip right-prompt yank-handler (nil "" nil nil)))
 
-                      (when (< pos eol)
-                        (add-text-properties
-                         pos eol
-                         `(mistty-skip trailing yank-handler (nil "" nil nil)))))))
+          pos)))))
 
-                (when (< (pos-eol) (point-max))
-                  (forward-line 1)
-                  'continue))))))))
+(defun mistty--detect-indent (bol eol)
+  "Detect line indentation and return its right position or nil.
+
+BOL and EOL define the region to look in."
+  (let ((pos bol))
+    (while (and (eq (char-after pos) ?\ )
+                (get-text-property pos 'mistty-maybe-skip))
+      (cl-incf pos))
+    (when (> pos bol)
+      (when (= pos eol)
+        (setq pos (min pos (+ bol (mistty--previous-line-indent)))))
+      (put-text-property bol pos 'mistty-skip 'indent))
+    pos))
+
+(defun mistty--detect-trailing-spaces (bol eol)
+  "Detect trailing spaces the left position or nil.
+
+BOL and EOL define the region to look in."
+  (let ((pos (1- eol)))
+    (while (and (>= pos bol)
+                (eq (char-after pos) ?\ )
+                (get-text-property pos 'mistty-maybe-skip))
+      (cl-decf pos))
+    (cl-incf pos)
+
+    (when (< pos eol)
+      (add-text-properties
+       pos eol
+       `(mistty-skip trailing yank-handler (nil "" nil nil))))
+
+    pos))
 
 (defun mistty--previous-line-indent ()
   "Return the indentation of the previous line.

@@ -803,6 +803,10 @@ connect to the same host.")
   (setq-local scroll-conservatively 1024)
   (setq-local window-point-insertion-type t)
 
+  ;; Mistty hides the fake newlines term added and relies on large
+  ;; lines being wrapped for display and proper resizing.
+  (setq-local truncate-lines nil)
+
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
 

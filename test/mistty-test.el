@@ -1437,6 +1437,34 @@
                              "$")
                      (mistty-test-content))))))
 
+(ert-deftest mistty-test-display-long-prompt ()
+  (turtles-ert-test :instance 'mistty)
+
+  (mistty-with-test-buffer (:selected t)
+    (delete-other-windows)
+
+    (dolist (word '("echo" "one" "two" "three" "four" "five" "six" "seven"
+                    "eight" "nine" "ten" "eleven" "twelve" "thirteen"
+                    "fourteen" "fifteen" "sixteen" "seventeen" "eighteen"
+                    "nineteen"))
+      (mistty--send-string mistty-proc (concat word " ")))
+    (mistty-send-text "twenty")
+    (mistty-send-and-wait-for-prompt)
+
+    ;; Term adds fake newlines, but mistty makes them invisible and
+    ;; relies on window continuation. The effect of the above setup is
+    ;; visible below as Emacs adds "\" at then end of some lines.
+    (turtles-with-grab-buffer ()
+      (should
+       (equal
+        (concat
+         "$ echo one two three four five six seven eight nine ten eleven twelve thirteen\\\n"
+         " fourteen fifteen sixteen seventeen eighteen nineteen twenty\n"
+         "one two three four five six seven eight nine ten eleven twelve thirteen fourte\\\n"
+         "en fifteen sixteen seventeen eighteen nineteen twenty\n"
+         "$")
+        (buffer-string))))))
+
 (ert-deftest mistty-test-enter-fullscreen ()
   (mistty-with-test-buffer (:selected t)
     (let ((bufname (buffer-name))

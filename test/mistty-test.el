@@ -3206,6 +3206,11 @@
       (mistty-run-command
        (goto-char (mistty-cursor))
        (insert " se"))
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (not (search-forward "► echo first" nil 'noerror)))))
 
       (should (equal (concat "$ echo first\n"
                              "first\n"
@@ -3235,6 +3240,11 @@
        (insert "se"))
 
       (mistty-send-text " fi")
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (not (search-forward "► echo second" nil 'noerror)))))
 
       (should (equal (concat "$ echo first\n"
                              "first\n"
@@ -3317,6 +3327,11 @@
        (delete-region (mistty-test-pos-after "►") (point-max)))
 
       (mistty-send-text " se")
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (not (search-forward "► echo first" nil 'noerror)))))
 
       (should (equal (concat "$ echo first\n"
                              "first\n"
@@ -3344,6 +3359,11 @@
        (delete-region (pos-bol) (+ 4 (pos-bol))))
 
       (mistty-send-text " se")
+      (mistty-wait-for-output
+       :test (lambda ()
+               (save-excursion
+                 (goto-char (point-min))
+                 (not (search-forward "► echo first" nil 'noerror)))))
 
       (should (equal (concat "$ echo first\n"
                              "first\n"

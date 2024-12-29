@@ -32,7 +32,10 @@ result might look like:
 ![screen grab](https://github.com/szermatt/mistty/blob/master/screengrab.gif?raw=true)
 
 MisTTY is known to work on Linux and MacOS. It also supports non-shell
-command-line programs, such as python.
+command-line programs, such as python or ipython. MisTTY should work
+with most shells, but it is possible that a shell confuses it,
+especially advanced ones. In such a case, please [file a bug report](
+https://mistty.readthedocs.io/en/latest/contrib.html#reporting-issues).
 
 ## COMPARISON
 

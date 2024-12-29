@@ -288,3 +288,33 @@ something like the following in :file:`~/.zshrc`:
    if [ "$TERM" != "eterm-color" ]; then
      bindkey -v
    fi
+
+.. _ipython:
+
+IPython
+-------
+
+Editing, and cursor movements should work out of the box with
+:program:`ipython`, even in multi-line commands, *provided you use the
+default prompts*.
+
+.. index::
+   pair: variable; mistty-move-vertically-regexps
+   pair: variable; mistty-multi-line-continue-prompts
+
+If you modified the :program:`ipython` prompts, you'll need to teach
+MisTTY about these prompts for multi-line movement and editing to
+work.
+
+Go to :kbd:`M-x configure-option mistty-move-vertically-regexps` and
+add to the list a regular expression that matches your prompt. Make
+sure that your regular expression is specific to your IPython prompt,
+as mistakenly matching with :program:`bash` or :program:`zsh` would
+have rather catastrophic results.
+
+Go to :kbd:`M-x configure-option mistty-multi-line-continue-prompts`
+and add to the list a regular expression that matches your IPython
+continue prompt, that is, the prompt that IPython adds to the second
+and later lines of input. Again, be specific. The regular expression
+shouldn't match any other prompts. You don't need to do anything here
+if you configured IPython to not output any continue prompt.

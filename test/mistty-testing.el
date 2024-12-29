@@ -36,7 +36,8 @@
 (defvar mistty-test-bash-exe (executable-find "bash"))
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
 (defvar mistty-test-fish-exe (executable-find "fish"));; optional
-(defvar mistty-test-ipython-exe (executable-find "ipython"));; optional
+(defvar mistty-test-ipython-exe (or (executable-find "ipython3")
+                                    (executable-find "ipython"))) ;; optional
 (defvar mistty-test-log nil
   "Set to t to enable logging for all tests using mistty-with-test-buffer.")
 

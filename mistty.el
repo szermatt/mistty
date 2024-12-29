@@ -3239,7 +3239,7 @@ This is meant to be added to `pre-redisplay-functions'"
         (when (eq (car last-state) (current-buffer))
           (setq last-pos (cdr last-state))))
       (pcase-dolist (`(,beg . ,end) (mistty--cursor-skip-ranges
-                                     pos '(indent right-prompt)))
+                                     pos '(indent right-prompt continue-prompt)))
         (unless move-to
           (setq
            move-to

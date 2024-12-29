@@ -4356,3 +4356,42 @@
   (mistty-with-test-buffer (:shell ipython)
     (mistty-send-text "print('hello')")
     (should (equal "hello" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-ipython-detect-continue-prompt ()
+  (mistty-with-test-buffer (:shell ipython)
+    (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
+    (mistty-wait-for-output :test (lambda () (save-excursion
+                                               (goto-char (point-min))
+                                               (and (search-forward "...:" nil 'noerror)
+                                                    (search-forward "...:" nil 'noerror)))))
+
+    (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                           "[   ...: ]    if i > 2:\n"
+                           "[   ...: ]        print(i)")
+                   (mistty-test-content
+                    :start (save-excursion
+                             (goto-char (point-min))
+                             (search-forward "In [")
+                             (match-beginning 0))
+                    :show-property '(mistty-skip continue-prompt))))))
+
+(ert-deftest mistty-test-ipython-skip-continue-prompt ()
+  (mistty-with-test-buffer (:shell ipython :selected t)
+    (let ((win (selected-window))
+          (mistty-skip-empty-spaces t))
+      (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
+      (mistty-wait-for-output :test (lambda () (save-excursion
+                                                 (goto-char (point-min))
+                                                 (and (search-forward "...:" nil 'noerror)
+                                                      (search-forward "...:" nil 'noerror)))))
+
+      (mistty-test-goto "    if i > 2")
+      (mistty--cursor-skip win)
+      (goto-char (1- (point)))
+      (mistty--cursor-skip win)
+
+      (should (equal
+               "In [1]: for i in (1, 2, 3):<>"
+               (mistty-test-content
+                :show (point)
+                :start (pos-bol) :end (pos-eol)))))))

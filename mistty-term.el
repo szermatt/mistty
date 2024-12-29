@@ -98,6 +98,21 @@ For example:
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-multi-line-continue-prompts
+  '("^    *\\.\\.\\.: " ; ipython
+    )
+  "Regexp used to identify multi-line command prompts.
+
+These regexps identifies prompts that tell the user that they can
+type more, while still allowing them to edit what's above. MisTTY
+uses these regexps to identify sections of texts it should ignore
+when editing.
+
+Note that bash \"> \" is not a continuation prompt, with this
+definition, because it doesn't allow editing what's above."
+  :group 'mistty
+  :type '(list regexp))
+
 (defconst mistty-right-str "\eOC"
   "Sequence to send to the process when the rightarrow is pressed.")
 
@@ -772,8 +787,9 @@ properties, detecting the following regions in a prompt line:
                       (eol (pos-eol)))
                   (when (> eol bol)
                     (unless (mistty--detect-right-prompt bol eol)
-                      (let ((indent (mistty--detect-indent bol eol)))
-                        (mistty--detect-trailing-spaces indent eol)))))
+                      (let ((end (or (mistty--detect-continue-prompt bol)
+                                     (mistty--detect-indent bol eol))))
+                        (mistty--detect-trailing-spaces end eol)))))
 
                 ;; process next line?
                 (forward-line 1)
@@ -799,6 +815,22 @@ BOL and EOL define the region to look in."
            pos eol '(mistty-skip right-prompt yank-handler (nil "" nil nil)))
 
           pos)))))
+
+(defun mistty--detect-continue-prompt (bol)
+  "Detect continue prompt and return its right position or nil.
+
+BOL define the start of the region to look in."
+  (catch 'mistty-return
+    (save-excursion
+      (goto-char bol)
+      (dolist (prompt mistty-multi-line-continue-prompts)
+        (when (looking-at prompt)
+          (let ((end (match-end 0)))
+            (when (> end bol)
+              (add-text-properties
+               bol end
+               '(mistty-skip continue-prompt yank-handler (nil "" nil nil)))
+              (throw 'mistty-return end))))))))
 
 (defun mistty--detect-indent (bol eol)
   "Detect line indentation and return its right position or nil.

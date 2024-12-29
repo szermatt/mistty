@@ -212,3 +212,26 @@
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
     (should (string-match "^\\[ + < right \\]$"
                           (mistty-test-content :show-property '(mistty-skip right-prompt))))))
+
+(ert-deftest mistty-test-prepare-term-for-refresh-ipython-continue-prompt ()
+  (ert-with-test-buffer ()
+    (setq-local term-width 80)
+
+    (insert (concat "In [3]: for i in (1, 2, 3):" (propertize "    " 'mistty-maybe-skip t) "\n"))
+    (insert (concat "   ...:   if i > 1:  " (propertize "    " 'mistty-maybe-skip t) "\n"))
+    (insert (concat "   ...:     print(i)  " (propertize "    " 'mistty-maybe-skip t) "\n"))
+    (insert (concat "In [133]: for i in (1, 2, 3):\n"))
+    (insert (concat "     ...:     print(i)\n"))
+
+    (put-text-property (point-min) (point-max) 'mistty-changed t)
+    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
+    (should (equal
+             (concat "In [3]: for i in (1, 2, 3):\n"
+                     "[   ...: ]  if i > 1:\n"
+                     "[   ...: ]    print(i)\n"
+                     "In [133]: for i in (1, 2, 3):\n"
+                     "[     ...: ]    print(i)")
+                   (mistty-test-content :show-property '(mistty-skip continue-prompt))))))

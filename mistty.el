@@ -186,7 +186,7 @@ Set to 0 to disable truncation."
   :type 'natnum)
 
 (defcustom mistty-move-vertically-regexps
-  '("^In \\[0-9+\\]: " ; ipython
+  '("^In \\[[0-9]+\\]: " ; ipython
     )
   "Regexp that signals availability of vertical moves.
 
@@ -1570,6 +1570,11 @@ Also updates prompt and point."
                (mistty--set-sync-mark-from-end prompt-beg)
                (setq mistty--has-active-prompt (> cursor prompt-beg)))))
 
+         (let ((v (and on-prompt (mistty--can-move-vertically-p))))
+           (unless (eq v mistty--can-move-vertically)
+             (mistty-log "Can move vertically: %s" v)
+             (setq mistty--can-move-vertically v)))
+
          ;; Turn mistty-forbid-edit on or off
          (let ((forbid-edit (mistty--match-forbid-edit-regexp-p)))
            (cond
@@ -1683,6 +1688,18 @@ cursor to be considered."
                      (< (match-beginning 0) eol))
             (setq match t))))
       match)))
+
+(defun mistty--can-move-vertically-p ()
+  "Check whether vertical moves are allowed, return either nil or t.
+
+Does not update `mistty--can-move-vertically'."
+  (save-excursion
+    (goto-char mistty-sync-marker)
+    (catch 'mistty-end-loop
+      (dolist (regexp mistty-move-vertically-regexps)
+        (when (search-forward-regexp regexp (pos-eol) 'noerror)
+          (throw 'mistty-end-loop t)))
+      nil)))
 
 (defun mistty--sync-buffer (source-buffer &optional quick)
   "Copy the sync region of SOURCE-BUFFER to the current buffer.

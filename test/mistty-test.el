@@ -4435,95 +4435,92 @@
 
 (ert-deftest mistty-test-ipython-reconcile-in-another-line ()
   (mistty-with-test-buffer (:shell ipython)
-    (let ((mistty--can-move-vertically t))
-      (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
-      (mistty-wait-for-output :test (lambda () (save-excursion
-                                                 (goto-char (point-min))
-                                                 (and (search-forward "...:" nil 'noerror)
-                                                      (search-forward "...:" nil 'noerror)))))
-      (let ((start (save-excursion
-                     (goto-char (point-min))
-                     (search-forward "In [")
-                     (match-beginning 0))))
+    (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
+    (mistty-wait-for-output :test (lambda () (save-excursion
+                                               (goto-char (point-min))
+                                               (and (search-forward "...:" nil 'noerror)
+                                                    (search-forward "...:" nil 'noerror)))))
+    (let ((start (save-excursion
+                   (goto-char (point-min))
+                   (search-forward "In [")
+                   (match-beginning 0))))
 
 
-        (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
-                               "   ...:     if i > 2:\n"
-                               "   ...:         print(i)")
-                       (mistty-test-content :start start)))
+      (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                             "   ...:     if i > 2:\n"
+                             "   ...:         print(i)")
+                     (mistty-test-content :start start)))
 
-        (mistty-run-command
-         (goto-char (point-min))
-         (search-forward "(1, 2, 3)")
-         (replace-match "(10, 11)" nil t)
-         (goto-char (point-min)))
+      (mistty-run-command
+       (goto-char (point-min))
+       (search-forward "(1, 2, 3)")
+       (replace-match "(10, 11)" nil t)
+       (goto-char (point-min)))
 
-        (should (equal (concat "In [1]: for i in (10, 11):\n"
-                               "   ...:     if i > 2:\n"
-                               "   ...:         print(i)")
-                       (mistty-test-content :start start)))))))
+      (should (equal (concat "In [1]: for i in (10, 11):\n"
+                             "   ...:     if i > 2:\n"
+                             "   ...:         print(i)")
+                     (mistty-test-content :start start))))))
 
 (ert-deftest mistty-test-ipython-reconcile-multiline-delete ()
   (mistty-with-test-buffer (:shell ipython)
-    (let ((mistty--can-move-vertically t))
-      (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
-      (mistty-wait-for-output :test (lambda () (save-excursion
-                                                 (goto-char (point-min))
-                                                 (and (search-forward "...:" nil 'noerror)
-                                                      (search-forward "...:" nil 'noerror)))))
-      (let ((start (save-excursion
-                     (goto-char (point-min))
-                     (search-forward "In [")
-                     (match-beginning 0))))
+    (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
+    (mistty-wait-for-output :test (lambda () (save-excursion
+                                               (goto-char (point-min))
+                                               (and (search-forward "...:" nil 'noerror)
+                                                    (search-forward "...:" nil 'noerror)))))
+    (let ((start (save-excursion
+                   (goto-char (point-min))
+                   (search-forward "In [")
+                   (match-beginning 0))))
 
-        (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
-                               "   ...:     if i > 2:\n"
-                               "   ...:         print(i)")
-                       (mistty-test-content :start start)))
+      (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                             "   ...:     if i > 2:\n"
+                             "   ...:         print(i)")
+                     (mistty-test-content :start start)))
 
-        (mistty-run-command
-         (goto-char (point-min))
-         (search-forward-regexp "if i > 2\\(.\\|\n\\)*print(i)")
-         (replace-match "total += i" nil t))
-         (goto-char (point-min))
+      (mistty-run-command
+       (goto-char (point-min))
+       (search-forward-regexp "if i > 2\\(.\\|\n\\)*print(i)")
+       (replace-match "total += i" nil t))
+      (goto-char (point-min))
 
-         (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
-                                "   ...:     total += i")
-                        (mistty-test-content :start start)))))))
+      (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                             "   ...:     total += i")
+                     (mistty-test-content :start start))))))
 
 (ert-deftest mistty-test-ipython-move-cursor ()
   (mistty-with-test-buffer (:shell ipython)
-    (let ((mistty--can-move-vertically t))
-      (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
-      (mistty-wait-for-output :test (lambda () (save-excursion
-                                                 (goto-char (point-min))
-                                                 (and (search-forward "...:" nil 'noerror)
-                                                      (search-forward "...:" nil 'noerror)))))
-      (let ((start (save-excursion
-                     (goto-char (point-min))
-                     (search-forward "In [")
-                     (match-beginning 0))))
+    (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
+    (mistty-wait-for-output :test (lambda () (save-excursion
+                                               (goto-char (point-min))
+                                               (and (search-forward "...:" nil 'noerror)
+                                                    (search-forward "...:" nil 'noerror)))))
+    (let ((start (save-excursion
+                   (goto-char (point-min))
+                   (search-forward "In [")
+                   (match-beginning 0))))
 
 
-        (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
-                               "   ...:     if i > 2:\n"
-                               "   ...:         print(i)<>")
-                       (mistty-test-content :start start :show (point))))
+      (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                             "   ...:     if i > 2:\n"
+                             "   ...:         print(i)<>")
+                     (mistty-test-content :start start :show (point))))
 
-        (mistty-run-command
-         (goto-char (point-min))
-         (mistty-test-goto "(1, 2, 3)"))
+      (mistty-run-command
+       (goto-char (point-min))
+       (mistty-test-goto "(1, 2, 3)"))
 
-        (should (equal (concat "In [1]: for i in <>(1, 2, 3):\n"
-                               "   ...:     if i > 2:\n"
-                               "   ...:         print(i)")
-                       (mistty-test-content :start start :show (point))))
+      (should (equal (concat "In [1]: for i in <>(1, 2, 3):\n"
+                             "   ...:     if i > 2:\n"
+                             "   ...:         print(i)")
+                     (mistty-test-content :start start :show (point))))
 
-        (mistty-run-command
-         (goto-char (point-min))
-         (mistty-test-goto "if"))
+      (mistty-run-command
+       (goto-char (point-min))
+       (mistty-test-goto "if"))
 
-        (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
-                               "   ...:     <>if i > 2:\n"
-                               "   ...:         print(i)")
-                       (mistty-test-content :start start :show (point))))))))
+      (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
+                             "   ...:     <>if i > 2:\n"
+                             "   ...:         print(i)")
+                     (mistty-test-content :start start :show (point)))))))

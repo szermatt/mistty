@@ -185,6 +185,23 @@ Set to 0 to disable truncation."
   :group 'mistty
   :type 'natnum)
 
+(defcustom mistty-move-vertically-regexps
+  '("^In \\[0-9+\\]: " ; ipython
+    )
+  "Regexp that signals availability of vertical moves.
+
+MisTTY normally avoids moving vertically, because in many shells
+the up/down arrows navigate through history instead of moving the
+cursor.
+
+Vertical moves are turned on when a regexp on this list matches
+the beginning of the terminal zone."
+  :group 'mistty
+  :type '(list regexp))
+
+(defvar mistty--can-move-vertically nil
+  "If non-nil, vertical moves are allowed.")
+
 (defcustom mistty-forbid-edit-regexps
   '( ;; fish:
     "^search: "

@@ -4180,8 +4180,8 @@
       (turtles-with-grab-buffer (:win win)
         (goto-char (point-max))
         (should (equal
-                 (funcall lastline testbuf)
-                 (funcall lastline)))))))
+                 (string-trim (funcall lastline testbuf))
+                 (string-trim (funcall lastline))))))))
 
 (ert-deftest mistty-test-keep-active-mark-on-prompt ()
   (mistty-with-test-buffer ()

@@ -46,6 +46,7 @@
                                                              mistty-test-fish-exe
                                                              mistty-test-log))
   "Emacs instance that runs mistty tests."
+  (clear-minibuffer-message)
   (setq mistty-log-to-messages t))
 
 (defvar mistty-wait-for-output-timeout-s

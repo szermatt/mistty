@@ -1453,7 +1453,7 @@
 
     ;; Term adds fake newlines, but mistty makes them invisible and
     ;; relies on window continuation. The effect of the above setup is
-    ;; visible below as Emacs adds "\" at then end of some lines.
+    ;; visible below as Emacs adds "\" at the end of some lines.
     (turtles-with-grab-buffer ()
       (should
        (equal

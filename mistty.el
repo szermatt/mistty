@@ -3238,8 +3238,10 @@ This is meant to be added to `pre-redisplay-functions'"
       (when-let ((last-state (window-parameter win 'mistty--cursor-skip-state)))
         (when (eq (car last-state) (current-buffer))
           (setq last-pos (cdr last-state))))
-      (pcase-dolist (`(,beg . ,end) (mistty--cursor-skip-ranges
-                                     pos '(indent right-prompt continue-prompt)))
+      (pcase-dolist (`(,beg . ,end)
+                     (mistty--cursor-skip-ranges
+                      pos (lambda (type)
+                            (memq type '(indent right-prompt continue-prompt)))))
         (unless move-to
           (setq
            move-to
@@ -3276,15 +3278,17 @@ This is meant to be added to `pre-redisplay-functions'"
   "Return the right end of the skip ranges containing POS.
 
 Return POS if not in any skip ranges."
-  (or (cdr (car (last (mistty--cursor-skip-ranges
-                       pos '(indent trailing right-prompt))))) pos))
+  (or (cdr (car (last (mistty--cursor-skip-ranges pos)))) pos))
 
-(defun mistty--cursor-skip-ranges (pos types)
+(defun mistty--cursor-skip-ranges (pos &optional type-condition)
   "Ranges of spaces and newlines to skip over that contain POS.
 
-Return a list of ( BEG . END ), sorted by BEG, increasing."
-  (let ((beg (mistty--cursor-incomplete-skip-backward pos types))
-        (end (mistty--cursor-incomplete-skip-forward pos types))
+Return a list of ( BEG . END ), sorted by BEG, increasing.
+
+TYPE-CONDITION applies to mistty-skip types and defaults to skipping all
+of them."
+  (let ((beg (mistty--cursor-incomplete-skip-backward pos type-condition))
+        (end (mistty--cursor-incomplete-skip-forward pos type-condition))
         (ranges nil))
     (save-excursion
       (goto-char beg)
@@ -3323,43 +3327,50 @@ the prompt from the beginning of the line."
     (goto-char (mistty--bol pos))
     (skip-chars-forward " ")))
 
-(defun mistty--cursor-incomplete-skip-forward (pos types)
+(defun mistty--cursor-incomplete-skip-forward (pos type-condition)
   "Return the position of next non-skipped char after POS.
 
 This implementation is incomplete. Always call
 `mistty--cursor-skip-ranges' or `mistty--cursor-skip-forward' to
-get correct results."
-  (let ((stop nil))
+get correct results.
+
+TYPE-CONDITION applies to mistty-skip types."
+  (let ((stop nil)
+        (type-condition (or type-condition #'identity)))
     (while (and (not stop)
                 (< pos (point-max)))
       (cond
        ((and (eq ?\n (char-after pos))
              (or (and (> pos (point-min))
-                      (memq (get-text-property (1- pos) 'mistty-skip) types))
+                      (funcall type-condition (get-text-property (1- pos) 'mistty-skip)))
                  (and (< pos (point-max))
-                      (memq (get-text-property (1+ pos) 'mistty-skip) types))))
+                      (funcall type-condition (get-text-property (1+ pos) 'mistty-skip)))))
         (cl-incf pos))
-       ((memq (get-text-property pos 'mistty-skip) types)
+       ((funcall type-condition (get-text-property pos 'mistty-skip))
         (setq pos (next-single-property-change
                    pos 'mistty-skip nil (point-max))))
        (t
         (setq stop t)))))
   pos)
 
-(defun mistty--cursor-incomplete-skip-backward (pos types)
+(defun mistty--cursor-incomplete-skip-backward (pos type-condition)
   "Return the position of previous non-skipped char before POS.
 
 This implementation is incomplete. Always call
-`mistty--cursor-skip-ranges' to get correct results."
-  (let ((stop nil))
+`mistty--cursor-skip-ranges' to get correct results.
+
+TYPE-CONDITION applies to mistty-skip types and defaults to skipping all
+of them."
+  (let ((stop nil)
+        (type-condition (or type-condition #'identity)))
     (while (and (not stop) (> pos (point-min)))
       (cond
        ((and (eq ?\n (char-before pos))
-             (or (memq (get-text-property pos 'mistty-skip) types)
+             (or (funcall type-condition (get-text-property pos 'mistty-skip))
                  (and (>= (- pos 2) (point-min))
-                      (memq (get-text-property (- pos 2) 'mistty-skip) types))))
+                      (funcall type-condition (get-text-property (- pos 2) 'mistty-skip)))))
         (cl-decf pos))
-       ((memq (get-text-property (1- pos) 'mistty-skip) types)
+       ((funcall type-condition (get-text-property (1- pos) 'mistty-skip))
         (setq pos (previous-single-property-change
                    pos 'mistty-skip nil (point-min))))
        (t
@@ -3380,8 +3391,7 @@ as \\='mistty-skip spaces."
           ;; skip fake newlines
           (setq pos (1+ pos))
         (pcase-let ((`(,skip-beg . ,skip-end)
-                     (car (last (mistty--cursor-skip-ranges
-                                 pos '(indent trailing right-prompt))))))
+                     (car (last (mistty--cursor-skip-ranges pos)))))
           (cond
            ((or (null skip-beg) (null skip-end))
             ;; the position is not to be skipped over; count it towards

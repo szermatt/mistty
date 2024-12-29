@@ -2721,6 +2721,58 @@
                      (mistty-test-content
                       :show (window-point)))))))
 
+(ert-deftest mistty-test-cursor-skip ()
+  (turtles-ert-test)
+
+  ;; This test is an integration tests. The details of the moves are
+  ;; tested by cursor-skip-hook tests.
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (delete-other-windows)
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (mistty-send-text "for i in a b c\necho line $i\nend")
+
+    (turtles-with-grab-buffer (:name "initial" :point "<>")
+      (should (equal (concat "$ for i in a b c\n"
+                             "      echo line $i\n"
+                             "  end<>")
+                     (buffer-string))))
+
+    (mistty-test-goto-after "a b c")
+    (turtles-with-grab-buffer (:name "initial" :point "<>")
+      (should (equal (concat "$ for i in a b c<>\n"
+                             "      echo line $i\n"
+                             "  end")
+                     (buffer-string))))
+
+    (right-char)
+    (turtles-with-grab-buffer (:name "initial" :point "<>")
+      (should (equal (concat "$ for i in a b c\n"
+                             "      <>echo line $i\n"
+                             "  end")
+                     (buffer-string))))
+
+    (mistty-test-goto "end")
+    (turtles-with-grab-buffer (:name "initial" :point "<>")
+      (should (equal (concat "$ for i in a b c\n"
+                             "      echo line $i\n"
+                             "  <>end")
+                     (buffer-string))))
+
+    (previous-line)
+    (turtles-with-grab-buffer (:name "initial" :point "<>")
+      (should (equal (concat "$ for i in a b c\n"
+                             "      <>echo line $i\n"
+                             "  end")
+                     (buffer-string))))
+
+    (previous-line)
+    (turtles-with-grab-buffer (:name "initial" :point "<>")
+      (should (equal (concat "$ <>for i in a b c\n"
+                             "      echo line $i\n"
+                             "  end")
+                     (buffer-string)))))))
+
 (ert-deftest mistty-test-yank-handler ()
   (mistty-with-test-buffer ()
     (mistty--set-process-window-size 20 20)

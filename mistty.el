@@ -79,20 +79,13 @@ as a connection-local variable."
   :type '(repeat string)
   :group 'mistty)
 
-(defcustom mistty-prompt-regexp
+(defconst mistty--prompt-regexp
   "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
   "Regexp used to identify prompts.
 
 New, empty lines that might be prompts are evaluated against this
 regexp. This regexp should match something that looks like the
-end of a prompt with no commands.
-
-Customizing this string is usually not necessary, but if you
-notice that MisTTY doesn't detect prompts or detects prompts that
-aren't there, you might want to adapt this regexp to match only
-the prompts of the commands you actually use."
-  :type '(regexp)
-  :group 'mistty)
+end of a prompt with no commands.")
 
 (defcustom mistty-variables-to-copy
   '(default-directory
@@ -1369,7 +1362,7 @@ of the terminal buffer has been updated."
     (when (and (> cursor bol)
                (>= cursor (mistty--last-non-ws))
                (string-match
-                mistty-prompt-regexp
+                mistty--prompt-regexp
                 (mistty--safe-bufstring bol cursor)))
       (let ((end (+ bol (match-end 0)))
             (content (mistty--safe-bufstring bol (+ bol (match-end 0)))))
@@ -1553,7 +1546,7 @@ Also updates prompt and point."
                                  (not mistty--has-active-prompt)))
                         (< prompt-beg cursor)
                         (string-match
-                         mistty-prompt-regexp
+                         mistty--prompt-regexp
                          (mistty--safe-bufstring
                           (mistty--bol cursor) cursor)))
                (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)

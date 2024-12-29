@@ -2901,38 +2901,67 @@ post-command hook."
 
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."
-  (mistty--interact cursor-to-point (interact)
-    (when (and (not mistty--forbid-edit)
-               (mistty-on-prompt-p (point)))
-      (let ((from (mistty-cursor))
-            (to (point)))
-        (when (and (>= from (point-min))
-                   (<= from (point-max))
-                   (>= to (point-min))
-                   (<= to (point-max))
-                   (mistty--with-live-buffer mistty-term-buffer
-                     (<= (mistty--from-pos-of to mistty-work-buffer)
-                         (point-max))))
-          (let* ((distance (mistty--distance from to))
-                 (term-seq (mistty--move-horizontally-str distance)))
-            (when (mistty--nonempty-str-p term-seq)
-              (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-              (mistty--interact-return
-               interact term-seq
-               :wait-until
-               (lambda ()
-                 ;; Ignoring skipped spaces is useful as, with
-                 ;; multiline prompts, it's hard to figure out
-                 ;; where the indentation should be without
-                 ;; understanding the language.
-                 (mistty--same-pos-ignoring-skipped
-                  (mistty-cursor) (point)))
-               :then
-               (lambda ()
-                 (mistty-log "moved cursor to %s (goal: %s)"
-                             (mistty-cursor) (point))
-                 (mistty--interact-done))))))))
-    (mistty--interact-done)))
+  (let ((interact (mistty--make-interact 'cursor-to-point))
+        after-move-vertically-f
+        (can-move-f (lambda (from to)
+                      (and (mistty-on-prompt-p to)
+                           (not mistty--forbid-edit)
+                           (>= from (point-min))
+                           (<= from (point-max))
+                           (>= to (point-min))
+                           (<= to (point-max))
+                           (mistty--with-live-buffer mistty-term-buffer
+                             (<= (mistty--from-pos-of to mistty-work-buffer)
+                                 (point-max)))))))
+    (setf
+     (mistty--interact-cb interact)
+     (lambda (&optional _)
+       (when mistty--can-move-vertically
+         (let ((from (mistty-cursor))
+               (to (point)))
+           (unless (funcall can-move-f from to)
+             (mistty--interact-done))
+           (let ((distance (mistty--vertical-distance from to)))
+             (mistty-log "cursor to point: %s -> %s lines: %s"
+                         from to distance)
+             (let ((term-seq (mistty--move-vertically-str distance)))
+               (when (mistty--nonempty-str-p term-seq)
+                 (mistty--interact-return
+                  interact term-seq
+                  :wait-until (lambda ()
+                                (mistty--same-line-p
+                                 (mistty-cursor) (point)))
+                  :then after-move-vertically-f))))))
+       (funcall after-move-vertically-f)))
+
+    (setq after-move-vertically-f
+          (lambda (&optional _)
+            (let ((from (mistty-cursor))
+                  (to (point)))
+              (unless (funcall can-move-f from to)
+                (mistty--interact-done))
+              (let* ((distance (mistty--distance from to))
+                     (term-seq (mistty--move-horizontally-str distance)))
+                (when (mistty--nonempty-str-p term-seq)
+                  (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
+                  (mistty--interact-return
+                   interact term-seq
+                   :wait-until
+                   (lambda ()
+                     ;; Ignoring skipped spaces is useful as, with
+                     ;; multiline prompts, it's hard to figure out
+                     ;; where the indentation should be without
+                     ;; understanding the language.
+                     (mistty--same-pos-ignoring-skipped
+                      (mistty-cursor) (point)))
+                   :then
+                   (lambda ()
+                     (mistty-log "moved cursor to %s (goal: %s)"
+                                 (mistty-cursor) (point))
+                     (mistty--interact-done)))))
+              (mistty--interact-done))))
+
+    interact))
 
 (defun mistty--same-pos-ignoring-skipped (posa posb)
   "Return non-nil if POSA and POSB are the same, skipped spaces.

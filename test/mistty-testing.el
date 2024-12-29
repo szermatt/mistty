@@ -321,6 +321,9 @@ require the cursor to be at the end of the matched string."
      (t (error "mistty-wait-for-output: no condition specified")))
 
     (let ((time-limit (time-add (current-time) mistty-wait-for-output-timeout-s)))
+      ;; Let the process settle if it's doing something.
+      (while (and (process-live-p proc)
+                  (accept-process-output proc 0 0 t)))
       (while (not (funcall condition))
         (unless (time-less-p (current-time) time-limit)
           (if on-error
@@ -329,8 +332,10 @@ require the cursor to be at the end of the matched string."
              (format "condition not met after %ss (wait-for-output %s)"
                      mistty-wait-for-output-timeout-s condition-descr))))
         (if (process-live-p proc)
-            (accept-process-output proc 0 100 t)
-          (accept-process-output nil 0 100))
+            (when (accept-process-output proc 0 100 t)
+              (while (accept-process-output proc 0 0 t)))
+          (when (accept-process-output nil 0 100)
+            (while (accept-process-output nil 0 0))))
         (ert-run-idle-timers)))))
 
 

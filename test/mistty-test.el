@@ -1799,8 +1799,9 @@
                    (mistty-test-content)))))
 
 (ert-deftest mistty-test-scrolls-window-after-clear ()
+  (turtles-ert-test :instance 'mistty)
+
   (mistty-with-test-buffer (:shell zsh :selected t)
-    (mistty--set-process-window-size 40 20)
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "clear")
@@ -1809,15 +1810,13 @@
     (mistty-send-and-wait-for-prompt)
     (should (equal "$ echo one\none\n$ clear\n$ echo two\ntwo\n$"
                    (mistty-test-content)))
-    (should (equal "$ echo two\ntwo\n$ <>"
-                   (mistty-test-content
-                    :start (window-start)
-                    :end (window-end)
-                    :show (point))))))
+    (turtles-with-grab-buffer (:win (selected-window) :point "<>")
+      (should (equal "$ echo two\ntwo\n$ <>" (buffer-string))))))
 
 (ert-deftest mistty-test-scrolls-window-after-reset ()
+  (turtles-ert-test :instance 'mistty)
+
   (mistty-with-test-buffer (:shell zsh :selected t)
-    (mistty--set-process-window-size 40 20)
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "reset -Q")
@@ -1826,11 +1825,8 @@
     (mistty-send-and-wait-for-prompt)
     (should (equal "$ echo one\none\n$ reset -Q\n$ echo two\ntwo\n$"
                    (mistty-test-content)))
-    (should (equal "$ echo two\ntwo\n$ <>"
-                   (mistty-test-content
-                    :start (window-start)
-                    :end (window-end)
-                    :show (point))))))
+    (turtles-with-grab-buffer (:win (selected-window) :point "<>")
+      (should (equal "$ echo two\ntwo\n$ <>" (buffer-string))))))
 
 (ert-deftest mistty-test-clear-screen ()
   (mistty-with-test-buffer ()

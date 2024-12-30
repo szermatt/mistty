@@ -546,9 +546,7 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
            ((equal ext "[?2004l") ; disable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty-unregister-text-properties 'mistty-bracketed-paste)
-            (setq mistty-bracketed-paste nil)
-            (mistty--with-live-buffer work-buffer
-              (setq mistty-bracketed-paste nil)))
+            (setq mistty-bracketed-paste nil))
            ((equal ext "[?25h") ; make cursor visible
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty--with-live-buffer work-buffer
@@ -739,10 +737,11 @@ BEG and END define the region that was modified."
                              (mapcar #'cdr mistty--term-properties-to-add-alist))))
       (add-text-properties beg end props)))
 
-  (let ((beg (mistty--bol beg))
-        (end (mistty--eol end)))
-    (when (> end beg)
-      (add-text-properties beg end '(mistty-changed t)))))
+  (when mistty-bracketed-paste
+    (let ((beg (mistty--bol beg))
+          (end (mistty--eol end)))
+      (when (> end beg)
+        (add-text-properties beg end '(mistty-changed t))))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-maybe-skip t to spaces added when just moving.
@@ -757,8 +756,8 @@ advised and ARGS are its arguments."
          initial-end (point) 'mistty-maybe-skip t)))
     (apply orig-fun args)))
 
-(defun mistty--prepare-term-for-refresh (buf region-start)
-  "Prepare term buffer BUF for refresh from REGION-START to the end.
+(defun mistty--prepare-term-for-refresh (region-start)
+  "Prepare term buffer for refresh from REGION-START to the end.
 
 This sets the mistty-indent, mistty-trailing, mistty-right-prompt
 and yank-handler properties from the mistty-maybe-skip
@@ -772,34 +771,32 @@ properties, detecting the following regions in a prompt line:
 
 - right prompt at the end of the window line, marked with
   mistty-right-prompt and yank-handler."
-  (with-current-buffer buf
-    (let ((inhibit-read-only t) changed-start)
-      (save-excursion
-        ;; Only process lines that have changed.
-        (when (and (< region-start (point-max))
-                   (>= region-start (point-min))
-                   (setq changed-start
+  (let ((inhibit-read-only t)
+        (changed-start (when (and (>= region-start (point-min))
+                                  (< region-start (point-max)))
                          (text-property-any
-                          region-start (point-max) 'mistty-changed t)))
-          (goto-char changed-start)
-          (goto-char (pos-bol))
+                          region-start (point-max) 'mistty-changed t))))
+    (when changed-start
+      (save-excursion
+        (goto-char changed-start)
+        (goto-char (pos-bol))
 
-          (remove-text-properties
-           (point) (point-max)
-           '(mistty-skip nil yank-handler nil mistty-changed nil))
-          (while
-              (progn
-                (let ((bol (pos-bol))
-                      (eol (pos-eol)))
-                  (when (> eol bol)
-                    (unless (mistty--detect-right-prompt bol eol)
-                      (let ((end (or (mistty--detect-continue-prompt bol)
-                                     (mistty--detect-indent bol eol))))
-                        (mistty--detect-trailing-spaces end eol)))))
+        (remove-text-properties
+         (point) (point-max)
+         '(mistty-skip nil yank-handler nil mistty-changed nil))
+        (while
+            (progn
+              (let ((bol (pos-bol))
+                    (eol (pos-eol)))
+                (when (> eol bol)
+                  (unless (mistty--detect-right-prompt bol eol)
+                    (let ((end (or (mistty--detect-continue-prompt bol)
+                                   (mistty--detect-indent bol eol))))
+                      (mistty--detect-trailing-spaces end eol)))))
 
-                ;; process next line?
-                (forward-line 1)
-                (not (eobp)))))))))
+              ;; process next line?
+              (forward-line 1)
+              (not (eobp))))))))
 
 (defun mistty--detect-right-prompt (bol eol)
   "Detect right prompt and return its left position or nil.

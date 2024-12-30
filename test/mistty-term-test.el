@@ -55,7 +55,7 @@
     (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
 
     (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+    (mistty--prepare-term-for-refresh (point-min))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should (equal (concat "$ for i in a b c\n"
@@ -81,7 +81,7 @@
     (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
 
     (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+    (mistty--prepare-term-for-refresh (point-min))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should (equal (concat "$ for i in a b c\n"
@@ -110,7 +110,7 @@
     (insert (concat "$ echo " (propertize "  " 'mistty-maybe-skip t) "ok " (propertize "    " 'mistty-maybe-skip t) "\n"))
 
     (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+    (mistty--prepare-term-for-refresh (point-min))
 
     (should (equal "$ echo   ok [    ]"
                    (mistty-test-content :show-property '(mistty-skip trailing))))))
@@ -125,7 +125,7 @@
 
     (goto-char (point-min))
     (put-text-property (search-forward "end") (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+    (mistty--prepare-term-for-refresh (point-min))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
@@ -141,7 +141,7 @@
     (insert (propertize "$ echo foo bar" 'mistty-maybe-skip t))
 
     (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+    (mistty--prepare-term-for-refresh (point-min))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
@@ -164,7 +164,7 @@
       (insert "\n")
 
       (put-text-property (point-min) (point-max) 'mistty-changed t)
-      (mistty--prepare-term-for-refresh (current-buffer) (point-min)))
+      (mistty--prepare-term-for-refresh (point-min)))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
@@ -187,7 +187,7 @@
       (insert "\n")
 
       (put-text-property (point-min) (point-max) 'mistty-changed t)
-      (mistty--prepare-term-for-refresh (current-buffer) (point-min)))
+      (mistty--prepare-term-for-refresh (point-min)))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
@@ -209,7 +209,7 @@
       (insert "\n")
 
       (put-text-property (point-min) (point-max) 'mistty-changed t)
-      (mistty--prepare-term-for-refresh (current-buffer) (point-min)))
+      (mistty--prepare-term-for-refresh (point-min)))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
@@ -227,7 +227,7 @@
     (insert (concat "     ...:     print(i)\n"))
 
     (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (current-buffer) (point-min))
+    (mistty--prepare-term-for-refresh (point-min))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))

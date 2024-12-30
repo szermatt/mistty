@@ -451,6 +451,12 @@ by the command that controls, to false otherwise.
 
 This variable is available in both the work and term buffers.")
 
+(defvar-local mistty--term-changed nil
+  "Non-nil if the terminal was changed since last postprocess.
+
+This is used to decide whether and on what region of the buffer
+to call `mistty--term-postprocess'.")
+
 (defvar-local mistty--term-properties-to-add-alist nil
   "An alist of id to text properties to add to the term buffer.
 
@@ -546,7 +552,9 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
            ((equal ext "[?2004l") ; disable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty-unregister-text-properties 'mistty-bracketed-paste)
-            (setq mistty-bracketed-paste nil))
+            (setq mistty-bracketed-paste nil)
+            (mistty--with-live-buffer work-buffer
+              (setq mistty-bracketed-paste nil)))
            ((equal ext "[?25h") ; make cursor visible
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty--with-live-buffer work-buffer
@@ -571,7 +579,16 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
       (let ((split (mistty--split-incomplete-chars (substring str start))))
         (when (length> (cdr split) 0)
           (setq mistty--undecoded-bytes (cdr split)))
-        (term-emulate-terminal proc (car split))))))
+        (term-emulate-terminal proc (car split)))))
+
+  (when-let ((change-start
+              (when (and mistty--term-changed
+                         (>= mistty--term-changed (point-min))
+                         (< mistty--term-changed (point-max)))
+                (text-property-any
+                 mistty--term-changed (point-max) 'mistty-changed t))))
+    (mistty--term-postprocess change-start term-width))
+  (setq mistty--term-changed nil))
 
 (defun mistty--split-incomplete-chars (str)
   "Extract incomplete multibyte chars at the end of STR.
@@ -738,6 +755,9 @@ BEG and END define the region that was modified."
       (add-text-properties beg end props)))
 
   (when mistty-bracketed-paste
+    (setq mistty--term-changed (if mistty--term-changed
+                                   (min mistty--term-changed beg)
+                                 beg))
     (let ((beg (mistty--bol beg))
           (end (mistty--eol end)))
       (when (> end beg)
@@ -756,54 +776,42 @@ advised and ARGS are its arguments."
          initial-end (point) 'mistty-maybe-skip t)))
     (apply orig-fun args)))
 
-(defun mistty--prepare-term-for-refresh (region-start)
-  "Prepare term buffer for refresh from REGION-START to the end.
+(defun mistty--term-postprocess (region-start window-width)
+  "Sets mistty-skip and yank handlers after REGION-START.
 
-This sets the mistty-indent, mistty-trailing, mistty-right-prompt
-and yank-handler properties from the mistty-maybe-skip
-properties, detecting the following regions in a prompt line:
+WINDOW-WIDTH is used to detect right prompts.
 
-- the indent (whitespaces at the beginning), marked with
-  mistty-indent
+This sets properties from the mistty-maybe-skip properties,
+detecting regions looking at a complete line."
+  (save-excursion
+    (goto-char region-start)
+    (goto-char (pos-bol))
+    (let ((inhibit-read-only t)
+          (inhibit-modification-hooks t))
+      (remove-text-properties
+       region-start (point-max)
+       '(mistty-skip nil yank-handler nil mistty-changed nil))
+      (while
+          (progn
+            (let ((bol (pos-bol))
+                  (eol (pos-eol)))
+              (when (> eol bol)
+                (unless (mistty--detect-right-prompt bol eol window-width)
+                  (let ((end (or (mistty--detect-continue-prompt bol)
+                                 (mistty--detect-indent bol eol))))
+                    (mistty--detect-trailing-spaces end eol)))))
 
-- trailing spaces (whitespaces at the end), marked with
-  mistty-trailing and yank-handler
+            ;; process next line?
+            (forward-line 1)
+            (not (eobp))))
+      (setq mistty--term-changed nil))))
 
-- right prompt at the end of the window line, marked with
-  mistty-right-prompt and yank-handler."
-  (let ((inhibit-read-only t)
-        (changed-start (when (and (>= region-start (point-min))
-                                  (< region-start (point-max)))
-                         (text-property-any
-                          region-start (point-max) 'mistty-changed t))))
-    (when changed-start
-      (save-excursion
-        (goto-char changed-start)
-        (goto-char (pos-bol))
-
-        (remove-text-properties
-         (point) (point-max)
-         '(mistty-skip nil yank-handler nil mistty-changed nil))
-        (while
-            (progn
-              (let ((bol (pos-bol))
-                    (eol (pos-eol)))
-                (when (> eol bol)
-                  (unless (mistty--detect-right-prompt bol eol)
-                    (let ((end (or (mistty--detect-continue-prompt bol)
-                                   (mistty--detect-indent bol eol))))
-                      (mistty--detect-trailing-spaces end eol)))))
-
-              ;; process next line?
-              (forward-line 1)
-              (not (eobp))))))))
-
-(defun mistty--detect-right-prompt (bol eol)
+(defun mistty--detect-right-prompt (bol eol window-width)
   "Detect right prompt and return its left position or nil.
 
 BOL and EOL define the region to look in."
   (let ((pos (1- eol)))
-    (when (and (>= 3 (- term-width (mistty--line-width)))
+    (when (and (>= 3 (- window-width (mistty--line-width)))
                (not (get-text-property pos 'mistty-maybe-skip)))
       (when-let ((first-maybe-skip (previous-single-property-change eol 'mistty-maybe-skip nil bol)))
         (when (and (eq (char-before first-maybe-skip) ?\ )
@@ -847,6 +855,7 @@ BOL and EOL define the region to look in."
       (when (= pos eol)
         (setq pos (min pos (+ bol (mistty--previous-line-indent)))))
       (put-text-property bol pos 'mistty-skip 'indent))
+
     pos))
 
 (defun mistty--detect-trailing-spaces (bol eol)

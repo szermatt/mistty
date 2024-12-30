@@ -1507,12 +1507,8 @@ Also updates prompt and point."
                               (buffer-live-p mistty-term-buffer)
                               (mistty-on-prompt-p (mistty-cursor))))
 
-         (when on-prompt
-           (mistty--with-live-buffer mistty-term-buffer
-             (mistty--prepare-term-for-refresh mistty-sync-marker)))
          (mistty-log "refresh (%s)" (if on-prompt "complete" "quick"))
          (mistty--sync-buffer mistty-term-buffer (not on-prompt))
-         (setq mistty-bracketed-paste (buffer-local-value 'mistty-bracketed-paste mistty-term-buffer))
 
          ;; Make fake newlines invisible. They're not really "visible"
          ;; to begin with, since they're at the end of the window, but
@@ -3313,8 +3309,6 @@ The current buffer must be a backstage buffer, created by
 The point is set to the equivalent of proc marker
 position (cursor) in the buffer."
   (let ((buf (process-buffer mistty-proc)))
-    (with-current-buffer buf
-        (mistty--prepare-term-for-refresh mistty-sync-marker))
     (mistty--sync-buffer buf)
     (goto-char
      (mistty--from-pos-of (process-mark mistty-proc) buf))))

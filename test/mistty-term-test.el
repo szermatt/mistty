@@ -46,16 +46,13 @@
   (should (equal mistty-up-str (mistty-translate-key (kbd "<up>") 1)))
   (should (equal mistty-down-str (mistty-translate-key (kbd "<down>") 1))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-indent-and-end ()
+(ert-deftest mistty-test-postprocess-indent-and-end ()
   (ert-with-test-buffer ()
-    (setq-local term-width 80)
-
     (insert (concat "$ for i in a b c " (propertize "    " 'mistty-maybe-skip t) "\n"))
     (insert (concat (propertize "    " 'mistty-maybe-skip t) "echo ok " (propertize "  " 'mistty-maybe-skip t) "\n"))
     (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
 
-    (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (point-min))
+    (mistty--term-postprocess (point-min) 80)
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should (equal (concat "$ for i in a b c\n"
@@ -67,10 +64,8 @@
                            "end[    ]")
                    (mistty-test-content :show-property '(mistty-skip trailing))))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-indent-empty-lines ()
+(ert-deftest mistty-test-postprocess-indent-empty-lines ()
   (ert-with-test-buffer ()
-    (setq-local term-width 80)
-
     (insert "$ for i in a b c\n")
     (insert (concat (propertize "    " 'mistty-maybe-skip t) "\n"))
     (insert (concat (propertize "    " 'mistty-maybe-skip t) "echo foo\n"))
@@ -80,8 +75,7 @@
     (insert (concat (propertize "                       " 'mistty-maybe-skip t) "\n"))
     (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
 
-    (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (point-min))
+    (mistty--term-postprocess (point-min) 80)
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should (equal (concat "$ for i in a b c\n"
@@ -103,57 +97,31 @@
                            "end[    ]")
                    (mistty-test-content :show-property '(mistty-skip trailing))))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-ignore-skip-in-the-middle ()
+(ert-deftest mistty-test-postprocess-ignore-skip-in-the-middle ()
   (ert-with-test-buffer ()
-    (setq-local term-width 80)
-
     (insert (concat "$ echo " (propertize "  " 'mistty-maybe-skip t) "ok " (propertize "    " 'mistty-maybe-skip t) "\n"))
 
-    (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (point-min))
+    (mistty--term-postprocess (point-min) 80)
 
     (should (equal "$ echo   ok [    ]"
                    (mistty-test-content :show-property '(mistty-skip trailing))))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-ignore-unchanged ()
+(ert-deftest mistty-test-postprocess-ignore-nonws ()
   (ert-with-test-buffer ()
-    (setq-local term-width 80)
-
-    (insert (concat "$ for i in a b c " (propertize "    " 'mistty-maybe-skip t) "\n"))
-    (insert (concat (propertize "    " 'mistty-maybe-skip t) "echo ok " (propertize "  " 'mistty-maybe-skip t) "\n"))
-    (insert (concat "end" (propertize "    " 'mistty-maybe-skip t)))
-
-    (goto-char (point-min))
-    (put-text-property (search-forward "end") (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (point-min))
-
-    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
-    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
-    (should (equal (concat "$ for i in a b c\n"
-                           "    echo ok\n"
-                           "end[    ]")
-                   (mistty-test-content :show-property '(mistty-skip trailing))))))
-
-(ert-deftest mistty-test-prepare-term-for-refresh-ignore-nonws ()
-  (ert-with-test-buffer ()
-    (setq-local term-width 80)
-
     (insert (propertize "$ echo foo bar" 'mistty-maybe-skip t))
 
-    (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (point-min))
+    (mistty--term-postprocess (point-min) 80)
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-right-prompt ()
+(ert-deftest mistty-test-postprocess-right-prompt ()
   (ert-with-test-buffer ()
     (select-window (display-buffer (current-buffer)))
     (delete-other-windows)
-    (setq-local term-width 80)
 
-    (let* ((w term-width)
+    (let* ((w 80)
            (left-prompt " left > ")
            (right-prompt " < right ")
            (spaces (- w (length left-prompt) (length right-prompt))))
@@ -163,21 +131,19 @@
       (should (= (current-column) w))
       (insert "\n")
 
-      (put-text-property (point-min) (point-max) 'mistty-changed t)
-      (mistty--prepare-term-for-refresh (point-min)))
+      (mistty--term-postprocess (point-min) w))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
     (should (string-match "^ left > \\[ + < right \\]$"
                           (mistty-test-content :show-property '(mistty-skip right-prompt))))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-right-prompt-with-tolerance ()
+(ert-deftest mistty-test-postprocess-right-prompt-with-tolerance ()
   (ert-with-test-buffer ()
     (select-window (display-buffer (current-buffer)))
     (delete-other-windows)
-    (setq-local term-width 80)
 
-    (let* ((w term-width)
+    (let* ((w 80)
            (left-prompt " left > ")
            (right-prompt " < right ")
            (spaces (- w (length left-prompt) (length right-prompt) 2)))
@@ -186,21 +152,19 @@
       (insert right-prompt)
       (insert "\n")
 
-      (put-text-property (point-min) (point-max) 'mistty-changed t)
-      (mistty--prepare-term-for-refresh (point-min)))
+      (mistty--term-postprocess (point-min) w))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
     (should (string-match "^ left > \\[ + < right \\]$"
                           (mistty-test-content :show-property '(mistty-skip right-prompt))))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-empty-right-prompt ()
+(ert-deftest mistty-test-postprocess-empty-right-prompt ()
   (ert-with-test-buffer ()
     (select-window (display-buffer (current-buffer)))
     (delete-other-windows)
-    (setq-local term-width 80)
 
-    (let* ((w term-width)
+    (let* ((w 80)
            (right-prompt " < right ")
            (spaces (- w (length right-prompt))))
       (insert (propertize (make-string spaces ?\ ) 'mistty-maybe-skip t))
@@ -208,26 +172,22 @@
       (should (= (current-column) w))
       (insert "\n")
 
-      (put-text-property (point-min) (point-max) 'mistty-changed t)
-      (mistty--prepare-term-for-refresh (point-min)))
+      (mistty--term-postprocess (point-min) w))
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
     (should (string-match "^\\[ + < right \\]$"
                           (mistty-test-content :show-property '(mistty-skip right-prompt))))))
 
-(ert-deftest mistty-test-prepare-term-for-refresh-ipython-continue-prompt ()
+(ert-deftest mistty-test-postprocess-ipython-continue-prompt ()
   (ert-with-test-buffer ()
-    (setq-local term-width 80)
-
     (insert (concat "In [3]: for i in (1, 2, 3):" (propertize "    " 'mistty-maybe-skip t) "\n"))
     (insert (concat "   ...:   if i > 1:  " (propertize "    " 'mistty-maybe-skip t) "\n"))
     (insert (concat "   ...:     print(i)  " (propertize "    " 'mistty-maybe-skip t) "\n"))
     (insert (concat "In [133]: for i in (1, 2, 3):\n"))
     (insert (concat "     ...:     print(i)\n"))
 
-    (put-text-property (point-min) (point-max) 'mistty-changed t)
-    (mistty--prepare-term-for-refresh (point-min))
+    (mistty--term-postprocess (point-min) 80)
 
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'right-prompt))
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))

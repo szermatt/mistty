@@ -2032,7 +2032,7 @@ Open an issue on the Issue Tracker@footnote{https://github.com/szermatt/mistty/i
 @subsection Code contributions
 
 
-To contribute code to the project, open a Pull Request@footnote{https://github.com/szermatt/emacs-bash-completion/pulls}.
+To contribute code to the project, open a Pull Request@footnote{https://github.com/szermatt/mistty/pulls}.
 
 Before you do that, please make sure the any new features is covered
 by tests and that the tests pass.
@@ -2051,7 +2051,7 @@ matters.
 
 
 You don’t need to be a developer to contribute! Contribution to the
-documentation or code comments are very welcome. Please open a Pull Request@footnote{https://github.com/szermatt/emacs-bash-completion/pulls} with your proposed modifications.
+documentation or code comments are very welcome. Please open a Pull Request@footnote{https://github.com/szermatt/mistty/pulls} with your proposed modifications.
 
 The documentation is written in reStructuredText. You’ll need to
 install Sphinx@footnote{https://www.sphinx-doc.org} to build it:

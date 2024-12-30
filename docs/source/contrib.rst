@@ -98,4 +98,4 @@ install `Sphinx <https://www.sphinx-doc.org>`_ to build it:
 
 Then run :command:`eldev html` to build the documentation.
 
-.. _Pull Request: https://github.com/szermatt/emacs-bash-completion/pulls
+.. _Pull Request: https://github.com/szermatt/mistty/pulls

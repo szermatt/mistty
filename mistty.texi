@@ -20,7 +20,7 @@
 
 @copying
 @quotation
-MisTTY 1.2.1snapshot
+MisTTY 1.3
 
 Stephane Zermatten
 

@@ -6,8 +6,8 @@ project = 'MisTTY'
 copyright = '2023-2024, Stephane Zermatten'
 author = 'Stephane Zermatten'
 
-release = '1.2.1snapshot'
-version = '1.2.1snapshot'
+release = '1.3'
+version = '1.3'
 
 # -- General configuration
 

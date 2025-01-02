@@ -819,7 +819,7 @@ The simplest way to connect a host or docker instance you don’t
 want to configure is to just start it as described in
 @ref{d,,Remote Shells with TRAMP} and use @code{Bash} as your shell.
 Everything then just work out of the box, at least for Bash
-4.4 and later. (@ref{24,,Directory tracking})
+4.4 and later. (@ref{24,,Directory tracking in Bash})
 @end quotation
 @end cartouche
 
@@ -925,18 +925,18 @@ set enable-bracketed-paste on
 Bash versions older than 4.5 don’t support bracketed paste.
 
 Additionally, Bash versions older than 4.4 require extra setup to
-enable directory tracking, as documented in @ref{24,,Directory tracking}.
+enable directory tracking, as documented in @ref{24,,Directory tracking in Bash}.
 
 @menu
-* Multi-line prompts:: 
-* Directory tracking:: 
-* VI mode:: 
+* Multi-line prompts in Bash:: 
+* Directory tracking in Bash:: 
+* VI mode in Bash:: 
 
 @end menu
 
-@node Multi-line prompts,Directory tracking,,Bash
-@anchor{shells multi-line-prompts}@anchor{2a}
-@subsubsection Multi-line prompts
+@node Multi-line prompts in Bash,Directory tracking in Bash,,Bash
+@anchor{shells multi-line-prompts-in-bash}@anchor{2a}
+@subsubsection Multi-line prompts in Bash
 
 
 When you press @code{RET} on an incomplete command, @code{bash}
@@ -952,9 +952,9 @@ earlier version with bracketed paste mode turned on.
 You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
-@node Directory tracking,VI mode,Multi-line prompts,Bash
-@anchor{shells bash-dirtrack}@anchor{24}@anchor{shells directory-tracking}@anchor{2b}
-@subsubsection Directory tracking
+@node Directory tracking in Bash,VI mode in Bash,Multi-line prompts in Bash,Bash
+@anchor{shells bash-dirtrack}@anchor{24}@anchor{shells directory-tracking-in-bash}@anchor{2b}
+@subsubsection Directory tracking in Bash
 
 
 @geindex variable; mistty-set-EMACS
@@ -1001,9 +1001,9 @@ For example:
  'profile-old-bash)"
 @end example
 
-@node VI mode,,Directory tracking,Bash
-@anchor{shells vi-mode}@anchor{2c}
-@subsubsection VI mode
+@node VI mode in Bash,,Directory tracking in Bash,Bash
+@anchor{shells vi-mode-in-bash}@anchor{2c}
+@subsubsection VI mode in Bash
 
 
 To communicate with @code{bash}, MisTTY requires the shell to be
@@ -1039,17 +1039,17 @@ A recent version of Fish is preferable. MisTTY relies on bracketed
 paste mode, on by default, so it should not be turned off.
 
 @menu
-* Autosuggestions: Autosuggestions<2>. 
-* Command History: Command History<2>. 
-* Directory tracking: Directory tracking<2>. 
-* Multi-line prompts: Multi-line prompts<2>. 
-* VI mode: VI mode<2>. 
+* Autosuggestions in Fish:: 
+* Command History in Fish:: 
+* Directory tracking in Fish:: 
+* Multi-line prompts in Fish:: 
+* VI mode in Fish:: 
 
 @end menu
 
-@node Autosuggestions<2>,Command History<2>,,Fish
-@anchor{shells autosuggestions}@anchor{2f}
-@subsubsection Autosuggestions
+@node Autosuggestions in Fish,Command History in Fish,,Fish
+@anchor{shells autosuggestions-in-fish}@anchor{2f}
+@subsubsection Autosuggestions in Fish
 
 
 @code{fish} autosuggestions work normally in MisTTY. However, the
@@ -1059,9 +1059,9 @@ key, is very inconvenient as this is bound to an Emacs point movement.
 The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
-@node Command History<2>,Directory tracking<2>,Autosuggestions<2>,Fish
-@anchor{shells command-history}@anchor{30}
-@subsubsection Command History
+@node Command History in Fish,Directory tracking in Fish,Autosuggestions in Fish,Fish
+@anchor{shells command-history-in-fish}@anchor{30}
+@subsubsection Command History in Fish
 
 
 To make full use of @code{fish} command history, you’ll want to
@@ -1094,9 +1094,9 @@ use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or e
 @code{C-c C-q} to temporarily send all send key presses to @code{fish}
 @end itemize
 
-@node Directory tracking<2>,Multi-line prompts<2>,Command History<2>,Fish
-@anchor{shells fish-dirtrack}@anchor{1f}@anchor{shells id4}@anchor{31}
-@subsubsection Directory tracking
+@node Directory tracking in Fish,Multi-line prompts in Fish,Command History in Fish,Fish
+@anchor{shells directory-tracking-in-fish}@anchor{31}@anchor{shells fish-dirtrack}@anchor{1f}
+@subsubsection Directory tracking in Fish
 
 
 Extend your prompt to send out an OSC7 sequence to have
@@ -1115,9 +1115,9 @@ end
 such sequence are either ignored or understood by most terminals. You
 might already have it set up.
 
-@node Multi-line prompts<2>,VI mode<2>,Directory tracking<2>,Fish
-@anchor{shells id5}@anchor{32}
-@subsubsection Multi-line prompts
+@node Multi-line prompts in Fish,VI mode in Fish,Directory tracking in Fish,Fish
+@anchor{shells multi-line-prompts-in-fish}@anchor{32}
+@subsubsection Multi-line prompts in Fish
 
 
 @code{fish} automatically detects when a command is incomplete
@@ -1131,9 +1131,9 @@ in a normal terminal. @code{M-x customize-option
 mistty-skip-empty-spaces} allows you to turn that on or off in a
 MisTTY buffer.
 
-@node VI mode<2>,,Multi-line prompts<2>,Fish
-@anchor{shells id6}@anchor{33}
-@subsubsection VI mode
+@node VI mode in Fish,,Multi-line prompts in Fish,Fish
+@anchor{shells vi-mode-in-fish}@anchor{33}
+@subsubsection VI mode in Fish
 
 
 To communicate with @code{fish}, MisTTY requires the shell to be
@@ -1151,7 +1151,7 @@ end
 @end example
 
 @node Zsh,IPython,Fish,Shells
-@anchor{shells id7}@anchor{34}@anchor{shells zsh}@anchor{35}
+@anchor{shells id4}@anchor{34}@anchor{shells zsh}@anchor{35}
 @subsection Zsh
 
 
@@ -1162,16 +1162,16 @@ Zsh supports bracketed paste, which MisTTY relies on, since version
 unexpected results if you yank text containing special characters.
 
 @menu
-* Autosuggestions: Autosuggestions<3>. 
-* Directory tracking: Directory tracking<3>. 
-* Multi-line prompts: Multi-line prompts<3>. 
-* VI mode: VI mode<3>. 
+* Autosuggestions in Zsh:: 
+* Directory tracking in Zsh:: 
+* Multi-line prompts in Zsh:: 
+* VI mode in Zsh:: 
 
 @end menu
 
-@node Autosuggestions<3>,Directory tracking<3>,,Zsh
-@anchor{shells id8}@anchor{36}
-@subsubsection Autosuggestions
+@node Autosuggestions in Zsh,Directory tracking in Zsh,,Zsh
+@anchor{shells autosuggestions-in-zsh}@anchor{36}
+@subsubsection Autosuggestions in Zsh
 
 
 Fish-like @code{zsh} autosuggestions work normally in MisTTY, if
@@ -1182,9 +1182,9 @@ this is normally bound to an Emacs point movement.
 The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
-@node Directory tracking<3>,Multi-line prompts<3>,Autosuggestions<3>,Zsh
-@anchor{shells id9}@anchor{37}@anchor{shells zsh-dirtrack}@anchor{20}
-@subsubsection Directory tracking
+@node Directory tracking in Zsh,Multi-line prompts in Zsh,Autosuggestions in Zsh,Zsh
+@anchor{shells directory-tracking-in-zsh}@anchor{37}@anchor{shells zsh-dirtrack}@anchor{20}
+@subsubsection Directory tracking in Zsh
 
 
 Extend your prompt to send out an OSC7 sequence to have
@@ -1199,9 +1199,9 @@ fi
 
 such sequence are either ignored or understood by most terminals.
 
-@node Multi-line prompts<3>,VI mode<3>,Directory tracking<3>,Zsh
-@anchor{shells id10}@anchor{38}
-@subsubsection Multi-line prompts
+@node Multi-line prompts in Zsh,VI mode in Zsh,Directory tracking in Zsh,Zsh
+@anchor{shells multi-line-prompts-in-zsh}@anchor{38}
+@subsubsection Multi-line prompts in Zsh
 
 
 When you press @code{RET} on an incomplete command, @code{zsh}
@@ -1217,9 +1217,9 @@ supports bracketed paste mode, 5.1 or later.
 You’ll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
-@node VI mode<3>,,Multi-line prompts<3>,Zsh
-@anchor{shells id11}@anchor{39}
-@subsubsection VI mode
+@node VI mode in Zsh,,Multi-line prompts in Zsh,Zsh
+@anchor{shells vi-mode-in-zsh}@anchor{39}
+@subsubsection VI mode in Zsh
 
 
 To communicate with @code{zsh}, MisTTY requires the shell to be in
@@ -1237,7 +1237,7 @@ fi
 @end example
 
 @node IPython,,Zsh,Shells
-@anchor{shells id12}@anchor{3a}@anchor{shells ipython}@anchor{3b}
+@anchor{shells id5}@anchor{3a}@anchor{shells ipython}@anchor{3b}
 @subsection IPython
 
 

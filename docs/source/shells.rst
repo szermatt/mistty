@@ -27,8 +27,8 @@ Bash versions older than 4.5 don't support bracketed paste.
 Additionally, Bash versions older than 4.4 require extra setup to
 enable directory tracking, as documented in :ref:`bash_dirtrack`.
 
-Multi-line prompts
-^^^^^^^^^^^^^^^^^^
+Multi-line prompts in Bash
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When you press :kbd:`RET` on an incomplete command, :program:`bash`
 has the annoying habit of starting a secondary prompt which doesn't
@@ -45,8 +45,8 @@ prompt or go up the command history to a previous multi-line command.
 
 .. _bash_dirtrack:
 
-Directory tracking
-^^^^^^^^^^^^^^^^^^
+Directory tracking in Bash
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. index:: pair: variable; mistty-set-EMACS
 
@@ -93,8 +93,8 @@ For example:
   (connection-local-set-profiles '(:protocol "docker")
    'profile-old-bash)"
 
-VI mode
-^^^^^^^
+VI mode in Bash
+^^^^^^^^^^^^^^^
 
 To communicate with :program:`bash`, MisTTY requires the shell to be
 in its default editing mode, that is, the emacs mode. **Please make
@@ -129,8 +129,8 @@ Fish
 A recent version of Fish is preferable. MisTTY relies on bracketed
 paste mode, on by default, so it should not be turned off.
 
-Autosuggestions
-^^^^^^^^^^^^^^^
+Autosuggestions in Fish
+^^^^^^^^^^^^^^^^^^^^^^^
 
 :program:`fish` autosuggestions work normally in MisTTY. However, the
 usual way of accepting an autosuggestion, pressing the right arrow
@@ -139,8 +139,8 @@ key, is very inconvenient as this is bound to an Emacs point movement.
 The recommended way of accepting an autosuggestion in MisTTY is to
 type :kbd:`C-e`. This works in normal terminals as well.
 
-Command History
-^^^^^^^^^^^^^^^
+Command History in Fish
+^^^^^^^^^^^^^^^^^^^^^^^
 
 To make full use of :program:`fish` command history, you'll want to
 forward some additional shortcuts to fish:
@@ -167,8 +167,8 @@ up/down/left/right directly to :program:`fish`, you can:
 
 .. _fish_dirtrack:
 
-Directory tracking
-^^^^^^^^^^^^^^^^^^
+Directory tracking in Fish
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Extend your prompt to send out an OSC7 sequence to have
 :program:`fish` send the current directory and hostname to MisTTY. To
@@ -186,8 +186,8 @@ do that, you might add the following to
 such sequence are either ignored or understood by most terminals. You
 might already have it set up.
 
-Multi-line prompts
-^^^^^^^^^^^^^^^^^^
+Multi-line prompts in Fish
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :program:`fish` automatically detects when a command is incomplete
 when you type :kbd:`RET` and launches a multi-line prompt, which
@@ -200,8 +200,8 @@ in a normal terminal. :kbd:`M-x customize-option
 mistty-skip-empty-spaces` allows you to turn that on or off in a
 MisTTY buffer.
 
-VI mode
-^^^^^^^
+VI mode in Fish
+^^^^^^^^^^^^^^^
 
 To communicate with :program:`fish`, MisTTY requires the shell to be
 in its default editing mode, that is, the emacs mode. **Please make
@@ -228,8 +228,8 @@ Zsh supports bracketed paste, which MisTTY relies on, since version
 5.1. Older versions will work, but with limitations, and you might get
 unexpected results if you yank text containing special characters.
 
-Autosuggestions
-^^^^^^^^^^^^^^^
+Autosuggestions in Zsh
+^^^^^^^^^^^^^^^^^^^^^^
 
 Fish-like :program:`zsh` autosuggestions work normally in MisTTY, if
 you've turned these on. However, the usual way of accepting an
@@ -241,8 +241,8 @@ type :kbd:`C-e`. This works in normal terminals as well.
 
 .. _zsh_dirtrack:
 
-Directory tracking
-^^^^^^^^^^^^^^^^^^
+Directory tracking in Zsh
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Extend your prompt to send out an OSC7 sequence to have
 :program:`zsh` send the current directory and hostname to MisTTY. To
@@ -256,8 +256,8 @@ do that, you might add the following to :file:`~/.zshrc`:
 
 such sequence are either ignored or understood by most terminals.
 
-Multi-line prompts
-^^^^^^^^^^^^^^^^^^
+Multi-line prompts in Zsh
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When you press :kbd:`RET` on an incomplete command, :program:`zsh`
 has the annoying habit of starting a secondary prompt. MisTTY doesn't
@@ -272,8 +272,8 @@ supports bracketed paste mode, 5.1 or later.
 You'll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
-VI mode
-^^^^^^^
+VI mode in Zsh
+^^^^^^^^^^^^^^
 
 To communicate with :program:`zsh`, MisTTY requires the shell to be in
 its default editing mode, that is, the emacs mode. **Please make sure

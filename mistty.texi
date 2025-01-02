@@ -1989,14 +1989,15 @@ anything private, and include it into the issue.
 @subsection Suggesting features
 
 
-Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} or start a new discussion@footnote{https://github.com/szermatt/mistty/discussions}.
+Please create a new discussion@footnote{https://github.com/szermatt/mistty/discussions} in the Ideas category or add a
+feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
 @anchor{contrib asking-questions}@anchor{55}
 @subsection Asking questions
 
 
-Start a new discussion@footnote{https://github.com/szermatt/mistty/discussions} with your question in the General section.
+Start a new discussion@footnote{https://github.com/szermatt/mistty/discussions} with your question in the General category.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
 @anchor{contrib code-contributions}@anchor{56}
@@ -2016,13 +2017,19 @@ might be unexpected interaction with your Emacs configurations. The
 tests passing reliably when run using @code{eldev test} is what
 matters.
 
+Please also make sure your commit message follows Conventional Commits 1.0.0@footnote{https://www.conventionalcommits.org/en/v1.0.0/}, in
+short, the commit message of new features should start with “feat: “,
+fixes with “fix: “, refactorings with “refactor: ” and tests with
+“test: “.
+
 @node Documentation contributions,,Code contributions,Contributing
 @anchor{contrib documentation-contributions}@anchor{57}@anchor{contrib eldev}@anchor{58}
 @subsection Documentation contributions
 
 
 You don’t need to be a developer to contribute! Contribution to the
-documentation or code comments are very welcome. Please open a Pull Request@footnote{https://github.com/szermatt/mistty/pulls} with your proposed modifications.
+documentation or code comments are very welcome. Please open a Pull Request@footnote{https://github.com/szermatt/mistty/pulls} with your proposed modifications. To follow Conventional Commits 1.0.0@footnote{https://www.conventionalcommits.org/en/v1.0.0/}, the
+commit message should start with “docs: “
 
 The documentation is written in reStructuredText. You’ll need to
 install Sphinx@footnote{https://www.sphinx-doc.org} to build it:

@@ -56,12 +56,13 @@ If you cannot reproduce reliably,
 Suggesting features
 -------------------
 
-Please add feature suggestions to the `Issue Tracker`_ or start a new `discussion`_.
+Please create a new `discussion`_ in the Ideas category or add a
+feature suggestions to the `Issue Tracker`_.
 
 Asking questions
 ----------------
 
-Start a new `discussion`_ with your question in the General section.
+Start a new `discussion`_ with your question in the General category.
 
 Code contributions
 ------------------
@@ -80,6 +81,12 @@ might be unexpected interaction with your Emacs configurations. The
 tests passing reliably when run using :command:`eldev test` is what
 matters.
 
+Please also make sure your commit message follows `Conventional
+Commits 1.0.0 <https://www.conventionalcommits.org/en/v1.0.0/>`_, in
+short, the commit message of new features should start with "feat: ",
+fixes with "fix: ", refactorings with "refactor: " and tests with
+"test: ".
+
 .. _eldev: https://github.com/emacs-eldev/eldev
 
 Documentation contributions
@@ -87,7 +94,9 @@ Documentation contributions
 
 You don't need to be a developer to contribute! Contribution to the
 documentation or code comments are very welcome. Please open a `Pull
-Request`_ with your proposed modifications.
+Request`_ with your proposed modifications. To follow `Conventional
+Commits 1.0.0 <https://www.conventionalcommits.org/en/v1.0.0/>`_, the
+commit message should start with "docs: "
 
 The documentation is written in reStructuredText. You'll need to
 install `Sphinx <https://www.sphinx-doc.org>`_ to build it:

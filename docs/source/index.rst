@@ -6,8 +6,7 @@ a shell inside of a buffer, similarly to comint mode. It is built on
 top of :file:`term.el`. Check out its project page at
 https://github.com/szermatt/mistty.
 
-:kbd:`M-x mistty` creates a buffer with an interactive shell. See
-:ref:`launching` for details.
+:kbd:`M-x mistty` creates a buffer with an interactive shell. (:ref:`launching`)
 
 MisTTY feels very much like comint mode: you can move around freely
 and run any Emacs command you want - until you press TAB and end up
@@ -15,8 +14,8 @@ with the native completion or notice the shell autosuggestions. With
 MisTTY you have access to both Emacs and the shell commands and
 editing tools.
 
-Additionally, commands that take over the :ref:`entire
-screen<fullscreen>`, such as :command:`less` or :command:`vi` also
+Additionally, commands that take over the entire screen
+(:ref:`fullscreen`) such as :command:`less` or :command:`vi` also
 work, temporarily taking over the window, while scrollback remains
 available in another buffer.
 
@@ -37,12 +36,11 @@ command-line programs, such as :program:`python`.
 The latest version of this documentation is available at
 https://mistty.readthedocs.io/en/latest/.  Once MisTTY is installed,
 this documentation can be accessed from inside Emacs using :kbd:`M-x
-info gmistty`
+info g mistty`
 
 .. note::
 
-   If you encounter issues, please take the time to file a bug. See
-   :ref:`reporting` for details.
+   If you encounter issues, please take the time to file a bug. (:ref:`reporting`)
 
 Comparison with other packages
 ------------------------------
@@ -51,13 +49,15 @@ MisTTY isn't a terminal emulator, but rather a frontend to an existing
 terminal emulator, the built-in :file:`term.el`. Its goal is to make
 it more convenient to use while inside of Emacs and better integrate
 with Emacs itself. In theory, other terminal emulators than
-:file:`term.el` might be used as engine for MisTTY, such as
-:program:`vterm` and :program:`eat`.
+:file:`term.el` might be used as engine for MisTTY, such as `vterm
+<https://github.com/akermu/emacs-libvterm>`_ and `eat
+<https://codeberg.org/akib/emacs-eat>`_.
 
-MisTTY has some similarities with :program:`coterm`; it offers the
-same switch between full-screen and line mode.
+MisTTY has some similarities with `coterm
+<https://github.com/emacsmirror/coterm>`_; it offers the same switch
+between full-screen and line mode.
 
-:program:`Coterm`, :program:`ansi-term` and :program:`eat` all have a
+:program:`Coterm`, :program:`term.el` and :program:`eat` all have a
 line mode, just like :program:`comint` does, which allows you to edit
 a command line as a whole before sending it to the shell. While in
 line mode, rendering is done by Emacs and editing commands are Emacs
@@ -67,7 +67,7 @@ autosuggestion is available with MisTTY and not in line modes and why
 you can freely mix shell commands with Emacs commands while editing
 the command line.
 
-:program:`ansi-term` and :program:`eat` also have a char mode, where
+:program:`term.el` and :program:`eat` also have a char mode, where
 rendering and command execution is handled by the shell, and editing
 with Emacs isn't available. The difference with MisTTY is then that
 MisTTY makes Emacs editing commands available when possible.

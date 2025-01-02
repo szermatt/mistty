@@ -7,7 +7,7 @@ FAQ
      It MUST be :code:`eterm-color` or :code:`eterm-direct`; nothing
      else will work reliably.
 
-     If that still doesn't work, please file a bug as described on
+     If that still doesn't work, please file a bug as described in
      :ref:`reporting`.
 
 **warning: Could not set up terminal**
@@ -71,7 +71,7 @@ FAQ
        knows it should not attempt to move the cursor. The default value
        identifies most shell backward search prompts.
 
-     See the section :ref:`term-vs-scroll` for more details.
+     See :ref:`term-vs-scroll` for more details.
 
 **The shell isn't answering!**
 
@@ -90,8 +90,8 @@ FAQ
     For details, see :ref:`lrc`
 
     If this keeps happening and the modeline does not contain CMD,
-    this is likely a bug. Please see :ref:`reporting` for details on
-    filing a bug report.
+    this is likely a bug. For details on filing a bug report, see
+    :ref:`reporting`
 
 **Why is the cursor jumping around when I move it?**
 
@@ -110,7 +110,7 @@ FAQ
     shortcuts, such as :kbd:`TAB` are sent directly to the program
     controlling the terminal.
 
-    This is covered in depth in the section :ref:`term-vs-scroll`.
+    This is covered in depth in :ref:`term-vs-scroll`.
 
     If you just don't want to see that line, turn it off with
     :kbd:`M-x customize-option mistty-fring-enabled`
@@ -144,9 +144,8 @@ FAQ
 
     The good news is that it's likely easy to make it work again by
     detecting the specific kind of overlays the package is using.
-    Please see :ref:`lrc` or `file a bug
-    <https://github.com/szermatt/mistty/issues>`_ mentioning the
-    package you're using, its version and how you installed it.
+    Please see :ref:`lrc`, or file a bug (:ref:`reporting`) mentioning
+    the package you're using, its version and how you installed it.
 
 **Why am I getting connection errors from TRAMP?**
 

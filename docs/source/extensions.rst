@@ -157,31 +157,33 @@ commands that extend MisTTY's behavior:
 
 .. index:: pair: function; mistty-send-string
 
-- :code:`mistty-send-string` sends a string to the terminal,
-  unmodified. The string that is sent appear only after the function
-  return - and it might not ever appear at all depending on the
-  application attached to the terminal. This is used to implement
-  :code:`mistty-sudo` for example.
+mistty-send-string : function
+  This function sends a string to the terminal, unmodified. The string
+  that is sent appear only after the function return - and it might
+  not ever appear at all depending on the application attached to the
+  terminal. This is used to implement :code:`mistty-sudo` for example.
 
 .. index:: pair: function; mistty-on-prompt-p
 
-- :code:`mistty-on-prompt-p` returns non-nil if the given position is
-  inside of a prompt MisTTY is aware of. This is useful for writing
-  commands that behave differently on a prompt than on program output,
-  even while inside of the terminal zone. It is used to implement
+mistty-on-prompt-p : function
+  This function returns non-nil if the given position is inside of a
+  prompt MisTTY is aware of. This is useful for writing commands that
+  behave differently on a prompt than on program output, even while
+  inside of the terminal zone. It is used to implement
   :code:`mistty-beginning-of-line` for example.
 
 .. index:: pair: function; mistty-maybe-realize-possible-prompt
 
-- :code:`mistty-maybe-realize-possible-prompt` might be useful to call
-  in your commands to tell MisTTY that there's likely a prompt at the
-  current pointer position.
+mistty-maybe-realize-possible-prompt : function
+  This function might be useful to call in your commands to tell
+  MisTTY that there's likely a prompt at the current pointer position.
 
 .. index:: pair: function; mistty-before-position
 
-- :code:`mistty-before-position` not only check whether there's a
-  prompt at the position, but also attempt to move the terminal cursor
-  to that position.
+mistty-before-position : function
+  This function not only checks whether there's a prompt at the
+  position, but also attempt to move the terminal cursor to that
+  position.
 
 .. _term-keymap:
 
@@ -197,10 +199,11 @@ To forward a key binding to the application attached to the terminal
 applications will understand. The translation is done by
 :code:`mistty-translate-key`.
 
-    The function :code:`mistty-translate-key` takes an Emacs key
-    binding, as returned by `kbd` and returns a string containing the
-    sequence of characters that correspond to that key to send to the
-    application tied to the terminal.
+mistty-translate-key : function
+    This function takes an Emacs key binding, as returned by `kbd` and
+    returns a string containing the sequence of characters that
+    correspond to that key to send to the application tied to the
+    terminal.
 
 The default terminal keymap used by MisTTY mimics :program:`xterm` key
 bindings. You might extend it or change it by changing the map
@@ -218,15 +221,16 @@ function keys from their default ("\\eOP" - "\\eOS") as follows:
 
 .. index:: pair: function; mistty-reverse-input-decode-map
 
-:kbd:`M-x mistty-reverse-input-decode-map` generates alternative
-values for :code:`mistty-term-key-map` for you if you'd like mimic
-another set of key bindings than xterm, for example, to generate a
-keymap that simulates rxvt, you might do:
+mistty-reverse-input-decode-map: function
+    This function generates alternative values for
+    :code:`mistty-term-key-map` for you if you'd like mimic another
+    set of key bindings than xterm, for example, to generate a keymap
+    that simulates rxvt, you might do:
 
-.. code-block:: elisp
+    .. code-block:: elisp
 
-   (load-library "term/rxvt.el")
-   (mistty-reverse-input-decode-map rxvt-function-map)
+       (load-library "term/rxvt.el")
+       (mistty-reverse-input-decode-map rxvt-function-map)
 
 :file:`mistty-reverse-input-decode-map.el` is not included into the
 distribution; it's only available on `github
@@ -285,11 +289,12 @@ You can tell whether MisTTY thinks a long-running command is active,
 as it displays *CMD* in the modeline. You can also do it
 programmatically:
 
-    .. index::
-       pair: function; mistty-long-running-command-p
+.. index::
+   pair: function; mistty-long-running-command-p
 
-    The function :code:`mistty-long-running-command-p` returns non-nil
-    if MisTTY thinks a long-running command is active.
+mistty-long-running-running-command-p : function
+    This function returns non-nil if MisTTY thinks a long-running
+    command is active.
 
 
 .. index::
@@ -316,13 +321,13 @@ Alternatively, as not all long-running commands that can be confused
 by MisTTY use overlays, you might need to tell MisTTY about them.
 MisTTY does it already for :code:`completion-in-region`.
 
-    .. index::
-       pair: function; mistty-report-long-running-command
+.. index::
+   pair: function; mistty-report-long-running-command
 
-    The function :code:`mistty-report-long-running-command` can be
-    called to tell MisTTY when a long-running command start and end.
-    It's typically called from hooks provided by the package of the
-    long-running command.
+mistty-report-long-running-command : function
+    This function can be called to tell MisTTY when a long-running
+    command start and end. It's typically called from hooks provided
+    by the package of the long-running command.
 
 Here's an example of code that would detect
 :code:`completion-in-region-mode` if MisTTY didn't already do it:

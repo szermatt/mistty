@@ -51,15 +51,17 @@ If you cannot reproduce reliably,
 
 .. _Issue tracker: https://github.com/szermatt/mistty/issues
 
+.. _discussion: https://github.com/szermatt/mistty/discussions
+
 Suggesting features
 -------------------
 
-Please add feature suggestions to the `Issue Tracker`_.
+Please add feature suggestions to the `Issue Tracker`_ or start a new `discussion`_.
 
 Asking questions
 ----------------
 
-Open an issue on the `Issue Tracker`_ with your question.
+Start a new `discussion`_ with your question in the General section.
 
 Code contributions
 ------------------

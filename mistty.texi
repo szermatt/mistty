@@ -1461,50 +1461,52 @@ commands that extend MisTTY’s behavior:
 @geindex function; mistty-send-string
 
 
-@itemize -
+@table @asis
 
-@item 
-@code{mistty-send-string} sends a string to the terminal,
-unmodified. The string that is sent appear only after the function
-return - and it might not ever appear at all depending on the
-application attached to the terminal. This is used to implement
-@code{mistty-sudo} for example.
-@end itemize
+@item mistty-send-string : function
+
+This function sends a string to the terminal, unmodified. The string
+that is sent appear only after the function return - and it might
+not ever appear at all depending on the application attached to the
+terminal. This is used to implement @code{mistty-sudo} for example.
+@end table
 
 @geindex function; mistty-on-prompt-p
 
 
-@itemize -
+@table @asis
 
-@item 
-@code{mistty-on-prompt-p} returns non-nil if the given position is
-inside of a prompt MisTTY is aware of. This is useful for writing
-commands that behave differently on a prompt than on program output,
-even while inside of the terminal zone. It is used to implement
+@item mistty-on-prompt-p : function
+
+This function returns non-nil if the given position is inside of a
+prompt MisTTY is aware of. This is useful for writing commands that
+behave differently on a prompt than on program output, even while
+inside of the terminal zone. It is used to implement
 @code{mistty-beginning-of-line} for example.
-@end itemize
+@end table
 
 @geindex function; mistty-maybe-realize-possible-prompt
 
 
-@itemize -
+@table @asis
 
-@item 
-@code{mistty-maybe-realize-possible-prompt} might be useful to call
-in your commands to tell MisTTY that there’s likely a prompt at the
-current pointer position.
-@end itemize
+@item mistty-maybe-realize-possible-prompt : function
+
+This function might be useful to call in your commands to tell
+MisTTY that there’s likely a prompt at the current pointer position.
+@end table
 
 @geindex function; mistty-before-position
 
 
-@itemize -
+@table @asis
 
-@item 
-@code{mistty-before-position} not only check whether there’s a
-prompt at the position, but also attempt to move the terminal cursor
-to that position.
-@end itemize
+@item mistty-before-position : function
+
+This function not only checks whether there’s a prompt at the
+position, but also attempt to move the terminal cursor to that
+position.
+@end table
 
 @node Terminal Keymap,Auto-complete,Writing Your Own Commands,Extending MisTTY
 @anchor{extensions term-keymap}@anchor{4a}@anchor{extensions terminal-keymap}@anchor{4b}
@@ -1519,13 +1521,16 @@ To forward a key binding to the application attached to the terminal
 applications will understand. The translation is done by
 @code{mistty-translate-key}.
 
-@quotation
 
-The function @code{mistty-translate-key} takes an Emacs key
-binding, as returned by @cite{kbd} and returns a string containing the
-sequence of characters that correspond to that key to send to the
-application tied to the terminal.
-@end quotation
+@table @asis
+
+@item mistty-translate-key : function
+
+This function takes an Emacs key binding, as returned by @cite{kbd} and
+returns a string containing the sequence of characters that
+correspond to that key to send to the application tied to the
+terminal.
+@end table
 
 The default terminal keymap used by MisTTY mimics @code{xterm} key
 bindings. You might extend it or change it by changing the map
@@ -1543,15 +1548,21 @@ function keys from their default (”\eOP” - “\eOS”) as follows:
 
 @geindex function; mistty-reverse-input-decode-map
 
-@code{M-x mistty-reverse-input-decode-map} generates alternative
-values for @code{mistty-term-key-map} for you if you’d like mimic
-another set of key bindings than xterm, for example, to generate a
-keymap that simulates rxvt, you might do:
+
+@table @asis
+
+@item mistty-reverse-input-decode-map: function
+
+This function generates alternative values for
+@code{mistty-term-key-map} for you if you’d like mimic another
+set of key bindings than xterm, for example, to generate a keymap
+that simulates rxvt, you might do:
 
 @example
 (load-library "term/rxvt.el")
 (mistty-reverse-input-decode-map rxvt-function-map)
 @end example
+@end table
 
 @code{mistty-reverse-input-decode-map.el} is not included into the
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
@@ -1608,13 +1619,16 @@ You can tell whether MisTTY thinks a long-running command is active,
 as it displays `CMD' in the modeline. You can also do it
 programmatically:
 
-@quotation
-
 @geindex function; mistty-long-running-command-p
 
-The function @code{mistty-long-running-command-p} returns non-nil
-if MisTTY thinks a long-running command is active.
-@end quotation
+
+@table @asis
+
+@item mistty-long-running-running-command-p : function
+
+This function returns non-nil if MisTTY thinks a long-running
+command is active.
+@end table
 
 @geindex variable; mistty-detect-foreign-overlays
 @geindex option; mistty-detect-foreign-overlays
@@ -1639,15 +1653,17 @@ Alternatively, as not all long-running commands that can be confused
 by MisTTY use overlays, you might need to tell MisTTY about them.
 MisTTY does it already for @code{completion-in-region}.
 
-@quotation
-
 @geindex function; mistty-report-long-running-command
 
-The function @code{mistty-report-long-running-command} can be
-called to tell MisTTY when a long-running command start and end.
-It’s typically called from hooks provided by the package of the
-long-running command.
-@end quotation
+
+@table @asis
+
+@item mistty-report-long-running-command : function
+
+This function can be called to tell MisTTY when a long-running
+command start and end. It’s typically called from hooks provided
+by the package of the long-running command.
+@end table
 
 Here’s an example of code that would detect
 @code{completion-in-region-mode} if MisTTY didn’t already do it:
@@ -1675,7 +1691,7 @@ First, check the value of the environment variable @code{TERM}.
 It MUST be @code{eterm-color} or @code{eterm-direct}; nothing
 else will work reliably.
 
-If that still doesn’t work, please file a bug as described on
+If that still doesn’t work, please file a bug as described in
 @ref{3,,Reporting issues}.
 @end quotation
 
@@ -1758,7 +1774,7 @@ knows it should not attempt to move the cursor. The default value
 identifies most shell backward search prompts.
 @end itemize
 
-See the section @ref{e,,Terminal vs. Scrollback} for more details.
+See @ref{e,,Terminal vs. Scrollback} for more details.
 @end quotation
 
 `The shell isn’t answering!'
@@ -1780,8 +1796,8 @@ customize-option mistty-foreign-overlay-properties}.
 For details, see @ref{1d,,Long-running commands}
 
 If this keeps happening and the modeline does not contain CMD,
-this is likely a bug. Please see @ref{3,,Reporting issues} for details on
-filing a bug report.
+this is likely a bug. For details on filing a bug report, see
+@ref{3,,Reporting issues}
 @end quotation
 
 `Why is the cursor jumping around when I move it?'
@@ -1806,7 +1822,7 @@ terminal, meaning that it is not fully editable and that some
 shortcuts, such as @code{TAB} are sent directly to the program
 controlling the terminal.
 
-This is covered in depth in the section @ref{e,,Terminal vs. Scrollback}.
+This is covered in depth in @ref{e,,Terminal vs. Scrollback}.
 
 If you just don’t want to see that line, turn it off with
 @code{M-x customize-option mistty-fring-enabled}
@@ -1845,8 +1861,8 @@ for a long time, prevented MisTTY from working at all.
 
 The good news is that it’s likely easy to make it work again by
 detecting the specific kind of overlays the package is using.
-Please see @ref{1d,,Long-running commands} or file a bug@footnote{https://github.com/szermatt/mistty/issues} mentioning the
-package you’re using, its version and how you installed it.
+Please see @ref{1d,,Long-running commands}, or file a bug (@ref{3,,Reporting issues}) mentioning
+the package you’re using, its version and how you installed it.
 @end quotation
 
 `Why am I getting connection errors from TRAMP?'
@@ -1969,18 +1985,18 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib issue-tracker}@anchor{53}@anchor{contrib suggesting-features}@anchor{54}
+@anchor{contrib discussion}@anchor{53}@anchor{contrib suggesting-features}@anchor{54}
 @subsection Suggesting features
 
 
-Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
+Please add feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} or start a new discussion@footnote{https://github.com/szermatt/mistty/discussions}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
 @anchor{contrib asking-questions}@anchor{55}
 @subsection Asking questions
 
 
-Open an issue on the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues} with your question.
+Start a new discussion@footnote{https://github.com/szermatt/mistty/discussions} with your question in the General section.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
 @anchor{contrib code-contributions}@anchor{56}

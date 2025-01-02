@@ -22,8 +22,8 @@ You'll likely want to eventually bind that to some shortcut:
     (use-package mistty
       :bind (("C-c s" . mistty)))
 
-and, unless you're using :program:`Bash`, configure your shell for
-:ref:`dirtrack`, but read on for more details.
+and, unless you're using :program:`Bash`, configure directory tracking
+for your shell (:ref:`dirtrack`), but read on for more details.
 
 .. _launching:
 
@@ -48,75 +48,81 @@ their behavior and arguments:
      pair: variable; shell-file-name
      pair: variable; mistty-buffer-name
 
-  - :kbd:`M-x mistty-create` launches a new interactive shell in a
-    MisTTY buffer in the current buffer's :code:`default-directory`.
+mistty-create : command
+    This command launches a new interactive shell in a
+    MisTTY buffer in the current buffer's ``default-directory``.
 
-    The shell that is launched is the one that's configured on
+    The shell that is launched is the one that's configured with
     :kbd:`M-x configure-option mistty-shell-command`. If
-    :code:`mistty-shell-command` is not set, MisTTY falls back to
-    :code:`explicit-shell-file-name`, :code:`shell-file-name`, then
+    ``mistty-shell-command`` is not set, MisTTY falls back to
+    ``explicit-shell-file-name``, ``shell-file-name``, then
     the environment variables :envvar:`ESHELL` and :envvar:`SHELL`.
 
     With a prefix argument, this command asks for a directory for the
     new shell, instead of using the current buffer's current
-    directory. This is particularly useful if you want to run a
-    :ref:`remote_shells`.
+    directory. This is particularly useful if you want to run shell
+    on a remote host. (:ref:`remote_shells`)
 
     By default, new buffers are called "\*mistty\*", or, if you use
-    TRAMP "\*mistty\@hostname\*". You can configure this on :kbd:`M-x
+    TRAMP "\*mistty\@hostname\*". You can configure this with :kbd:`M-x
     customize-option mistty-buffer-name`.
 
-  - :kbd:`M-x mistty` creates a new MisTTY buffer the first time it is
+mistty : command
+    This command creates a new MisTTY buffer the first time it is
     called. Afterwards, it'll try to guess what's most appropriate,
     displaying an existing MisTTY buffer or creating a new one.
 
     With a prefix argument, this command always creates a new buffer.
 
-  .. index:: pair: command; mistty-other-window
+    .. index:: pair: command; mistty-other-window
 
-  - :kbd:`M-x mistty-other-window` does the same as :code:`mistty`,
-    but opens the buffer in another window.
+mistty-other-window : command
+    This command does the same as ``mistty`` but opens the buffer in
+    another window.
 
-  - :kbd:`M-x mistty-create-other-window` does the same as
-    :code:`mistty-create`, but opens the buffer in another window.
+mistty-create-other-window: command
+    This command does the same as ``mistty-create``, but opens the
+    buffer in another window.
 
-        If you need more control on how MisTTY windows are handled
-        than what's provided by the :code:`-other-window` variants,
-        you can configure it using :kbd:`M-x customize-option
-        display-comint-buffer-action` or :kbd:`M-x customize-option
-        display-buffer-alist`. In the latter case, note that MisTTY
-        buffers belong to the :code:`comint` category, just like shell
-        buffers.
 
-        See the section "Window Choice" of the Emacs manual for
-        details.
+If you need more control on how MisTTY windows are handled than what's
+provided by the ``-other-window`` variants, you can configure it using
+:kbd:`M-x customize-option display-comint-buffer-action` or :kbd:`M-x
+customize-option display-buffer-alist`. In the latter case, note that
+MisTTY buffers belong to the ``comint`` category, just like shell
+buffers.
+
+See the section "Window Choice" of the Emacs manual for details.
 
   .. index::
      pair: command; mistty-in-project
      pair: command; mistty-ssh
      pair: command; mistty-docker
 
-  - :kbd:`M-x mistty-in-project` creates a new MisTTY buffer in the
-    root directory of the current project the first time it is called.
-    Afterwards, it'll try to guess what's most appropriate, displaying
-    an existing MisTTY buffer or creating a new one.
+mistty-in-project: command
+    This command creates a new MisTTY buffer in the root directory of
+    the current project the first time it is called. Afterwards, it'll
+    try to guess what's most appropriate, displaying an existing
+    MisTTY buffer or creating a new one.
 
     With a prefix argument, this command always creates a new buffer.
 
     Note that if you want :kbd:`M-x project-kill-buffers` to kill such
     buffers, you'll want to execute
-    :code:`mistty-project-init-kill-buffer` somewhere in your
+    ``mistty-project-init-kill-buffer`` somewhere in your
     configuration or tell :kbd:`M-x configure-option
     project-kill-buffer-conditions` about MisTTY.
 
-  - :kbd:`M-x mistty-ssh` creates a new MisTTY buffer connected to
-    another host using SSH. This is just a shortcut that uses TRAMP to
-    connect to a remote host. See :ref:`remote_shells` for details.
+mistty-ssh : command
+    This command creates a new MisTTY buffer connected to another host
+    using SSH. This is just a shortcut that uses TRAMP to connect to a
+    remote host. (:ref:`remote_shells`)
 
-  - :kbd:`M-x mistty-docker` creates a new MisTTY buffer connected to
+mistty-docker: command
+    This command creates a new MisTTY buffer connected to
     a docker instance. This requires the docker command-line tool to
     be installed. This is just a shortcut that uses TRAMP to connect
-    to a remote host. See :ref:`remote_shells` for details.
+    to a remote host. (:ref:`remote_shells`)
 
 .. _term-vs-scroll:
 
@@ -176,8 +182,8 @@ everywhere as expected.
     **VI mode** by default. Please **turn it off** before trying out
     MisTTY, for details on how to turn off VI mode only of MisTTY
     buffers and leave it on otherwise, check out the instructions in
-    :ref:`shells` for details. VI mode must be turned off even if you
-    just end up controlling it with VI commands using Evil.
+    :ref:`shells` VI mode must be turned off even if you just end up
+    controlling it with VI commands using Evil.
 
 To get the most out of MisTTY, it's worth it to take the time to
 configure it to send to the terminal the shell key bindings that you
@@ -189,18 +195,18 @@ configuration.
    pair: map; mistty-mode-map
 
 To bind keys only in the terminal zone, bind them to
-:code:`mistty-prompt-map`. To bind keys in both zones, bind them to
-:code:`mistty-mode-map`. See examples below.
+``mistty-prompt-map``. To bind keys in both zones, bind them to
+``mistty-mode-map``. See examples below.
 
 The following commands are useful to send key sequences to the current
 shell or program controlling the terminal:
 
-  .. index:: pair: command; mistty-send-key
+.. index:: pair: command; mistty-send-key
 
-  - The command :code:`mistty-send-key`, called interactively,
-    forwards the key it was called from. It is meant to be bound to
-    the shell key bindings you want to work in the terminal zone map,
-    :code:`mistty-prompt-map`.
+mistty-send-key : command
+    Called interactively, this command forwards the key it was called
+    from. It is meant to be bound to the shell key bindings you want
+    to work in the terminal zone map, ``mistty-prompt-map``.
 
     For example, searching in the shell command history is usually
     bound to :kbd:`C-r`, MisTTY binds that to :kbd:`M-r`, like comint
@@ -212,9 +218,9 @@ shell or program controlling the terminal:
         (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
 
     If you'd prefer to have the key available in both the scrollback
-    and terminal zones, bind it :code:`mistty-mode-map` instead.
+    and terminal zones, bind it ``mistty-mode-map`` instead.
 
-    You can also pass arbitrary keys to :code:`mistty-send-key`, for
+    You can also pass arbitrary keys to ``mistty-send-key``, for
     example:
 
     .. code-block:: elisp
@@ -224,12 +230,13 @@ shell or program controlling the terminal:
          (mistty-send-key n (kbd "M-s")))
        (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
 
-  .. index:: pair: command; mistty-send-last-key
+.. index:: pair: command; mistty-send-last-key
 
-  - The command :code:`mistty-send-last-key` forwards the last key
-    combination of a sequence it was called from to the terminal. For
-    example, :kbd:`C-c C-c` is bound to :code:`mistty-send-last-key`
-    so that the terminal eventually just gets :kbd:`C-c`.
+mistty-send-last-key : command
+    This command forwards the last key combination of a sequence it
+    was called from to the terminal. For example, :kbd:`C-c C-c` is
+    bound to ``mistty-send-last-key`` so that the terminal eventually
+    just gets :kbd:`C-c`.
 
 To just try things out, or for shell shortcuts you don't use
 regularly, you can use the :kbd:`C-q` prefix to bypass Emacs key
@@ -237,12 +244,15 @@ bindings and send keys directly to the terminal. For example,
 :kbd:`C-q <right>` sends a right arrow key press to the terminal
 instead of moving the cursor.
 
-If that's not enough,
+.. index:: pair: command; mistty-send-key-sequence
 
-  .. index:: pair: command; mistty-send-key-sequence
+If that's not enough, try out:
 
-  - :kbd:`C-c C-q`, :kbd:`M-x mistty-send-key-sequence` sends all keys
-    you press to the terminal until you press :kbd:`C-g`.
+mistty-send-key-sequence : command
+  This command sends all keys you press to the terminal until you
+  press :kbd:`C-g`.
+
+  By default, it is bound to :kbd:`C-c C-q`.
 
 
 .. _navigation:
@@ -250,54 +260,50 @@ If that's not enough,
 Navigating the scrollback zone
 ------------------------------
 
-  .. index:: pair: command; mistty-end-of-line-goto-cursor
+.. index:: pair: command; mistty-end-of-line-goto-cursor
 
-  - :kbd:`C-e C-e` moves the point back inside the prompt. This is
-    handled by the interactive function
-    :code:`mistty-end-of-line-or-goto-cursor`
+:kbd:`C-e C-e` moves the point back inside the prompt. This is handled
+by the interactive function ``mistty-end-of-line-or-goto-cursor``
 
-  .. index:: pair: command; mistty-goto-cursor
+.. index:: pair: command; mistty-goto-cursor
 
-  - :kbd:`M-x mistty-goto-cursor` also moves the point back inside the
-    prompt. You can bind it to a custom shortcut if you don't like
-    overloading C-e.
+:kbd:`M-x mistty-goto-cursor` also moves the point back inside the
+prompt. You can bind it to a custom shortcut if you don't like
+overloading C-e.
 
-  .. index:: pair: command; mistty-previous-output
+.. index:: pair: command; mistty-previous-output
 
-  - :kbd:`C-c C-p` or :kbd:`M-x mistty-goto-previous-output` goes to
-    the beginning of the previous command output. This is useful to if
-    the buffer has scrolled too far and you want to see it from the
-    beginning.
+:kbd:`C-c C-p` or :kbd:`M-x mistty-goto-previous-output` goes to the
+beginning of the previous command output. This is useful to if the
+buffer has scrolled too far and you want to see it from the beginning.
 
-  .. index:: pair: command; mistty-next-output
+.. index:: pair: command; mistty-next-output
 
-  - :kbd:`C-c C-n` or :kbd:`M-x mistty-goto-next-output` does the
-    reverse, that is, it goes to the next command output.
+:kbd:`C-c C-n` or :kbd:`M-x mistty-goto-next-output` does the reverse,
+that is, it goes to the next command output.
 
-  .. index:: pair: command; mistty-select-output
+.. index:: pair: command; mistty-select-output
 
-  - :kbd:`C-c C-o` or :kbd:`M-x mistty-select-output` selects the
-    command output at or before point. With an argument, selects the
-    Nth previous command output.
+:kbd:`C-c C-o` or :kbd:`M-x mistty-select-output` selects the command
+output at or before point. With an argument, selects the Nth previous
+command output.
 
-  .. index:: pair: command; mistty-create-buffer-with-output
+.. index:: pair: command; mistty-create-buffer-with-output
 
-  - :kbd:`C-c C-r` or :kbd:`M-x mistty-create-buffer-with-output`
-    creates a new buffer containing the command output at or before
-    point. With an argument, creates a buffer containing the Nth
-    previous command output.
+:kbd:`C-c C-r` or :kbd:`M-x mistty-create-buffer-with-output` creates
+a new buffer containing the command output at or before point. With an
+argument, creates a buffer containing the Nth previous command output.
 
-  .. index:: pair: command; mistty-goto-previous-input
+.. index:: pair: command; mistty-goto-previous-input
 
-  - :kbd:`M-x mistty-goto-previous-input` goes to the beginning of the
-    previous command input, that is, the previous prompt. While this
-    is a way of going back the command you've previously input, it's
-    best to use the shell native command history, as discussed in
-    :ref:`history`.
+:kbd:`M-x mistty-goto-previous-input` goes to the beginning of the
+previous command input, that is, the previous prompt. While this is a
+way of going back the command you've previously input, it's best to
+use the shell native command history, as discussed in :ref:`history`.
 
-  .. index:: pair: command; mistty-goto-next-input
+.. index:: pair: command; mistty-goto-next-input
 
-  - :kbd:`M-x mistty-goto-next-input` goes to the next command input.
+:kbd:`M-x mistty-goto-next-input` goes to the next command input.
 
 .. _fullscreen:
 
@@ -333,11 +339,11 @@ available in MisTTY using the following shortcuts:
 
 - :kbd:`M-p` moves up command history
 - :kbd:`M-n` moves down command history
-- :kbd:`M-r` triggers a :ref:`bs` in command history
+- :kbd:`M-r` triggers a backward search in command history (:ref:`bs`)
 - :kbd:`M-.` insert the last argument from command history
 
 To get the same key bindings you'd get in a normal terminal, you can
-bind :kbd:`C-p`, :kbd:`C-n`, or :kbd:`C-r` to :code:`mistty-send-key`
+bind :kbd:`C-p`, :kbd:`C-n`, or :kbd:`C-r` to ``mistty-send-key``
 in the terminal zone of the MisTTY buffer. For example:
 
 .. code-block:: elisp
@@ -372,8 +378,8 @@ While this mode is active:
 - arrow keys are sent directly to the terminal. This is useful when
   the shell offers multiple choices that can be selected, as the Fish
   shell does. To customize this behavior, add or remove key bindings
-  from :code:`mistty-forbid-edit-map`, which extends
-  :code:`mistty-prompt-map` while this mode is active.
+  from ``mistty-forbid-edit-map``, which extends
+  ``mistty-prompt-map`` while this mode is active.
 
 - C-g is forwarded to the terminal. It normally exits the backward
   search mode without selecting anything.
@@ -403,8 +409,8 @@ Emacs `hippie-expand` also works. That's not completion, but it's
 close.
 
 Other packages might work or might be made to work with some efforts.
-Auto-completion is usually the main challenge. See :ref:`autocomplete`
-for some pointers. Please :ref:`file a bug <reporting>` if you
+Auto-completion is usually the main challenge, described in
+:ref:`autocomplete`. Please file a bug (:ref:`reporting`) if you
 encounter issues with other completion packages.
 
 Autosuggestions
@@ -412,21 +418,21 @@ Autosuggestions
 .. index::
    pair: variable; mistty-wrap-capf-functions
 
-:code:`completion-at-point` completes the text *around* the point.
+``completion-at-point`` completes the text *around* the point.
 This is generally convenient, but gets confused by shell
 autosuggestions, available in Fish or ZSH.
 
 What if you typed "com" and the shell helpfully suggests "completion"?
 The buffer would look like: "com<>pletion", with <> representing
-the point. :code:`completion-at-point` would then think you typed
+the point. ``completion-at-point`` would then think you typed
 "completion" and not suggest anything else.
 
 To avoid that problem MisTTY modifies the functions it finds in
-:code:`completion-at-point-functions` so that they just won't see
+``completion-at-point-functions`` so that they just won't see
 anything after the point when in the terminal region. In the example
 above, they'd only complete "com", not "completion".
 
-That is, :code:`completion-at-point` in the MisTTY terminal region
+That is, ``completion-at-point`` in the MisTTY terminal region
 completes the text *before* the point.
 
 If you don't like that or don't use a shell that supports
@@ -448,7 +454,7 @@ MisTTY out of the box, if enabled:
 - `yasnippet <https://github.com/joaotavora/yasnippet>`_
 
 Other packages might work or might be made to work with some efforts.
-Please :ref:`file a bug <reporting>` if you encounter issues with
+Please file a bug (:ref:`reporting`) if you encounter issues with
 other packages.
 
 .. _dirtrack:
@@ -461,14 +467,14 @@ keeps track of the shell's current directory, so commands like
 :kbd:`M-x find-file` know where to start from.
 
 If you're using another shell, however, you'll need to configure it to
-tell Emacs about its current directory, as described in the sections
-:ref:`Directory Tracking for Fish <fish_dirtrack>` and :ref:`Directory
-Tracking for Zsh <zsh_dirtrack>`.
+tell Emacs about its current directory, as described in
+:ref:`Directory Tracking for Fish <fish_dirtrack>` and in
+:ref:`Directory Tracking for Zsh <zsh_dirtrack>`.
 
 :program:`Bash` out-of-the-box directory tracking also doesn't work in
 shells you start using :program:`ssh` or :program:`docker`. For that
-to work, the simplest solution is to start :ref:`remote shells with
-TRAMP <remote_shells>`.
+to work, the simplest solution is to start remote shells with
+TRAMP. (:ref:`remote_shells`)
 
 .. _remote_shells:
 
@@ -486,12 +492,12 @@ the shell with the method, user and host *of that path*.
   host that no buffer is visiting. See :ref:`launching`.
 
 For this to work, MisTTY needs to know the shell executable to use on
-that host. The value of :code:`mistty-shell-command` or
-:code:`explicit-shell-file-name` is interpreted as a local file within
+that host. The value of ``mistty-shell-command`` or
+``explicit-shell-file-name`` is interpreted as a local file within
 that host, which might not always work.
 
 To run different shells on different hosts, define different
-connection local profiles that set :code:`mistty-shell-command` and
+connection local profiles that set ``mistty-shell-command`` and
 bind them to the TRAMP host, machine or user you want, as shown in the
 example below. This is described in details in the *Emacs Lisp*
 manual, in the section *Connection Local Variables*.
@@ -520,7 +526,7 @@ Directory tracking and TRAMP
    pair: variable; mistty-allow-tramp-path
    pair: variable; mistty-host-to-tramp-path-alist
 
-:ref:`Directory tracking <dirtrack>` normally just works in TRAMP
+Directory tracking (:ref:`dirtrack`) normally just works in TRAMP
 shells started described in the previous section.
 
 This isn't necessarily true of shells started from a MisTTY buffers,
@@ -532,21 +538,21 @@ it is possible to make that work, as described below.
    The simplest way to connect a host or docker instance you don't
    want to configure is to just start it as described in
    :ref:`remote_shells` and use :program:`Bash` as your shell.
-   Everything then just work out of the box, at least for :ref:`Bash
-   4.4 and later <bash_dirtrack>`.
+   Everything then just work out of the box, at least for Bash
+   4.4 and later. (:ref:`bash_dirtrack`)
 
 If you haven't already, configure your shell to tell Emacs about
 directory changes, even :program:`Bash`. This is described in
-:ref:`Directory Tracking for Bash <bash_dirtrack>`, :ref:`Directory
-Tracking for Fish <fish_dirtrack>` or :ref:`Directory Tracking for Zsh
-<zsh_dirtrack>`.
+:ref:`Directory Tracking for Bash <bash_dirtrack>`, in :ref:`Directory
+Tracking for Fish <fish_dirtrack>`, and in :ref:`Directory Tracking for
+Zsh <zsh_dirtrack>`.
 
 Once this is done, the shell sends out file: URLs that include the
 host name. By default, MisTTY will then use that to set the default
 directory to remote file paths that include that hostname using the
 default TRAMP method. For example, given the file: URL
-:code:`file:/example.com/var/log` reported by the shell, MisTTY will
-set the directory of its buffer to :code:`/-:example.com:/var/log`.
+``file:/example.com/var/log`` reported by the shell, MisTTY will
+set the directory of its buffer to ``/-:example.com:/var/log``.
 
 If you always connect to hosts using SSH, this is likely all you need,
 if not, you can still make it work as follows:
@@ -561,10 +567,10 @@ if not, you can still make it work as follows:
   configure-option mistty-host-to-tramp-path-alist`
 
 - If you want to configure the TRAMP path on the hosts, you can send
-  it from the prompt as Emacs-specific :code:`\\032/...\\n` code
+  it from the prompt as Emacs-specific ``\\032/...\\n`` code
   containing a TRAMP path instead of the standard file: URL
   recommended in :ref:`Directory Tracking for Bash <bash_dirtrack>`,
-  :ref:`Directory Tracking for Fish <fish_dirtrack>` or
+  in :ref:`Directory Tracking for Fish <fish_dirtrack>`, and in
   :ref:`Directory Tracking for Zsh <zsh_dirtrack>`. Here's an example
   of such a code for :program:`Bash` that tells TRAMP to connect to
   the current docker instance:
@@ -577,11 +583,11 @@ if not, you can still make it work as follows:
 
 
 That said, if you need more than just SSH to connect to other hosts,
-it might be overall just easier to start :ref:`remote shells with
-TRAMP <remote_shells>` instead of the command line, because directory
+it might be overall just easier to start remote shells with TRAMP
+(:ref:`remote_shells`) instead of the command line, because directory
 tracking just works in that case.
 
-If everything fails, TRAMP is causing you too much trouble and you
+If everything fails, if TRAMP is causing you too much trouble and you
 just don't want MisTTY to generate remote paths at all, unset the
 option :kbd:`M-x configure-option mistty-allow-tramp-paths`.
 
@@ -594,5 +600,5 @@ for the most part - though there might be temporary artifacts and
 troublesome corner cases left.
 
 If you suspect your shell prompt is causing issues, please first try
-setting a traditional prompt to confirm, then :ref:`file a bug
-<reporting>`, whatever the outcome.
+setting a traditional prompt to confirm, then, whatever the outcome,
+please file a bug (:ref:`reporting`.)

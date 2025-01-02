@@ -189,8 +189,8 @@ You’ll likely want to eventually bind that to some shortcut:
   :bind (("C-c s" . mistty)))
 @end example
 
-and, unless you’re using @code{Bash}, configure your shell for
-@ref{b,,Directory Tracking}, but read on for more details.
+and, unless you’re using @code{Bash}, configure directory tracking
+for your shell (@ref{b,,Directory Tracking}), but read on for more details.
 
 @node Launching,Terminal vs Scrollback,Installation,Usage
 @anchor{usage id2}@anchor{c}@anchor{usage launching}@anchor{1}
@@ -215,15 +215,17 @@ their behavior and arguments:
 @geindex variable; explicit-shell-file-name
 @geindex variable; shell-file-name
 @geindex variable; mistty-buffer-name
+@end quotation
 
 
-@itemize -
+@table @asis
 
-@item 
-@code{M-x mistty-create} launches a new interactive shell in a
+@item mistty-create : command
+
+This command launches a new interactive shell in a
 MisTTY buffer in the current buffer’s @code{default-directory}.
 
-The shell that is launched is the one that’s configured on
+The shell that is launched is the one that’s configured with
 @code{M-x configure-option mistty-shell-command}. If
 @code{mistty-shell-command} is not set, MisTTY falls back to
 @code{explicit-shell-file-name}, @code{shell-file-name}, then
@@ -237,61 +239,59 @@ the environment variables
 
 With a prefix argument, this command asks for a directory for the
 new shell, instead of using the current buffer’s current
-directory. This is particularly useful if you want to run a
-@ref{d,,Remote Shells with TRAMP}.
+directory. This is particularly useful if you want to run shell
+on a remote host. (@ref{d,,Remote Shells with TRAMP})
 
 By default, new buffers are called “*mistty*”, or, if you use
-TRAMP “*mistty@@hostname*”. You can configure this on @code{M-x
+TRAMP “*mistty@@hostname*”. You can configure this with @code{M-x
 customize-option mistty-buffer-name}.
 
-@item 
-@code{M-x mistty} creates a new MisTTY buffer the first time it is
+@item mistty : command
+
+This command creates a new MisTTY buffer the first time it is
 called. Afterwards, it’ll try to guess what’s most appropriate,
 displaying an existing MisTTY buffer or creating a new one.
 
 With a prefix argument, this command always creates a new buffer.
-@end itemize
 
 @geindex command; mistty-other-window
 
+@item mistty-other-window : command
 
-@itemize -
+This command does the same as @code{mistty} but opens the buffer in
+another window.
 
-@item 
-@code{M-x mistty-other-window} does the same as @code{mistty},
-but opens the buffer in another window.
+@item mistty-create-other-window: command
 
-@item 
-@code{M-x mistty-create-other-window} does the same as
-@code{mistty-create}, but opens the buffer in another window.
+This command does the same as @code{mistty-create}, but opens the
+buffer in another window.
+@end table
 
-@quotation
-
-If you need more control on how MisTTY windows are handled
-than what’s provided by the @code{-other-window} variants,
-you can configure it using @code{M-x customize-option
-display-comint-buffer-action} or @code{M-x customize-option
-display-buffer-alist}. In the latter case, note that MisTTY
-buffers belong to the @code{comint} category, just like shell
+If you need more control on how MisTTY windows are handled than what’s
+provided by the @code{-other-window} variants, you can configure it using
+@code{M-x customize-option display-comint-buffer-action} or @code{M-x
+customize-option display-buffer-alist}. In the latter case, note that
+MisTTY buffers belong to the @code{comint} category, just like shell
 buffers.
 
-See the section “Window Choice” of the Emacs manual for
-details.
-@end quotation
-@end itemize
+See the section “Window Choice” of the Emacs manual for details.
+
+@quotation
 
 @geindex command; mistty-in-project
 @geindex command; mistty-ssh
 @geindex command; mistty-docker
+@end quotation
 
 
-@itemize -
+@table @asis
 
-@item 
-@code{M-x mistty-in-project} creates a new MisTTY buffer in the
-root directory of the current project the first time it is called.
-Afterwards, it’ll try to guess what’s most appropriate, displaying
-an existing MisTTY buffer or creating a new one.
+@item mistty-in-project: command
+
+This command creates a new MisTTY buffer in the root directory of
+the current project the first time it is called. Afterwards, it’ll
+try to guess what’s most appropriate, displaying an existing
+MisTTY buffer or creating a new one.
 
 With a prefix argument, this command always creates a new buffer.
 
@@ -301,18 +301,19 @@ buffers, you’ll want to execute
 configuration or tell @code{M-x configure-option
 project-kill-buffer-conditions} about MisTTY.
 
-@item 
-@code{M-x mistty-ssh} creates a new MisTTY buffer connected to
-another host using SSH. This is just a shortcut that uses TRAMP to
-connect to a remote host. See @ref{d,,Remote Shells with TRAMP} for details.
+@item mistty-ssh : command
 
-@item 
-@code{M-x mistty-docker} creates a new MisTTY buffer connected to
+This command creates a new MisTTY buffer connected to another host
+using SSH. This is just a shortcut that uses TRAMP to connect to a
+remote host. (@ref{d,,Remote Shells with TRAMP})
+
+@item mistty-docker: command
+
+This command creates a new MisTTY buffer connected to
 a docker instance. This requires the docker command-line tool to
 be installed. This is just a shortcut that uses TRAMP to connect
-to a remote host. See @ref{d,,Remote Shells with TRAMP} for details.
-@end itemize
-@end quotation
+to a remote host. (@ref{d,,Remote Shells with TRAMP})
+@end table
 
 @node Terminal vs Scrollback,Navigating the scrollback zone,Launching,Usage
 @anchor{usage term-vs-scroll}@anchor{e}@anchor{usage terminal-vs-scrollback}@anchor{f}
@@ -393,8 +394,8 @@ MisTTY will not work if you’ve configured your shell to turn on
 `VI mode' by default. Please `turn it off' before trying out
 MisTTY, for details on how to turn off VI mode only of MisTTY
 buffers and leave it on otherwise, check out the instructions in
-@ref{11,,Shells} for details. VI mode must be turned off even if you
-just end up controlling it with VI commands using Evil.
+@ref{11,,Shells} VI mode must be turned off even if you just end up
+controlling it with VI commands using Evil.
 @end quotation
 @end cartouche
 
@@ -413,18 +414,16 @@ To bind keys only in the terminal zone, bind them to
 The following commands are useful to send key sequences to the current
 shell or program controlling the terminal:
 
-@quotation
-
 @geindex command; mistty-send-key
 
 
-@itemize -
+@table @asis
 
-@item 
-The command @code{mistty-send-key}, called interactively,
-forwards the key it was called from. It is meant to be bound to
-the shell key bindings you want to work in the terminal zone map,
-@code{mistty-prompt-map}.
+@item mistty-send-key : command
+
+Called interactively, this command forwards the key it was called
+from. It is meant to be bound to the shell key bindings you want
+to work in the terminal zone map, @code{mistty-prompt-map}.
 
 For example, searching in the shell command history is usually
 bound to @code{C-r}, MisTTY binds that to @code{M-r}, like comint
@@ -447,20 +446,20 @@ example:
   (mistty-send-key n (kbd "M-s")))
 (keymap-set mistty-prompt-map "C-c a" #'my-mistty-M-s)
 @end example
-@end itemize
+@end table
 
 @geindex command; mistty-send-last-key
 
 
-@itemize -
+@table @asis
 
-@item 
-The command @code{mistty-send-last-key} forwards the last key
-combination of a sequence it was called from to the terminal. For
-example, @code{C-c C-c} is bound to @code{mistty-send-last-key}
-so that the terminal eventually just gets @code{C-c}.
-@end itemize
-@end quotation
+@item mistty-send-last-key : command
+
+This command forwards the last key combination of a sequence it
+was called from to the terminal. For example, @code{C-c C-c} is
+bound to @code{mistty-send-last-key} so that the terminal eventually
+just gets @code{C-c}.
+@end table
 
 To just try things out, or for shell shortcuts you don’t use
 regularly, you can use the @code{C-q} prefix to bypass Emacs key
@@ -468,117 +467,70 @@ bindings and send keys directly to the terminal. For example,
 @code{C-q <right>} sends a right arrow key press to the terminal
 instead of moving the cursor.
 
-If that’s not enough,
-
-@quotation
-
 @geindex command; mistty-send-key-sequence
 
+If that’s not enough, try out:
 
-@itemize -
 
-@item 
-@code{C-c C-q}, @code{M-x mistty-send-key-sequence} sends all keys
-you press to the terminal until you press @code{C-g}.
-@end itemize
-@end quotation
+@table @asis
+
+@item mistty-send-key-sequence : command
+
+This command sends all keys you press to the terminal until you
+press @code{C-g}.
+
+By default, it is bound to @code{C-c C-q}.
+@end table
 
 @node Navigating the scrollback zone,Fullscreen Mode,Terminal vs Scrollback,Usage
 @anchor{usage navigating-the-scrollback-zone}@anchor{12}@anchor{usage navigation}@anchor{13}
 @subsection Navigating the scrollback zone
 
 
-@quotation
-
 @geindex command; mistty-end-of-line-goto-cursor
 
-
-@itemize -
-
-@item 
-@code{C-e C-e} moves the point back inside the prompt. This is
-handled by the interactive function
-@code{mistty-end-of-line-or-goto-cursor}
-@end itemize
+@code{C-e C-e} moves the point back inside the prompt. This is handled
+by the interactive function @code{mistty-end-of-line-or-goto-cursor}
 
 @geindex command; mistty-goto-cursor
 
-
-@itemize -
-
-@item 
 @code{M-x mistty-goto-cursor} also moves the point back inside the
 prompt. You can bind it to a custom shortcut if you don’t like
 overloading C-e.
-@end itemize
 
 @geindex command; mistty-previous-output
 
-
-@itemize -
-
-@item 
-@code{C-c C-p} or @code{M-x mistty-goto-previous-output} goes to
-the beginning of the previous command output. This is useful to if
-the buffer has scrolled too far and you want to see it from the
-beginning.
-@end itemize
+@code{C-c C-p} or @code{M-x mistty-goto-previous-output} goes to the
+beginning of the previous command output. This is useful to if the
+buffer has scrolled too far and you want to see it from the beginning.
 
 @geindex command; mistty-next-output
 
-
-@itemize -
-
-@item 
-@code{C-c C-n} or @code{M-x mistty-goto-next-output} does the
-reverse, that is, it goes to the next command output.
-@end itemize
+@code{C-c C-n} or @code{M-x mistty-goto-next-output} does the reverse,
+that is, it goes to the next command output.
 
 @geindex command; mistty-select-output
 
-
-@itemize -
-
-@item 
-@code{C-c C-o} or @code{M-x mistty-select-output} selects the
-command output at or before point. With an argument, selects the
-Nth previous command output.
-@end itemize
+@code{C-c C-o} or @code{M-x mistty-select-output} selects the command
+output at or before point. With an argument, selects the Nth previous
+command output.
 
 @geindex command; mistty-create-buffer-with-output
 
-
-@itemize -
-
-@item 
-@code{C-c C-r} or @code{M-x mistty-create-buffer-with-output}
-creates a new buffer containing the command output at or before
-point. With an argument, creates a buffer containing the Nth
-previous command output.
-@end itemize
+@code{C-c C-r} or @code{M-x mistty-create-buffer-with-output} creates
+a new buffer containing the command output at or before point. With an
+argument, creates a buffer containing the Nth previous command output.
 
 @geindex command; mistty-goto-previous-input
 
-
-@itemize -
-
-@item 
 @code{M-x mistty-goto-previous-input} goes to the beginning of the
-previous command input, that is, the previous prompt. While this
-is a way of going back the command you’ve previously input, it’s
-best to use the shell native command history, as discussed in
-@ref{14,,Command History}.
-@end itemize
+previous command input, that is, the previous prompt. While this is a
+way of going back the command you’ve previously input, it’s best to
+use the shell native command history, as discussed in @ref{14,,Command History}.
 
 @geindex command; mistty-goto-next-input
 
-
-@itemize -
-
-@item 
 @code{M-x mistty-goto-next-input} goes to the next command input.
-@end itemize
-@end quotation
 
 @node Fullscreen Mode,Command History,Navigating the scrollback zone,Usage
 @anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{15}
@@ -629,7 +581,7 @@ available in MisTTY using the following shortcuts:
 @code{M-n} moves down command history
 
 @item 
-@code{M-r} triggers a @ref{10,,Backward Search} in command history
+@code{M-r} triggers a backward search in command history (@ref{10,,Backward Search})
 
 @item 
 @code{M-.} insert the last argument from command history
@@ -718,8 +670,8 @@ Emacs @cite{hippie-expand} also works. That’s not completion, but it’s
 close.
 
 Other packages might work or might be made to work with some efforts.
-Auto-completion is usually the main challenge. See @ref{1a,,Auto-complete}
-for some pointers. Please @ref{3,,file a bug} if you
+Auto-completion is usually the main challenge, described in
+@ref{1a,,Auto-complete}. Please file a bug (@ref{3,,Reporting issues}) if you
 encounter issues with other completion packages.
 
 @menu
@@ -781,7 +733,7 @@ yasnippet@footnote{https://github.com/joaotavora/yasnippet}
 @end itemize
 
 Other packages might work or might be made to work with some efforts.
-Please @ref{3,,file a bug} if you encounter issues with
+Please file a bug (@ref{3,,Reporting issues}) if you encounter issues with
 other packages.
 
 @node Directory Tracking,Remote Shells with TRAMP,Template Expansion,Usage
@@ -794,12 +746,14 @@ keeps track of the shell’s current directory, so commands like
 @code{M-x find-file} know where to start from.
 
 If you’re using another shell, however, you’ll need to configure it to
-tell Emacs about its current directory, as described in the sections
-@ref{1f,,Directory Tracking for Fish} and @ref{20,,Directory Tracking for Zsh}.
+tell Emacs about its current directory, as described in
+@ref{1f,,Directory Tracking for Fish} and in
+@ref{20,,Directory Tracking for Zsh}.
 
 @code{Bash} out-of-the-box directory tracking also doesn’t work in
 shells you start using @code{ssh} or @code{docker}. For that
-to work, the simplest solution is to start @ref{d,,remote shells with TRAMP}.
+to work, the simplest solution is to start remote shells with
+TRAMP. (@ref{d,,Remote Shells with TRAMP})
 
 @node Remote Shells with TRAMP,Directory tracking and TRAMP,Directory Tracking,Usage
 @anchor{usage remote-shells}@anchor{d}@anchor{usage remote-shells-with-tramp}@anchor{21}
@@ -852,7 +806,7 @@ on @code{M-x customize-option mistty-buffer-name}.
 @geindex variable; mistty-allow-tramp-path
 @geindex variable; mistty-host-to-tramp-path-alist
 
-@ref{b,,Directory tracking} normally just works in TRAMP
+Directory tracking (@ref{b,,Directory Tracking}) normally just works in TRAMP
 shells started described in the previous section.
 
 This isn’t necessarily true of shells started from a MisTTY buffers,
@@ -864,13 +818,14 @@ it is possible to make that work, as described below.
 The simplest way to connect a host or docker instance you don’t
 want to configure is to just start it as described in
 @ref{d,,Remote Shells with TRAMP} and use @code{Bash} as your shell.
-Everything then just work out of the box, at least for @ref{24,,Bash 4.4 and later}.
+Everything then just work out of the box, at least for Bash
+4.4 and later. (@ref{24,,Directory tracking})
 @end quotation
 @end cartouche
 
 If you haven’t already, configure your shell to tell Emacs about
 directory changes, even @code{Bash}. This is described in
-@ref{24,,Directory Tracking for Bash}, @ref{1f,,Directory Tracking for Fish} or @ref{20,,Directory Tracking for Zsh}.
+@ref{24,,Directory Tracking for Bash}, in @ref{1f,,Directory Tracking for Fish}, and in @ref{20,,Directory Tracking for Zsh}.
 
 Once this is done, the shell sends out file: URLs that include the
 host name. By default, MisTTY will then use that to set the default
@@ -898,10 +853,10 @@ configure-option mistty-host-to-tramp-path-alist}
 
 @item 
 If you want to configure the TRAMP path on the hosts, you can send
-it from the prompt as Emacs-specific @code{\032/...\n} code
+it from the prompt as Emacs-specific @code{\\032/...\\n} code
 containing a TRAMP path instead of the standard file: URL
 recommended in @ref{24,,Directory Tracking for Bash},
-@ref{1f,,Directory Tracking for Fish} or
+in @ref{1f,,Directory Tracking for Fish}, and in
 @ref{20,,Directory Tracking for Zsh}. Here’s an example
 of such a code for @code{Bash} that tells TRAMP to connect to
 the current docker instance:
@@ -914,10 +869,11 @@ fi
 @end itemize
 
 That said, if you need more than just SSH to connect to other hosts,
-it might be overall just easier to start @ref{d,,remote shells with TRAMP} instead of the command line, because directory
+it might be overall just easier to start remote shells with TRAMP
+(@ref{d,,Remote Shells with TRAMP}) instead of the command line, because directory
 tracking just works in that case.
 
-If everything fails, TRAMP is causing you too much trouble and you
+If everything fails, if TRAMP is causing you too much trouble and you
 just don’t want MisTTY to generate remote paths at all, unset the
 option @code{M-x configure-option mistty-allow-tramp-paths}.
 
@@ -931,7 +887,8 @@ for the most part - though there might be temporary artifacts and
 troublesome corner cases left.
 
 If you suspect your shell prompt is causing issues, please first try
-setting a traditional prompt to confirm, then @ref{3,,file a bug}, whatever the outcome.
+setting a traditional prompt to confirm, then, whatever the outcome,
+please file a bug (@ref{3,,Reporting issues}.)
 
 @node Shells,Extending MisTTY,Usage,Contents
 @anchor{shells doc}@anchor{26}@anchor{shells id1}@anchor{27}@anchor{shells shells}@anchor{11}

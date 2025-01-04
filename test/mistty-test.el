@@ -4272,13 +4272,13 @@
             (search-forward "echo hello")
             (goto-char (match-beginning 0))
             (should (equal (color-values (background-color-at-point))
-                           (color-values (modus-themes-color 'bg-main))))
+                           (color-values (face-background 'default))))
 
             ;; terminal region
             (search-forward "echo hello")
             (goto-char (match-beginning 0))
             (should (equal (color-values (background-color-at-point))
-                           (color-values (modus-themes-color 'bg-main)))))))
+                           (color-values (face-background 'default)))))))
     (dolist (theme custom-enabled-themes)
       (disable-theme theme))))
 

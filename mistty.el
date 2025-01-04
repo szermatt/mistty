@@ -329,6 +329,26 @@ called. This is implemented by the function
   :group 'mistty
   :type '(boolean))
 
+(defcustom mistty-at-end 'kill-buffer-and-window
+  "Configures what to do when the process end.
+
+If the value is \\='kill-buffer, kill the buffer, but only if the process
+exited successfully and there was a successful interaction (the user
+sent a RET or EOF) in the buffer.
+
+If the value is \\='kill-buffer-and-window, also kill the containing
+window, unless it is the single frame of the window. This is the
+default.
+
+If the value is nil or anything else, do nothing.
+
+For more control, you can also add a function to
+`mistty-after-process-start-hook'."
+  :group 'mistty
+  :type '(choice (const :tag "Do nothing" nil)
+                 (const :tag "Kill buffer" kill-buffer)
+                 (const :tag "Kill buffer and window" kill-buffer-and-window)))
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -510,7 +530,7 @@ The process is available in `mistty-proc` and the terminal buffer
 in `mistty-term-buffer`. Note that the process might not have
 output anything yet; the buffer is likely empty.")
 
-(defvar mistty-after-process-end-hook nil
+(defvar mistty-after-process-end-hook (list #'mistty--at-end)
   "Report that the MisTTY process ended.
 
 This hook is called with PROC as an argument from
@@ -784,6 +804,12 @@ a new one. In such a scenario, it's useful to keep track of the
 buffer `mistty' was called for the first time, so inherit the
 `default-directory' of that buffer and possibly use TRAMP to
 connect to the same host.")
+
+(defvar-local mistty--interacted nil
+  "Non-nil if there was a successful interaction in this session.
+
+This is used by `mistty-kill-buffer' and `mistty-kill-buffer-and-window'
+to decide whether it's OK to kill the buffer.")
 
 (eval-when-compile
   ;; defined in term.el
@@ -1237,8 +1263,21 @@ a special string describing the new process state."
 
      ((buffer-live-p term-buffer)
       (kill-buffer term-buffer)))
-    (mistty--with-live-buffer work-buffer
-      (run-hook-with-args 'mistty-after-process-end-hook proc))))
+    (mistty--run-after-process-end-hooks work-buffer proc)))
+
+(defun mistty--run-after-process-end-hooks (buf proc)
+  "Run hooks on `mistty-after-process-end-hook'.
+
+The hooks are called from inside BUF. Since these hooks tend to kill
+their buffer, make sure that running stops once the buffer is killed."
+  (run-hook-wrapped
+   'mistty-after-process-end-hook
+   (lambda (fun)
+     (mistty--with-live-buffer buf
+       (funcall fun proc)
+
+       ;; continue
+       t))))
 
 (defun mistty--fs-process-sentinel (proc msg)
   "Process sentinel for MisTTY shell processes in fullscreen mode.
@@ -1258,8 +1297,7 @@ special string describing the new process state."
       (let ((kill-buffer-query-functions nil))
         (kill-buffer (process-get proc 'mistty-work-buffer)))
       (term-sentinel proc msg)
-      (mistty--with-live-buffer work-buffer
-        (run-hooks 'mistty-after-process-end-hook)))
+      (mistty--run-after-process-end-hooks work-buffer proc))
      (t (term-sentinel proc msg)))))
 
 (defun mistty--process-filter (proc str)
@@ -1925,7 +1963,9 @@ have the command prompt and output marked."
        (setq mistty--end-prompt t))
      (mistty--interact-return
       interact "\C-m"
-      :then #'mistty--interact-done))))
+      :then (lambda (&optional _)
+              (setq mistty--interacted t)
+              (mistty--interact-done))))))
 
 (defun mistty-send-last-key (&optional n)
   "Send the last key that was typed to the terminal N times.
@@ -1994,6 +2034,7 @@ that many times instead."
   (interactive "p")
   (if mistty--inhibit
       (delete-char n)
+    (setq mistty--interacted t)
     (if (and (numberp n) (< n 0))
         (mistty-send-key (abs n) "\x7f" 'positional)
       (mistty-send-key n "\C-d" 'positional))))
@@ -3632,9 +3673,7 @@ Usage example:
 
   (add-hook \\='mistty-after-process-end-hook
             \\='mistty-kill-buffer)"
-  (when (and (eq 'exit (process-status proc))
-             (zerop (process-exit-status proc)))
-    (kill-buffer)))
+  (mistty--at-end proc 'kill-buffer))
 
 (defun mistty-kill-buffer-and-window (proc)
   "Kill MisTTY work buffer and window if PROC ended successfully.
@@ -3648,13 +3687,31 @@ Usage example:
 
   (add-hook \\='mistty-after-process-end-hook
             \\='mistty-kill-buffer-and-window)"
-  (when (and (eq 'exit (process-status proc))
-             (zerop (process-exit-status proc)))
-    (let ((buf (current-buffer))
-          (win (get-buffer-window)))
-      (if (and (kill-buffer buf)
-               (window-parent win))
-          (ignore-errors (delete-window))))))
+  (mistty--at-end proc 'kill-buffer-and-window))
+
+(defun mistty--at-end (proc &optional option-override)
+  "Consider whether buffer and window should be kill.
+
+This is called by `mistty-after-process-end-hook' and to apply the value
+of option `mistty-after-end'.
+
+PROC is the process that just ended.
+
+If OPTION-OVERRIDE is non-nil, use that instead of the value of
+`mistty-at-end'."
+  (let ((option (or option-override mistty-at-end)))
+    (when (and (memq option '(kill-buffer kill-buffer-and-window))
+               (eq 'exit (process-status proc))
+               (zerop (process-exit-status proc))
+               mistty--interacted)
+      (let ((buf (current-buffer))
+            (win (get-buffer-window)))
+        (cond
+         ((eq option 'kill-buffer) (kill-buffer buf))
+         ((eq option 'kill-buffer-and-window)
+          (if (and (kill-buffer buf)
+                   (window-parent win))
+              (ignore-errors (delete-window)))))))))
 
 (defun mistty--active-prompt-map ()
   "Return the map active in the synced region."

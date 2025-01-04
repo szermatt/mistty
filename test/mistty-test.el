@@ -397,11 +397,9 @@
     (should (equal "$ ech\t  <> world" (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-process-hooks-with-normal-exit ()
-  (let (calls
-        mistty-after-process-start-hook
-        mistty-after-process-end-hook
-        term-buffer
-        term-proc)
+  (let ((mistty-after-process-start-hook nil)
+        (mistty-after-process-end-hook nil)
+        calls term-buffer term-proc)
     (add-hook 'mistty-after-process-start-hook
               (lambda () (push `(start
                                  ,(eq (current-buffer) mistty-work-buffer)
@@ -416,7 +414,12 @@
                                      ,(null mistty-proc)
                                      ,(not (buffer-live-p mistty-term-buffer)))
                                    calls)))
-    (mistty-with-test-buffer ()
+
+    (ert-with-test-buffer ()
+      ;; mistty-with-test-buffer clears
+      ;; mistty-after-process-start-hook, so can't be used here.
+      (mistty-mode)
+      (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
       (setq term-proc mistty-proc)
       (setq term-buffer mistty-term-buffer)
       (should (equal (length calls) 1))
@@ -433,22 +436,20 @@
     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
 
 (ert-deftest mistty-test-kill-term-buffer-but-keep-work-buffer ()
-  (let* ((calls (list))
-         (mistty-after-process-start-hook nil)
-         (mistty-after-process-end-hook nil))
-    (add-hook 'mistty-after-process-end-hook
-              (lambda (proc)
-                (push `(end ,(and (processp proc) (process-status proc)))
-                      calls)))
+  (mistty-with-test-buffer ()
+    (let ((calls (list)))
+      (add-hook 'mistty-after-process-end-hook
+                (lambda (proc)
+                  (push `(end ,(and (processp proc) (process-status proc)))
+                        calls)))
 
-    (mistty-with-test-buffer ()
-      (let* ((term-buffer mistty-term-buffer)
-             (term-proc mistty-proc))
+      (let ((term-buffer mistty-term-buffer)
+            (term-proc mistty-proc))
         (kill-buffer term-buffer)
         (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
         (mistty-wait-for-output :str "Terminal killed." :start (point-min))
-        (should (equal (point) (point-max)))))
-    (should (equal '((end signal)) calls))))
+        (should (equal (point) (point-max))))
+      (should (equal '((end signal)) calls)))))
 
 (ert-deftest mistty-test-term-buffer-exits ()
   (mistty-with-test-buffer ()
@@ -1531,54 +1532,47 @@
     (mistty-test-enter-fullscreen "[?1049h" "[?1049l")))
 
 (ert-deftest mistty-test-call-fullscreen-hooks ()
-  (let (calls
-        mistty-after-process-end-hook
-        mistty-entered-fullscreen-hook
-        mistty-left-fullscreen-hook)
-    (add-hook 'mistty-after-process-end-hook
-              (lambda (proc)
-                (push `(end
-                        ,(not mistty-fullscreen)
-                        ,(not (process-live-p proc)))
-                      calls)))
-    (add-hook 'mistty-entered-fullscreen-hook
-              (lambda ()
-                (push `(enter ,mistty-fullscreen) calls)))
-    (add-hook 'mistty-left-fullscreen-hook
-              (lambda ()
-                (push `(leave ,(not mistty-fullscreen)) calls)))
+  (mistty-with-test-buffer (:selected t)
+    (let (calls)
+      (add-hook 'mistty-after-process-end-hook
+                (lambda (proc)
+                  (push `(end
+                          ,(not mistty-fullscreen)
+                          ,(not (process-live-p proc)))
+                        calls)))
+      (add-hook 'mistty-entered-fullscreen-hook
+                (lambda ()
+                  (push `(enter ,mistty-fullscreen) calls)))
+      (add-hook 'mistty-left-fullscreen-hook
+                (lambda ()
+                  (push `(leave ,(not mistty-fullscreen)) calls)))
 
-    (mistty-with-test-buffer (:selected t)
-      (mistty-test-enter-fullscreen "[?47h" "[?47l"))
+      (mistty-test-enter-fullscreen "[?47h" "[?47l")
 
-    (should (equal '((enter t) (leave t)) (nreverse calls)))))
+      (should (equal '((enter t) (leave t)) (nreverse calls))))))
 
 (ert-deftest mistty-test-killed-while-fullscreen ()
-  (let (calls
-        mistty-after-process-end-hook
-        mistty-entered-fullscreen-hook
-        mistty-left-fullscreen-hook)
-    (add-hook 'mistty-after-process-end-hook
-              (lambda (proc)
-                (push `(end
-                        ,(not mistty-fullscreen)
-                        ,(not (process-live-p proc)))
-                      calls)))
-    (add-hook 'mistty-entered-fullscreen-hook
-              (lambda ()
-                (push `(enter ,mistty-fullscreen) calls)))
-    (add-hook 'mistty-left-fullscreen-hook
-              (lambda ()
-                (push `(leave ,(not mistty-fullscreen)) calls)))
+  (mistty-with-test-buffer ()
+    (let (calls)
+      (add-hook 'mistty-after-process-end-hook
+                (lambda (proc)
+                  (push `(end
+                          ,(not mistty-fullscreen)
+                          ,(not (process-live-p proc)))
+                        calls)))
+      (add-hook 'mistty-entered-fullscreen-hook
+                (lambda ()
+                  (push `(enter ,mistty-fullscreen) calls)))
+      (add-hook 'mistty-left-fullscreen-hook
+                (lambda ()
+                  (push `(leave ,(not mistty-fullscreen)) calls)))
 
-    (mistty-with-test-buffer ()
       (let ((term-buffer mistty-term-buffer)
             (term-proc mistty-proc))
         (mistty-send-text "printf '\\e[?47h'; echo fullscreen on; exit")
         (mistty-send-command)
-        (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
-
-    (should (equal '((enter t) (leave t) (end t t)) (nreverse calls)))))
+        (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc))
+      (should (equal '((enter t) (leave t) (end t t)) (nreverse calls))))))
 
 (ert-deftest mistty-test-live-buffer-p ()
   (mistty-with-test-buffer ()
@@ -4165,51 +4159,68 @@
       (customize-set-variable 'mistty-fringe-enabled orig-value))))
 
 (ert-deftest mistty-kill-buffer-after-exit ()
-  (let ((mistty-after-process-start-hook nil)
-        (mistty-after-process-end-hook nil))
-    (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer)
-    (mistty-with-test-buffer ()
+  (mistty-with-test-buffer ()
+    (let ((mistty-at-end 'kill-buffer-and-window))
+      (add-hook 'mistty-after-process-end-hook #'mistty--at-end)
       (let ((term-proc mistty-proc)
             (term-buffer mistty-term-buffer))
         (mistty-send-text "exit")
         (mistty-send-command)
         (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))))
 
+(ert-deftest mistty-keep-buffer-after-immediate-exit ()
+  (let ((mistty-after-process-start-hook nil)
+        (mistty-after-process-end-hook '(mistty--at-end))
+        (mistty-at-end 'kill-buffer-and-window))
+    (ert-with-test-buffer ()
+      (mistty-mode)
+      (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
+
+      ;; This doesn't register as interaction, because it doesn't use
+      ;; the command.
+      (process-send-string mistty-proc "\C-d")
+      (mistty-wait-for-output :str "finished\n"))))
+
 (ert-deftest mistty-kill-buffer-keeps-buffer-if-fails ()
-  (let ((mistty-after-process-start-hook nil)
-        (mistty-after-process-end-hook nil)
-        (called nil))
-    (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer)
-    (add-hook 'mistty-after-process-end-hook (lambda (_proc) (setq called t)) 100)
-    (mistty-with-test-buffer ()
+  (mistty-with-test-buffer ()
+    (let ((mistty-at-end 'kill-buffer-and-window)
+          (mistty-after-process-end-hook '(mistty--at-end))
+          (called nil))
+      (add-hook 'mistty-after-process-end-hook (lambda (_proc)
+                                                 (setq called t)))
       (mistty-send-text "exit 10")
       (mistty-send-command)
       (mistty-wait-for-output :test (lambda () called)))))
 
-(ert-deftest mistty-kill-buffer-and-window-after-exit ()
-  (let ((mistty-after-process-start-hook nil)
-        (mistty-after-process-end-hook nil))
-    (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer-and-window)
-    (mistty-with-test-buffer (:selected t)
-      (let ((win (selected-window)))
-        (split-window)
-        (let ((term-proc mistty-proc)
-              (term-buffer mistty-term-buffer))
-          (mistty-send-text "exit")
-          (mistty-send-command)
-          (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
-          (should-not (window-live-p win)))))))
-
-(ert-deftest mistty-kill-buffer-and-window-keeps-buffer-if-fails ()
-  (let ((mistty-after-process-start-hook nil)
-        (mistty-after-process-end-hook nil)
-        (called nil))
-    (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer-and-window)
-    (add-hook 'mistty-after-process-end-hook (lambda (_proc) (setq called t)) 100)
-    (mistty-with-test-buffer ()
-      (mistty-send-text "exit 10")
+(ert-deftest mistty-kill-buffer-and-window-stop-when-buffer-killed ()
+  (mistty-with-test-buffer ()
+    (let ((mistty-at-end 'kill-buffer-and-window)
+          (called-first nil)
+          (called-last nil)
+          term-proc term-buffer work-buffer)
+      (setq mistty-after-process-end-hook
+            (list (lambda (_) (setq called-first (current-buffer)))
+                  #'mistty--at-end
+                  (lambda (_) (setq called-last (current-buffer)))))
+      (setq term-proc mistty-proc)
+      (setq term-buffer mistty-term-buffer)
+      (setq work-buffer mistty-work-buffer)
+      (mistty-send-text "exit")
       (mistty-send-command)
-      (mistty-wait-for-output :test (lambda () called)))))
+      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
+      (should (equal work-buffer called-first))
+      (should-not called-last))))
+
+(ert-deftest mistty-kill-buffer-after-exit-multiple-times ()
+  (mistty-with-test-buffer ()
+    (let ((mistty-at-end 'kill-buffer-and-window))
+      (add-hook 'mistty-after-process-end-hook #'mistty--at-end)
+      (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer)
+      (let ((term-proc mistty-proc)
+            (term-buffer mistty-term-buffer))
+        (mistty-send-text "exit")
+        (mistty-send-command)
+        (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))))
 
 (ert-deftest mistty-test-buffer-name ()
   (let ((mistty-buffer-name '("mistty")))

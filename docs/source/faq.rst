@@ -161,6 +161,14 @@ FAQ
 
     If that's not possible or if you don't want to bother, you might
     find it convenient to just disable the generation of TRAMP paths
-    using :kbd:`M-x configure-option mistty-allow-tramp-paths`.
+    using :kbd:`M-x customize-option mistty-allow-tramp-paths`.
 
     For more details, see :ref:`dirtrack`.
+
+**The buffer is killed when the shell finishes. I didn't use to do that!**
+
+     .. index:: pair: variable; mistty-at-end
+
+     MisTTY now by default kills the buffer and its containing window
+     when the shell ends. If you don't like that, change the option at
+     :kbd:`M-x customize-option mistty-at-end` to do nothing.

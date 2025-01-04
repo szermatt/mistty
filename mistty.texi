@@ -1881,9 +1881,20 @@ mistty-host-to-tramp-path-alist}, if that’s necessary.
 
 If that’s not possible or if you don’t want to bother, you might
 find it convenient to just disable the generation of TRAMP paths
-using @code{M-x configure-option mistty-allow-tramp-paths}.
+using @code{M-x customize-option mistty-allow-tramp-paths}.
 
 For more details, see @ref{b,,Directory Tracking}.
+@end quotation
+
+`The buffer is killed when the shell finishes. I didn’t use to do that!'
+
+@quotation
+
+@geindex variable; mistty-at-end
+
+MisTTY now by default kills the buffer and its containing window
+when the shell ends. If you don’t like that, change the option at
+@code{M-x customize-option mistty-at-end} to do nothing.
 @end quotation
 
 @node Contributing,,FAQ,Contents

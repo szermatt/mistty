@@ -123,6 +123,10 @@ window while BODY is running."
                (mistty-test-had-issues nil)
                (mistty--inhibit-fake-nl-cleanup t)
                (mistty-test-prompt-re nil)
+               (mistty-after-process-start-hook nil)
+               (mistty-after-process-end-hook nil)
+               (mistty-entered-fullscreen-hook nil)
+               (mistty-left-fullscreen-hook nil)
                (mistty-log mistty-test-log))
            (ert-with-temp-directory mistty-tempdir
              (mistty-test-setup (quote ,shell) mistty-tempdir)

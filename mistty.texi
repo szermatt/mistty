@@ -1886,7 +1886,7 @@ using @code{M-x customize-option mistty-allow-tramp-paths}.
 For more details, see @ref{b,,Directory Tracking}.
 @end quotation
 
-`The buffer is killed when the shell finishes. I didn’t use to do that!'
+`The buffer is killed when the shell finishes. This didn’t use to happen!'
 
 @quotation
 

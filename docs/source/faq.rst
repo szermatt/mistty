@@ -165,7 +165,7 @@ FAQ
 
     For more details, see :ref:`dirtrack`.
 
-**The buffer is killed when the shell finishes. I didn't use to do that!**
+**The buffer is killed when the shell finishes. This didn't use to happen!**
 
      .. index:: pair: variable; mistty-at-end
 

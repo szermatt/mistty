@@ -4176,6 +4176,9 @@
       (mistty-mode)
       (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
 
+      ;; Wait for the default prompt
+      (mistty-wait-for-output :str "$")
+
       ;; This doesn't register as interaction, because it doesn't use
       ;; the command.
       (process-send-string mistty-proc "\C-d")

@@ -208,7 +208,7 @@ the beginning of the terminal zone."
     ;; bash:
     "^(reverse-i-search)"
     ;; zsh:
-    "^bck-i-search:.*_ *$"
+    ".*\n\\(failing \\)?bck-i-search:.*_ *$"
     ;; ipython
     "^I-search\\( backward\\)?: ")
   "Regexps that turn off replaying of Emacs modifications.

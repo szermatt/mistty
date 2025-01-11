@@ -3458,6 +3458,44 @@
       (mistty-wait-for-output :str "search:")
       (should-not mistty--forbid-edit))))
 
+(ert-deftest mistty-test-forbid-edit-i-search-zsh ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-run-command
+     (insert "echo first"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo second"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo third"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-test-narrow (mistty--bol (point)))
+    (mistty--send-string mistty-proc "\C-r")
+    (mistty-wait-for-output :str "bck-i-search:")
+    (should mistty--forbid-edit)
+    (mistty--send-string mistty-proc "thi\C-e time's the charm\n")
+    (mistty-wait-for-output :str "third time's the charm")
+    (should-not mistty--forbid-edit)))
+
+(ert-deftest mistty-test-forbid-edit-failing-i-search-zsh ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-run-command
+     (insert "echo first"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo second"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo third"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-test-narrow (mistty--bol (point)))
+    (mistty--send-string mistty-proc "\C-r")
+    (mistty-wait-for-output :str "bck-i-search:")
+    (should mistty--forbid-edit)
+    (mistty--send-string mistty-proc "notfound")
+    (mistty-wait-for-output :str "failing bck-i-search:")
+    (should mistty--forbid-edit)))
+
 (ert-deftest mistty-test-eof-on-possible-but-outdated-prompt ()
   (mistty-with-test-buffer ()
     (mistty-send-text "p=prompt")

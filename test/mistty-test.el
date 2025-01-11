@@ -1468,9 +1468,7 @@
                              "$")
                      (mistty-test-content))))))
 
-(ert-deftest mistty-test-display-long-prompt ()
-  (turtles-ert-test :instance 'mistty)
-
+(turtles-ert-deftest mistty-test-display-long-prompt ( :instance 'mistty)
   (mistty-with-test-buffer (:selected t)
     (delete-other-windows)
 
@@ -1850,9 +1848,7 @@
     (should (equal "$ echo one\none\n$ clear\n$ echo two\ntwo\n$"
                    (mistty-test-content)))))
 
-(ert-deftest mistty-test-scrolls-window-after-clear ()
-  (turtles-ert-test :instance 'mistty)
-
+(turtles-ert-deftest mistty-test-scrolls-window-after-clear ( :instance 'mistty)
   (mistty-with-test-buffer (:shell zsh :selected t)
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
@@ -1865,9 +1861,7 @@
     (turtles-with-grab-buffer (:win (selected-window) :point "<>")
       (should (equal "$ echo two\ntwo\n$ <>" (buffer-string))))))
 
-(ert-deftest mistty-test-scrolls-window-after-reset ()
-  (turtles-ert-test :instance 'mistty)
-
+(turtles-ert-deftest mistty-test-scrolls-window-after-reset ( :instance 'mistty)
   (mistty-with-test-buffer (:shell zsh :selected t)
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
@@ -2745,9 +2739,7 @@
                      (mistty-test-content
                       :show (window-point)))))))
 
-(ert-deftest mistty-test-cursor-skip ()
-  (turtles-ert-test)
-
+(turtles-ert-deftest mistty-test-cursor-skip ()
   ;; This test is an integration tests. The details of the moves are
   ;; tested by cursor-skip-hook tests.
   (mistty-with-test-buffer (:shell fish :selected t)
@@ -4347,9 +4339,7 @@
                            emacs-version term-protocol-version)
                      (mistty-send-and-capture-command-output))))))
 
-(ert-deftest mistty-test-change-term-colors ()
-  (turtles-ert-test :instance 'mistty)
-
+(turtles-ert-deftest mistty-test-change-term-colors ( :instance 'mistty)
   (unwind-protect
       (progn
         (load-theme 'modus-vivendi 'no-confirm) ;; dark theme
@@ -4391,9 +4381,7 @@
     (dolist (theme custom-enabled-themes)
       (disable-theme theme))))
 
-(ert-deftest mistty-test-scroll-window-up ()
-  (turtles-ert-test :instance 'mistty)
-
+(turtles-ert-deftest mistty-test-scroll-window-up ( :instance 'mistty)
   (mistty-with-test-buffer (:shell fish :selected t)
     (let ((win (selected-window))
           (testbuf (current-buffer))
@@ -4574,9 +4562,7 @@
                                 (mistty-test-pos "$ ^A\nline 0\n"))))))))
 
 ;; https://github.com/szermatt/mistty/issues/27
-(ert-deftest mistty-test-bash-reverse-i-search-and-nl ()
-  (turtles-ert-test :instance 'mistty)
-
+(turtles-ert-deftest mistty-test-bash-reverse-i-search-and-nl ( :instance 'mistty)
   ;; This is a turtles test, because the problem only appears when you
   ;; take invisibility into account.
   (mistty-with-test-buffer (:shell bash :selected t)

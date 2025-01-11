@@ -237,7 +237,7 @@ window while BODY is running."
               "bind \\b backward-delete-char; ")))
     (mistty-run-command)
     (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
-    (mistty-send-and-wait-for-prompt (lambda ())))
+    (mistty-wait-for-output :regexp mistty-test-prompt-re))
 
    ((eq shell 'ipython)
     (mistty--exec (list mistty-test-ipython-exe

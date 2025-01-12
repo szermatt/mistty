@@ -4796,3 +4796,52 @@
      (mistty-test-run-in-selected-window #'mistty)
      (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
      (should (equal '("*mistty*<2>" "*mistty*") (mapcar #'buffer-name (buffer-list)))))))
+
+(ert-deftest mistty-test-mistty-command-reuse-buffer-names ()
+  (mistty-test-with-isolated-buffers
+   (let ((mistty-buffer-name '("mistty"))
+         (mistty-force-reuse-buffer-name t))
+
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*" (buffer-name (window-buffer (selected-window)))))
+
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
+
+     ;; Kill process *mistty*
+     (with-current-buffer "*mistty*"
+       (process-send-string mistty-proc "exit 1\n")
+       (mistty-wait-for-output :str "exited abnormally with code 1"))
+     (should-not (mistty-live-buffer-p (get-buffer "*mistty*")))
+
+     ;; This should reuse the name *mistty*
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*" (buffer-name (window-buffer (selected-window)))))
+     (should (mistty-live-buffer-p (get-buffer "*mistty*")))
+
+     ;; There shouldn't ever be a "*mistty*<3>"
+     (should-not (get-buffer "*mistty*<3>")))))
+
+(ert-deftest mistty-test-mistty-command-dont-reuse-buffer-names ()
+  (mistty-test-with-isolated-buffers
+   (let ((mistty-buffer-name '("mistty"))
+         (mistty-force-reuse-buffer-name nil))
+     (should (equal nil (mistty-list-live-buffers)))
+
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*" (buffer-name (window-buffer (selected-window)))))
+
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
+
+     ;; Kill buffer *mistty*
+     (with-current-buffer "*mistty*"
+       (process-send-string mistty-proc "exit 1\n")
+       (mistty-wait-for-output :str "exited abnormally with code 1"))
+     (should-not (mistty-live-buffer-p (get-buffer "*mistty*")))
+
+     ;; This should NOT reuse the name *mistty*
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<3>" (buffer-name (window-buffer (selected-window)))))
+     (should-not (mistty-live-buffer-p (get-buffer "*mistty*")))
+     (should (mistty-live-buffer-p (get-buffer "*mistty*<3>"))))))

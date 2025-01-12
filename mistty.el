@@ -352,6 +352,15 @@ For more control, you can also add a function to
                  (const :tag "Kill buffer" kill-buffer)
                  (const :tag "Kill buffer and window" kill-buffer-and-window)))
 
+(defcustom mistty-force-reuse-buffer-name t
+  "Kill buffers with dead processes and reuse their names.
+
+When this option is non-nil, the command `mistty' attempts to avoid
+buffer number to rise unnecessarily by reusing buffers with the name it
+wants to use whose process is dead."
+  :group 'mistty
+  :type 'boolean)
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -995,6 +1004,20 @@ Returns M or a new marker."
       (let ((kill-buffer-query-functions nil))
         (kill-buffer term-buffer)))))
 
+(defun mistty-buffer-p (buffer)
+  "Return the BUFFER if the buffer is a MisTTY buffer.
+
+The buffer might be a `mistty-mode' buffer in non-fullscreen mode or a
+`term-mode' buffer in fullscreen mode."
+  (and
+   (buffer-live-p buffer)
+   (pcase (buffer-local-value 'major-mode buffer)
+     ('mistty-mode (not (buffer-local-value 'mistty-fullscreen buffer)))
+     ('term-mode (buffer-local-value 'mistty-fullscreen buffer)))
+
+   ;; returns
+   buffer))
+
 (defun mistty-live-buffer-p (buffer)
   "Return the BUFFER if the buffer is a MisTTY buffer.
 
@@ -1003,13 +1026,11 @@ The process attached to the buffer must be live.
 When in fullscreen mode, the main MisTTY buffer is actually a
 `term-mode' buffer, not the scrollback buffer."
   (and
-   (buffer-live-p buffer)
-   (pcase (buffer-local-value 'major-mode buffer)
-     ('mistty-mode (not (buffer-local-value 'mistty-fullscreen buffer)))
-     ('term-mode (buffer-local-value 'mistty-fullscreen buffer)))
+   (mistty-buffer-p buffer)
    (buffer-local-value 'mistty-proc buffer)
    (process-live-p (buffer-local-value 'mistty-proc buffer))
-   ;; returns
+
+   ;; return
    buffer))
 
 (defun mistty-list-live-buffers (&optional accept-buffer)
@@ -1197,7 +1218,7 @@ Upon success, the function returns the newly-created buffer."
                           (getenv "SHELL")))))))
     (with-current-buffer buf
       (setq-local mistty-shell-command command)
-      (rename-buffer (generate-new-buffer-name (mistty-new-buffer-name)))
+      (rename-buffer (mistty--generate-new-buffer-name (mistty-new-buffer-name)))
       (mistty-mode))
     ;; Note that it's important to attach the buffer to a window
     ;; before executing the command, so that the shell known the size
@@ -1205,6 +1226,34 @@ Upon success, the function returns the newly-created buffer."
     (mistty--pop-to-buffer buf other-window)
     (with-current-buffer buf (mistty--exec command))
     buf))
+
+(defun mistty--generate-new-buffer-name (bufname)
+  "Generate a unique buffer name based on BUFNAME.
+
+If `mistty-force-reuse-buffer-name' is non-nil, this function might kill
+dead MisTTY buffers to reuse their name."
+  (if (or (not mistty-force-reuse-buffer-name)
+          (string-prefix-p " " bufname))
+      (generate-new-buffer-name bufname)
+
+    (let ((index 0)
+          (full-bufname bufname))
+      (while
+          (let (buf)
+            (cl-incf index)
+            (when (> index 1)
+              (setq full-bufname (format "%s<%d>" bufname index)))
+
+            (when (and (setq buf (get-buffer full-bufname))
+                       (mistty-buffer-p buf)
+                       (not (mistty-live-buffer-p buf)))
+              (let ((kill-buffer-query-functions nil))
+                (kill-buffer buf))
+              (setq buf nil))
+
+            buf))
+
+      full-bufname)))
 
 ;;;###autoload
 (defun mistty-create-other-window (&optional command)

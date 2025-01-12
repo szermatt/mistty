@@ -589,6 +589,109 @@ redraw everything."
   (mistty-send-text "bind 'set enable-bracketed-paste off'")
   (mistty-test-narrow (mistty-send-and-wait-for-prompt)))
 
+(defmacro mistty-test-with-isolated-buffers (&rest body)
+  "Run BODY with isolated buffers.
+
+Within BODY, only buffers created within BODY are visible, and they're
+killed at the end.
+
+Isolation only covers the most basic buffer-related commands. It isn't
+complete; other C commands accept a buffer or a name as an argument that
+aren't covered here. This is just enough to fool `mistty' and
+`mistty-create'."
+  `(mistty-test--with-isolated-buffers
+    (lambda ()
+      ,@body)))
+
+(defun mistty-test--with-isolated-buffers (body-func)
+  "Implement `mistty-test-with-isolated-buffers' running BODY-FUNC."
+  (let ((prefix (mistty-test--isolated-buffer-name-prefix))
+        (orig-buffer-list (symbol-function 'buffer-list))
+        (orig-get-buffer (symbol-function 'get-buffer))
+        (orig-get-buffer-create (symbol-function 'get-buffer-create))
+        (orig-generate-new-buffer-name (symbol-function 'generate-new-buffer-name))
+        (orig-buffer-name (symbol-function 'buffer-name))
+        (orig-rename-buffer (symbol-function 'rename-buffer))
+        (orig-set-buffer (symbol-function 'set-buffer)))
+    (unwind-protect
+        (cl-letf (((symbol-function 'buffer-list)
+                   (lambda (&rest args)
+                     (delq nil (mapcar
+                                (lambda (buf)
+                                  (when (and (string-prefix-p
+                                              prefix (funcall orig-buffer-name buf))
+                                             (not (string-prefix-p
+                                                   (concat prefix " ") (funcall orig-buffer-name buf))))
+                                    buf))
+                                (apply orig-buffer-list args)))))
+
+                  ((symbol-function 'get-buffer)
+                   (lambda (buffer-or-name &rest args)
+                     (apply orig-get-buffer (if (stringp buffer-or-name)
+                                                (concat prefix buffer-or-name)
+                                              buffer-or-name)
+                            args)))
+
+                  ((symbol-function 'get-buffer-create)
+                   (lambda (name &rest args)
+                     (apply orig-get-buffer-create (concat prefix name) args)))
+
+                  ((symbol-function 'generate-new-buffer-name)
+                   (lambda (name &rest args)
+                     (string-remove-prefix
+                      prefix (apply orig-generate-new-buffer-name (concat prefix name) args))))
+
+                  ((symbol-function 'buffer-name)
+                   (lambda (&rest args)
+                     (string-remove-prefix prefix (apply orig-buffer-name args))))
+
+                  ((symbol-function 'rename-buffer)
+                   (lambda (name &rest args)
+                     (apply orig-rename-buffer (concat prefix name) args)))
+
+                  ((symbol-function 'set-buffer)
+                   (lambda (buffer-or-name &rest args)
+                     (apply orig-set-buffer
+                            (if (stringp buffer-or-name)
+                                (concat prefix buffer-or-name)
+                              buffer-or-name)
+                            args))))
+          (with-selected-window (display-buffer (current-buffer))
+            (funcall body-func)))
+
+      ;; Delete buffers created within body-func.
+      (dolist (buf (buffer-list))
+        (when (string-prefix-p prefix (buffer-name buf))
+          (let ((kill-buffer-query-functions nil))
+            (ignore-errors (kill-buffer buf))))))))
+
+(defun mistty-test-run-in-selected-window (command)
+  "Run COMMAND with the selected window buffer as current buffer.
+
+After COMMAND has run, current buffer is the new selected window buffer.
+
+This simulates what happens in the command loop."
+  (set-buffer (window-buffer (selected-window)))
+  (unwind-protect
+      (call-interactively command)
+    (set-buffer (window-buffer (selected-window)))))
+
+(defun mistty-test--isolated-buffer-name-prefix ()
+  (let* ((prefix (concat
+                  "*"
+                  (when-let ((test (ert-running-test)))
+                    (concat (symbol-name (ert-test-name test)) "-"))
+                  "isolated"))
+         full-prefix)
+    (while
+        (progn
+          (setq full-prefix (format "%s<%s>" prefix (random 1000)))
+          (delq nil (mapcar (lambda (buf)
+                              (string-prefix-p full-prefix (buffer-name buf)))
+                          (buffer-list)))))
+
+    full-prefix))
+
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.
 

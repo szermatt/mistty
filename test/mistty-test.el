@@ -4730,3 +4730,69 @@
                            "   ...:     <>if i > 2:\n"
                            "   ...:         print(i)")
                    (mistty-test-content :show (mistty-cursor))))))
+
+(ert-deftest mistty-test-list-live-buffers ()
+  (mistty-test-with-isolated-buffers
+   (let ((mistty-buffer-name '("mistty")))
+     (should (equal nil (mistty-list-live-buffers)))
+
+     (mistty-test-run-in-selected-window #'mistty-create)
+     (should (equal '("*mistty*")
+                    (mapcar #'buffer-name (mistty-list-live-buffers))))
+
+     (mistty-test-run-in-selected-window #'mistty-create)
+     (should (equal '("*mistty*" "*mistty*<2>")
+                    (mapcar #'buffer-name (mistty-list-live-buffers))))
+
+     (mistty-test-run-in-selected-window #'mistty-create)
+     (should (equal '("*mistty*" "*mistty*<2>" "*mistty*<3>")
+                    (mapcar #'buffer-name (mistty-list-live-buffers))))
+
+     (with-current-buffer "*mistty*<2>"
+       (process-send-string mistty-proc "exit 1\n")
+       (mistty-wait-for-output :str "exited abnormally with code 1"))
+     (should (equal '("*mistty*" "*mistty*<3>")
+                    (mapcar #'buffer-name (mistty-list-live-buffers)))))))
+
+(ert-deftest mistty-test-mistty-command-cycle ()
+  (mistty-test-with-isolated-buffers
+   (let ((mistty-buffer-name '("mistty")))
+     (get-buffer-create "not a mistty buffer")
+     (dotimes (_ 4)
+       (call-interactively #'mistty-create))
+
+     (should (equal "*mistty*<4>" (buffer-name (window-buffer (selected-window)))))
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*" (buffer-name (window-buffer (selected-window)))))
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<3>" (buffer-name (window-buffer (selected-window)))))
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<4>" (buffer-name (window-buffer (selected-window))))))))
+
+(ert-deftest mistty-command-create-then-cycle ()
+  (mistty-test-with-isolated-buffers
+   (let ((mistty-buffer-name '("mistty")))
+     (should (equal nil (mistty-list-live-buffers)))
+
+     ;; First call create a new buffer.
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*" (buffer-name (window-buffer (selected-window)))))
+     (should (mistty-live-buffer-p (window-buffer (selected-window))))
+     (should (equal '("*mistty*") (mapcar #'buffer-name (buffer-list))))
+
+     ;; Second call create another buffer.
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
+     (should (mistty-live-buffer-p (window-buffer (selected-window))))
+     (should (equal '("*mistty*<2>" "*mistty*") (mapcar #'buffer-name (buffer-list))))
+
+     ;; Third and 4th call cycle through the two buffers.
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*" (buffer-name (window-buffer (selected-window)))))
+     (should (equal '("*mistty*" "*mistty*<2>") (mapcar #'buffer-name (buffer-list))))
+
+     (mistty-test-run-in-selected-window #'mistty)
+     (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
+     (should (equal '("*mistty*<2>" "*mistty*") (mapcar #'buffer-name (buffer-list)))))))

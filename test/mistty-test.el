@@ -1318,6 +1318,36 @@
                    "$ echo current")
            (mistty-test-content :show (list (point) (mark))))))
 
+;; https://github.com/szermatt/mistty/issues/33
+(ert-deftest mistty-test-previous-output-zsh ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-previous-output)))
+
+(ert-deftest mistty-test-previous-output-bash ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-previous-output)))
+
+(ert-deftest mistty-test-previous-output-fish ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-test-previous-output)))
+
+(defun mistty-test-previous-output ()
+  (ert-with-temp-file tempfile
+    (with-temp-file tempfile
+      (dotimes (n 200)
+        (insert (format "line %d\n" n))))
+    (mistty--send-string mistty-proc (format "cat '%s'" tempfile))
+    (mistty-send-and-wait-for-prompt
+     (lambda ()
+       (mistty-run-command
+        (mistty-send-command))))
+    (mistty-previous-output 1)
+    (should (equal
+             "<>line 0\nline 1\nline 2"
+             (mistty-test-content :show (point)
+                                  :start (pos-bol)
+                                  :end (pos-eol 3))))))
+
 (ert-deftest mistty-test-mistty-clear ()
   (mistty-with-test-buffer ()
     (mistty-run-command

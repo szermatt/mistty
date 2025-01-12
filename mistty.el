@@ -682,9 +682,9 @@ This variable is available in the work buffer.")
 (defvar-local mistty--end-prompt nil
   "End the prompt after the next refresh.
 
-When this variable is non-nil, it contains a position in the work
-buffer that's on the last line of the current prompt. The line
-after that is going to be a process output or a new prompt.")
+When this variable is non-nil, it contains a position in the work buffer
+that's on the current prompt. The line after that is going to be a
+process output or a new prompt.")
 
 (defvar-local mistty--possible-prompt nil
   "Region of the work buffer identified as possible prompt.
@@ -1575,20 +1575,21 @@ Also updates prompt and point."
 
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.
-         (when mistty--end-prompt
+         (when (and mistty--end-prompt
+                    (< mistty-sync-marker mistty--end-prompt (point-max)))
            (when-let ((command-end
-                       (if (get-text-property mistty-sync-marker 'mistty-input-id)
+                       (if (get-text-property mistty--end-prompt 'mistty-input-id)
                            (next-single-property-change mistty-sync-marker 'mistty-input-id nil)
-                         (mistty--bol mistty-sync-marker 2))))
+                         (mistty--bol mistty--end-prompt 2))))
              (when (and (eq ?\n (char-before command-end))
-                        (> (mistty--last-non-ws) command-end))
-               (unless (get-text-property mistty-sync-marker 'mistty-input-id)
+                        (> (mistty--last-non-ws) command-end)
+                        (> command-end mistty-sync-marker))
+               (unless (get-text-property command-end 'mistty-input-id)
                  (mistty-log "End prompt. Mark input range: [%s-%s]"
                              (marker-position mistty-sync-marker) command-end)
                  (put-text-property mistty-sync-marker command-end
                                     'mistty-input-id (mistty--next-id)))
-               (mistty--set-sync-mark-from-end command-end)
-               (setq mistty--end-prompt nil))))
+               (mistty--set-sync-mark-from-end command-end))))
 
          ;; detect prompt from bracketed-past region and use that to
          ;; restrict the sync region.
@@ -1925,6 +1926,7 @@ instead `mistty--move-sync-mark-with-shift' or
                 (marker-position mistty-sync-marker)
                 sync-pos)
     (setq mistty--has-active-prompt nil)
+    (setq mistty--end-prompt nil)
     (let ((old-marker-position (marker-position mistty-sync-marker)))
       (move-marker mistty-sync-marker sync-pos)
       (when (< old-marker-position sync-pos)
@@ -1971,7 +1973,7 @@ have the command prompt and output marked."
      (when (and mistty-proc
                 (mistty-on-prompt-p (point))
                 (mistty-on-prompt-p (mistty-cursor)))
-       (setq mistty--end-prompt t))
+       (setq mistty--end-prompt (mistty-cursor)))
      (mistty--interact-return
       interact "\C-m"
       :then (lambda (&optional _)

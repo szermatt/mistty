@@ -2790,6 +2790,21 @@
      (equal "one two three four five six seven eight nine"
             (mistty-test-content)))))
 
+(ert-deftest mistty-test-zsh-empty-line-at-eob ()
+  (mistty-with-test-buffer (:shell zsh :selected t)
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (mistty--cursor-skip win)
+      (forward-line)
+      (should (equal "$\n<>"
+                     (mistty-test-content :show (point))))
+
+      ;; zsh likes to add a newline after the last line. Go back from
+      ;; there.
+      (mistty--cursor-skip win)
+      (should (equal "$ <>"
+                     (mistty-test-content :show (point)))))))
+
 (ert-deftest mistty-test-fish-right-prompt-simple-command ()
   (mistty-with-test-buffer (:shell fish)
     (mistty-setup-fish-right-prompt)
@@ -2808,7 +2823,7 @@
                             (mistty-test-content :show (point))))
       (right-char)
       (mistty--cursor-skip win)
-      (should (string-match "^\\$ +< right\n<>$"
+      (should (string-match "^\\$ <> +< right$"
                             (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-fish-right-prompt-insert-newlines ()
@@ -2842,6 +2857,18 @@
     ;; The shell has put the right prompt back at the right position.
     (should (string-match "^\\$ echo hello +< right\n  echo world<>"
                           (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-fish-right-prompt-mark-mistty-skip ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-setup-fish-right-prompt)
+    (mistty--send-string mistty-proc "echo ")
+    (mistty-wait-for-output :str "echo")
+    (should (string-match "^\\$ echo <> +< right$"
+                          (mistty-test-content :show (point))))
+    (should (string-match "^\\$ echo \\[ +< right\\]$"
+                          (mistty-test-content :show-property '(mistty-skip right-prompt))))
+    (should (string-match "^\\$ echo  +< right\\[\n\\]$"
+                          (mistty-test-content :show-property '(mistty-skip empty-lines-at-eob))))))
 
 (ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-forward ()
   (mistty-with-test-buffer (:shell fish :selected t)

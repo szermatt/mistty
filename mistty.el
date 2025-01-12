@@ -137,7 +137,10 @@ This can also be turned on and off on a per-buffer basis using
 
 With this option set, MisTTY attempts to reproduce the jumps the
 shell does when moving around a prompt that contains empty
-spaces, such as the indentation spaces fish adds."
+spaces, such as the indentation spaces fish adds.
+
+It also prevents the buffer from entering the right prompt or empty
+lines at the end of the buffer."
   :type '(boolean)
   :group 'mistty)
 
@@ -1561,6 +1564,14 @@ Also updates prompt and point."
              (add-text-properties (prop-match-beginning prop-match)
                                 (prop-match-end prop-match)
                                 '(invisible term-line-wrap yank-handler (nil "" nil nil)))))
+
+         ;; Mark empty lines at EOB with mistty-skip.
+         (let ((pos (point-max)))
+           (while (and (> pos mistty-sync-marker)
+                       (eq ?\n (char-before pos)))
+             (cl-decf pos))
+           (when (< pos (point-max))
+             (add-text-properties pos (point-max) '(mistty-skip empty-lines-at-eob))))
 
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.
@@ -3375,11 +3386,16 @@ This is meant to be added to `pre-redisplay-functions'"
       (pcase-dolist (`(,beg . ,end)
                      (mistty--cursor-skip-ranges
                       pos (lambda (type)
-                            (memq type '(indent right-prompt continue-prompt)))))
+                            (memq type '(indent right-prompt continue-prompt empty-lines-at-eob)))))
         (unless move-to
           (setq
            move-to
            (cond
+            ;; at the end of the range, which is also eob, move to beg
+            ((and end (= end (point-max)))
+             beg)
+
+            ;; at a boundary, stay there
             ((or (null beg) (null end) (= pos beg) (= pos end)) nil)
 
             ;; horizontal movement from the left, go right

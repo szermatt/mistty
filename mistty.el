@@ -1581,6 +1581,14 @@ Also updates prompt and point."
                        (if (get-text-property mistty--end-prompt 'mistty-input-id)
                            (next-single-property-change mistty-sync-marker 'mistty-input-id nil)
                          (mistty--bol mistty--end-prompt 2))))
+             ;; Some versions of ZSH end the prompt just before the
+             ;; newline instead of just after. Extend the input-id
+             ;; region if necessary to account for that.
+             (when (and (not (eq ?\n (char-before command-end)))
+                        (eq ?\n (char-after command-end)))
+               (cl-incf command-end)
+               (when-let ((input-id (get-text-property mistty--end-prompt 'mistty-input-id)))
+                 (put-text-property (1- command-end) command-end 'mistty-input-id input-id)))
              (when (and (eq ?\n (char-before command-end))
                         (> (mistty--last-non-ws) command-end)
                         (> command-end mistty-sync-marker))

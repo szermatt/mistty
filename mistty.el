@@ -2437,6 +2437,13 @@ returns nil."
            (move-marker old-end (1- old-end))
            (setq old-length (1- old-length)))
 
+         ;; don't even try to delete trailing ws, as they can't be
+         ;; trusted (Issue #34)
+         (when (memq (char-after old-end) '(nil ?\n))
+           (while (eq ?\  (char-before old-end))
+             (move-marker old-end (1- old-end))
+             (cl-decf old-length)))
+
          (mistty-log "replay: %s %s %s old-content: '%s' (limit: [%s-%s])"
                      (marker-position orig-beg)
                      content

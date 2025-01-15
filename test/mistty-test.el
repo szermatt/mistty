@@ -3033,6 +3033,31 @@
      (kill-line))
     (should (string-match "^\$ <> +< right$" (mistty-test-content :show (mistty-cursor))))))
 
+;; https://github.com/szermatt/mistty/issues/34
+(ert-deftest mistty-test-zsh-kill-line ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-send-text "echo hello, world")
+
+    (mistty-run-command
+     (mistty-beginning-of-line))
+
+    (mistty-run-command
+     (kill-line))
+
+    (mistty-send-text "foo")
+
+    (mistty-run-command
+     (mistty-beginning-of-line))
+
+    ;; Zsh didn't clean up the spaces after deleting "echo hello,
+    ;; world", so there appear to be many trailing spaces that can't
+    ;; actually be deleted. This shouldn't confuse mistty.
+    (mistty-run-command
+     (kill-line))
+
+    (mistty-send-text "echo bar")
+    (should (equal "bar" (mistty-send-and-capture-command-output)))))
+
 (ert-deftest mistty-test-vertical-distance ()
   (ert-with-test-buffer ()
     (insert "echo one tw\n"

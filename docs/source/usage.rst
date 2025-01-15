@@ -129,61 +129,55 @@ mistty-docker: command
 Terminal vs. Scrollback
 -----------------------
 
-MisTTY buffers are split into two zones, with different behaviors:
+MisTTY buffers are divided into two distinct zones, exhibiting
+different behaviors:
 
-The :dfn:`scrollback zone`, is where you can see commands that have
+The **scrollback zone**, is where you can see commands that have
 been executed and their output.
 
-The :dfn:`terminal zone`, marked by a purple line on the left of the
+The **terminal zone**, marked by a purple line on the left of the
 window, is where you can type command and interact with the
 terminal. In this zone, :kbd:`TAB` triggers the shell completion, if
 available. With some shells, you'll see autosuggestions as you type.
 
-The scrollback zone behaves as a normal Emacs buffer. You can modify
-it as you see fit.
+The scrollback zone operates like a standard Emacs buffer, allowing you to modify it freely.
 
-The terminal zone, on the other hand, limits what you can do: When a
-shell is attached to the terminal, you can edit the command you're
-about to run, but you can't edit the prompt itself - or rather, if you
-do change the prompt, your change will be undone by the shell.
+The terminal zone, on the other hand, imposes certain limitations.
+While a shell is attached, you can edit the command you are about to
+execute, but you can't modify the prompt itself. Any changes made to
+the prompt will be reverted by the shell.
 
 The terminal zone is where the magic happens: this is where you can
 use a mix of Emacs and shell key bindings to edit the command
 line. The trickiest part is choosing which key bindings you want Emacs
 to handle and which key bindings you want the shell to handle.
 
-By default, Emacs handles everything but a few key bindings are sent
-directly to the terminal, bypassing Emacs:
+By default, Emacs intercepts most key bindings, but a few are sent directly to the terminal:
 
-- :kbd:`RET`, to ask the shell to run the command
-- :kbd:`TAB`, to ask the shell to run command completion,
-- :kbd:`C-a` to ask it to move the cursor to the beginning of the
-  line, and
-- :kbd:`C-e` to ask it to move the cursor to the end of the line.
-- :kbd:`C-d` to ask it to either delete the next character or exit the
-  program.
-- :kbd:`M-p` to ask it to go up, or up the command history, sending
-  :kbd:`C-p` to the terminal.
-- :kbd:`M-n` to ask it to go down, or down the command history,
-  sending :kbd:`C-n` to the terminal.
-- :kbd:`M-r` to ask it to do :ref:`bs`, sending :kbd:`C-r` to the terminal.
-- :kbd:`M-.` to ask the shell to insert the last history argument.
+- :kbd:`RET`: Executes the command in the shell.
+- :kbd:`TAB`: Initiates command completion in the shell.
+- :kbd:`C-a`: Moves the cursor to the beginning of the line.
+- :kbd:`C-e`: Moves the cursor to the end of the line.
+- :kbd:`C-d`: Deletes the next character or exits the program.
+- :kbd:`M-p`: Navigates upwards in the command history (equivalent to :kbd:`C-p` in the terminal).
+- :kbd:`M-n`: Navigates downwards in the command history (equivalent to :kbd:`C-n` in the terminal).
+- :kbd:`M-r`: Invokes reverse command history search (equivalent to :kbd:`C-r` in the terminal). See :ref:`bs`.
+- :kbd:`M-.`: Inserts the last argument from command history.
 
-In addition, :kbd:`C-c C-c` sends the TERM signal to the terminal.
+Additionally, :kbd:`C-c C-c` sends the TERM signal to the terminal.
 
-The program attached to the terminal decides what the actual effect of
-these shortcuts is. Most shells and command-line editing tools
-supports the shortcuts above by default, but they might not work
-everywhere as expected.
+The program connected to the terminal determines the actual effects of
+these shortcuts. While most shells and command-line editing tools
+support these shortcuts by default, behavior may vary.
 
 .. warning::
 
-    MisTTY will not work if you've configured your shell to turn on
-    **VI mode** by default. Please **turn it off** before trying out
-    MisTTY, for details on how to turn off VI mode only of MisTTY
-    buffers and leave it on otherwise, check out the instructions in
-    :ref:`shells` VI mode must be turned off even if you just end up
-    controlling it with VI commands using Evil.
+    MisTTY will not function if your shell is configured to use **VI
+    mode** by default. Please **disable VI mode** before utilizing
+    MisTTY. For instructions on disabling VI mode specifically for
+    MisTTY buffers, while preserving it otherwise, consult see
+    :ref:`shells`. VI mode must be disabled even if you plan to use VI
+    commands through Evil.
 
 To get the most out of MisTTY, it's worth it to take the time to
 configure it to send to the terminal the shell key bindings that you
@@ -196,31 +190,32 @@ configuration.
 
 To bind keys only in the terminal zone, bind them to
 ``mistty-prompt-map``. To bind keys in both zones, bind them to
-``mistty-mode-map``. See examples below.
+``mistty-mode-map``. Examples are provided below.
 
-The following commands are useful to send key sequences to the current
-shell or program controlling the terminal:
+The following commands are useful for sending key sequences to the
+current shell or terminal program:
 
 .. index:: pair: command; mistty-send-key
 
-mistty-send-key : command
-    Called interactively, this command forwards the key it was called
-    from. It is meant to be bound to the shell key bindings you want
-    to work in the terminal zone map, ``mistty-prompt-map``.
+**mistty-send-key** : command
+    This command, when called interactively, forwards the key from
+    which it was invoked. It is designed to be bound to the shell key
+    bindings you wish to function in the terminal zone,
+    `mistty-prompt-map`.
 
-    For example, searching in the shell command history is usually
-    bound to :kbd:`C-r`, MisTTY binds that to :kbd:`M-r`, like comint
-    does, but if you'd like it to be accessible using the original key
-    binding, you can do:
+    For example, to search in the shell command history, typically
+    bound to :kbd:`C-r`, MisTTY binds it to :kbd:`M-r`, similar to
+    comint. However, if you'd prefer to use the original binding, you
+    can do the following:
 
     .. code-block:: elisp
 
         (keymap-set mistty-prompt-map "C-r" #'mistty-send-key)
 
-    If you'd prefer to have the key available in both the scrollback
-    and terminal zones, bind it ``mistty-mode-map`` instead.
+    To have the key available in both the scrollback and terminal
+    zones, bind it to `mistty-mode-map` instead.
 
-    You can also pass arbitrary keys to ``mistty-send-key``, for
+    You can also send arbitrary keys to `mistty-send-key`. For
     example:
 
     .. code-block:: elisp
@@ -232,28 +227,27 @@ mistty-send-key : command
 
 .. index:: pair: command; mistty-send-last-key
 
-mistty-send-last-key : command
-    This command forwards the last key combination of a sequence it
-    was called from to the terminal. For example, :kbd:`C-c C-c` is
-    bound to ``mistty-send-last-key`` so that the terminal eventually
-    just gets :kbd:`C-c`.
+**mistty-send-last-key** : command
+    This command forwards the last key combination from the sequence
+    it was invoked from to the terminal. For instance, :kbd:`C-c C-c`
+    is bound to `mistty-send-last-key`, such that the terminal
+    ultimately receives just :kbd:`C-c`.
 
-To just try things out, or for shell shortcuts you don't use
-regularly, you can use the :kbd:`C-q` prefix to bypass Emacs key
-bindings and send keys directly to the terminal. For example,
-:kbd:`C-q <right>` sends a right arrow key press to the terminal
-instead of moving the cursor.
+For quick testing or for shell shortcuts you use infrequently, use
+the :kbd:`C-q` prefix to bypass Emacs key bindings and send keys
+directly to the terminal. For example, pressing :kbd:`C-q <right>`
+sends a right-arrow key press to the terminal instead of moving the
+cursor.
 
 .. index:: pair: command; mistty-send-key-sequence
 
-If that's not enough, try out:
+If further control is needed, try out:
 
-mistty-send-key-sequence : command
+**mistty-send-key-sequence** : command
   This command sends all keys you press to the terminal until you
   press :kbd:`C-g`.
 
   By default, it is bound to :kbd:`C-c C-q`.
-
 
 .. _navigation:
 
@@ -310,21 +304,24 @@ use the shell native command history, as discussed in :ref:`history`.
 Fullscreen Mode
 ---------------
 
-MisTTY detects when a program such as :program:`less` or :program:`vi`
-asks to run full screen and splits the MisTTY buffers into:
+MisTTY detects when a program, such as :program:`less` or
+:program:`vi`, requests full-screen mode. In response, it splits the
+MisTTY buffers in two:
 
-- a terminal buffer, which shows the program output and lets you
-  interact with it. This is a term-mode buffer.
-- a scrollback buffer, which shows the previous command lines and
-  their output.
+- The **terminal buffer**, which displays the program's output and
+  allows you to interact with it. It operates in term-mode.
+
+- The **Scrollback Buffer**, which contains the previous command lines
+  along with their outputs.
 
 .. index:: pair: command; mistty-toggle-buffers
 
-:kbd:`C-c C-j` or :kbd:`M-x mistty-toggle-buffers` switches between
-these two.
+To switch between these buffers, press :kbd:`C-c C-j` or execute
+:kbd:`M-x mistty-toggle-buffers`
 
-When the program exits, the two buffers are again merged. Note that
-the output of the full screen app isn't available in the scrollback.
+When the full-screen program exits, the two buffers are merged back
+together. Please note that the output from the full-screen application
+is not available in the scrollback region.
 
 .. _history:
 
@@ -362,27 +359,27 @@ Backward Search
    pair: variable; mistty-forbid-edit-regexps
    pair: variable; mistty-forbid-edit-map
 
-Within the different shells :kbd:`C-r` or :kbd:`M-r` triggers a
-special backward search mode, during which edition is very limited.
-MisTTY detects this mode based on the regular expressions configured
-in :kbd:`M-x customize-option mistty-forbid-edit-regexps`.
+Within various shells, pressing :kbd:`C-r` or :kbd:`M-r` activates a
+special backward search mode, where editing options are limited.
+MisTTY identifies this mode using the regular expressions set in
+:kbd:`M-x customize-option mistty-forbid-edit-regexps`.
 
-While this mode is active:
+When this mode is active:
 
-- text can be appended or deleted, but not modified. While it is still
-  possible to yank text or delete a word in this mode, most Emacs
-  edition command will not work.
+- You can append or delete text but cannot modify it. Though yanking
+  text and word deletion are still possible, most Emacs editing
+  won't work.
 
-- the status modeline shows "FE:run", for Forbid Edit mode
+- The modeline displays "FE:run" to indicate Forbid Edit mode.
 
-- arrow keys are sent directly to the terminal. This is useful when
-  the shell offers multiple choices that can be selected, as the Fish
-  shell does. To customize this behavior, add or remove key bindings
-  from ``mistty-forbid-edit-map``, which extends
-  ``mistty-prompt-map`` while this mode is active.
+- Arrow keys are sent directly to the terminal, which is beneficial
+  for shells like Fish that allow selection from multiple choices. To
+  customize this functionality, adjust key bindings in
+  ``mistty-forbid-edit-map``, which extends ``mistty-prompt-map``
+  in this mode.
 
-- C-g is forwarded to the terminal. It normally exits the backward
-  search mode without selecting anything.
+- Pressing :kbd:`C-g` sends a signal to the terminal and typically
+  exits backward search mode without making a selection.
 
 .. _cap:
 

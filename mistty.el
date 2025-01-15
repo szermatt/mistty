@@ -3449,46 +3449,49 @@ This is meant to be added to `pre-redisplay-functions'"
       (when-let ((last-state (window-parameter win 'mistty--cursor-skip-state)))
         (when (eq (car last-state) (current-buffer))
           (setq last-pos (cdr last-state))))
-      (pcase-dolist (`(,beg . ,end)
-                     (mistty--cursor-skip-ranges
-                      pos (lambda (type)
-                            (memq type '(indent right-prompt continue-prompt empty-lines-at-eob)))))
-        (unless move-to
-          (setq
-           move-to
-           (cond
-            ;; at the end of the range, which is also eob, move to beg
-            ((and end (= end (point-max)))
-             beg)
+      (unless (equal pos last-pos)
+        (pcase-dolist (`(,beg . ,end)
+                       (mistty--cursor-skip-ranges
+                        pos (lambda (type)
+                              (memq type '(indent right-prompt continue-prompt empty-lines-at-eob)))))
+          (unless move-to
+            (setq
+             move-to
+             (cond
+              ;; at the end of the range, which is also eob, move to beg
+              ((and end (= end (point-max)))
+               beg)
 
-            ;; at a boundary, stay there
-            ((or (null beg) (null end) (= pos beg) (= pos end)) nil)
+              ;; at a boundary, stay there
+              ((or (null beg) (null end) (= pos beg) (= pos end)) nil)
 
-            ;; horizontal movement from the left, go right
-            ((and last-pos (<= last-pos beg) (mistty--same-line-p last-pos beg))
-             end)
-            ;; horizontal movement from the right, go left
-            ((and last-pos (>= last-pos end) (mistty--same-line-p last-pos end))
-             beg)
-            ;; vertical move; on beg's line, so go to beg
-            ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
-             beg)
-            ;; vertical move; on end's line, so go to end
-            ((and (mistty--same-line-p pos end) (not (mistty--same-line-p pos beg)))
-             end)
-            ;; closer to beg than to end, go to beg
-            ((< (- pos beg) (- end pos))
-             beg)
-            ;; otherwise go to end
-            (t
-             end)))
-          (when move-to
-            (mistty-log "CURSOR MOVE beg %s end %s pos %s last-pos %s -> %s"
-                        beg end pos last-pos move-to))))
-      (when move-to
-        (set-window-point win move-to))
-      (set-window-parameter win 'mistty--cursor-skip-state
-                            (cons (current-buffer) (or move-to pos))))))
+              ;; horizontal movement from the left, go right
+              ((and last-pos (<= last-pos beg) (mistty--same-line-p last-pos beg))
+               end)
+              ;; horizontal movement from the right, go left
+              ((and last-pos (>= last-pos end) (mistty--same-line-p last-pos end))
+               beg)
+              ;; vertical move; on beg's line, so go to beg
+              ((and (mistty--same-line-p pos beg) (not (mistty--same-line-p pos end)))
+               beg)
+              ;; vertical move; on end's line, so go to end
+              ((and (mistty--same-line-p pos end) (not (mistty--same-line-p pos beg)))
+               end)
+              ;; closer to beg than to end, go to beg
+              ((< (- pos beg) (- end pos))
+               beg)
+              ;; otherwise go to end
+              (t
+               end)))
+            (when (equal move-to pos)
+              (setq move-to nil))
+            (when move-to
+              (mistty-log "CURSOR MOVE beg %s end %s pos %s last-pos %s -> %s"
+                          beg end pos last-pos move-to))))
+        (when move-to
+          (set-window-point win move-to))
+        (set-window-parameter win 'mistty--cursor-skip-state
+                              (cons (current-buffer) (or move-to pos)))))))
 
 (defun mistty--cursor-skip-forward (pos)
   "Return the right end of the skip ranges containing POS.

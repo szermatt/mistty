@@ -2359,11 +2359,7 @@ returns nil."
         (beg (make-marker))
         (old-end (make-marker))
 
-        ;; Whitespaces to delete at the very end of the buffer. Since
-        ;; zsh doesn't necessarily delete these whitespaces, we can't
-        ;; be sure how many there really are, so this is an estimate.
-        (trailing-ws-to-delete 0)
-        target
+        trailing-ws-to-delete target
         backstage lower-limit upper-limit distance
         orig-beg content old-length waiting-for-last-change
         inserted-detector-regexp)
@@ -2444,6 +2440,7 @@ returns nil."
 
          ;; don't even try to move through trailing ws, as they may
          ;; not exist (Issue #34)
+         (setq trailing-ws-to-delete 0)
          (when (memq (char-after old-end) '(nil ?\n))
            (let ((at-end (<= (mistty--last-non-ws) old-end )))
              (while (and (> old-length 0)

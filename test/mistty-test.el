@@ -3058,6 +3058,59 @@
     (mistty-send-text "echo bar")
     (should (equal "bar" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-bash-kill-line-delete-real-trailing ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-kill-line-delete-real-trailing)))
+
+(ert-deftest mistty-test-fish-kill-line-delete-real-trailing ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-test-kill-line-delete-real-trailing)))
+
+(ert-deftest mistty-test-zsh-kill-line-delete-real-trailing ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-kill-line-delete-real-trailing)))
+
+(ert-deftest mistty-test-kill-line-after-ws ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-send-text "hello, world")
+    (mistty--send-string mistty-proc "     \C-aecho ")
+    (mistty-wait-for-output :str "echo")
+
+    (mistty-run-command
+     (mistty-test-goto-after "world")
+     ;; Leave 2 spaces, to make sure MisTTY doesn't delete spaces it
+     ;; shouldn't.
+     (goto-char (+ (point) 2))
+     (kill-line))
+
+    (mistty-send-text "foo")
+
+    (should (equal "$ echo hello, world  foo<>"
+                   (mistty-test-content :show (mistty-cursor))))))
+
+
+(defun mistty-test-kill-line-delete-real-trailing ()
+  (mistty-send-text "echo hello, world")
+
+  (mistty-run-command
+   (mistty-beginning-of-line))
+
+  (mistty-run-command
+   (kill-line))
+
+  (mistty-send-text "foo")
+  (mistty--send-string mistty-proc "     ")
+
+  (mistty-run-command
+   (mistty-beginning-of-line))
+
+  (mistty-run-command
+   (kill-line))
+
+  (mistty--send-string mistty-proc "echo '\C-eend'")
+  (mistty-wait-for-output :str "end'")
+  (should (equal "end" (mistty-send-and-capture-command-output))))
+
 (ert-deftest mistty-test-vertical-distance ()
   (ert-with-test-buffer ()
     (insert "echo one tw\n"

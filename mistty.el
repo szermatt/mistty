@@ -2358,6 +2358,11 @@ returns nil."
         (inhibit-moves mistty--forbid-edit)
         (beg (make-marker))
         (old-end (make-marker))
+
+        ;; Whitespaces to delete at the very end of the buffer. Since
+        ;; zsh doesn't necessarily delete these whitespaces, we can't
+        ;; be sure how many there really are, so this is an estimate.
+        (trailing-ws-to-delete 0)
         target
         backstage lower-limit upper-limit distance
         orig-beg content old-length waiting-for-last-change
@@ -2437,12 +2442,16 @@ returns nil."
            (move-marker old-end (1- old-end))
            (setq old-length (1- old-length)))
 
-         ;; don't even try to delete trailing ws, as they can't be
-         ;; trusted (Issue #34)
+         ;; don't even try to move through trailing ws, as they may
+         ;; not exist (Issue #34)
          (when (memq (char-after old-end) '(nil ?\n))
-           (while (eq ?\  (char-before old-end))
-             (move-marker old-end (1- old-end))
-             (cl-decf old-length)))
+           (let ((at-end (<= (mistty--last-non-ws) old-end )))
+             (while (and (> old-length 0)
+                         (eq ?\  (char-before old-end)))
+               (move-marker old-end (1- old-end))
+               (when at-end
+                 (cl-incf trailing-ws-to-delete))
+               (cl-decf old-length))))
 
          (mistty-log "replay: %s %s %s old-content: '%s' (limit: [%s-%s])"
                      (marker-position orig-beg)
@@ -2558,6 +2567,12 @@ returns nil."
                  (let ((char-count (mistty--distance beg old-end)))
                    (mistty-log "DELETE %s chars (was %s)" char-count old-length)
                    (mistty--repeat-string char-count "\b")))
+
+               ;; delete trailing ws
+               (when (> trailing-ws-to-delete 0)
+                 (mistty-log "DELETE %s trailing whitespaces with C-k" trailing-ws-to-delete)
+                 (mistty--repeat-string 1 "\C-k"))
+
                ;; insert
                (when (length> content 0)
                  (mistty-log "INSERT: '%s'" content)

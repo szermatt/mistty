@@ -411,6 +411,7 @@ This is meant to be assigned to `mistty--report-issue-function'
                                     (show nil)
                                     (show-property '(nil nil))
                                     (strip-last-prompt nil)
+                                    (trim-left nil)
                                     (trim t))
   "Return buffer content, post-processed.
 
@@ -427,7 +428,10 @@ SHOW-PROPERTY \\='(PROP VAL) puts section with text-property PROP
 set to VAL within brackets.
 
 Unless TRIM is set to nil, trailing newlines are always stripped
-out from the output."
+out from the output.
+
+If TRIM-LEFT is non-nil, strip spaces at the beginning of each line.
+This is useful to ignore indentation added by fish."
   (interactive)
   (let ((output (buffer-substring start end)))
     (when show
@@ -444,6 +448,8 @@ out from the output."
     (when trim
       (setq output (replace-regexp-in-string "[ \t]*$" "" output))
       (setq output (replace-regexp-in-string "[ \t\n]*\\'" "" output)))
+    (when trim-left
+      (setq output (replace-regexp-in-string "^[ \t]*" "" output)))
     output))
 
 (defun mistty-wait-for-term-buffer-and-proc-to-die (buf proc)

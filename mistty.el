@@ -2681,8 +2681,12 @@ up (negative)."
     (let ((distance (abs direction))
           (towards-str
            (if (< direction 0)
-               mistty-up-str
-             mistty-down-str)))
+               (if mistty--can-move-vertically
+                   mistty-up-str
+                 (concat "\C-a" mistty-left-str))
+             (if mistty--can-move-vertically
+                 mistty-down-str
+               (concat "\C-e" mistty-right-str)))))
       (mistty--repeat-string distance towards-str))))
 
 (defun mistty-next-input (n)
@@ -3064,23 +3068,26 @@ post-command hook."
     (setf
      (mistty--interact-cb interact)
      (lambda (&optional _)
-       (when mistty--can-move-vertically
-         (let ((from (mistty-cursor))
-               (to (point)))
-           (unless (funcall can-move-f from to)
-             (mistty--interact-done))
-           (let ((distance (mistty--vertical-distance from to)))
-             (mistty-log "cursor to point: %s -> %s lines: %s"
-                         from to distance)
-             (let ((term-seq (mistty--move-vertically-str distance)))
-               (when (mistty--nonempty-str-p term-seq)
-                 (mistty--interact-return
-                  interact term-seq
-                  :wait-until (lambda ()
-                                (mistty--same-line-p
-                                 (mistty-cursor) (point)))
-                  :then after-move-vertically-f))))))
-       (funcall after-move-vertically-f)))
+       (let ((from (mistty-cursor))
+             (to (point)))
+         (unless (funcall can-move-f from to)
+           (mistty--interact-done))
+         (let ((distance (mistty--vertical-distance from to)))
+           (let ((term-seq (mistty--move-vertically-str distance)))
+             (when (mistty--nonempty-str-p term-seq)
+               (mistty-log "cursor to point: %s -> %s lines: %s (can-move-vertically=%s)"
+                           from to distance mistty--can-move-vertically)
+               (mistty--interact-return
+                interact term-seq
+                :wait-until (let ((comparison (cond (mistty--can-move-vertically '=)
+                                                    ((< distance 0) '<=)
+                                                    (t '>=))))
+                              (lambda ()
+                                (funcall comparison
+                                         (mistty--bol (mistty-cursor))
+                                         (mistty--bol (point)))))
+                :then after-move-vertically-f))
+             (funcall after-move-vertically-f))))))
 
     (setq after-move-vertically-f
           (lambda (&optional _)

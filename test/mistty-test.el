@@ -2480,6 +2480,103 @@
     (should (equal "$ echo 'hello\n  world\n  and all that sort of <>things.'"
                    (mistty-test-content :show (mistty-cursor))))))
 
+(ert-deftest mistty-test-zsh-multiline-movements-with-trailing-ws ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-multiline-movements-with-trailing-ws)))
+
+(ert-deftest mistty-test-bash-multiline-movements-with-trailing-ws ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-multiline-movements-with-trailing-ws)))
+
+(ert-deftest mistty-test-fish-multiline-movements-with-trailing-ws ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-test-multiline-movements-with-trailing-ws)))
+
+(defun mistty-test-multiline-movements-with-trailing-ws ()
+  (should mistty-bracketed-paste)
+
+  ;; The following triggers zsh trailing whitespace issue on all
+  ;; lines but the last, making it impossible for MisTTY to know how
+  ;; many trailing spaces to skip when moving.
+  ;; https://github.com/szermatt/mistty/issues/34
+  (mistty--send-string
+   mistty-proc
+   (format "echo \"hello, world%s\C-k%sworld, and the%s\C-k%sthe rest%s\C-k%srest.\""
+           (mistty--repeat-string 5 mistty-left-str)
+           (mistty--maybe-bracketed-str "\n")
+           (mistty--repeat-string 3 mistty-left-str)
+           (mistty--maybe-bracketed-str "\n")
+           (mistty--repeat-string 4 mistty-left-str)
+           (mistty--maybe-bracketed-str "\n")))
+  (mistty-wait-for-output :str "rest.")
+
+  (should (equal
+           (concat "$ echo \"hello,\n"
+                   "world, and\n"
+                   "the\n"
+                   "rest.\"<>")
+           (mistty-test-content :trim-left t :show (mistty-cursor))))
+
+  (mistty-log "**move left")
+  (mistty-run-command
+   (mistty-test-goto-after "rest"))
+
+  (mistty-wait-for-output :str "rest" :cursor-at-end t)
+  (should (equal
+           (concat "$ echo \"hello,\n"
+                   "world, and\n"
+                   "the\n"
+                   "rest<>.\"")
+           (mistty-test-content :trim-left t :show (mistty-cursor))))
+
+  (mistty-log "**move right")
+  (mistty-run-command
+   (mistty-test-goto-after "rest."))
+
+  (mistty-wait-for-output :str "rest." :cursor-at-end t)
+  (should (equal
+           (concat "$ echo \"hello,\n"
+                   "world, and\n"
+                   "the\n"
+                   "rest.<>\"")
+           (mistty-test-content :trim-left t :show (mistty-cursor))))
+
+
+  (mistty-log "**move up 2 lines")
+  (mistty-run-command
+   (mistty-test-goto-after "world,"))
+  (mistty-wait-for-output :str "world," :cursor-at-end t)
+
+  (should (equal
+           (concat "$ echo \"hello,\n"
+                   "world,<> and\n"
+                   "the\n"
+                   "rest.\"")
+           (mistty-test-content :trim-left t :show (mistty-cursor))))
+
+  (mistty-log "**move down 1 line")
+  (mistty-run-command
+   (mistty-test-goto-after "the"))
+  (mistty-wait-for-output :str "the" :cursor-at-end t)
+
+  (should (equal
+           (concat "$ echo \"hello,\n"
+                   "world, and\n"
+                   "the<>\n"
+                   "rest.\"")
+           (mistty-test-content :trim-left t :show (mistty-cursor))))
+
+  (mistty-log "**move up 2 lines again")
+  (mistty-run-command
+   (mistty-test-goto-after "hello"))
+  (mistty-wait-for-output :str "hello" :cursor-at-end t)
+
+  (should (equal
+           (concat "$ echo \"hello<>,\n"
+                   "world, and\n"
+                   "the\n"
+                   "rest.\"")
+           (mistty-test-content :trim-left t :show (mistty-cursor)))))
 
 (ert-deftest mistty-test-truncation ()
   (let ((mistty-buffer-maximum-size 20))

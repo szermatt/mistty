@@ -3023,6 +3023,30 @@
       (should (equal "$ <>"
                      (mistty-test-content :show (point)))))))
 
+(ert-deftest mistty-test-zsh-dead-spaces ()
+  (mistty-with-test-buffer (:shell zsh :selected t)
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+
+      (mistty-send-text "echo \"hello, world\"")
+      (mistty-run-command
+       (mistty-test-goto "world")
+       (insert "\n"))
+
+      (should (equal "$ echo \"hello,       \n<>world\"\n"
+                     (mistty-test-content :trim nil :show (point))))
+
+      ;; Zsh tends to add spaces after the hello, to delete what was
+      ;; "world" before. These spaces should be marked mistty-skip and
+      ;; skipped. A single space after the comma is real and shouldn't
+      ;; be skipped, though.
+      (mistty--cursor-skip win)
+      (mistty-run-command
+       (goto-char (1- (point))))
+      (mistty--cursor-skip win)
+      (should (equal "$ echo \"hello, <>      \nworld\"\n"
+                     (mistty-test-content :trim nil :show (point)))))))
+
 (ert-deftest mistty-test-fish-right-prompt-simple-command ()
   (mistty-with-test-buffer (:shell fish)
     (mistty-setup-fish-right-prompt)

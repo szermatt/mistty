@@ -3519,7 +3519,7 @@ This is meant to be added to `pre-redisplay-functions'"
         (pcase-dolist (`(,beg . ,end)
                        (mistty--cursor-skip-ranges
                         pos (lambda (type)
-                              (memq type '(indent right-prompt continue-prompt empty-lines-at-eob)))))
+                              (memq type '(indent right-prompt continue-prompt empty-lines-at-eob dead)))))
           (unless move-to
             (setq
              move-to

@@ -121,7 +121,7 @@
 
     (should (equal "$ <>" (mistty-test-content :show (point))))))
 
-(ert-deftest mistty-test-reconcile-large-multiline-delete ()
+(ert-deftest mistty-test-fish-reconcile-large-multiline-delete ()
   (mistty-with-test-buffer (:shell fish)
     (mistty-send-text "for i in (seq 10)\necho this is a very long string to be deleted $i\nend")
 
@@ -2501,13 +2501,19 @@
   ;; https://github.com/szermatt/mistty/issues/34
   (mistty--send-string
    mistty-proc
-   (format "echo \"hello, world%s\C-k%sworld, and the%s\C-k%sthe rest%s\C-k%srest.\""
-           (mistty--repeat-string 5 mistty-left-str)
-           (mistty--maybe-bracketed-str "\n")
-           (mistty--repeat-string 3 mistty-left-str)
-           (mistty--maybe-bracketed-str "\n")
-           (mistty--repeat-string 4 mistty-left-str)
-           (mistty--maybe-bracketed-str "\n")))
+   (format "echo \"hello, world%sworld, and the%sthe rest%srest.\""
+           (concat
+            (mistty--repeat-string 5 mistty-left-str)
+            "\C-k"
+            (mistty--maybe-bracketed-str "\n"))
+           (concat
+            (mistty--repeat-string 3 mistty-left-str)
+            "\C-k"
+            (mistty--maybe-bracketed-str "\n"))
+           (concat
+            (mistty--repeat-string 4 mistty-left-str)
+            "\C-k"
+            (mistty--maybe-bracketed-str "\n"))))
   (mistty-wait-for-output :str "rest.")
 
   (should (equal
@@ -2576,6 +2582,44 @@
                    "world, and\n"
                    "the\n"
                    "rest.\"")
+           (mistty-test-content :trim-left t :show (mistty-cursor)))))
+
+(ert-deftest mistty-test-zsh-reconcile-multiline-delete-with-trailing-ws ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-reconcile-multiple-delete-with-trailing-ws)))
+
+(ert-deftest mistty-test-bash-reconcile-multiline-delete-with-trailing-ws ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-reconcile-multiple-delete-with-trailing-ws)))
+
+(ert-deftest mistty-test-fish-reconcile-multiline-delete-with-trailing-ws ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-test-reconcile-multiple-delete-with-trailing-ws)))
+
+(defun mistty-test-reconcile-multiple-delete-with-trailing-ws ()
+  (mistty--send-string
+   mistty-proc
+   (format "for i in 1 2 3 4 5 6 deleted%s; do%secho -n line deleted%secho $i deleted%sdone"
+           (concat (mistty--repeat-string 8 mistty-left-str) "\C-k")
+           (mistty--maybe-bracketed-str "\n")
+           (concat (mistty--repeat-string 8 mistty-left-str) "\C-k" (mistty--maybe-bracketed-str "\n"))
+           (concat (mistty--repeat-string 8 mistty-left-str) "\C-k" (mistty--maybe-bracketed-str "\n"))))
+  (mistty-wait-for-output :str "done" :cursor-at-end t)
+
+  (should (equal
+           (concat "$ for i in 1 2 3 4 5 6; do\n"
+                   "echo -n line\n"
+                   "echo $i\n"
+                   "done<>")
+           (mistty-test-content :trim-left t :show (mistty-cursor))))
+
+
+  (mistty-run-command
+   (delete-region (mistty-test-pos "5 6;") (mistty-test-pos "echo $i"))
+   (mistty-test-goto "echo $i"))
+
+  (should (equal
+           (concat "$ for i in 1 2 3 4 <>echo $i\ndone")
            (mistty-test-content :trim-left t :show (mistty-cursor)))))
 
 (ert-deftest mistty-test-truncation ()

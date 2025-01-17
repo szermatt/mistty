@@ -2348,6 +2348,7 @@ returns nil."
   (let ((interact (mistty--make-interact 'replay))
         next-modification-f
         move-to-target-f after-move-vertically-f after-move-to-target-f
+        delete-lines-f after-delete-lines-f
         insert-and-delete-f after-insert-and-delete-f
 
         ;; mistty--changeset-modification extracts modification from
@@ -2489,19 +2490,24 @@ returns nil."
            (mistty-log "INHIBITED: to target: %s -> %s" (point) target)
            (funcall after-move-to-target-f))
 
-         (when mistty--can-move-vertically
-           (let ((distance (mistty--vertical-distance (point) target)))
-             (mistty-log "to target: %s -> %s lines: %s"
-                         (point) target distance)
-             (let ((term-seq (mistty--move-vertically-str distance)))
-               (when (mistty--nonempty-str-p term-seq)
-                 (mistty--interact-return
-                  interact term-seq
-                  :wait-until (lambda ()
-                                (mistty--update-backstage)
-                                (mistty--same-line-p (point) target))
-                  :then after-move-vertically-f)))))
-         (funcall after-move-vertically-f)))))
+         (let* ((distance (mistty--vertical-distance (point) target))
+                (term-seq (mistty--move-vertically-str distance)))
+           (when (mistty--nonempty-str-p term-seq)
+             (mistty-log "to target: %s -> %s lines: %s (can-move-vertically=%s)"
+                         (point) target distance mistty--can-move-vertically)
+             (mistty--interact-return
+              interact term-seq
+              :wait-until (let ((comparison (cond (mistty--can-move-vertically '=)
+                                                  ((< distance 0) '<=)
+                                                  (t '>=))))
+                            (lambda ()
+                              (mistty--update-backstage)
+                              (funcall comparison (pos-bol) (mistty--bol target))))
+              :then after-move-vertically-f
+              ;; after-move-to-target-f deals with the point not being
+              ;; where it should.
+              :else after-move-to-target-f))
+           (funcall after-move-vertically-f))))))
 
     (setq after-move-vertically-f
           (lambda ()
@@ -2515,7 +2521,7 @@ returns nil."
                                (mistty--update-backstage)
                                (= (point) target))
                  :then after-move-to-target-f)))
-            (funcall insert-and-delete-f)))
+            (funcall delete-lines-f)))
 
     (setq
      after-move-to-target-f
@@ -2548,7 +2554,44 @@ returns nil."
 
         (t
          (move-marker target (point))
-         (funcall insert-and-delete-f)))))
+         (funcall delete-lines-f)))))
+
+    ;; For multi-line delete, delete line by line. This allows not
+    ;; knowing where a line really ends (Issue #34).
+    (setq
+     delete-lines-f
+     (lambda ()
+       (when (> (mistty--vertical-distance beg old-end) 0)
+         (let ((bol (save-excursion
+                      (goto-char old-end)
+                      (catch 'mistty-bol
+                        (while (search-backward "\n" beg 'noerror)
+                          (unless (get-text-property (match-beginning 0) 'term-line-wrap)
+                            (throw 'mistty-bol (match-end 0))))))))
+           (when (and bol (<= beg bol old-end))
+             (mistty-log "delete line: [%s-%s] beg: %s"
+                         (1- bol)
+                         (marker-position old-end)
+                         (marker-position beg))
+             (let ((term-seq (mistty--repeat-string (1+ (mistty--distance bol old-end)) "\b"))
+                   (prev-line (mistty--bol (1- bol))))
+             (mistty--interact-return
+              interact term-seq
+              :wait-until (lambda ()
+                            (mistty--update-backstage)
+                            (mistty--same-line-p prev-line (point)))
+              :then after-delete-lines-f
+              ;; If we can't even delete lines, just give up and move
+              ;; on to the next modification.
+              :else after-insert-and-delete-f)))))
+       (funcall insert-and-delete-f)))
+
+    (setq
+     after-delete-lines-f
+     (lambda ()
+       (move-marker old-end (point))
+       (setq old-length (max 0 (- old-end beg)))
+       (funcall delete-lines-f)))
 
     (setq
      insert-and-delete-f

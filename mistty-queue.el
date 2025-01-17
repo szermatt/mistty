@@ -447,7 +447,7 @@ It returns non-nil once interaction should continue:
         'give-up)))))
 
 (cl-defun mistty--interact-return
-    (interact value &key (wait-until nil) (then nil))
+    (interact value &key (wait-until nil) (then nil) (else nil))
   "Convenience function for returning a value from INTERACT.
 
 This function optionally sets up the callback with THEN, a
@@ -462,6 +462,10 @@ after sending that value. Note that there is no guarantee that
 the CB is a function to call once the terminal has been updated,
 terminal contains the effect of sending that value.
 
+If ELSE is set, and the interact times out waiting for WAIT-UNTIL to
+become non-nil, call ELSE instead of THEN. ELSE is ignored if WAIT-UNTIL
+is unset.
+
 Note that it makes no sense to return \\='done as a VALUE using
 this function, as CB would never be executed; Just return
 \\='done directly."
@@ -471,9 +475,10 @@ this function, as CB would never be executed; Just return
           (then (or then (mistty--interact-cb interact))))
       (setf (mistty--interact-cb interact)
             (lambda (value)
-              (if (funcall accept-f value)
-                  (funcall then)
-                (mistty--interact-keep-waiting))))))
+              (pcase (funcall accept-f value)
+                ('accept (funcall then))
+                ('give-up (funcall (or else then)))
+                (_ (mistty--interact-keep-waiting)))))))
    (then (setf (mistty--interact-cb interact) then)))
   (throw 'mistty--interact-return value))
 

@@ -28,7 +28,7 @@
   (require 'cl-lib))
 
 (require 'mistty-util)
-
+(require 'mistty-log)
 
 ;;; Code:
 
@@ -998,6 +998,40 @@ on the term face."
          (setq props (plist-put props :background bg)))
        (append (list props) rest '(term))))
     (_ value)))
+
+(defun mistty--detect-dead-spaces-after-insert (content beg)
+  "Mark dead trailing spaces left by the terminal after inserting CONTENT.
+
+When inserting a newline in an existing line, the terminal often just
+overwrites the existing characters with space instead of re-creating the
+line properly. The result are spaces that should be skipped.
+
+BEG is the position at which CONTENT was inserted in the terminal
+buffer.
+
+Detected dead spaces are marked with the text property \\='mistty-skip
+\\='dead."
+  (let ((lines (split-string content "\n")))
+    (when (length> lines 1)
+      (let ((first-line (car lines)))
+        (let ((real-trailing-ws 0))
+          (while (string-suffix-p " " first-line)
+            (cl-incf real-trailing-ws)
+            (setq first-line (substring first-line 0 -1)))
+          (save-excursion
+            (goto-char beg)
+            (let ((eol (pos-eol)))
+              (goto-char eol)
+              (skip-chars-backward " " (1- beg))
+              (dotimes (_ real-trailing-ws)
+                (when (eq ?\  (char-after (point)))
+                  (goto-char (1+ (point)))))
+              (let ((inhibit-read-only t)
+                    (inhibit-modification-hooks t))
+                (when (> eol (point))
+                  (mistty-log "@%s %s dead spaces, %s real"
+                              eol (- eol (point)) real-trailing-ws)
+                  (put-text-property (point) eol 'mistty-skip 'dead))))))))))
 
 (provide 'mistty-term)
 

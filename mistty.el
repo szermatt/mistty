@@ -2356,6 +2356,7 @@ returns nil."
         ;; created, not when it is run
         (modifications (mistty--changeset-modifications cs))
         (calling-buffer (current-buffer))
+        (term-buffer mistty-term-buffer)
         (inhibit-moves mistty--forbid-edit)
         (beg (make-marker))
         (old-end (make-marker))
@@ -2647,6 +2648,9 @@ returns nil."
      (lambda ()
        (setq waiting-for-last-change nil)
        (mistty--update-backstage)
+       (mistty--with-live-buffer term-buffer
+         (mistty--detect-dead-spaces-after-insert
+          content (+ mistty-sync-marker (marker-position beg))))
        (funcall next-modification-f)))
 
     (setf

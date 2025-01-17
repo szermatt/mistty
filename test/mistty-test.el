@@ -2500,19 +2500,19 @@
                    "<>world\"")
            (mistty-test-content :show (mistty-cursor)))))
 
-(ert-deftest mistty-test-zsh-multiline-movements-with-trailing-ws ()
+(ert-deftest mistty-test-zsh-multiline-movements-after-kill-line ()
   (mistty-with-test-buffer (:shell zsh)
-    (mistty-test-multiline-movements-with-trailing-ws)))
+    (mistty-test-multiline-movements-after-kill-line)))
 
-(ert-deftest mistty-test-bash-multiline-movements-with-trailing-ws ()
+(ert-deftest mistty-test-bash-multiline-movements-after-kill-line ()
   (mistty-with-test-buffer (:shell bash)
-    (mistty-test-multiline-movements-with-trailing-ws)))
+    (mistty-test-multiline-movements-after-kill-line)))
 
-(ert-deftest mistty-test-fish-multiline-movements-with-trailing-ws ()
+(ert-deftest mistty-test-fish-multiline-movements-after-kill-line ()
   (mistty-with-test-buffer (:shell fish)
-    (mistty-test-multiline-movements-with-trailing-ws)))
+    (mistty-test-multiline-movements-after-kill-line)))
 
-(defun mistty-test-multiline-movements-with-trailing-ws ()
+(defun mistty-test-multiline-movements-after-kill-line ()
   (should mistty-bracketed-paste)
 
   ;; The following triggers zsh trailing whitespace issue on all
@@ -2536,6 +2536,41 @@
             (mistty--maybe-bracketed-str "\n"))))
   (mistty-wait-for-output :str "rest.")
 
+  (mistty-test-multiline-movements))
+
+(ert-deftest mistty-test-zsh-multiline-movements-after-insert-newline ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-multiline-movements-after-insert-newline)))
+
+(ert-deftest mistty-test-bash-multiline-movements-after-insert-newline ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-multiline-movements-after-insert-newline)))
+
+(ert-deftest mistty-test-fish-multiline-movements-after-insert-newline ()
+  (mistty-with-test-buffer (:shell fish)
+    (mistty-test-multiline-movements-after-insert-newline)))
+
+(defun mistty-test-multiline-movements-after-insert-newline ()
+  (mistty-send-text "echo \"hello, world, andthe rest")
+
+  (mistty-run-command
+   (mistty-test-goto "world")
+   (insert "\n"))
+
+  (mistty-run-command
+   (mistty-test-goto "the")
+   (insert " \n"))
+
+  (mistty-run-command
+   (mistty-test-goto "rest")
+   (insert "\n"))
+
+  (mistty--send-string mistty-proc "\C-e.\"")
+  (mistty-wait-for-output :str "rest.")
+
+  (mistty-test-multiline-movements))
+
+(defun mistty-test-multiline-movements ()
   (should (equal
            (concat "$ echo \"hello,\n"
                    "world, and\n"

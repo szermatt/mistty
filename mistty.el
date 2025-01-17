@@ -2628,7 +2628,7 @@ returns nil."
                   "^"
                   (regexp-quote (mistty--safe-bufstring
                                  (mistty--bol beg) beg))
-                  (regexp-quote content)))
+                  (string-replace "\n" " *\n" (regexp-quote content))))
            (mistty-log "RE /%s/" inserted-detector-regexp)
            (unless modifications
              (setq waiting-for-last-change t))

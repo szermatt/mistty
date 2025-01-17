@@ -2480,6 +2480,26 @@
     (should (equal "$ echo 'hello\n  world\n  and all that sort of <>things.'"
                    (mistty-test-content :show (mistty-cursor))))))
 
+(ert-deftest mistty-test-bash-cut-existing-line ()
+  (mistty-with-test-buffer (:shell bash)
+    (mistty-test-cut-existing-line)))
+
+(ert-deftest mistty-test-zsh-cut-existing-line ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-cut-existing-line)))
+
+(defun mistty-test-cut-existing-line ()
+  (mistty-send-text "echo \"hello, world\"")
+
+  (mistty-run-command
+   (mistty-test-goto "world")
+   (insert "\n"))
+
+  (should (equal
+           (concat "$ echo \"hello,\n"
+                   "<>world\"")
+           (mistty-test-content :show (mistty-cursor)))))
+
 (ert-deftest mistty-test-zsh-multiline-movements-with-trailing-ws ()
   (mistty-with-test-buffer (:shell zsh)
     (mistty-test-multiline-movements-with-trailing-ws)))

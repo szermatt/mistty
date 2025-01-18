@@ -2503,7 +2503,8 @@ returns nil."
                                                   (t '>=))))
                             (lambda ()
                               (mistty--update-backstage)
-                              (funcall comparison (pos-bol) (mistty--bol target))))
+                              (funcall comparison 0 (mistty--vertical-distance
+                                                     (point) target))))
               :then after-move-vertically-f
               ;; after-move-to-target-f deals with the point not being
               ;; where it should.
@@ -2562,30 +2563,31 @@ returns nil."
     (setq
      delete-lines-f
      (lambda ()
-       (when (> (mistty--vertical-distance beg old-end) 0)
-         (let ((bol (save-excursion
-                      (goto-char old-end)
-                      (catch 'mistty-bol
-                        (while (search-backward "\n" beg 'noerror)
-                          (unless (get-text-property (match-beginning 0) 'term-line-wrap)
-                            (throw 'mistty-bol (match-end 0))))))))
-           (when (and bol (<= beg bol old-end))
-             (mistty-log "delete line: [%s-%s] beg: %s"
-                         (1- bol)
-                         (marker-position old-end)
-                         (marker-position beg))
-             (let ((term-seq (mistty--repeat-string (1+ (mistty--distance bol old-end)) "\b"))
-                   (prev-line (mistty--bol (1- bol))))
-             (mistty--interact-return
-              interact term-seq
-              :wait-until (lambda ()
-                            (mistty--update-backstage)
-                            (mistty--same-line-p prev-line (point)))
-              :then after-delete-lines-f
-              ;; If we can't even delete lines, just give up and move
-              ;; on to the next modification.
-              :else after-insert-and-delete-f)))))
-       (funcall insert-and-delete-f)))
+       (let ((lines (mistty--vertical-distance beg old-end)))
+         (when (> lines 0)
+           (let ((bol (save-excursion
+                        (goto-char old-end)
+                        (catch 'mistty-bol
+                          (while (search-backward "\n" beg 'noerror)
+                            (unless (get-text-property (match-beginning 0) 'term-line-wrap)
+                              (throw 'mistty-bol (match-end 0))))))))
+             (when (and bol (<= beg bol old-end))
+               (mistty-log "delete line: [%s-%s] beg: %s"
+                           (1- bol)
+                           (marker-position old-end)
+                           (marker-position beg))
+               (mistty--interact-return
+                interact (mistty--repeat-string
+                          (1+ (mistty--distance bol old-end)) "\b")
+                :wait-until (lambda ()
+                              (mistty--update-backstage)
+                              (< (mistty--vertical-distance
+                                  beg (point)) lines))
+                :then after-delete-lines-f
+                ;; If we can't even delete lines, just give up and move
+                ;; on to the next modification.
+                :else after-insert-and-delete-f))))
+         (funcall insert-and-delete-f))))
 
     (setq
      after-delete-lines-f
@@ -3130,9 +3132,8 @@ post-command hook."
                                                     ((< distance 0) '<=)
                                                     (t '>=))))
                               (lambda ()
-                                (funcall comparison
-                                         (mistty--bol (mistty-cursor))
-                                         (mistty--bol (point)))))
+                                (funcall comparison 0 (mistty--vertical-distance
+                                                       (mistty-cursor) (point)))))
                 :then after-move-vertically-f))
              (funcall after-move-vertically-f))))))
 

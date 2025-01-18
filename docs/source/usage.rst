@@ -179,6 +179,12 @@ support these shortcuts by default, behavior may vary.
     :ref:`shells`. VI mode must be disabled even if you plan to use VI
     commands through Evil.
 
+    More generally, MisTTY relies on a set of common keybindings and
+    behaviors to communicate with the terminal applications and will
+    not behave properly if the application doesn't understand these or
+    interpret them in an unusual way. For a list of these keybindings,
+    see :ref:`keybindings`.
+
 To get the most out of MisTTY, it's worth it to take the time to
 configure it to send to the terminal the shell key bindings that you
 actually use and keep everything else behaving as usual for your Emacs
@@ -599,3 +605,42 @@ troublesome corner cases left.
 If you suspect your shell prompt is causing issues, please first try
 setting a traditional prompt to confirm, then, whatever the outcome,
 please file a bug (:ref:`reporting`.)
+
+.. _keybindings:
+
+Keybindings used by MisTTY
+--------------------------
+
+MisTTY relies on applications connected to the terminal to handle
+keybindings in a common way, that is:
+
+- Any printable character: Inserts the character at the cursor position.
+
+- :kbd:`DEL` (ASCII 127): Deletes the preceding character.
+
+- :kbd:`C-k` (ASCII 11): Deletes from the cursor to the end of the line.
+
+- :kbd:`C-e` (ASCII 5): Moves the cursor to the end of the line.
+
+- :kbd:`C-a` (ASCII 1): Moves the cursor to the beginning of the line.
+
+- ``ESC [ 200 ~ ... ESC [ 201 ~`` (bracketed paste): Inserts
+  characters verbatim, including tabs and newlines, allowing for
+  multiline support.
+
+
+These keybindings are supported by recent versions of bash, zsh, fish,
+Python, and IPython.
+
+When interacting with applications that do not support some or all of
+these keybindings, operations may be limited. You will still be able
+to insert characters and, when supported, delete them using backspace
+or :kbd:`C-d`. However, you may not have access to Emacs-style
+operations for moving the cursor or editing text.
+
+It is important to note that in backward i-search mode within shells,
+only character insertion and deletion are supported. Thus, while most
+Emacs commands may not function, you can still use simple Emacs
+commands that insert text after the cursor, such as ``yank`` (with no
+special characters), or delete text before the cursor, such as
+``backward-kill-word``. For more details, see :ref:`bs`

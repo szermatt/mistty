@@ -43,6 +43,11 @@ earlier version with bracketed paste mode turned on.
 You'll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
 
+Please be aware that when editing a multi-line command in Bash, MisTTY
+may leave trailing spaces at the end of some lines. In situations
+where these are significant, you will need to remove trailing spaces
+using :kbd:`C-d` or :kbd:`DEL`.
+
 .. _bash_dirtrack:
 
 Directory tracking in Bash
@@ -271,6 +276,11 @@ supports bracketed paste mode, 5.1 or later.
 
 You'll get the same effect if you yank a multi-line command while in a
 prompt or go up the command history to a previous multi-line command.
+
+Please be aware that when editing a multi-line command in Zsh, MisTTY
+may leave trailing spaces at the end of some lines. In situations
+where these are significant, you will need to remove trailing spaces
+using :kbd:`C-d` or :kbd:`DEL`.
 
 VI mode in Zsh
 ^^^^^^^^^^^^^^

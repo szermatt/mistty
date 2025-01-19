@@ -2552,7 +2552,12 @@ returns nil."
          (mistty-log "UPPER LIMIT: %s (wanted %s)"
                      (point) (marker-position target))
          (move-marker upper-limit (point))
-         (funcall next-modification-f))
+         (if (>= (point) beg)
+             (progn
+               (move-marker old-end (point))
+               (setq old-length (- old-end beg))
+               (funcall insert-and-delete-f))
+           (funcall next-modification-f)))
 
         (t
          (move-marker target (point))

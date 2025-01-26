@@ -3517,6 +3517,11 @@ on the direction of the last move.
 This is meant to be added to `pre-redisplay-functions'"
   (let (pos last-pos move-to)
     (when (and mistty-skip-empty-spaces
+               ;; Never move point at cursor.
+               (or (null mistty--cursor-after-last-refresh)
+                   (not (equal (point) mistty--cursor-after-last-refresh)))
+               (or (null mistty-proc)
+                   (not (equal (point) (mistty-cursor))))
                (mistty-on-prompt-p (setq pos (window-point win))))
       (when-let ((last-state (window-parameter win 'mistty--cursor-skip-state)))
         (when (eq (car last-state) (current-buffer))

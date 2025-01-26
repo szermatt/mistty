@@ -1697,19 +1697,20 @@ Also updates prompt and point."
              (mistty--update-mode-lines)
              (mistty-log "FORBID EDIT off"))))
 
-         (mistty--with-live-buffer mistty-term-buffer
-           ;; Next time, only sync the visible portion of the terminal.
-           (when (< mistty-sync-marker term-home-marker)
-             (mistty--set-sync-mark-from-end term-home-marker))
+         (unless mistty--has-active-prompt
+           (mistty--with-live-buffer mistty-term-buffer
+             ;; Next time, only sync the visible portion of the terminal.
+             (when (< mistty-sync-marker term-home-marker)
+               (mistty--set-sync-mark-from-end term-home-marker))
 
-           ;; Truncate the term buffer, since scrolling back is available on
-           ;; the work buffer anyways. This has to be done now, after syncing
-           ;; the marker, and not in term-emulate-terminal, which is why
-           ;; term-buffer-maximum-size is set to 0.
-           (save-excursion
-             (goto-char term-home-marker)
-             (forward-line -5)
-             (delete-region (point-min) (point))))
+             ;; Truncate the term buffer, since scrolling back is available on
+             ;; the work buffer anyways. This has to be done now, after syncing
+             ;; the marker, and not in term-emulate-terminal, which is why
+             ;; term-buffer-maximum-size is set to 0.
+             (save-excursion
+               (goto-char term-home-marker)
+               (forward-line -5)
+               (delete-region (point-min) (point)))))
 
          ;; Move the point to the cursor, if necessary.
          (when (process-live-p mistty-proc)

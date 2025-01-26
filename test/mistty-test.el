@@ -2106,6 +2106,40 @@
                         "$")
                 (mistty-test-content :start ls-start :show (point))))))))
 
+(ert-deftest mistty-test-zsh-bash-style-completion-and-scroll ()
+  (ert-with-temp-directory tempdir
+    (dotimes (i 10)
+      (with-temp-file (format "%sfile%d" tempdir i)))
+    (mistty-with-test-buffer (:shell zsh)
+      (let (echo-start ls-start)
+        (mistty--send-string mistty-proc "setopt no_always_last_prompt no_auto_menu no_list_ambiguous")
+        (mistty-send-and-wait-for-prompt)
+        (mistty--send-string mistty-proc (format "cd '%s'" tempdir))
+        (mistty-send-and-wait-for-prompt)
+
+        (setq ls-start (pos-bol))
+        (mistty--send-string mistty-proc "ls f\t")
+        (mistty-wait-for-output :str "ls file")
+        (should
+         (equal
+          (concat "$ ls file\n"
+                  "file0  file1  file2  file3  file4  file5  file6  file7  file8  file9\n"
+                  "$ ls file<>")
+          (mistty-test-content :start ls-start :show (point))))
+
+        (mistty--send-string mistty-proc (make-string 10 ?\t))
+        (mistty--send-string mistty-proc ".")
+        (mistty-wait-for-output :str "ls file.")
+
+        ;; Excessive scrolling could cause MisTTY to leave active
+        ;; prompt state, which would make the prompt not editable with
+        ;; Emacs commands anymore. Test that.
+        (mistty-run-command
+         (mistty-test-goto "ls file.")
+         (delete-region (point) (1- (match-end 0)))
+         (insert "echo ok"))
+        (should (equal "ok." (mistty-send-and-capture-command-output)))))))
+
 (ert-deftest mistty-test-nobracketed-paste-edit-before-prompt ()
   (mistty-with-test-buffer (:shell bash)
     (mistty-test-nobracketed-paste)

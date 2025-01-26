@@ -160,6 +160,21 @@ Add an ellipsis if STR is truncated."
       (concat (substring str 0 n) "...")
     str))
 
+(defun mistty--has-text-properties (pos props)
+  "Return non-nil if properties at POS include PROP.
+
+Return nil if PROP is nil."
+  (when props
+    (let ((actual (text-properties-at pos))
+          (current props)
+          (ret t))
+      (while (and current ret)
+        (let ((p (pop current))
+              (val (pop current)))
+          (unless (equal val (plist-get actual p))
+            (setq ret nil))))
+      ret)))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

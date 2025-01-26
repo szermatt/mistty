@@ -115,3 +115,19 @@
     (while (= 0 (forward-line 1))
       (should (equal (length (buffer-substring (pos-bol) (pos-eol)))
                      (mistty--line-width))))))
+
+(ert-deftest mistty-util-has-text-pproperties ()
+  (ert-with-test-buffer ()
+    (insert (propertize "foo" 'a "a" 'b "b"))
+    (insert (propertize "bar" 'b "c" 'd "d"))
+
+    (should-not (mistty--has-text-properties 1 nil))
+    (should (mistty--has-text-properties 1 '(a "a")))
+    (should (mistty--has-text-properties 1 '(b "b")))
+    (should (mistty--has-text-properties 1 '(a "a" b "b")))
+    (should (mistty--has-text-properties 1 '(b "b" a "a")))
+    (should-not (mistty--has-text-properties 1 '(a "b")))
+    (should-not (mistty--has-text-properties 1 '(b "a")))
+    (should-not (mistty--has-text-properties 1 '(a "a" b "c")))
+
+    (should (mistty--has-text-properties 4 '(b "c" d "d")))))

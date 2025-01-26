@@ -749,19 +749,32 @@ Must be called from the term buffer."
   "Function registered to `after-change-functions' by `mistty--create-term'.
 
 BEG and END define the region that was modified."
-  (when (and mistty--term-properties-to-add-alist (> end beg))
-    (when-let ((props (apply #'append
-                             (mapcar #'cdr mistty--term-properties-to-add-alist))))
-      (add-text-properties beg end props)))
+  (let ((inhibit-modification-hooks t))
+    (when (and mistty--term-properties-to-add-alist (> end beg))
+      (when-let ((props (apply #'append
+                               (mapcar #'cdr mistty--term-properties-to-add-alist))))
+        ;; Merge sections with same properties separated by
+        ;; whitespaces. The problem with setting text properties based
+        ;; on term state is that the terminal might just reuse spaces
+        ;; or newlines that already exist - visually, it doesn't
+        ;; matter - even though they're in a section that should get
+        ;; these properties.
+        (save-excursion
+          (goto-char beg)
+          (when (and (/= 0 (skip-chars-backward " \t\n"))
+                     (> (point) (point-min))
+                     (mistty--has-text-properties (1- (point)) props))
+            (add-text-properties (point) beg props)))
+        (add-text-properties beg end props)))
 
-  (when mistty-bracketed-paste
-    (setq mistty--term-changed (if mistty--term-changed
-                                   (min mistty--term-changed beg)
-                                 beg))
-    (let ((beg (mistty--bol beg))
-          (end (mistty--eol end)))
-      (when (> end beg)
-        (add-text-properties beg end '(mistty-changed t))))))
+    (when mistty-bracketed-paste
+      (setq mistty--term-changed (if mistty--term-changed
+                                     (min mistty--term-changed beg)
+                                   beg))
+      (let ((beg (mistty--bol beg))
+            (end (mistty--eol end)))
+        (when (> end beg)
+          (add-text-properties beg end '(mistty-changed t)))))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-maybe-skip t to spaces added when just moving.

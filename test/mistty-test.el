@@ -1993,6 +1993,119 @@
     (should (equal "<>$ echo ok\nok\n$"
                    (mistty-test-content :show (point))))))
 
+(ert-deftest mistty-test-zsh-completion-and-previous-input ()
+  (ert-with-temp-directory tempdir
+    (dotimes (i 10)
+      (with-temp-file (format "%sfile%d" tempdir i)))
+    (mistty-with-test-buffer (:shell zsh)
+      (let (echo-start ls-start)
+        (mistty--send-string mistty-proc (format "cd '%s'" tempdir))
+        (mistty-send-and-wait-for-prompt)
+
+        (setq echo-start (pos-bol))
+        (mistty-send-text "echo foobar")
+        (mistty-send-and-wait-for-prompt)
+
+        (setq ls-start (pos-bol))
+        (mistty-send-text "ls f")
+        (mistty-run-command
+         (mistty-tab-command))
+        (mistty-wait-for-output :str "ile" :cursor-at-end t)
+        (should (equal "$ ls file<>"
+                       (mistty-test-content :start ls-start :show (point))))
+
+        (mistty-run-command
+         (mistty-tab-command))
+        (mistty-wait-for-output :str "ile3")
+        (should
+         (equal
+          (concat "$ ls file<>\n"
+                  "file0  file1  file2  file3  file4  file5  file6  file7  file8  file9")
+          (mistty-test-content :start ls-start :show (point))))
+
+        (mistty-previous-output 1)
+
+        (should
+         (equal
+          (concat "$ echo foobar\n"
+                  "<>foobar\n"
+                  "$ ls file\n"
+                  "file0  file1  file2  file3  file4  file5  file6  file7  file8  file9")
+          (mistty-test-content :start echo-start :show (point))))
+
+        (mistty-goto-cursor)
+        (mistty-send-text "3")
+        (mistty-send-and-wait-for-prompt)
+
+        (should (equal "$ ls file3\nfile3\n$ <>"
+                       (mistty-test-content :start ls-start :show (point))))
+
+        (mistty-previous-output 1)
+
+        (should (equal "$ ls file3\n<>file3\n$"
+                       (mistty-test-content :start ls-start :show (point))))))))
+
+(ert-deftest mistty-test-zsh-bash-style-completion-and-previous-input ()
+  (ert-with-temp-directory tempdir
+    (dotimes (i 10)
+      (with-temp-file (format "%sfile%d" tempdir i)))
+    (mistty-with-test-buffer (:shell zsh)
+      (let (echo-start ls-start)
+        (mistty--send-string mistty-proc "setopt no_always_last_prompt no_list_ambiguous")
+        (mistty-send-and-wait-for-prompt)
+        (mistty--send-string mistty-proc (format "cd '%s'" tempdir))
+        (mistty-send-and-wait-for-prompt)
+
+        (setq echo-start (pos-bol))
+        (mistty-send-text "echo foobar")
+        (mistty-send-and-wait-for-prompt)
+
+        (setq ls-start (pos-bol))
+        (mistty--send-string mistty-proc "ls f\t")
+        (mistty-wait-for-output :str "ls file")
+        (should
+         (equal
+          (concat "$ ls file\n"
+                  "file0  file1  file2  file3  file4  file5  file6  file7  file8  file9\n"
+                  "$ ls file<>")
+          (mistty-test-content :start ls-start :show (point))))
+
+        (mistty-previous-output 1)
+
+        (should
+         (equal
+          (concat "$ echo foobar\n"
+                  "<>foobar\n"
+                  "$ ls file\n"
+                  "file0  file1  file2  file3  file4  file5  file6  file7  file8  file9\n"
+                  "$ ls file")
+          (mistty-test-content :start echo-start :show (point))))
+
+        (mistty-goto-cursor)
+        (mistty-end-of-line)
+        (mistty-send-text "3")
+        (mistty-send-and-wait-for-prompt)
+
+        (should
+         (equal
+          (concat "$ ls file\n"
+                  "file0  file1  file2  file3  file4  file5  file6  file7  file8  file9\n"
+                  "$ ls file3\n"
+                  "file3\n"
+                  "$ <>")
+          (mistty-test-content :start ls-start :show (point))))
+
+        (mistty-run-command
+         (mistty-previous-output 1))
+
+        (should
+         (equal (concat "$ ls file\n"
+                        "file0  file1  file2  file3  file4  file5  file6  file7  file8  file9\n"
+                        "$ ls file3\n"
+                        "<>file3\n"
+                        "$")
+                (mistty-test-content :start ls-start :show (point))))))))
+
 (ert-deftest mistty-test-nobracketed-paste-edit-before-prompt ()
   (mistty-with-test-buffer (:shell bash)
     (mistty-test-nobracketed-paste)

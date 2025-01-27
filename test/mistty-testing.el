@@ -129,13 +129,15 @@ window while BODY is running."
                (mistty-left-fullscreen-hook nil)
                (mistty-log mistty-test-log))
            (ert-with-temp-directory mistty-tempdir
-             (mistty-test-setup (quote ,shell) mistty-tempdir)
              (unwind-protect
                  (prog1
                      ,(if selected
                           `(with-selected-window (display-buffer (current-buffer))
+                             (mistty-test-setup (quote ,shell) mistty-tempdir)
                              ,@body)
-                        `(progn ,@body))
+                        `(progn
+                           (mistty-test-setup (quote ,shell) mistty-tempdir)
+                           ,@body))
                    (should-not mistty-test-had-issues)
                    (setq mistty-test-ok 'ok))
                (unless mistty-test-ok (mistty-start-log)))))))))

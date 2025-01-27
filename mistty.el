@@ -924,7 +924,7 @@ arguments."
       ;; local-map
       mistty-fullscreen-map
       ;; width
-      (- (window-max-chars-per-line win) left-margin-width)
+      (window-max-chars-per-line win)
       ;;height
       (floor (with-selected-window win (window-screen-lines))))))
   (mistty--wrap-capf-functions)
@@ -3191,11 +3191,11 @@ only spaces with ==\'mistty-skip between them."
                             window-adjust-process-window-size-function))
            (size (funcall adjust-func mistty-proc
                           (get-buffer-window-list mistty-work-buffer nil t))))
-      (mistty-log "set-process-window-size %s" size)
       (when size
-        (let ((width (- (car size) left-margin-width))
+        (let ((width (car size))
               (height (cdr size)))
-        (mistty--set-process-window-size width height))))))
+          (mistty-log "set-process-window-size %sx%s" width height)
+          (mistty--set-process-window-size width height))))))
 
 (defun mistty--set-process-window-size (width height)
   "Set the process terminal size to WIDTH x HEIGHT."

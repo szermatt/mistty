@@ -1487,10 +1487,10 @@
       (should
        (equal
         (concat
-         "$ echo one two three four five six seven eight nine ten eleven twelve thirteen\\\n"
-         " fourteen fifteen sixteen seventeen eighteen nineteen twenty\n"
-         "one two three four five six seven eight nine ten eleven twelve thirteen fourte\\\n"
-         "en fifteen sixteen seventeen eighteen nineteen twenty\n"
+         "$ echo one two three four five six seven eight nine ten eleven twelve thirteen \\\n"
+         "fourteen fifteen sixteen seventeen eighteen nineteen twenty\n"
+         "one two three four five six seven eight nine ten eleven twelve thirteen fourtee\\\n"
+         "n fifteen sixteen seventeen eighteen nineteen twenty\n"
          "$")
         (buffer-string))))))
 
@@ -2357,8 +2357,8 @@
 (ert-deftest mistty-test-revert-insert-after-prompt ()
   (mistty-with-test-buffer (:shell zsh)
     (dotimes (i 3)
-      (mistty-send-text (format "function toto%d { echo %d; };" i i)))
-    (mistty-send-and-wait-for-prompt)
+      (mistty-send-text (format "function toto%d { echo %d; }" i i))
+      (mistty-send-and-wait-for-prompt))
     (mistty-test-narrow (mistty--bol (point)))
     (mistty-send-text "toto\t")
 
@@ -4438,23 +4438,62 @@
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
 
-(ert-deftest mistty-test-window-size ()
-  (let* ((buf (mistty-create mistty-test-bash-exe)))
-    (unwind-protect
-        (with-current-buffer buf
-          (let ((win (get-buffer-window buf)))
-            ;; initial window size
-            (should (equal (- (window-max-chars-per-line win) left-margin-width)
-                           (buffer-local-value 'term-width mistty-term-buffer)))
-            (should (equal (floor (window-screen-lines))
-                           (buffer-local-value 'term-height mistty-term-buffer)))
-            (split-window-horizontally nil win)
-            ;; window size changed
-            (mistty--window-size-change win)
-            (should (equal (- (window-max-chars-per-line win) left-margin-width)
-                           (buffer-local-value 'term-width mistty-term-buffer)))))
-      (let ((kill-buffer-query-functions nil))
-        (kill-buffer buf)))))
+(turtles-ert-deftest mistty-test-window-size (:instance 'mistty)
+  (mistty-with-test-buffer (:selected t)
+    ;; initial window, half height
+    (should (equal (cons 79 10)
+                   (with-current-buffer mistty-term-buffer
+                     (cons term-width term-height))))
+    (mistty-send-text "echo $(tput cols)x$(tput lines)")
+    (should (equal "79x10" (mistty-send-and-capture-command-output)))
+
+    (delete-other-windows)
+    (should (redisplay t)) ;; recompute size
+
+    ;; full height
+    (should (equal (cons 79 22)
+                   (with-current-buffer mistty-term-buffer
+                     (cons term-width term-height))))
+
+    ;; make sure the process was told about the change
+    (mistty-send-text "echo $(tput cols)x$(tput lines)")
+    (should (equal "79x22" (mistty-send-and-capture-command-output)))))
+
+(turtles-ert-deftest mistty-test-window-width (:instance 'mistty)
+  (mistty-with-test-buffer (:selected t)
+    (delete-other-windows)
+    (should (redisplay t)) ;; recompute size
+
+    (mistty-send-text "tput cols")
+    (should (equal "79" (mistty-send-and-capture-command-output)))
+
+    (mistty-send-text "tput lines")
+    (should (equal "22" (mistty-send-and-capture-command-output)))
+
+    ;; Since window width is 79, there should be just enough space to
+    ;; display B on one line. A is shorter and C is too long to fit.
+    ;; This makes sure that the computed window width is correct.
+    (mistty-send-text "printf 'A%.0s'  {1..78}; echo; printf 'B%.0s'  {1..79}; echo; printf 'C%.0s'  {1..80}; echo")
+    (mistty-send-and-wait-for-prompt)
+
+    (turtles-with-grab-buffer (:trim nil)
+      (let (start end)
+        (goto-char (point-min))
+        (search-forward "AAAA")
+        (setq start (match-beginning 0))
+
+        (goto-char (point-max))
+        (search-backward "C")
+        (setq end (match-end 0))
+
+        (should
+         (equal
+          (concat
+           "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  \n"
+           "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB \n"
+           "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC\\\n"
+           "C")
+          (buffer-substring start end)))))))
 
 (ert-deftest mistty-test-detect-foreign-overlays-labelled ()
   (let ((mistty-detect-foreign-overlays t))
@@ -5276,3 +5315,46 @@
      (should (equal "*mistty*<3>" (buffer-name (window-buffer (selected-window)))))
      (should-not (mistty-live-buffer-p (get-buffer "*mistty*")))
      (should (mistty-live-buffer-p (get-buffer "*mistty*<3>"))))))
+
+(turtles-ert-deftest mistty-test-zsh-no-nl-before-prompt (:instance 'mistty)
+  (mistty-with-test-buffer (:shell zsh :selected t)
+    (mistty-send-text "echo ok")
+    (should (equal "ok" (mistty-send-and-capture-command-output)))
+    (mistty-send-text "echo -n ok")
+    (should (equal "ok%" (mistty-send-and-capture-command-output)))
+
+    (turtles-with-grab-buffer ()
+      (should (equal
+               "$ echo ok\nok\n$ echo -n ok\nok%                                                                            \\\n$"
+               (buffer-string))))))
+
+(turtles-ert-deftest mistty-test-fish-no-nl-before-prompt (:instance 'mistty)
+  (mistty-with-test-buffer (:shell fish :selected t)
+    (mistty-send-text "echo ok")
+    (should (equal "ok" (mistty-send-and-capture-command-output)))
+    (mistty-send-text "echo -n ok")
+    (should (equal "ok⏎" (mistty-send-and-capture-command-output)))
+
+    (turtles-with-grab-buffer ()
+      (should (equal
+               "$ echo ok\nok\n$ echo -n ok\nok⏎                                                                            \\\n$"
+               (buffer-string))))))
+
+(turtles-ert-deftest mistty-test-bash-no-nl-before-prompt (:instance 'mistty)
+  (mistty-with-test-buffer (:shell bash :selected t)
+    (mistty-send-text "echo ok")
+    (should (equal "ok" (mistty-send-and-capture-command-output)))
+    (mistty-send-text "echo -n ok")
+    (mistty-send-command)
+    (mistty-wait-for-output :str "ok$")
+
+    (turtles-with-grab-buffer ()
+      (should (equal
+               "$ echo ok\nok\n$ echo -n ok\nok$"
+               (buffer-string))))
+
+    ;; The prompt doesn't start at a NL. It should have been detected
+    ;; nevertheless, so replay works.
+    (mistty-run-command
+     (insert "echo foobar"))
+    (should (equal "foobar" (mistty-send-and-capture-command-output)))))

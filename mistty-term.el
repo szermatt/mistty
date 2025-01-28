@@ -541,26 +541,29 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
            ((equal ext "[?2004h") ; enable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
             (let* ((id (mistty--next-id))
-                   (props `(mistty-input-id ,id)))
-              ;; zsh enables bracketed paste only after having printed
-              ;; the prompt. Try to find the beginning of the prompt
-              ;; from prompt_sp or assume a single-line prompt.
-              (let ((inhibit-modification-hooks t))
-                (let ((prompt-start
-                       (or
-                        (catch 'mistty-prompt-start
-                          (dolist (i '(0 -1 -2 -3))
-                            (let ((pos (pos-eol i)))
-                              (when (and (< pos (point-max))
-                                         (get-text-property (1+ pos) 'mistty-input-id))
-                                (throw 'mistty-prompt-start nil))
-                              (when (get-text-property pos 'mistty-prompt-sp)
-                                (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
-                                (remove-text-properties pos (1+ pos) '(term-line-wrap t))
-                                (throw 'mistty-prompt-start (1+ pos))))))
-                        (pos-bol))))
-                  (when (< prompt-start (point))
-                    (add-text-properties prompt-start (point) props))))
+                   (props `(mistty-input-id ,id))
+                   (inhibit-modification-hooks t)
+                   ;; zsh enables bracketed paste only after having printed
+                   ;; the prompt. Try to find the beginning of the prompt
+                   ;; from prompt_sp or assume a single-line prompt.
+                   (prompt-start
+                    (or
+                     (catch 'mistty-prompt-start
+                       (dolist (i '(0 -1 -2 -3))
+                         (let ((pos (pos-eol i)))
+                           (when (and (< pos (point-max))
+                                      (get-text-property (1+ pos) 'mistty-input-id))
+                             (throw 'mistty-prompt-start nil))
+                           (when (and (= pos 1) (> (point) (pos-bol)))
+                             (mistty-log "extend first prompt [1-%s]" (point))
+                             (throw 'mistty-prompt-start (point-min)))
+                           (when (get-text-property pos 'mistty-prompt-sp)
+                             (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
+                             (remove-text-properties pos (1+ pos) '(term-line-wrap t))
+                             (throw 'mistty-prompt-start (1+ pos))))))
+                     (pos-bol))))
+              (when (< prompt-start (point))
+                (add-text-properties prompt-start (point) props))
               (mistty-register-text-properties 'mistty-bracketed-paste props))
             (setq mistty-bracketed-paste t)
             (mistty--with-live-buffer work-buffer

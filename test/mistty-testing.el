@@ -99,11 +99,14 @@ This is handled by `mistty-test-report-issue' and must contain
 the symbol of the expected issues, in order.")
 
 (cl-defmacro mistty-with-test-buffer
-    ((&key (shell 'bash) (selected nil)) &body body)
+    ((&key (shell 'bash) selected fancy-prompt) &body body)
   "Run BODY in a MisTTY buffer.
 
 SHELL specifies the program that is run in that buffer, bash,
 zsh, or fish.
+
+FANCY-PROMPT asks for a fancy multi-line prompt. Only works with zsh for
+now.
 
 If SELECTED is non-nil, make sure the buffer is in a selected
 window while BODY is running."
@@ -133,10 +136,10 @@ window while BODY is running."
                  (prog1
                      ,(if selected
                           `(with-selected-window (display-buffer (current-buffer))
-                             (mistty-test-setup (quote ,shell) mistty-tempdir)
+                             (mistty-test-setup (quote ,shell) mistty-tempdir ,fancy-prompt)
                              ,@body)
                         `(progn
-                           (mistty-test-setup (quote ,shell) mistty-tempdir)
+                           (mistty-test-setup (quote ,shell) mistty-tempdir ,fancy-prompt)
                            ,@body))
                    (should-not mistty-test-had-issues)
                    (setq mistty-test-ok 'ok))
@@ -196,7 +199,7 @@ window while BODY is running."
   (setq mistty-test-content-start start)
   (narrow-to-region start (point-max)))
 
-(defun mistty-test-setup (shell tempdir)
+(defun mistty-test-setup (shell tempdir fancy-prompt)
   (mistty-mode)
   (cond
    ((eq shell 'bash)
@@ -206,10 +209,7 @@ window while BODY is running."
     (mistty-test-narrow (mistty-test-set-ps1 "$ ")))
 
    ((eq shell 'zsh)
-    (mistty--exec (list mistty-test-zsh-exe "-i" "--no-rcs"))
-    (mistty-run-command)
-    (mistty-wait-for-initial-output)
-    (mistty-test-narrow (mistty-test-set-ps1 "$ ")))
+    (mistty-test-setup-zsh tempdir fancy-prompt))
 
    ((eq shell 'fish)
     (mistty--exec
@@ -251,6 +251,22 @@ window while BODY is running."
     (mistty-run-command))
 
    (t (error "Unsupported shell %s" shell))))
+
+(defun mistty-test-setup-zsh (tmpdir fancy-prompt)
+  (let ((orig-zdotdir (getenv "ZDOTDIR")))
+    (unwind-protect
+        (progn
+          (setenv "ZDOTDIR" tmpdir)
+          (with-temp-file (concat tmpdir ".zshrc")
+            (insert "PS1='$ '\n")
+            (when fancy-prompt
+              (insert "precmd() { \n")
+              (insert " print 'left...............................right'\n")
+              (insert " }\n")))
+          (mistty--exec (list mistty-test-zsh-exe "-i"))
+          (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
+          (mistty-wait-for-output :str "$ "))
+      (setenv "ZDOTDIR" orig-zdotdir))))
 
 (defun mistty-wait-for-initial-output ()
   "Wait for program to output anything to the buffer."

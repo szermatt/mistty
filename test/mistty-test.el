@@ -5359,17 +5359,8 @@
      (insert "echo foobar"))
     (should (equal "foobar" (mistty-send-and-capture-command-output)))))
 
-(defun mistty-test-setup-zsh-multiline-prompt ()
-  (mistty--set-process-window-size 40 20)
-  (mistty--send-string
-   mistty-proc
-   "precmd() { local left=left; local right=right; print $left${(l:$(($COLUMNS-${#left}))::.:)right}; }")
-  (mistty-send-and-wait-for-prompt)
-  (mistty-test-narrow (pos-bol 0)))
-
 (ert-deftest mistty-test-detect-zsh-multiline-prompt-start ()
-  (mistty-with-test-buffer (:shell zsh)
-    (mistty-test-setup-zsh-multiline-prompt)
+  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
     (mistty-send-text "echo hello")
     (mistty-send-and-wait-for-prompt)
 
@@ -5391,8 +5382,7 @@
     ))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-sp ()
-  (mistty-with-test-buffer (:shell zsh)
-    (mistty-test-setup-zsh-multiline-prompt)
+  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
     (mistty-send-text "echo -n hello")
     (mistty-send-and-wait-for-prompt)
 
@@ -5406,8 +5396,7 @@
       (mistty-test-content :show mistty-sync-marker)))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-empty ()
-  (mistty-with-test-buffer (:shell zsh)
-    (mistty-test-setup-zsh-multiline-prompt)
+  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
     (mistty-send-and-wait-for-prompt)
 
     (should
@@ -5419,13 +5408,11 @@
       (mistty-test-content :show mistty-sync-marker)))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-sp-no-eol-mark ()
-  (mistty-with-test-buffer (:shell zsh)
-    (mistty-test-setup-zsh-multiline-prompt)
+  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
     (mistty-send-text "PROMPT_EOL_MARK=''")
     (mistty-send-and-wait-for-prompt)
     (mistty-test-narrow (pos-bol 0))
 
-    (mistty-test-setup-zsh-multiline-prompt)
     (mistty-send-text "echo -n hello")
     (mistty-send-and-wait-for-prompt)
 
@@ -5439,8 +5426,7 @@
       (mistty-test-content :show mistty-sync-marker)))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-next-previous ()
-  (mistty-with-test-buffer (:shell zsh)
-    (mistty-test-setup-zsh-multiline-prompt)
+  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
     (dolist (text '("one" "two" "three" "four"))
       (mistty-send-text (concat "echo " text))
       (mistty-send-and-wait-for-prompt))
@@ -5562,8 +5548,7 @@
     (should-error (mistty-next-output 1))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-extract-output ()
-  (mistty-with-test-buffer (:shell zsh)
-    (mistty-test-setup-zsh-multiline-prompt)
+  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
     (dolist (text '("one" "two" "three" "four"))
       (mistty-send-text (concat "echo " text))
       (mistty-send-and-wait-for-prompt))
@@ -5575,3 +5560,15 @@
                          (with-current-buffer buf
                            (buffer-string))))
         (kill-buffer buf)))))
+
+(ert-deftest mistty-test-zsh-multiline-initial-prompt ()
+  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+    (mistty-run-command
+     (insert "echo hello"))
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo hello")
+      ;; The sync marker must be at the very beginning, even though
+      ;; there was no prompt_sp.
+      (mistty-test-content :start mistty-sync-marker)))))

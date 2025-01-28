@@ -125,6 +125,17 @@ Or, in bash :file:`~/.bashrc`:
      set -o vi
    fi
 
+Fancy prompts in Bash
+^^^^^^^^^^^^^^^^^^^^^
+
+MisTTY is compatible with stylized prompts, such as those produced by
+`powerline-go <https://github.com/justjanne/powerline-go>`_. However,
+given the numerous variations in how these prompts are created, issues
+may arise.
+
+If you suspect that your shell prompt may be causing new problems,
+begin by switching to a standard prompt to confirm this. Regardless of
+the results, please report any bugs you find (:ref:`reporting`.)
 
 .. _fish:
 
@@ -222,6 +233,18 @@ something like the following in :file:`~/.zshrc`:
      fish_vi_key_bindings
    end
 
+Fancy prompts in Fish
+^^^^^^^^^^^^^^^^^^^^^
+
+MisTTY is known to work with powerline-shell prompts or `Tide, on Fish
+<https://github.com/IlanCosman/tide>`_. This includes right prompts,
+for the most part - though there might be temporary artifacts and
+troublesome corner cases left.
+
+If you suspect your shell prompt is causing issues, please first try
+setting a traditional prompt to confirm, then, whatever the outcome,
+please file a bug (:ref:`reporting`.)
+
 .. _zsh:
 
 Zsh
@@ -298,6 +321,32 @@ something like the following in :file:`~/.zshrc`:
    if [ "$TERM" != "eterm-color" ]; then
      bindkey -v
    fi
+
+Fancy prompts in Zsh
+^^^^^^^^^^^^^^^^^^^^
+
+MisTTY is compatible with fancy prompts, such as the ones created by
+`powerlevel10k <https://github.com/romkatv/powerlevel10k>`_, though
+there are some limitations.
+
+To ensure proper functionality, keep the `prompt_sp` option enabled,
+as MisTTY depends on it to identify the start of multi-line prompts.
+If you prefer not to have any end-of-line (EOL) markers, set
+`PROMPT_EOL_MARK` to an empty string.
+
+Using right prompts can lead to issues that disrupt multi-line editing
+in Zsh. For now, please disable this feature.
+
+Transient prompts can interfere with MisTTY's commands, such as
+`mistty-previous-output` (:kbd:`C-c C-p`) and
+`mistty-create-buffer-with-output` (:kbd:`C-c C-r`). If these commands
+are important to you, disable transient prompts when the `TERM` is set
+to `eterm-color`.
+
+If you suspect that your shell prompt is introducing new problems,
+start by switching to a traditional prompt to verify this. Regardless
+of the outcome, please report any bugs you encounter
+(:ref:`reporting`.)
 
 .. _ipython:
 

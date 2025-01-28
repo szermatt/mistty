@@ -594,18 +594,6 @@ If everything fails, if TRAMP is causing you too much trouble and you
 just don't want MisTTY to generate remote paths at all, unset the
 option :kbd:`M-x configure-option mistty-allow-tramp-paths`.
 
-Fancy prompts
--------------
-
-MisTTY is known to work with powerline-shell prompts or `Tide, on Fish
-<https://github.com/IlanCosman/tide>`_. This includes right prompts,
-for the most part - though there might be temporary artifacts and
-troublesome corner cases left.
-
-If you suspect your shell prompt is causing issues, please first try
-setting a traditional prompt to confirm, then, whatever the outcome,
-please file a bug (:ref:`reporting`.)
-
 .. _keybindings:
 
 Keybindings used by MisTTY

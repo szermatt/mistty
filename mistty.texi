@@ -155,7 +155,6 @@ command-line.
 * Directory Tracking:: 
 * Remote Shells with TRAMP:: 
 * Directory tracking and TRAMP:: 
-* Fancy prompts:: 
 * Keybindings used by MisTTY:: 
 
 @end menu
@@ -802,7 +801,7 @@ By default, the name of TRAMP shells include the user and hostname, if
 different from the current one. If you don’t want that, configure it
 on @code{M-x customize-option mistty-buffer-name}.
 
-@node Directory tracking and TRAMP,Fancy prompts,Remote Shells with TRAMP,Usage
+@node Directory tracking and TRAMP,Keybindings used by MisTTY,Remote Shells with TRAMP,Usage
 @anchor{usage directory-tracking-and-tramp}@anchor{23}@anchor{usage tramp-dirtrack}@anchor{24}
 @subsection Directory tracking and TRAMP
 
@@ -881,21 +880,8 @@ If everything fails, if TRAMP is causing you too much trouble and you
 just don’t want MisTTY to generate remote paths at all, unset the
 option @code{M-x configure-option mistty-allow-tramp-paths}.
 
-@node Fancy prompts,Keybindings used by MisTTY,Directory tracking and TRAMP,Usage
-@anchor{usage fancy-prompts}@anchor{26}
-@subsection Fancy prompts
-
-
-MisTTY is known to work with powerline-shell prompts or Tide@comma{} on Fish@footnote{https://github.com/IlanCosman/tide}. This includes right prompts,
-for the most part - though there might be temporary artifacts and
-troublesome corner cases left.
-
-If you suspect your shell prompt is causing issues, please first try
-setting a traditional prompt to confirm, then, whatever the outcome,
-please file a bug (@ref{3,,Reporting issues}.)
-
-@node Keybindings used by MisTTY,,Fancy prompts,Usage
-@anchor{usage keybindings}@anchor{12}@anchor{usage keybindings-used-by-mistty}@anchor{27}
+@node Keybindings used by MisTTY,,Directory tracking and TRAMP,Usage
+@anchor{usage keybindings}@anchor{12}@anchor{usage keybindings-used-by-mistty}@anchor{26}
 @subsection Keybindings used by MisTTY
 
 
@@ -943,7 +929,7 @@ special characters), or delete text before the cursor, such as
 @code{backward-kill-word}. For more details, see @ref{10,,Backward Search}
 
 @node Shells,Extending MisTTY,Usage,Contents
-@anchor{shells doc}@anchor{28}@anchor{shells id1}@anchor{29}@anchor{shells shells}@anchor{11}
+@anchor{shells doc}@anchor{27}@anchor{shells id1}@anchor{28}@anchor{shells shells}@anchor{11}
 @section Shells
 
 
@@ -956,7 +942,7 @@ special characters), or delete text before the cursor, such as
 @end menu
 
 @node Bash,Fish,,Shells
-@anchor{shells bash}@anchor{2a}@anchor{shells id2}@anchor{2b}
+@anchor{shells bash}@anchor{29}@anchor{shells id2}@anchor{2a}
 @subsection Bash
 
 
@@ -983,11 +969,12 @@ enable directory tracking, as documented in @ref{25,,Directory tracking in Bash}
 * Multi-line prompts in Bash:: 
 * Directory tracking in Bash:: 
 * VI mode in Bash:: 
+* Fancy prompts in Bash:: 
 
 @end menu
 
 @node Multi-line prompts in Bash,Directory tracking in Bash,,Bash
-@anchor{shells multi-line-prompts-in-bash}@anchor{2c}
+@anchor{shells multi-line-prompts-in-bash}@anchor{2b}
 @subsubsection Multi-line prompts in Bash
 
 
@@ -1010,7 +997,7 @@ where these are significant, you will need to remove trailing spaces
 using @code{C-d} or @code{DEL}.
 
 @node Directory tracking in Bash,VI mode in Bash,Multi-line prompts in Bash,Bash
-@anchor{shells bash-dirtrack}@anchor{25}@anchor{shells directory-tracking-in-bash}@anchor{2d}
+@anchor{shells bash-dirtrack}@anchor{25}@anchor{shells directory-tracking-in-bash}@anchor{2c}
 @subsubsection Directory tracking in Bash
 
 
@@ -1058,8 +1045,8 @@ For example:
  'profile-old-bash)"
 @end example
 
-@node VI mode in Bash,,Directory tracking in Bash,Bash
-@anchor{shells vi-mode-in-bash}@anchor{2e}
+@node VI mode in Bash,Fancy prompts in Bash,Directory tracking in Bash,Bash
+@anchor{shells vi-mode-in-bash}@anchor{2d}
 @subsubsection VI mode in Bash
 
 
@@ -1087,6 +1074,20 @@ if [ "$TERM" != "eterm-color" ]; then
 fi
 @end example
 
+@node Fancy prompts in Bash,,VI mode in Bash,Bash
+@anchor{shells fancy-prompts-in-bash}@anchor{2e}
+@subsubsection Fancy prompts in Bash
+
+
+MisTTY is compatible with stylized prompts, such as those produced by
+powerline-go@footnote{https://github.com/justjanne/powerline-go}. However,
+given the numerous variations in how these prompts are created, issues
+may arise.
+
+If you suspect that your shell prompt may be causing new problems,
+begin by switching to a standard prompt to confirm this. Regardless of
+the results, please report any bugs you find (@ref{3,,Reporting issues}.)
+
 @node Fish,Zsh,Bash,Shells
 @anchor{shells fish}@anchor{2f}@anchor{shells id3}@anchor{30}
 @subsection Fish
@@ -1101,6 +1102,7 @@ paste mode, on by default, so it should not be turned off.
 * Directory tracking in Fish:: 
 * Multi-line prompts in Fish:: 
 * VI mode in Fish:: 
+* Fancy prompts in Fish:: 
 
 @end menu
 
@@ -1188,7 +1190,7 @@ in a normal terminal. @code{M-x customize-option
 mistty-skip-empty-spaces} allows you to turn that on or off in a
 MisTTY buffer.
 
-@node VI mode in Fish,,Multi-line prompts in Fish,Fish
+@node VI mode in Fish,Fancy prompts in Fish,Multi-line prompts in Fish,Fish
 @anchor{shells vi-mode-in-fish}@anchor{35}
 @subsubsection VI mode in Fish
 
@@ -1207,8 +1209,21 @@ if [ "$TERM" != "eterm-color" ]
 end
 @end example
 
+@node Fancy prompts in Fish,,VI mode in Fish,Fish
+@anchor{shells fancy-prompts-in-fish}@anchor{36}
+@subsubsection Fancy prompts in Fish
+
+
+MisTTY is known to work with powerline-shell prompts or Tide@comma{} on Fish@footnote{https://github.com/IlanCosman/tide}. This includes right prompts,
+for the most part - though there might be temporary artifacts and
+troublesome corner cases left.
+
+If you suspect your shell prompt is causing issues, please first try
+setting a traditional prompt to confirm, then, whatever the outcome,
+please file a bug (@ref{3,,Reporting issues}.)
+
 @node Zsh,IPython,Fish,Shells
-@anchor{shells id4}@anchor{36}@anchor{shells zsh}@anchor{37}
+@anchor{shells id4}@anchor{37}@anchor{shells zsh}@anchor{38}
 @subsection Zsh
 
 
@@ -1223,11 +1238,12 @@ unexpected results if you yank text containing special characters.
 * Directory tracking in Zsh:: 
 * Multi-line prompts in Zsh:: 
 * VI mode in Zsh:: 
+* Fancy prompts in Zsh:: 
 
 @end menu
 
 @node Autosuggestions in Zsh,Directory tracking in Zsh,,Zsh
-@anchor{shells autosuggestions-in-zsh}@anchor{38}
+@anchor{shells autosuggestions-in-zsh}@anchor{39}
 @subsubsection Autosuggestions in Zsh
 
 
@@ -1240,7 +1256,7 @@ The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
 @node Directory tracking in Zsh,Multi-line prompts in Zsh,Autosuggestions in Zsh,Zsh
-@anchor{shells directory-tracking-in-zsh}@anchor{39}@anchor{shells zsh-dirtrack}@anchor{21}
+@anchor{shells directory-tracking-in-zsh}@anchor{3a}@anchor{shells zsh-dirtrack}@anchor{21}
 @subsubsection Directory tracking in Zsh
 
 
@@ -1257,7 +1273,7 @@ fi
 such sequence are either ignored or understood by most terminals.
 
 @node Multi-line prompts in Zsh,VI mode in Zsh,Directory tracking in Zsh,Zsh
-@anchor{shells multi-line-prompts-in-zsh}@anchor{3a}
+@anchor{shells multi-line-prompts-in-zsh}@anchor{3b}
 @subsubsection Multi-line prompts in Zsh
 
 
@@ -1279,8 +1295,8 @@ may leave trailing spaces at the end of some lines. In situations
 where these are significant, you will need to remove trailing spaces
 using @code{C-d} or @code{DEL}.
 
-@node VI mode in Zsh,,Multi-line prompts in Zsh,Zsh
-@anchor{shells vi-mode-in-zsh}@anchor{3b}
+@node VI mode in Zsh,Fancy prompts in Zsh,Multi-line prompts in Zsh,Zsh
+@anchor{shells vi-mode-in-zsh}@anchor{3c}
 @subsubsection VI mode in Zsh
 
 
@@ -1298,8 +1314,36 @@ if [ "$TERM" != "eterm-color" ]; then
 fi
 @end example
 
+@node Fancy prompts in Zsh,,VI mode in Zsh,Zsh
+@anchor{shells fancy-prompts-in-zsh}@anchor{3d}
+@subsubsection Fancy prompts in Zsh
+
+
+MisTTY is compatible with fancy prompts, such as the ones created by
+powerlevel10k@footnote{https://github.com/romkatv/powerlevel10k}, though
+there are some limitations.
+
+To ensure proper functionality, keep the @cite{prompt_sp} option enabled,
+as MisTTY depends on it to identify the start of multi-line prompts.
+If you prefer not to have any end-of-line (EOL) markers, set
+@cite{PROMPT_EOL_MARK} to an empty string.
+
+Using right prompts can lead to issues that disrupt multi-line editing
+in Zsh. For now, please disable this feature.
+
+Transient prompts can interfere with MisTTY’s commands, such as
+@cite{mistty-previous-output} (@code{C-c C-p}) and
+@cite{mistty-create-buffer-with-output} (@code{C-c C-r}). If these commands
+are important to you, disable transient prompts when the @cite{TERM} is set
+to @cite{eterm-color}.
+
+If you suspect that your shell prompt is introducing new problems,
+start by switching to a traditional prompt to verify this. Regardless
+of the outcome, please report any bugs you encounter
+(@ref{3,,Reporting issues}.)
+
 @node IPython,,Zsh,Shells
-@anchor{shells id5}@anchor{3c}@anchor{shells ipython}@anchor{3d}
+@anchor{shells id5}@anchor{3e}@anchor{shells ipython}@anchor{3f}
 @subsection IPython
 
 
@@ -1328,7 +1372,7 @@ shouldn’t match any other prompts. You don’t need to do anything here
 if you configured IPython to not output any continue prompt.
 
 @node Extending MisTTY,FAQ,Shells,Contents
-@anchor{extensions doc}@anchor{3e}@anchor{extensions extending-mistty}@anchor{3f}
+@anchor{extensions doc}@anchor{40}@anchor{extensions extending-mistty}@anchor{41}
 @section Extending MisTTY
 
 
@@ -1343,7 +1387,7 @@ if you configured IPython to not output any continue prompt.
 @end menu
 
 @node Hooks,OSC Sequences,,Extending MisTTY
-@anchor{extensions hooks}@anchor{40}@anchor{extensions id1}@anchor{41}
+@anchor{extensions hooks}@anchor{42}@anchor{extensions id1}@anchor{43}
 @subsection Hooks
 
 
@@ -1358,7 +1402,7 @@ if you configured IPython to not output any continue prompt.
 @end menu
 
 @node mistty-mode-hook,mistty-interactive-insert-hook,,Hooks
-@anchor{extensions mistty-mode-hook}@anchor{42}
+@anchor{extensions mistty-mode-hook}@anchor{44}
 @subsubsection mistty-mode-hook
 
 
@@ -1390,7 +1434,7 @@ you could do:
 @geindex hook; mistty-interactive-interactive
 
 @node mistty-interactive-insert-hook,mistty-after-process-start-hook,mistty-mode-hook,Hooks
-@anchor{extensions mistty-interactive-insert-hook}@anchor{43}
+@anchor{extensions mistty-interactive-insert-hook}@anchor{45}
 @subsubsection mistty-interactive-insert-hook
 
 
@@ -1414,7 +1458,7 @@ prefer to trigger the auto-completion UI yourself by adding your own
 function to this hook and turning the above option off.
 
 @node mistty-after-process-start-hook,mistty-after-process-end-hook,mistty-interactive-insert-hook,Hooks
-@anchor{extensions mistty-after-process-start-hook}@anchor{44}
+@anchor{extensions mistty-after-process-start-hook}@anchor{46}
 @subsubsection mistty-after-process-start-hook
 
 
@@ -1425,7 +1469,7 @@ usually a shell. The process itself is available as
 typically empty, as no output from the process has been processed.
 
 @node mistty-after-process-end-hook,mistty-entered-fullscreen-hook,mistty-after-process-start-hook,Hooks
-@anchor{extensions mistty-after-process-end-hook}@anchor{45}
+@anchor{extensions mistty-after-process-end-hook}@anchor{47}
 @subsubsection mistty-after-process-end-hook
 
 
@@ -1444,7 +1488,7 @@ the shell exits successfully, with @code{mistty-kill-buffer} or
 @end example
 
 @node mistty-entered-fullscreen-hook,mistty-left-fullscreen-hook,mistty-after-process-end-hook,Hooks
-@anchor{extensions mistty-entered-fullscreen-hook}@anchor{46}
+@anchor{extensions mistty-entered-fullscreen-hook}@anchor{48}
 @subsubsection mistty-entered-fullscreen-hook
 
 
@@ -1457,7 +1501,7 @@ run within the terminal buffer, available as
 buried until @code{mistty-toggle-buffers} is called.
 
 @node mistty-left-fullscreen-hook,,mistty-entered-fullscreen-hook,Hooks
-@anchor{extensions mistty-left-fullscreen-hook}@anchor{47}
+@anchor{extensions mistty-left-fullscreen-hook}@anchor{49}
 @subsubsection mistty-left-fullscreen-hook
 
 
@@ -1468,7 +1512,7 @@ In this mode, @code{mistty-fullscreen} is nil and user commands run
 in the work buffer.
 
 @node OSC Sequences,Writing Your Own Commands,Hooks,Extending MisTTY
-@anchor{extensions osc}@anchor{48}@anchor{extensions osc-sequences}@anchor{49}
+@anchor{extensions osc}@anchor{4a}@anchor{extensions osc-sequences}@anchor{4b}
 @subsection OSC Sequences
 
 
@@ -1513,7 +1557,7 @@ same argument.
 @end itemize
 
 @node Writing Your Own Commands,Terminal Keymap,OSC Sequences,Extending MisTTY
-@anchor{extensions custom-commands}@anchor{4a}@anchor{extensions writing-your-own-commands}@anchor{4b}
+@anchor{extensions custom-commands}@anchor{4c}@anchor{extensions writing-your-own-commands}@anchor{4d}
 @subsection Writing Your Own Commands
 
 
@@ -1571,7 +1615,7 @@ position.
 @end table
 
 @node Terminal Keymap,Auto-complete,Writing Your Own Commands,Extending MisTTY
-@anchor{extensions term-keymap}@anchor{4c}@anchor{extensions terminal-keymap}@anchor{4d}
+@anchor{extensions term-keymap}@anchor{4e}@anchor{extensions terminal-keymap}@anchor{4f}
 @subsection Terminal Keymap
 
 
@@ -1630,7 +1674,7 @@ that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node Auto-complete,Long-running commands,Terminal Keymap,Extending MisTTY
-@anchor{extensions auto-complete}@anchor{4e}@anchor{extensions autocomplete}@anchor{1b}
+@anchor{extensions auto-complete}@anchor{50}@anchor{extensions autocomplete}@anchor{1b}
 @subsection Auto-complete
 
 
@@ -1640,7 +1684,7 @@ Auto-complete is a completion UI that shows up automatically after
 some delay, without having to call @cite{completion-at-point}. This used
 not to work in MisTTY terminal region. The hook
 @code{mistty-simulates-self-insert-command} was introduced to fix
-that. See @code{mistty-interactive-insert-hook} in @ref{40,,Hooks}.
+that. See @code{mistty-interactive-insert-hook} in @ref{42,,Hooks}.
 
 By default this hook calls the buffer @code{pre-command-hook} and
 @code{post-command-hook} with @code{this-command} set to
@@ -1654,7 +1698,7 @@ should be possible to build a custom bridge between this hook and the
 auto-completion package.
 
 @node Long-running commands,,Auto-complete,Extending MisTTY
-@anchor{extensions long-running-commands}@anchor{4f}@anchor{extensions lrc}@anchor{1e}
+@anchor{extensions long-running-commands}@anchor{51}@anchor{extensions lrc}@anchor{1e}
 @subsection Long-running commands
 
 
@@ -1741,7 +1785,7 @@ Here’s an example of code that would detect
 @end example
 
 @node FAQ,Contributing,Extending MisTTY,Contents
-@anchor{faq doc}@anchor{50}@anchor{faq faq}@anchor{51}
+@anchor{faq doc}@anchor{52}@anchor{faq faq}@anchor{53}
 @section FAQ
 
 
@@ -1960,7 +2004,7 @@ when the shell ends. If you don’t like that, change the option at
 @end quotation
 
 @node Contributing,,FAQ,Contents
-@anchor{contrib doc}@anchor{52}@anchor{contrib contributing}@anchor{53}
+@anchor{contrib doc}@anchor{54}@anchor{contrib contributing}@anchor{55}
 @section Contributing
 
 
@@ -1974,7 +2018,7 @@ when the shell ends. If you don’t like that, change the option at
 @end menu
 
 @node Reporting issues,Suggesting features,,Contributing
-@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{54}
+@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{56}
 @subsection Reporting issues
 
 
@@ -2058,7 +2102,7 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib discussion}@anchor{55}@anchor{contrib suggesting-features}@anchor{56}
+@anchor{contrib discussion}@anchor{57}@anchor{contrib suggesting-features}@anchor{58}
 @subsection Suggesting features
 
 
@@ -2066,14 +2110,14 @@ Please create a new discussion@footnote{https://github.com/szermatt/mistty/discu
 feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
-@anchor{contrib asking-questions}@anchor{57}
+@anchor{contrib asking-questions}@anchor{59}
 @subsection Asking questions
 
 
 Start a new discussion@footnote{https://github.com/szermatt/mistty/discussions} with your question in the General category.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
-@anchor{contrib code-contributions}@anchor{58}
+@anchor{contrib code-contributions}@anchor{5a}
 @subsection Code contributions
 
 
@@ -2096,7 +2140,7 @@ fixes with “fix: “, refactorings with “refactor: ” and tests with
 “test: “.
 
 @node Documentation contributions,,Code contributions,Contributing
-@anchor{contrib documentation-contributions}@anchor{59}@anchor{contrib eldev}@anchor{5a}
+@anchor{contrib documentation-contributions}@anchor{5b}@anchor{contrib eldev}@anchor{5c}
 @subsection Documentation contributions
 
 

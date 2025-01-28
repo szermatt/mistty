@@ -5325,7 +5325,7 @@
 
     (turtles-with-grab-buffer ()
       (should (equal
-               "$ echo ok\nok\n$ echo -n ok\nok%                                                                            \\\n$"
+               "$ echo ok\nok\n$ echo -n ok\nok%\n$"
                (buffer-string))))))
 
 (turtles-ert-deftest mistty-test-fish-no-nl-before-prompt (:instance 'mistty)
@@ -5337,7 +5337,7 @@
 
     (turtles-with-grab-buffer ()
       (should (equal
-               "$ echo ok\nok\n$ echo -n ok\nok⏎                                                                            \\\n$"
+               "$ echo ok\nok\n$ echo -n ok\nok⏎\n$"
                (buffer-string))))))
 
 (turtles-ert-deftest mistty-test-bash-no-nl-before-prompt (:instance 'mistty)
@@ -5358,3 +5358,187 @@
     (mistty-run-command
      (insert "echo foobar"))
     (should (equal "foobar" (mistty-send-and-capture-command-output)))))
+
+(defun mistty-test-setup-zsh-multiline-prompt ()
+  (mistty--set-process-window-size 40 20)
+  (mistty--send-string
+   mistty-proc
+   "precmd() { local left=left; local right=right; print $left${(l:$(($COLUMNS-${#left}))::.:)right}; }")
+  (mistty-send-and-wait-for-prompt)
+  (mistty-test-narrow (pos-bol 0)))
+
+(ert-deftest mistty-test-detect-zsh-multiline-prompt-start ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-setup-zsh-multiline-prompt)
+    (mistty-send-text "echo hello")
+    (mistty-send-and-wait-for-prompt)
+
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$")
+      (mistty-test-content :start mistty-sync-marker)))
+
+    ;; The prompt is functional
+    (mistty-run-command
+     (insert "echo world"))
+
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo world")
+      (mistty-test-content :start mistty-sync-marker)))
+    ))
+
+(ert-deftest mistty-test-zsh-multiline-prompt-sp ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-setup-zsh-multiline-prompt)
+    (mistty-send-text "echo -n hello")
+    (mistty-send-and-wait-for-prompt)
+
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo -n hello\n"
+              "hello%\n"
+              "<>left...............................right\n"
+              "$")
+      (mistty-test-content :show mistty-sync-marker)))))
+
+(ert-deftest mistty-test-zsh-multiline-prompt-next-previous ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-setup-zsh-multiline-prompt)
+    (dolist (text '("one" "two" "three" "four"))
+      (mistty-send-text (concat "echo " text))
+      (mistty-send-and-wait-for-prompt))
+
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "three\n"
+              "left...............................right\n"
+              "$ echo four\n"
+              "four\n"
+              "left...............................right\n"
+              "$ <>")
+      (mistty-test-content :show (point))))
+
+    (mistty-previous-output 1)
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "three\n"
+              "left...............................right\n"
+              "$ echo four\n"
+              "<>four\n"
+              "left...............................right\n"
+              "$")
+      (mistty-test-content :show (point))))
+
+    (mistty-previous-output 1)
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "<>three\n"
+              "left...............................right\n"
+              "$ echo four\n"
+              "four\n"
+              "left...............................right\n"
+              "$")
+      (mistty-test-content :show (point))))
+
+    (mistty-previous-output 1)
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "<>two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "three\n"
+              "left...............................right\n"
+              "$ echo four\n"
+              "four\n"
+              "left...............................right\n"
+              "$")
+      (mistty-test-content :show (point))))
+
+    (mistty-next-output 1)
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "<>three\n"
+              "left...............................right\n"
+              "$ echo four\n"
+              "four\n"
+              "left...............................right\n"
+              "$")
+      (mistty-test-content :show (point))))
+
+
+    (mistty-next-output 1)
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "three\n"
+              "left...............................right\n"
+              "$ echo four\n"
+              "<>four\n"
+              "left...............................right\n"
+              "$")
+      (mistty-test-content :show (point))))
+
+    (should-error (mistty-next-output 1))))
+
+(ert-deftest mistty-test-zsh-multiline-prompt-extract-output ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-setup-zsh-multiline-prompt)
+    (dolist (text '("one" "two" "three" "four"))
+      (mistty-send-text (concat "echo " text))
+      (mistty-send-and-wait-for-prompt))
+
+    (let ((buf (mistty-create-buffer-with-output
+                (generate-new-buffer-name "extracted") 2)))
+      (unwind-protect
+          (should (equal "three\n"
+                         (with-current-buffer buf
+                           (buffer-string))))
+        (kill-buffer buf)))))

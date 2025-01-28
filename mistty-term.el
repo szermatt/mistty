@@ -529,11 +529,12 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
       ;; encoded. This would be inconvenient and error-prone, so we
       ;; disallow the US-ASCII characters disallowed by ECMA 48 and
       ;; allow all non-US-ASCII chars (usually multibyte UTF-8).
-      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\|25\\)[hl]\\|\\]\\(?2:\\(?:\\(?3:[a-zA-Z0-9]+\\);\\)?[^\x00-\x07\x0e-\x1f\x7f]*\\)\\(?4:\e\\\\\\|\a\\|\\'\\)\\)" str start)
+      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\|25\\)[hl]\\|\\]\\(?2:\\(?:\\(?3:[a-zA-Z0-9]+\\);\\)?[^\x00-\x07\x0e-\x1f\x7f]*\\)\\(?4:\e\\\\\\|\a\\|\\'\\)\\)\\|\\(?5: +\\)\r" str start)
         (let ((ext (match-string 1 str))
               (osc (match-string 2 str))
               (osc-code (match-string 3 str))
               (osc-terminator (match-string 4 str))
+              (prompt-sp-end (match-end 5))
               (seq-start (match-beginning 0))
               (seq-end (match-end 0)))
           (cond
@@ -542,9 +543,23 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
             (let* ((id (mistty--next-id))
                    (props `(mistty-input-id ,id)))
               ;; zsh enables bracketed paste only after having printed
-              ;; the prompt.
-              (unless (eq ?\n (char-before (point)))
-                (add-text-properties (mistty--bol (point)) (point) props))
+              ;; the prompt. Try to find the beginning of the prompt
+              ;; from prompt_sp or assume a single-line prompt.
+              (let ((inhibit-modification-hooks t))
+                (let ((prompt-start
+                       (or
+                        (catch 'mistty-prompt-start
+                          (dolist (i '(0 -1 -2 -3))
+                            (let ((pos (pos-eol i)))
+                              (when (get-text-property pos 'mistty-input-id)
+                                (throw 'mistty-prompt-start nil))
+                              (when (get-text-property pos 'mistty-prompt-sp)
+                                (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
+                                (remove-text-properties pos (1+ pos) '(term-line-wrap t))
+                                (throw 'mistty-prompt-start (1+ pos))))))
+                        (pos-bol))))
+                  (when (< prompt-start (point))
+                    (add-text-properties prompt-start (point) props))))
               (mistty-register-text-properties 'mistty-bracketed-paste props))
             (setq mistty-bracketed-paste t)
             (mistty--with-live-buffer work-buffer
@@ -574,7 +589,18 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
               (funcall handler code
                        (decode-coding-string
                         (string-remove-prefix (concat code ";") osc)
-                        locale-coding-system t)))))
+                        locale-coding-system t))))
+           (prompt-sp-end
+            (term-emulate-terminal proc (substring str start prompt-sp-end))
+            (when (or (and (= (1- term-width) (term-current-column))
+                           (eq ?\  (char-before (point))))
+                      (and (get-text-property (pos-eol 0) 'term-line-wrap)
+                           (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
+              (let ((inhibit-modification-hooks t)
+                    (pos (pos-eol 0)))
+                (put-text-property pos (1+ pos) 'mistty-prompt-sp t)))
+            ;; Include the \r in the next loop.
+            (setq seq-end prompt-sp-end)))
           (setq start seq-end)))
       (let ((split (mistty--split-incomplete-chars (substring str start))))
         (when (length> (cdr split) 0)

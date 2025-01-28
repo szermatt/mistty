@@ -5405,6 +5405,26 @@
               "$")
       (mistty-test-content :show mistty-sync-marker)))))
 
+(ert-deftest mistty-test-zsh-multiline-prompt-sp-no-eol-mark ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-setup-zsh-multiline-prompt)
+    (mistty-send-text "PROMPT_EOL_MARK=''")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-test-narrow (pos-bol 0))
+
+    (mistty-test-setup-zsh-multiline-prompt)
+    (mistty-send-text "echo -n hello")
+    (mistty-send-and-wait-for-prompt)
+
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo -n hello\n"
+              "hello\n"
+              "<>left...............................right\n"
+              "$")
+      (mistty-test-content :show mistty-sync-marker)))))
+
 (ert-deftest mistty-test-zsh-multiline-prompt-next-previous ()
   (mistty-with-test-buffer (:shell zsh)
     (mistty-test-setup-zsh-multiline-prompt)

@@ -551,7 +551,8 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                         (catch 'mistty-prompt-start
                           (dolist (i '(0 -1 -2 -3))
                             (let ((pos (pos-eol i)))
-                              (when (get-text-property pos 'mistty-input-id)
+                              (when (and (< pos (point-max))
+                                         (get-text-property (1+ pos) 'mistty-input-id))
                                 (throw 'mistty-prompt-start nil))
                               (when (get-text-property pos 'mistty-prompt-sp)
                                 (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))

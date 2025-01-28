@@ -5405,6 +5405,19 @@
               "$")
       (mistty-test-content :show mistty-sync-marker)))))
 
+(ert-deftest mistty-test-zsh-multiline-prompt-empty ()
+  (mistty-with-test-buffer (:shell zsh)
+    (mistty-test-setup-zsh-multiline-prompt)
+    (mistty-send-and-wait-for-prompt)
+
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$\n"
+              "<>left...............................right\n"
+              "$")
+      (mistty-test-content :show mistty-sync-marker)))))
+
 (ert-deftest mistty-test-zsh-multiline-prompt-sp-no-eol-mark ()
   (mistty-with-test-buffer (:shell zsh)
     (mistty-test-setup-zsh-multiline-prompt)

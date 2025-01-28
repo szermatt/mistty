@@ -1265,12 +1265,14 @@ Extend your prompt to send out an OSC7 sequence to have
 do that, you might add the following to @code{~/.zshrc}:
 
 @example
-if [ "$TERM" = "eterm-color" ]; then
-    PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
-fi
+function osc7_precmd() @{
+  printf "\e]7;file://%s%s\e\\\\" "$HOSTNAME" "$PWD"
+@}
+precmd_functions+=(osc7_precmd)
 @end example
 
-such sequence are either ignored or understood by most terminals.
+Such sequence are either ignored or understood by any well-behaved
+terminals, so you shouldn’t need to check the terminal.
 
 @node Multi-line prompts in Zsh,VI mode in Zsh,Directory tracking in Zsh,Zsh
 @anchor{shells multi-line-prompts-in-zsh}@anchor{3b}

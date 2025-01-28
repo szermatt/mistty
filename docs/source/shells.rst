@@ -278,11 +278,13 @@ do that, you might add the following to :file:`~/.zshrc`:
 
 .. code-block:: zsh
 
-    if [ "$TERM" = "eterm-color" ]; then
-        PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
-    fi
+  function osc7_precmd() {
+    printf "\e]7;file://%s%s\e\\\\" "$HOSTNAME" "$PWD"
+  }
+  precmd_functions+=(osc7_precmd)
 
-such sequence are either ignored or understood by most terminals.
+Such sequence are either ignored or understood by any well-behaved
+terminals, so you shouldn't need to check the terminal.
 
 Multi-line prompts in Zsh
 ^^^^^^^^^^^^^^^^^^^^^^^^^

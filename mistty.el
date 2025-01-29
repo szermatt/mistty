@@ -1620,7 +1620,8 @@ Also updates prompt and point."
                        (eq ?\n (char-before pos)))
              (cl-decf pos))
            (when (< pos (point-max))
-             (add-text-properties pos (point-max) '(mistty-skip empty-lines-at-eob))))
+             (add-text-properties pos (point-max)
+                                  '(mistty-skip empty-lines-at-eob yank-handler (nil "" nil nil)))))
 
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.

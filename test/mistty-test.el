@@ -3374,6 +3374,17 @@
     (should (equal "echo two" (mistty--command-for-output 3)))
     (should (equal "echo one" (mistty--command-for-output 4)))))
 
+(ert-deftest mistty-test-zsh-right-prompt-kill-line-and-yank ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    (mistty-send-text "echo hello")
+    (mistty-run-command
+     (mistty-beginning-of-line))
+    (mistty-run-command
+     (kill-line))
+    (with-temp-buffer
+      (yank)
+      (should (equal "echo hello" (buffer-string))))))
+
 (ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-forward ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-send-text "for i in (seq 10)\n\necho first\n\n\nend")
@@ -3474,6 +3485,17 @@
     (with-temp-buffer
       (yank)
       (should (equal "$ echo hello" (mistty-test-content))))))
+
+(ert-deftest mistty-test-fish-right-prompt-kill-line-and-yank ()
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
+    (mistty-send-text "echo hello")
+    (mistty-run-command
+     (mistty-beginning-of-line))
+    (mistty-run-command
+     (kill-line))
+    (with-temp-buffer
+      (yank)
+      (should (equal "echo hello" (buffer-string))))))
 
 (ert-deftest mistty-test-not-right-prompt-yank-in-output ()
   (mistty-with-test-buffer (:shell fish)

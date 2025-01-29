@@ -493,13 +493,34 @@
     ;; outside of a prompt, just call beginning of line/end of line
     (mistty-test-goto "line b")
     (goto-char (+ 4 (point)))
+    (should (equal
+             (concat "$ for i in a b c; do echo line $i; done\n"
+                     "line a\n"
+                     "line<> b\n"
+                     "line c\n"
+                     "$")
+             (mistty-test-content :show (point))))
     (mistty-run-command
      (mistty-beginning-of-line))
-    (should (equal (point) (mistty-test-goto "line b")))
+    (should (equal
+             (concat "$ for i in a b c; do echo line $i; done\n"
+                     "line a\n"
+                     "<>line b\n"
+                     "line c\n"
+                     "$")
+             (mistty-test-content :show (point))))
 
     (mistty-run-command
-     (mistty-end-of-line-or-goto-cursor))
-    (should (equal (point) (mistty-test-goto-after "line b")))
+     (let ((this-command 'mistty-end-of-line-or-goto-cursor)
+           (last-command nil))
+       (mistty-end-of-line-or-goto-cursor)))
+    (should (equal
+             (concat "$ for i in a b c; do echo line $i; done\n"
+                     "line a\n"
+                     "line b<>\n"
+                     "line c\n"
+                     "$")
+             (mistty-test-content :show (point))))
 
     ;; the second time it's called, mistty-end-of-line-or-goto-cursor goes
     ;; to the cursor
@@ -507,7 +528,13 @@
      (let ((this-command 'mistty-end-of-line-or-goto-cursor)
            (last-command 'mistty-end-of-line-or-goto-cursor))
        (mistty-end-of-line-or-goto-cursor)))
-    (should (equal (point) (mistty-cursor)))))
+    (should (equal
+             (concat "$ for i in a b c; do echo line $i; done\n"
+                     "line a\n"
+                     "line b\n"
+                     "line c\n"
+                     "$ <>")
+             (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-bol-eol-in-prompt ()
   (mistty-with-test-buffer ()
@@ -2441,8 +2468,8 @@
                    (mistty-test-content))))))
 
 (ert-deftest mistty-test-multiple-replace-at-prompt ()
-  (mistty-with-test-buffer ()
-    (mistty-test-set-ps1 "cmd-cmd-cmd> ")
+  (mistty-with-test-buffer (:init "PS1='cmd-cmd-cmd$ '\n")
+    (mistty-test-set-prompt-re "cmd-cmd-cmd$ ")
 
     (mistty-send-text "echo cmd")
 
@@ -2459,10 +2486,8 @@
        (mistty-test-goto "echo command")))
 
     (should
-     (equal
-      (concat "$ PS1='command-command-command> '\n"
-              "cmd-cmd-cmd> echo command")
-      (mistty-test-content)))))
+     (equal "cmd-cmd-cmd$ echo command"
+            (mistty-test-content)))))
 
 (ert-deftest mistty-reset-during-replay ()
   (mistty-with-test-buffer ()
@@ -3194,17 +3219,17 @@
       (should (equal "$ echo \"hello, <>      \nworld\"\n"
                      (mistty-test-content :trim nil :show (point)))))))
 
-(ert-deftest mistty-test-fish-right-prompt-simple-command ()
-  (mistty-with-test-buffer (:shell fish)
-    (mistty-setup-fish-right-prompt)
+(defconst mistty-test-fish-right-prompt
+  "function fish_right_prompt; printf '< right'; end")
 
+(ert-deftest mistty-test-fish-right-prompt-simple-command ()
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
     ;; Make sure the right prompt doesn't interfere with normal operations
     (mistty-send-text "echo hello")
     (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest mistty-test-fish-right-prompt-skip-empty-spaces ()
-  (mistty-with-test-buffer (:shell fish :selected t)
-    (mistty-setup-fish-right-prompt)
+  (mistty-with-test-buffer (:shell fish :selected t :init mistty-test-fish-right-prompt)
     (let ((mistty-skip-empty-spaces t)
           (win (selected-window)))
       (mistty--cursor-skip win)
@@ -3216,9 +3241,7 @@
                             (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-fish-right-prompt-insert-newlines ()
-  (mistty-with-test-buffer (:shell fish)
-    (mistty-setup-fish-right-prompt)
-
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
     ;; This test makes sure that there's no timeout here, as right
     ;; prompts used to cause issues when detecting text with newlines
     ;; that was just replayed.
@@ -3231,9 +3254,7 @@
                           (mistty-test-content)))))
 
 (ert-deftest mistty-test-fish-right-prompt-reconcile ()
-  (mistty-with-test-buffer (:shell fish)
-    (mistty-setup-fish-right-prompt)
-
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
     (mistty-test-pre-command)
     (insert "echo hello\necho world")
 
@@ -3248,8 +3269,7 @@
                           (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-fish-right-prompt-mark-mistty-skip ()
-  (mistty-with-test-buffer (:shell fish)
-    (mistty-setup-fish-right-prompt)
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
     (mistty--send-string mistty-proc "echo ")
     (mistty-wait-for-output :str "echo")
     (should (string-match "^\\$ echo <> +< right$"
@@ -3353,8 +3373,7 @@
                       :show (point)))))))
 
 (ert-deftest mistty-test-fish-right-prompt-yank ()
-  (mistty-with-test-buffer (:shell fish)
-    (mistty-setup-fish-right-prompt)
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
     (mistty-send-text "echo hello")
     (copy-region-as-kill (mistty--bol (point)) (mistty--eol (point)))
     (with-temp-buffer
@@ -3373,8 +3392,7 @@
       (should (equal "foo     bar" (mistty-test-content))))))
 
 (ert-deftest mistty-test-fish-right-prompt-skip-empty-spaces-at-prompt ()
-  (mistty-with-test-buffer (:shell fish :selected t)
-    (mistty-setup-fish-right-prompt)
+  (mistty-with-test-buffer (:shell fish :selected t :init mistty-test-fish-right-prompt)
     (let* ((mistty-skip-empty-spaces t)
            (win (selected-window))
            (after-refresh (lambda () (mistty--cursor-skip win))))
@@ -3389,9 +3407,7 @@
         (advice-remove 'mistty--refresh after-refresh)))))
 
 (ert-deftest mistty-test-fish-right-prompt-delete-whole-line ()
-  (mistty-with-test-buffer (:shell fish)
-    (mistty-setup-fish-right-prompt)
-
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
     (mistty-send-text "echo hello")
     (mistty-run-command
      (mistty-beginning-of-line))
@@ -5359,8 +5375,13 @@
      (insert "echo foobar"))
     (should (equal "foobar" (mistty-send-and-capture-command-output)))))
 
+(defconst mistty-test-zsh-fancy-prompt
+  (concat "precmd() { \n"
+          " print 'left...............................right'\n"
+          " }\n"))
+
 (ert-deftest mistty-test-detect-zsh-multiline-prompt-start ()
-  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
     (mistty-send-text "echo hello")
     (mistty-send-and-wait-for-prompt)
 
@@ -5382,7 +5403,7 @@
     ))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-sp ()
-  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
     (mistty-send-text "echo -n hello")
     (mistty-send-and-wait-for-prompt)
 
@@ -5396,7 +5417,7 @@
       (mistty-test-content :show mistty-sync-marker)))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-empty ()
-  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
     (mistty-send-and-wait-for-prompt)
 
     (should
@@ -5408,7 +5429,7 @@
       (mistty-test-content :show mistty-sync-marker)))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-sp-no-eol-mark ()
-  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
     (mistty-send-text "PROMPT_EOL_MARK=''")
     (mistty-send-and-wait-for-prompt)
     (mistty-test-narrow (pos-bol 0))
@@ -5426,7 +5447,7 @@
       (mistty-test-content :show mistty-sync-marker)))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-next-previous ()
-  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
     (dolist (text '("one" "two" "three" "four"))
       (mistty-send-text (concat "echo " text))
       (mistty-send-and-wait-for-prompt))
@@ -5548,7 +5569,7 @@
     (should-error (mistty-next-output 1))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-extract-output ()
-  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
     (dolist (text '("one" "two" "three" "four"))
       (mistty-send-text (concat "echo " text))
       (mistty-send-and-wait-for-prompt))
@@ -5562,7 +5583,7 @@
         (kill-buffer buf)))))
 
 (ert-deftest mistty-test-zsh-multiline-initial-prompt ()
-  (mistty-with-test-buffer (:shell zsh :fancy-prompt t)
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
     (mistty-run-command
      (insert "echo hello"))
     (should

@@ -79,7 +79,7 @@ problems.")
   "Current test prompt regexp.
 
 This is set by `mistty-test-setup', usually by
-`mistty-test-set-ps1'.")
+`mistty-test-set-prompt-re'.")
 
 (defvar mistty-test-had-issues nil
   "When this is non-nil, the test will fail.
@@ -99,14 +99,13 @@ This is handled by `mistty-test-report-issue' and must contain
 the symbol of the expected issues, in order.")
 
 (cl-defmacro mistty-with-test-buffer
-    ((&key (shell 'bash) selected fancy-prompt) &body body)
+    ((&key (shell 'bash) selected init) &body body)
   "Run BODY in a MisTTY buffer.
 
 SHELL specifies the program that is run in that buffer, bash,
 zsh, or fish.
 
-FANCY-PROMPT asks for a fancy multi-line prompt. Only works with zsh for
-now.
+INIT is a string to append to the shell RC file.
 
 If SELECTED is non-nil, make sure the buffer is in a selected
 window while BODY is running."
@@ -131,15 +130,15 @@ window while BODY is running."
                (mistty-entered-fullscreen-hook nil)
                (mistty-left-fullscreen-hook nil)
                (mistty-log mistty-test-log))
-           (ert-with-temp-directory mistty-tempdir
+           (ert-with-temp-directory mistty-tmpdir
              (unwind-protect
                  (prog1
                      ,(if selected
                           `(with-selected-window (display-buffer (current-buffer))
-                             (mistty-test-setup (quote ,shell) mistty-tempdir ,fancy-prompt)
+                             (mistty-test-setup (quote ,shell) mistty-tmpdir ,init)
                              ,@body)
                         `(progn
-                           (mistty-test-setup (quote ,shell) mistty-tempdir ,fancy-prompt)
+                           (mistty-test-setup (quote ,shell) mistty-tmpdir ,init)
                            ,@body))
                    (should-not mistty-test-had-issues)
                    (setq mistty-test-ok 'ok))
@@ -199,99 +198,94 @@ window while BODY is running."
   (setq mistty-test-content-start start)
   (narrow-to-region start (point-max)))
 
-(defun mistty-test-setup (shell tempdir fancy-prompt)
+(defun mistty-test-setup (shell tmpdir init)
   (mistty-mode)
   (cond
    ((eq shell 'bash)
-    (mistty-test-setup-bash tempdir))
+    (mistty-test-setup-bash tmpdir init))
 
    ((eq shell 'zsh)
-    (mistty-test-setup-zsh tempdir fancy-prompt))
+    (mistty-test-setup-zsh tmpdir init))
 
    ((eq shell 'fish)
-    (mistty--exec
-     (list
-      mistty-test-fish-exe
-      "-i" "-N" "-C"
-      (concat "function fish_prompt; printf '$ '; end; "
-              ;; This enables bracketed-paste; this is normally done in
-              ;; __fish_config_interactive.fish but is disabled by -N.
-              "function __fish_enable_bracketed_paste --on-event fish_prompt --on-event fish_read; "
-              "  printf \"\\e[?2004h\";"
-              "end;"
-              "function __fish_disable_bracketed_paste --on-event fish_preexec --on-event fish_exit; "
-              "  printf \"\\e[?2004l\";"
-              "end; "
-              ;; Older version of fish, such as 3.3.1, ignore termcap
-              ;; entries. \eOA-\eOD is part of the default key binding,
-              ;; bypassed here by -N, so it's only a problem in these
-              ;; tests
-              "bind \\eOA up-line; "
-              "bind \\eOB down-line; "
-              "bind \\eOC forward-char; "
-              "bind \\eOD backward-char; "
-              "bind \\ca beginning-of-line; "
-              "bind \\ce end-of-line; "
-              "bind \\cg cancel; "
-              "bind \\b backward-delete-char; ")))
-    (mistty-run-command) ;; detect early foreign overlay
-    (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
-    (mistty-wait-for-output :regexp mistty-test-prompt-re))
+    (mistty-test-setup-fish tmpdir init))
 
    ((eq shell 'ipython)
-    (mistty--exec (list mistty-test-ipython-exe
-                        "--quick"
-                        "--no-banner"
-                        "--no-confirm-exit"
-                        (concat "--BaseIPythonApplication.ipython_dir=" tempdir)))
-    (setq mistty-test-prompt-re "^\\(In \\[[0-9]+\\]\\|   ...\\): ")
-    (mistty-run-command))
+    (mistty-test-setup-ipython tmpdir init))
 
    (t (error "Unsupported shell %s" shell))))
 
-(defun mistty-test-setup-bash (tmpdir)
+(defun mistty-test-setup-bash (tmpdir init)
   (let ((rcfile (concat tmpdir "bashrc")))
     (with-temp-file rcfile
-      (insert "PS1='$ '\n"))
-    (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
+      (insert "PS1='$ '\n")
+      (when init
+        (insert init)))
+    (mistty-test-set-prompt-re "$ ")
     (mistty--exec (list mistty-test-bash-exe "--noprofile" "--rcfile" rcfile "-i"))
     (mistty-run-command) ;; detect early foreign overlay
     (mistty-wait-for-output :str "$ ")))
 
-(defun mistty-test-setup-zsh (tmpdir fancy-prompt)
+(defun mistty-test-setup-zsh (tmpdir init)
   (let ((orig-zdotdir (getenv "ZDOTDIR")))
     (unwind-protect
         (progn
           (setenv "ZDOTDIR" tmpdir)
           (with-temp-file (concat tmpdir ".zshrc")
             (insert "PS1='$ '\n")
-            (when fancy-prompt
-              (insert "precmd() { \n")
-              (insert " print 'left...............................right'\n")
-              (insert " }\n")))
+            (when init
+              (insert init)))
           (mistty--exec (list mistty-test-zsh-exe "-i"))
           (mistty-run-command) ;; detect early foreign overlay
-          (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
+          (mistty-test-set-prompt-re "$ ")
           (mistty-wait-for-output :str "$ "))
       (setenv "ZDOTDIR" orig-zdotdir))))
 
-(defun mistty-wait-for-initial-output ()
-  "Wait for program to output anything to the buffer."
-  (mistty-wait-for-output :test (lambda () (< (point-min) (point-max)))))
+(defun mistty-test-setup-fish (tmpdir init)
+  (mistty--exec
+   (list
+    mistty-test-fish-exe
+    "-i" "-N" "-C"
+    (concat "function fish_prompt; printf '$ '; end; "
+            ;; This enables bracketed-paste; this is normally done in
+            ;; __fish_config_interactive.fish but is disabled by -N.
+            "function __fish_enable_bracketed_paste --on-event fish_prompt --on-event fish_read; "
+            "  printf \"\\e[?2004h\";"
+            "end;"
+            "function __fish_disable_bracketed_paste --on-event fish_preexec --on-event fish_exit; "
+            "  printf \"\\e[?2004l\";"
+            "end; "
+            ;; Older version of fish, such as 3.3.1, ignore termcap
+            ;; entries. \eOA-\eOD is part of the default key binding,
+            ;; bypassed here by -N, so it's only a problem in these
+            ;; tests
+            "bind \\eOA up-line; "
+            "bind \\eOB down-line; "
+            "bind \\eOC forward-char; "
+            "bind \\eOD backward-char; "
+            "bind \\ca beginning-of-line; "
+            "bind \\ce end-of-line; "
+            "bind \\cg cancel; "
+            "bind \\b backward-delete-char; "
+            init)))
+  (mistty-run-command) ;; detect early foreign overlay
+  (mistty-test-set-prompt-re "$ ")
+  (mistty-wait-for-output :regexp mistty-test-prompt-re))
 
-(defun mistty-test-set-ps1 (prompt)
-  "Set PS1 to PROMPT and setup the prompt regexp for the test."
-  ;; Sending the PS1 might happen too early for mistty-send-text,
-  ;; which expects the text it sends to appear after the text that's
-  ;; already there. It's enough to wait for the prompt anyways.
-  (mistty--send-string mistty-proc (concat "PS1='" prompt "'"))
-  (setq mistty-test-prompt-re (concat "^" (regexp-quote prompt)))
-  (mistty-send-and-wait-for-prompt))
+(defun mistty-test-setup-ipython (tmpdir init)
+  (when init
+    (error "Test setup of ipython doesn't support :INIT yet."))
+  (mistty--exec (list mistty-test-ipython-exe
+                      "--quick"
+                      "--no-banner"
+                      "--no-confirm-exit"
+                      (concat "--BaseIPythonApplication.ipython_dir=" tmpdir)))
+  (setq mistty-test-prompt-re "^\\(In \\[[0-9]+\\]\\|   ...\\): ")
+  (mistty-run-command))
 
-(defun mistty-setup-fish-right-prompt ()
-  (mistty-send-text "function fish_right_prompt; printf '< right'; end")
-  (mistty-send-and-wait-for-prompt)
-  (mistty-test-narrow (mistty--bol (point))))
+(defun mistty-test-set-prompt-re (prompt)
+  "Tell MisTTY to expect the given PROMPT."
+  (setq mistty-test-prompt-re (concat "^" (regexp-quote prompt))))
 
 (defun mistty-test-pre-command ()
   (mistty--pre-command)

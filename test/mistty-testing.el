@@ -203,10 +203,7 @@ window while BODY is running."
   (mistty-mode)
   (cond
    ((eq shell 'bash)
-    (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
-    (mistty-run-command)
-    (mistty-wait-for-initial-output)
-    (mistty-test-narrow (mistty-test-set-ps1 "$ ")))
+    (mistty-test-setup-bash tempdir))
 
    ((eq shell 'zsh)
     (mistty-test-setup-zsh tempdir fancy-prompt))
@@ -237,7 +234,7 @@ window while BODY is running."
               "bind \\ce end-of-line; "
               "bind \\cg cancel; "
               "bind \\b backward-delete-char; ")))
-    (mistty-run-command)
+    (mistty-run-command) ;; detect early foreign overlay
     (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
     (mistty-wait-for-output :regexp mistty-test-prompt-re))
 
@@ -252,6 +249,15 @@ window while BODY is running."
 
    (t (error "Unsupported shell %s" shell))))
 
+(defun mistty-test-setup-bash (tmpdir)
+  (let ((rcfile (concat tmpdir "bashrc")))
+    (with-temp-file rcfile
+      (insert "PS1='$ '\n"))
+    (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
+    (mistty--exec (list mistty-test-bash-exe "--noprofile" "--rcfile" rcfile "-i"))
+    (mistty-run-command) ;; detect early foreign overlay
+    (mistty-wait-for-output :str "$ ")))
+
 (defun mistty-test-setup-zsh (tmpdir fancy-prompt)
   (let ((orig-zdotdir (getenv "ZDOTDIR")))
     (unwind-protect
@@ -264,6 +270,7 @@ window while BODY is running."
               (insert " print 'left...............................right'\n")
               (insert " }\n")))
           (mistty--exec (list mistty-test-zsh-exe "-i"))
+          (mistty-run-command) ;; detect early foreign overlay
           (setq mistty-test-prompt-re (concat "^" (regexp-quote "$ ")))
           (mistty-wait-for-output :str "$ "))
       (setenv "ZDOTDIR" orig-zdotdir))))

@@ -394,7 +394,7 @@
     (mistty-run-command
      (mistty-tab-command))
     (mistty-wait-for-output :str "ech\t")
-    (should (equal "$ ech\t  <> world" (mistty-test-content :show (point))))))
+    (should (equal "$ ech\t<> world" (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-process-hooks-with-normal-exit ()
   (let ((mistty-after-process-start-hook nil)

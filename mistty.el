@@ -2749,7 +2749,8 @@ up (negative)."
   "Move the point to the Nth next input in the buffer."
   (interactive "p")
   (dotimes (_ n)
-    (if-let ((prop-match (text-property-search-forward 'mistty-input-id nil nil 'not-current)))
+    (if-let ((prop-match (save-excursion
+                           (text-property-search-forward 'mistty-input-id nil nil 'not-current))))
         (goto-char (prop-match-beginning prop-match))
       (if (and (process-live-p mistty-proc)
                (< (point) mistty-sync-marker)
@@ -2762,7 +2763,8 @@ up (negative)."
   "Move the point to the Nth previous input in the buffer."
   (interactive "p")
   (dotimes (_ n)
-    (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil nil 'not-current)))
+    (if-let ((prop-match (save-excursion
+                           (text-property-search-backward 'mistty-input-id nil nil 'not-current))))
         (goto-char (prop-match-beginning prop-match))
       (error "No previous input"))))
 
@@ -2775,7 +2777,8 @@ output."
   (interactive "p")
   (let (end)
     (dotimes (_ n)
-      (if-let ((prop-match (text-property-search-forward 'mistty-input-id nil t 'not-current))
+      (if-let ((prop-match (save-excursion
+                             (text-property-search-forward 'mistty-input-id nil t 'not-current)))
                (pos (prop-match-beginning prop-match)))
           (if (or (not mistty-sync-marker)
                   (not mistty--has-active-prompt)
@@ -2796,7 +2799,8 @@ output."
   (interactive "p")
   (let (end)
     (dotimes (_ n)
-      (if-let ((prop-match (text-property-search-backward 'mistty-input-id nil t 'not-current))
+      (if-let ((prop-match (save-excursion
+                             (text-property-search-backward 'mistty-input-id nil t 'not-current)))
                (pos (prop-match-beginning prop-match)))
           (progn (goto-char pos)
                  (setq end (prop-match-end prop-match)))

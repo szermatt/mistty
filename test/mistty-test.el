@@ -5565,7 +5565,7 @@
 
 (ert-deftest mistty-test-zsh-multiline-prompt-next-previous ()
   (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)
-    (dolist (text '("one" "two" "three" "four"))
+    (dolist (text '("one" "two" "three"))
       (mistty-send-text (concat "echo " text))
       (mistty-send-and-wait-for-prompt))
 
@@ -5581,9 +5581,6 @@
               "$ echo three\n"
               "three\n"
               "left...............................right\n"
-              "$ echo four\n"
-              "four\n"
-              "left...............................right\n"
               "$ <>")
       (mistty-test-content :show (point))))
 
@@ -5598,29 +5595,7 @@
               "two\n"
               "left...............................right\n"
               "$ echo three\n"
-              "three\n"
-              "left...............................right\n"
-              "$ echo four\n"
-              "<>four\n"
-              "left...............................right\n"
-              "$")
-      (mistty-test-content :show (point))))
-
-    (mistty-previous-output 1)
-    (should
-     (equal
-      (concat "left...............................right\n"
-              "$ echo one\n"
-              "one\n"
-              "left...............................right\n"
-              "$ echo two\n"
-              "two\n"
-              "left...............................right\n"
-              "$ echo three\n"
               "<>three\n"
-              "left...............................right\n"
-              "$ echo four\n"
-              "four\n"
               "left...............................right\n"
               "$")
       (mistty-test-content :show (point))))
@@ -5638,11 +5613,57 @@
               "$ echo three\n"
               "three\n"
               "left...............................right\n"
-              "$ echo four\n"
-              "four\n"
+              "$")
+      (mistty-test-content :show (point))))
+
+    (mistty-previous-output 1)
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "<>one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "three\n"
               "left...............................right\n"
               "$")
       (mistty-test-content :show (point))))
+
+    (should-error (mistty-previous-output 1))
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "<>one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "three\n"
+              "left...............................right\n"
+              "$")
+      (mistty-test-content :show (point))))
+
+    (mistty-next-output 1)
+    (should
+     (equal
+      (concat "left...............................right\n"
+              "$ echo one\n"
+              "one\n"
+              "left...............................right\n"
+              "$ echo two\n"
+              "<>two\n"
+              "left...............................right\n"
+              "$ echo three\n"
+              "three\n"
+              "left...............................right\n"
+              "$")
+      (mistty-test-content :show (point))))
+
 
     (mistty-next-output 1)
     (should
@@ -5657,14 +5678,10 @@
               "$ echo three\n"
               "<>three\n"
               "left...............................right\n"
-              "$ echo four\n"
-              "four\n"
-              "left...............................right\n"
               "$")
       (mistty-test-content :show (point))))
 
-
-    (mistty-next-output 1)
+    (should-error (mistty-next-output 1))
     (should
      (equal
       (concat "left...............................right\n"
@@ -5675,15 +5692,10 @@
               "two\n"
               "left...............................right\n"
               "$ echo three\n"
-              "three\n"
-              "left...............................right\n"
-              "$ echo four\n"
-              "<>four\n"
+              "<>three\n"
               "left...............................right\n"
               "$")
-      (mistty-test-content :show (point))))
-
-    (should-error (mistty-next-output 1))))
+      (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-zsh-multiline-prompt-extract-output ()
   (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-fancy-prompt)

@@ -237,9 +237,7 @@ Fancy prompts in Fish
 ^^^^^^^^^^^^^^^^^^^^^
 
 MisTTY is known to work with powerline-shell prompts or `Tide, on Fish
-<https://github.com/IlanCosman/tide>`_. This includes right prompts,
-for the most part - though there might be temporary artifacts and
-troublesome corner cases left.
+<https://github.com/IlanCosman/tide>`_, including right prompts.
 
 If you suspect your shell prompt is causing issues, please first try
 setting a traditional prompt to confirm, then, whatever the outcome,
@@ -327,23 +325,21 @@ something like the following in :file:`~/.zshrc`:
 Fancy prompts in Zsh
 ^^^^^^^^^^^^^^^^^^^^
 
-MisTTY is compatible with fancy prompts, such as the ones created by
-`powerlevel10k <https://github.com/romkatv/powerlevel10k>`_, though
-there are some limitations.
+MisTTY is compatible with right prompts and fancy multi-line prompts,
+such as the ones created by `powerlevel10k
+<https://github.com/romkatv/powerlevel10k>`_, though there are some
+limitations.
 
-To ensure proper functionality, keep the `prompt_sp` option enabled,
-as MisTTY depends on it to identify the start of multi-line prompts.
-If you prefer not to have any end-of-line (EOL) markers, set
-`PROMPT_EOL_MARK` to an empty string.
-
-Using right prompts can lead to issues that disrupt multi-line editing
-in Zsh. For now, please disable this feature.
+When using a multi-line prompt, to ensure proper functionality, keep
+the `prompt_sp` option enabled, as MisTTY depends on it to identify
+the start of multi-line prompts. If you prefer not to have any
+end-of-line (EOL) markers, set `PROMPT_EOL_MARK` to an empty string.
 
 Transient prompts can interfere with MisTTY's commands, such as
 `mistty-previous-output` (:kbd:`C-c C-p`) and
 `mistty-create-buffer-with-output` (:kbd:`C-c C-r`). If these commands
-are important to you, disable transient prompts when the `TERM` is set
-to `eterm-color`.
+are important to you, disable transient prompts when `TERM` is set to
+`eterm-color`.
 
 If you suspect that your shell prompt is introducing new problems,
 start by switching to a traditional prompt to verify this. Regardless

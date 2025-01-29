@@ -544,42 +544,46 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
           (cond
            ((equal ext "[?2004h") ; enable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
-            (let* ((id (mistty--next-id))
-                   (props `(mistty-input-id ,id))
-                   (inhibit-modification-hooks t)
-                   ;; zsh enables bracketed paste only after having printed
-                   ;; the prompt. Try to find the beginning of the prompt
-                   ;; from prompt_sp or assume a single-line prompt.
-                   (prompt-start
-                    (or
-                     (catch 'mistty-prompt-start
-                       (dolist (i '(0 -1 -2 -3))
-                         (let ((pos (pos-eol i)))
-                           (when (and (< pos (point-max))
-                                      (get-text-property (1+ pos) 'mistty-input-id))
-                             (throw 'mistty-prompt-start nil))
-                           (when (and (= pos 1) (> (point) (pos-bol)))
-                             (mistty-log "extend first prompt [1-%s]" (point))
-                             (throw 'mistty-prompt-start (point-min)))
-                           (when (get-text-property pos 'mistty-prompt-sp)
-                             (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
-                             (remove-text-properties pos (1+ pos) '(term-line-wrap t))
-                             (throw 'mistty-prompt-start (1+ pos))))))
-                     (pos-bol)))
-                   (prompt-end (pos-eol)))
-              (when (< prompt-start prompt-end)
-                (add-text-properties prompt-start prompt-end props)
-                (mistty--term-postprocess prompt-start prompt-end))
-              (mistty-register-text-properties 'mistty-bracketed-paste props))
-            (setq mistty-bracketed-paste t)
-            (mistty--with-live-buffer work-buffer
-              (setq mistty-bracketed-paste t)))
+            (unless mistty-bracketed-paste
+              (let* ((id (mistty--next-id))
+                     (props `(mistty-input-id ,id))
+                     (inhibit-modification-hooks t)
+                     ;; zsh enables bracketed paste only after having printed
+                     ;; the prompt. Try to find the beginning of the prompt
+                     ;; from prompt_sp or assume a single-line prompt.
+                     (prompt-start
+                      (or
+                       (catch 'mistty-prompt-start
+                         (dolist (i '(0 -1 -2 -3))
+                           (let ((pos (pos-eol i)))
+                             (mistty-log "extend prompt? i=%s pos=%s point=%s eol=%s" i pos (point) (pos-bol))
+                             (when (and (< pos (point-max))
+                                        (get-text-property (1+ pos) 'mistty-input-id))
+                               (mistty-log "input id already set to %s (current: %s)" (get-text-property (1+ pos) 'mistty-input-id) id)
+                               (throw 'mistty-prompt-start nil))
+                             (when (and (= pos 1) (> (point) (pos-bol)))
+                               (mistty-log "extend first prompt [1-%s]" (point))
+                               (throw 'mistty-prompt-start (point-min)))
+                             (when (get-text-property pos 'mistty-prompt-sp)
+                               (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
+                               (remove-text-properties pos (1+ pos) '(term-line-wrap t))
+                               (throw 'mistty-prompt-start (1+ pos))))))
+                       (pos-bol)))
+                     (prompt-end (pos-eol)))
+                (when (< prompt-start prompt-end)
+                  (add-text-properties prompt-start prompt-end props)
+                  (mistty--term-postprocess prompt-start prompt-end))
+                (mistty-register-text-properties 'mistty-bracketed-paste props))
+              (setq mistty-bracketed-paste t)
+              (mistty--with-live-buffer work-buffer
+                (setq mistty-bracketed-paste t))))
            ((equal ext "[?2004l") ; disable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
-            (mistty-unregister-text-properties 'mistty-bracketed-paste)
-            (setq mistty-bracketed-paste nil)
-            (mistty--with-live-buffer work-buffer
-              (setq mistty-bracketed-paste nil)))
+            (when mistty-bracketed-paste
+              (mistty-unregister-text-properties 'mistty-bracketed-paste)
+              (setq mistty-bracketed-paste nil)
+              (mistty--with-live-buffer work-buffer
+                (setq mistty-bracketed-paste nil))))
            ((equal ext "[?25h") ; make cursor visible
             (term-emulate-terminal proc (substring str start seq-end))
             (mistty--with-live-buffer work-buffer

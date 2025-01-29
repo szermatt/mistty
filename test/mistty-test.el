@@ -5722,3 +5722,33 @@
       ;; The sync marker must be at the very beginning, even though
       ;; there was no prompt_sp.
       (mistty-test-content :start mistty-sync-marker)))))
+
+(ert-deftest mistty-test-zsh-reset-prompt ()
+  (mistty-with-test-buffer
+      (:shell zsh :init (concat
+                         "precmd() { \n"
+                         " print \"left...............................right\"\n"
+                         " }\n"
+                         "setopt PROMPT_SUBST\n"
+                         "c=1\n"
+                         "PROMPT='$c-\\$ '\n"
+                         "TRAPALRM() { c=$(($c+1)); zle reset-prompt; }\n"
+                         "TMOUT=1"))
+    ;; Anything above 1 is good. Usually, it's 2, but we don't want to
+    ;; be too strict in case an update is missed.
+    (mistty-wait-for-output :regexp "[2-9]-")
+
+    (let* ((content (buffer-substring mistty-sync-marker (point-max)))
+           (input-id (get-text-property 0 'mistty-input-id content)))
+      ;; The sync marker must be at the beginning of the prompt, even
+      ;; though the prompt (but not the line before) was refreshed.
+      (should
+       (string-match
+        (concat "left...............................right *\n"
+                "[2-9]-\\$ \n")
+        content))
+
+      (should (equal (point-min) (marker-position mistty-sync-marker)))
+
+      ;; Everything should have the same input id.
+      (should-not (text-property-not-all 0 (length content) 'mistty-input-id input-id content)))))

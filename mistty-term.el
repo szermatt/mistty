@@ -518,7 +518,11 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                (lambda (parameters)
                  (funcall real-handle-colors-list parameters)
                  (setq term-current-face
-                       (mistty--clear-term-face-value term-current-face))))))
+                       (mistty--clear-term-face-value term-current-face)))))
+            ((symbol-function 'move-to-column)
+             (let ((orig (symbol-function 'move-to-column)))
+               (lambda (&rest args)
+                 (apply #'mistty--around-move-to-column orig args)))))
     (mistty--with-live-buffer (process-buffer proc)
       (when mistty--undecoded-bytes
         (setq str (concat mistty--undecoded-bytes str))
@@ -561,9 +565,11 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                              (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
                              (remove-text-properties pos (1+ pos) '(term-line-wrap t))
                              (throw 'mistty-prompt-start (1+ pos))))))
-                     (pos-bol))))
-              (when (< prompt-start (point))
-                (add-text-properties prompt-start (point) props))
+                     (pos-bol)))
+                   (prompt-end (pos-eol)))
+              (when (< prompt-start prompt-end)
+                (add-text-properties prompt-start prompt-end props)
+                (mistty--term-postprocess prompt-start prompt-end))
               (mistty-register-text-properties 'mistty-bracketed-paste props))
             (setq mistty-bracketed-paste t)
             (mistty--with-live-buffer work-buffer
@@ -705,7 +711,6 @@ This function returns the newly-created buffer."
         (set-process-window-size proc height width))
       (setq-local term-raw-map local-map)
       (term-char-mode)
-      (advice-add 'move-to-column :around #'mistty--around-move-to-column)
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
 
     term-buffer))
@@ -809,15 +814,13 @@ BEG and END define the region that was modified."
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-maybe-skip t to spaces added when just moving.
 
-ORIG-FUN is the original `move-to-column' function that's being
-advised and ARGS are its arguments."
-  (if (and (eq 'term-mode major-mode) mistty-bracketed-paste)
-    (let ((initial-end (line-end-position)))
-      (apply orig-fun args)
-      (when (> (point) initial-end)
-        (put-text-property
-         initial-end (point) 'mistty-maybe-skip t)))
-    (apply orig-fun args)))
+ORIG-FUN is the original `move-to-column' function and ARGS are its
+arguments."
+  (let ((initial-end (line-end-position)))
+    (apply orig-fun args)
+    (when (> (point) initial-end)
+      (put-text-property
+       initial-end (point) 'mistty-maybe-skip t))))
 
 (defun mistty--term-postprocess (region-start window-width)
   "Sets mistty-skip and yank handlers after REGION-START.

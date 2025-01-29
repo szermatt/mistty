@@ -3279,6 +3279,101 @@
     (should (string-match "^\\$ echo  +< right\\[\n\\]$"
                           (mistty-test-content :show-property '(mistty-skip empty-lines-at-eob))))))
 
+(ert-deftest mistty-test-fish-right-prompt-command-for-output()
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
+    (dolist (text '("one" "two" "three" "four"))
+      (mistty-send-text (concat "echo " text))
+      (mistty-send-and-wait-for-prompt))
+
+    (should (equal "echo four" (mistty--command-for-output 1)))
+    (should (equal "echo three" (mistty--command-for-output 2)))
+    (should (equal "echo two" (mistty--command-for-output 3)))
+    (should (equal "echo one" (mistty--command-for-output 4)))))
+
+(defconst mistty-test-zsh-right-prompt "RPS1='< right'")
+
+(ert-deftest mistty-test-zsh-right-prompt-simple-command ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    ;; Make sure the right prompt doesn't interfere with normal operations
+    (mistty-send-text "echo hello")
+    (should (equal "hello" (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-zsh-right-prompt-skip-empty-spaces ()
+  (mistty-with-test-buffer (:shell zsh :selected t :init mistty-test-zsh-right-prompt)
+    (mistty-send-text "echo hello")
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (mistty--cursor-skip win)
+      (should (string-match "^\\$ echo hello<> +< right$"
+                            (mistty-test-content :show (point))))
+      (right-char)
+      (mistty--cursor-skip win)
+      (should (string-match "^\\$ echo hello<> +< right$"
+                            (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-zsh-right-prompt-skip-empty-spaces-empty-prompt ()
+  (mistty-with-test-buffer (:shell zsh :selected t :init mistty-test-zsh-right-prompt)
+    (let ((mistty-skip-empty-spaces t)
+          (win (selected-window)))
+      (mistty--cursor-skip win)
+      (should (string-match "^\\$ <> +< right$"
+                            (mistty-test-content :show (point))))
+
+      (right-char)
+      (mistty--cursor-skip win)
+      (should (string-match "^\\$ <> +< right$"
+                            (mistty-test-content :show (point)))))))
+
+(ert-deftest mistty-test-zsh-right-prompt-insert-newlines ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    ;; This test makes sure that there's no timeout here, as right
+    ;; prompts used to cause issues when detecting text with newlines
+    ;; that was just replayed.
+    (mistty-run-command
+     (insert "for i in a b c; do\necho $i\ndone"))
+    (mistty-wait-for-output :str "done")
+    (should (string-match (concat "^\\$ for i in a b c; do +< right\n"
+                                  " *echo \\$i\n"
+                                  " *done$")
+                          (mistty-test-content)))))
+
+(ert-deftest mistty-test-zsh-right-prompt-reconcile ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    (mistty-test-pre-command)
+    (insert "echo hello\necho world")
+
+    ;; There shouldn't be a right prompt after world or even spaces
+    ;; after hello.
+    (should (equal "$ echo hello\necho world<>\n"
+                   (mistty-test-content :show (point) :trim nil)))
+    (mistty-test-after-command)
+
+    ;; The shell has put the right prompt back at the right position.
+    (should (string-match "^\\$ echo hello +< right\n *echo world<>"
+                          (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-zsh-right-prompt-mark-mistty-skip ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    (mistty--send-string mistty-proc "echo ")
+    (mistty-wait-for-output :str "echo")
+    (should (string-match "^\\$ echo <> +< right$"
+                          (mistty-test-content :show (point))))
+    (should (string-match "^\\$ echo \\[ +< right\\]$"
+                          (mistty-test-content :show-property '(mistty-skip right-prompt))))
+    (should (string-match "^\\$ echo  +< right\\[\n\\]$"
+                          (mistty-test-content :show-property '(mistty-skip empty-lines-at-eob))))))
+
+(ert-deftest mistty-test-zsh-right-prompt-command-for-output()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    (dolist (text '("one" "two" "three" "four"))
+      (mistty-send-text (concat "echo " text))
+      (mistty-send-and-wait-for-prompt))
+
+    (should (equal "echo four" (mistty--command-for-output 1)))
+    (should (equal "echo three" (mistty--command-for-output 2)))
+    (should (equal "echo two" (mistty--command-for-output 3)))
+    (should (equal "echo one" (mistty--command-for-output 4)))))
+
 (ert-deftest mistty-test-fish-multiline-dont-skip-empty-lines-forward ()
   (mistty-with-test-buffer (:shell fish :selected t)
     (mistty-send-text "for i in (seq 10)\n\necho first\n\n\nend")

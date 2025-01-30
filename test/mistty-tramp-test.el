@@ -143,23 +143,29 @@
       (should (equal "ok" (mistty-send-and-capture-command-output)))
       (should (equal (concat tramp-prefix "/home/") default-directory)))))
 
-(ert-deftest mistty-tramp-test-window-size ()
+(turtles-ert-deftest mistty-tramp-test-window-size ()
   (let* ((tramp-methods (mistty-test-tramp-methods))
          (tramp-prefix (mistty-test-tramp-prefix))
          (home (file-name-directory "/"))
          (default-directory (concat tramp-prefix home)))
+    (delete-other-windows)
     (mistty-with-test-buffer (:selected t)
       (let ((win (selected-window))
             cols-before cols-after)
-        (mistty-send-text "tput cols")
+        (mistty--send-string mistty-proc "tput cols")
         (setq cols-before (string-to-number (mistty-send-and-capture-command-output)))
 
         (split-window-horizontally nil win)
         (mistty--window-size-change win)
 
+        ;; Make sure the terminal has taken the size change into
+        ;; account.
+        (mistty-send-text "echo ok")
+        (mistty-send-and-wait-for-prompt)
+
         ;; This makes sure the terminal is told about the window size
         ;; change.
-        (mistty-send-text "tput cols")
+        (mistty--send-string mistty-proc "tput cols")
         (setq cols-after (string-to-number (mistty-send-and-capture-command-output)))
         (should-not (equal cols-before cols-after))
         (should (< cols-after cols-before))))))

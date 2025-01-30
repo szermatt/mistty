@@ -3255,14 +3255,8 @@
 
 (ert-deftest mistty-test-fish-right-prompt-reconcile ()
   (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
-    (mistty-test-pre-command)
-    (insert "echo hello\necho world")
-
-    ;; There shouldn't be a right prompt after world or even spaces
-    ;; after hello.
-    (should (equal "$ echo hello\necho world<>\n"
-                   (mistty-test-content :show (point) :trim nil)))
-    (mistty-test-after-command)
+    (mistty-run-command
+     (insert "echo hello\necho world"))
 
     ;; The shell has put the right prompt back at the right position.
     (should (string-match "^\\$ echo hello +< right\n  echo world<>"
@@ -3339,14 +3333,8 @@
 
 (ert-deftest mistty-test-zsh-right-prompt-reconcile ()
   (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
-    (mistty-test-pre-command)
-    (insert "echo hello\necho world")
-
-    ;; There shouldn't be a right prompt after world or even spaces
-    ;; after hello.
-    (should (equal "$ echo hello\necho world<>\n"
-                   (mistty-test-content :show (point) :trim nil)))
-    (mistty-test-after-command)
+    (mistty-run-command
+     (insert "echo hello\necho world"))
 
     ;; The shell has put the right prompt back at the right position.
     (should (string-match "^\\$ echo hello +< right\n *echo world<>"
@@ -5775,3 +5763,33 @@
     (should
      (equal "foo\nbar"
             (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-fish-right-prompt-kill-multiple-lines ()
+  (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
+    (mistty-send-text "echo foo")
+    (mistty-newline)
+    (mistty-send-text "echo bar")
+
+    (mistty-run-command
+     (mistty-test-goto "echo foo"))
+
+    (mistty-run-command
+     (kill-line))
+
+    (should (string-match "^\\$ <> *< right\n *echo bar"
+                          (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-test-zsh-right-prompt-kill-multiple-lines ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    (mistty-send-text "echo foo")
+    (mistty-newline)
+    (mistty-send-text "echo bar")
+
+    (mistty-run-command
+     (mistty-test-goto "echo foo"))
+
+    (mistty-run-command
+     (kill-line))
+
+    (should (string-match "^\\$ <> *< right\necho bar"
+                          (mistty-test-content :show (point))))))

@@ -958,7 +958,6 @@ buffer and `mistty-proc' to that buffer's process."
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
     (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
     (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
-    (add-hook 'before-change-functions #'mistty--before-change-on-work nil t)
     (add-hook 'pre-command-hook #'mistty--pre-command nil t)
     (add-hook 'post-command-hook #'mistty--post-command nil t)))
 
@@ -979,7 +978,6 @@ Returns M or a new marker."
   (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
   (remove-hook 'after-change-functions #'mistty--after-change-on-work t)
-  (remove-hook 'before-change-functions #'mistty--before-change-on-work t)
   (remove-hook 'pre-command-hook #'mistty--pre-command t)
   (remove-hook 'post-command-hook #'mistty--post-command t)
 
@@ -2329,26 +2327,6 @@ forwards the argument to it."
      (t
       (end-of-line n)))))
 
-(defun mistty--before-change-on-work (beg end)
-  "Handler called before making modifications to the work buffer.
-
-This is meant to be added to ==\'before-change-functions before
-changing the region BEG to END.
-
-This function deletes the right prompt just before a change, so
-it won't look too strange when something is inserted that would
-otherwise shift the prompt right into a new line. This is
-especially visible and confusing during a long-running command.
-
-Right prompts appearing at the end of inserted text with newlines
-also confuse `replace-buffer-content', which then sets the point
-at the wrong position after a refresh."
-  (when (and mistty-sync-marker (>= end mistty-sync-marker))
-    (when-let ((right-prompt
-                (text-property-any
-                 beg (mistty--eol end) 'mistty-skip 'right-prompt)))
-      (delete-region right-prompt (mistty--eol right-prompt)))))
-
 (defun mistty--after-change-on-work (beg end old-length)
   "Handler for modifications made to the work buffer.
 
@@ -2554,7 +2532,7 @@ returns nil."
                  interact term-seq
                  :wait-until (lambda ()
                                (mistty--update-backstage)
-                               (= (point) target))
+                               (zerop (mistty--distance (point) target)))
                  :then after-move-to-target-f)))
             (funcall delete-lines-f)))
 
@@ -2691,6 +2669,25 @@ returns nil."
        (mistty--with-live-buffer term-buffer
          (mistty--detect-dead-spaces-after-insert
           content (+ mistty-sync-marker (marker-position beg))))
+
+       ;; Move right prompt just like the shell would, to avoid it
+       ;; confusing the sync happening after applying all
+       ;; modifications.
+       (when-let ((content-nl (string-match "\n" content)))
+         (with-current-buffer calling-buffer
+           (let* ((content-end (+ orig-beg (length content)))
+                  (eol (mistty--eol content-end)))
+             (when-let ((right-prompt
+                         (text-property-any content-end eol
+                                            'mistty-skip 'right-prompt)))
+               (save-excursion
+                 (let ((inhibit-modification-hooks t)
+                       (inhibit-read-only t)
+                       (right-prompt-content (buffer-substring right-prompt eol)))
+                   (goto-char (+ orig-beg content-nl))
+                   (delete-region right-prompt eol)
+                   (insert right-prompt-content)))))))
+
        (funcall next-modification-f)))
 
     (setf

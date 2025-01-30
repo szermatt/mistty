@@ -421,10 +421,7 @@ terminal."
   "C-d" #'mistty-delete-char
   "C-a" #'mistty-beginning-of-line
 
-  ;; While in a shell, when bracketed paste is on, this allows
-  ;; sending a newline that won't submit the current command. This
-  ;; is handy for editing multi-line commands in bash.
-  "S-<return>" #'newline
+  "S-<return>" #'mistty-newline
 
   ;; While on the prompt, "quoted-char" turns into "send the next
   ;; key directly to the terminal".
@@ -2038,6 +2035,40 @@ have the command prompt and output marked."
       :then (lambda (&optional _)
               (setq mistty--interacted t)
               (mistty--interact-done))))))
+
+(defun mistty-newline (&optional n)
+  "Send one ore more newlines that won't submit the current command.
+
+This only works when the program tied to the terminal supports bracketed
+paste mode, as most recent version of shells do.
+
+If N is a positive integer that many newlines."
+  (interactive "p")
+  (unless mistty-bracketed-paste
+    (error "Newlines not supported in this context."))
+  (let* ((nls (make-string (or n 1) ?\n))
+         (nl-seq (concat "\e[200~" nls "\e[201~")))
+    (cond
+     ((and (buffer-live-p mistty-work-buffer)
+           (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
+      (with-current-buffer mistty-work-buffer
+        (mistty-before-positional)
+        (mistty--enqueue
+         mistty--queue
+         (mistty--interact newline (interact)
+           (if (mistty-on-prompt-p (point))
+               (progn
+                 (setq mistty-goto-cursor-next-time t)
+                 (mistty--interact-return
+                  interact nl-seq
+                  :then #'mistty--interact-done))
+             (insert nls)
+             (mistty--interact-done))))))
+
+     ((process-live-p mistty-proc)
+      (mistty--send-string mistty-proc nl-seq))
+
+     (t (insert "\n")))))
 
 (defun mistty-send-last-key (&optional n)
   "Send the last key that was typed to the terminal N times.

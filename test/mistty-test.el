@@ -5752,3 +5752,26 @@
 
       ;; Everything should have the same input id.
       (should-not (text-property-not-all 0 (length content) 'mistty-input-id input-id content)))))
+
+(ert-deftest mistty-test-newline ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo '")
+    (mistty-newline)
+    (mistty-send-text "foo")
+    (mistty-newline 2)
+    (mistty-send-text "bar'")
+    (should
+     (equal "\nfoo\n\nbar"
+            (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-test-newline-at-point ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (mistty-send-text "echo 'foo bar'"))
+    (mistty-run-command
+     (mistty-test-goto "bar"))
+    (mistty-run-command
+     (mistty-newline))
+    (should
+     (equal "foo\nbar"
+            (mistty-send-and-capture-command-output)))))

@@ -255,6 +255,15 @@ If further control is needed, try out:
 
   By default, it is bound to :kbd:`C-c C-q`.
 
+.. index:: pair: command; mistty-newline
+
+**mistty-newline** : command
+    This command sends a single newline as bracketed paste, meaning
+    that the newline should be inserted as-is and not execute the
+    current command.
+
+    By default, it is bound to :kbd:`S-<return>`.
+
 .. _navigation:
 
 Navigating the scrollback zone

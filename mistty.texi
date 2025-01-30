@@ -483,6 +483,20 @@ press @code{C-g}.
 By default, it is bound to @code{C-c C-q}.
 @end table
 
+@geindex command; mistty-newline
+
+
+@table @asis
+
+@item `mistty-newline' : command
+
+This command sends a single newline as bracketed paste, meaning
+that the newline should be inserted as-is and not execute the
+current command.
+
+By default, it is bound to @code{S-<return>}.
+@end table
+
 @node Navigating the scrollback zone,Fullscreen Mode,Terminal vs Scrollback,Usage
 @anchor{usage navigating-the-scrollback-zone}@anchor{13}@anchor{usage navigation}@anchor{14}
 @subsection Navigating the scrollback zone

@@ -5766,9 +5766,20 @@
 
 (ert-deftest mistty-test-fish-right-prompt-kill-multiple-lines ()
   (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
-    (mistty-send-text "echo foo")
-    (mistty-newline)
-    (mistty-send-text "echo bar")
+    (mistty-test-right-prompt-kill-multiple-lines)))
+
+(ert-deftest mistty-test-zsh-right-prompt-kill-multiple-lines ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    (mistty-test-right-prompt-kill-multiple-lines)))
+
+(defun mistty-test-right-prompt-kill-multiple-lines ()
+    (mistty--send-string mistty-proc
+                         (mistty--maybe-bracketed-str "echo foo\necho bar"))
+
+    ;; It might take some time for the shell to fully refresh
+    ;; everything and put the right prompt where it belongs, so wait
+    ;; for that not just for foo or bar.
+    (mistty-wait-for-output :regexp " echo foo.*right$")
 
     (mistty-run-command
      (mistty-test-goto "echo foo"))
@@ -5777,19 +5788,4 @@
      (kill-line))
 
     (should (string-match "^\\$ <> *< right\n *echo bar"
-                          (mistty-test-content :show (point))))))
-
-(ert-deftest mistty-test-zsh-right-prompt-kill-multiple-lines ()
-  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
-    (mistty-send-text "echo foo")
-    (mistty-newline)
-    (mistty-send-text "echo bar")
-
-    (mistty-run-command
-     (mistty-test-goto "echo foo"))
-
-    (mistty-run-command
-     (kill-line))
-
-    (should (string-match "^\\$ <> *< right\necho bar"
-                          (mistty-test-content :show (point))))))
+                          (mistty-test-content :show (point)))))

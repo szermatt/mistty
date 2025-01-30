@@ -556,10 +556,8 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                        (catch 'mistty-prompt-start
                          (dolist (i '(0 -1 -2 -3))
                            (let ((pos (pos-eol i)))
-                             (mistty-log "extend prompt? i=%s pos=%s point=%s eol=%s" i pos (point) (pos-bol))
                              (when (and (< pos (point-max))
                                         (get-text-property (1+ pos) 'mistty-input-id))
-                               (mistty-log "input id already set to %s (current: %s)" (get-text-property (1+ pos) 'mistty-input-id) id)
                                (throw 'mistty-prompt-start nil))
                              (when (and (= pos 1) (> (point) (pos-bol)))
                                (mistty-log "extend first prompt [1-%s]" (point))

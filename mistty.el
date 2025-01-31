@@ -737,12 +737,6 @@ from the terminal to the work buffer is disabled. It signals that
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--refresh-timer nil
-  "A timer for calling refresh after some delay.
-
-This is used to cover the case where modifications that should
-cause changes are just ignored by the command.")
-
 (defvar-local mistty--truncate-timer nil
   "An idle timer that'll truncate the buffer.
 
@@ -1584,10 +1578,6 @@ Also updates prompt and point."
        (save-restriction
          (widen)
          (setq mistty--need-refresh nil)
-         (when (timerp mistty--refresh-timer)
-           (cancel-timer mistty--refresh-timer)
-           (setq mistty--refresh-timer nil))
-
          (setq on-prompt (and mistty-proc ;; doesn't need to be live
                               (buffer-live-p mistty-term-buffer)
                               (mistty-on-prompt-p (mistty-cursor))))

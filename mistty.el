@@ -1290,6 +1290,7 @@ a special string describing the new process state."
       (mistty--with-live-buffer work-buffer
         (save-restriction
           (widen)
+          (mistty--needs-refresh)
           (mistty--refresh)
           (when (and (processp mistty-proc)
                      (>= (point) (mistty-cursor)))
@@ -1372,10 +1373,9 @@ PROC is the calling shell process and STR the string it sent."
           (mistty--process-terminal-seq proc (substring str 0 rs1-before-pos)))
         (mistty-log "RESET")
         (mistty--with-live-buffer work-buffer
-          (setq mistty--need-refresh t)
+          (mistty--needs-refresh)
           (mistty--cancel-queue mistty--queue) ; might call mistty--refresh
-          (when mistty--need-refresh
-            (mistty--refresh))
+          (mistty--refresh)
           (setq home-pos (point)))
         (mistty--reset-markers)
         (mistty--with-live-buffer term-buffer
@@ -1403,6 +1403,7 @@ PROC is the calling shell process and STR the string it sent."
         (mistty--cancel-timeout mistty--queue)
 
         (let ((old-point-max (point-max)))
+          (mistty--needs-refresh)
           (mistty--refresh)
 
           ;; If there's something below the point in a prompt, scroll
@@ -1554,6 +1555,10 @@ not yet, if it the work buffer is out of sync with
 `mistty-term-buffer'."
   (mistty--from-pos-of pos mistty-term-buffer))
 
+(defun mistty--needs-refresh ()
+  "Let next call to `mistty--refresh' know there's something to refresh."
+  (setq mistty--need-refresh t))
+
 (defun mistty--refresh ()
   "Copy the end of the term buffer to the work buffer.
 
@@ -1567,8 +1572,7 @@ function just sets `mistty--need-refresh' and returns.
 
 Also updates prompt and point."
   (mistty--require-work-buffer)
-  (if (or mistty--inhibit-refresh mistty--inhibit)
-      (setq mistty--need-refresh t)
+  (when (and mistty--need-refresh (not mistty--inhibit-refresh) (not mistty--inhibit))
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (point-was-at-cursor (or (null mistty--cursor-after-last-refresh)
@@ -1596,8 +1600,8 @@ Also updates prompt and point."
            (while-let ((prop-match
                         (text-property-search-forward 'term-line-wrap t t)))
              (add-text-properties (prop-match-beginning prop-match)
-                                (prop-match-end prop-match)
-                                '(invisible term-line-wrap yank-handler (nil "" nil nil)))))
+                                  (prop-match-end prop-match)
+                                  '(invisible term-line-wrap yank-handler (nil "" nil nil)))))
 
          ;; Mark empty lines at EOB with mistty-skip.
          (let ((pos (point-max)))
@@ -2392,7 +2396,7 @@ returns nil."
 
          ;; Force refresh, even if nothing was sent, if only to revert what
          ;; couldn't be replayed.
-         (setq mistty--need-refresh t)
+         (mistty--needs-refresh)
 
          (if inhibit-moves
              (setq mistty-goto-cursor-next-time t)
@@ -2726,8 +2730,7 @@ returns nil."
   "Refresh the work buffer again if there are not more changesets."
   (unless mistty--changesets
     (setq mistty--inhibit-refresh nil)
-    (when mistty--need-refresh
-      (mistty--refresh))))
+    (mistty--refresh)))
 
 (defun mistty--move-horizontally-str (direction)
   "Return a key sequence to move horizontally.
@@ -3108,7 +3111,7 @@ post-command hook."
 
              ;; The following forces a call to refresh, in time, even if
              ;; the process sent nothing new.
-             (setq mistty--need-refresh t)))
+             (mistty--needs-refresh)))
 
            (when replay
              (let ((last-interaction (mistty--queue-last-interact mistty--queue)))
@@ -3126,8 +3129,7 @@ post-command hook."
            (when (and (not replay) (not mistty--forbid-edit) point-moved)
              (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
 
-           (when mistty--need-refresh
-             (mistty--refresh))))))))
+           (mistty--refresh)))))))
 
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."
@@ -3296,6 +3298,7 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
         (setq mistty-fullscreen nil))
 
       (mistty--attach (process-buffer proc))
+      (mistty--needs-refresh)
       (mistty--refresh)
       (when (and proc (process-live-p proc))
         (mistty-goto-cursor))

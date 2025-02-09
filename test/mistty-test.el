@@ -1835,6 +1835,7 @@
        mistty-proc "llo, w" mistty-work-buffer)
       (mistty--emulate-terminal
        mistty-proc "orld\abar" mistty-work-buffer)
+      (mistty--needs-refresh)
       (mistty--refresh)
       (should (equal "$ foobar" (mistty-test-content)))
       (should (equal '("hello, world") osc-list)))))
@@ -1849,6 +1850,7 @@
        mistty-proc
        "foo\e]999;\xce\xb1\xce\xb2\xce\xb3\abar"
        mistty-work-buffer)
+      (mistty--needs-refresh)
       (mistty--refresh)
       (should (equal "$ foobar" (mistty-test-content)))
       (should (equal '("αβγ") osc-list)))))

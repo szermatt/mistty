@@ -618,7 +618,6 @@ links to the term buffer.
 This variable is available in both the work buffer and the term
 buffer.")
 
-
 (defvar-local mistty-fullscreen nil
   "Whether MisTTY is in full-screen mode.
 
@@ -726,6 +725,26 @@ prevent changes to the terminal to be reflected to the work
 buffer and shown to the user.
 
 This variable is available in the work buffer.")
+
+(defvar-local mistty--processing-pending-output nil
+  "Track whether and how long Emacs's been frozen processing pending input.
+
+At the end of the process filter, MisTTY calls `accept-process-output'
+with a zero delay to process any pending output right away, before
+refreshing, for a short time. This is meant to avoid displaying
+intermediate results just because the app linked to the terminal decided
+to use a very short buffer.
+
+This reduces blinking.")
+
+(defconst mistty--max-delay-processing-pending-output 0.1
+  "Limits how long to spend processing pending output.
+
+When MisTTY calls `accept-process-output', Emacs will read data from the
+process as long as there is some. If the process keeps sending data, the
+whole Emacs process would freeze for that long. This limit must be kept
+low or Emacs might become unresponsive when the process outputs data
+continuously.")
 
 (defvar-local mistty--need-refresh nil
   "If true, the work buffer is known to be out-of-date.
@@ -1358,7 +1377,11 @@ PROC is the calling shell process and STR the string it sent."
      ((string-match "\e\\[\\(\\??47\\|\\?104[79]\\)h" str)
       (let ((smcup-pos (match-beginning 0)))
         (mistty--process-filter proc (substring str 0 smcup-pos))
-        (mistty--enter-fullscreen proc (substring str smcup-pos))))
+        (mistty--enter-fullscreen proc (substring str smcup-pos))
+
+        ;; Stop processing pending output right away.
+        (when mistty--processing-pending-output
+          (throw 'mistty-stop-and-refresh nil))))
 
      ;; reset
      ((or (string-match "\ec" str)
@@ -1390,13 +1413,42 @@ PROC is the calling shell process and STR the string it sent."
       (mistty-log "RECV[%s]" str)
       (mistty--process-terminal-seq proc work-buffer term-buffer str)
       (mistty--with-live-buffer work-buffer
-        (mistty--copy-buffer-local-variables
-         mistty-variables-to-copy term-buffer)
-        (mistty--cancel-timeout mistty--queue)
-        (mistty--refresh)
-        (mistty--maybe-truncate-when-idle)
-        (mistty--dequeue mistty--queue 'intermediate)
-        (mistty--dequeue-with-timer mistty--queue 'stable))))))
+        (mistty--cancel-timeout mistty--queue))
+
+      (let ((delay (mistty--with-live-buffer work-buffer
+                     (when mistty--processing-pending-output
+                       (time-to-seconds (time-subtract
+                                         (current-time)
+                                         mistty--processing-pending-output))))))
+        (cond
+         ;; Stop accepting process output and refresh right now.
+         ((and delay (>= delay mistty--max-delay-processing-pending-output))
+          (throw 'mistty-stop-and-refresh nil))
+
+         ;; Before refreshing, accept process output as long as there
+         ;; is data available without waiting or until too much time
+         ;; has passed. Emacs calls this filter recursively.
+         ((null delay)
+          (mistty--with-live-buffer work-buffer
+            (setq mistty--processing-pending-output (current-time)))
+          (unwind-protect
+              (catch 'mistty-stop-and-refresh
+                ;; accept-process-output must not be called with
+                ;; either the work or term buffer active, as they
+                ;; could be killed during processing.
+                (accept-process-output proc 0 nil 'just-this-one))
+            (mistty--with-live-buffer work-buffer
+              (setq mistty--processing-pending-output nil)))
+          ;; Buffers might have been killed in accept-process-output
+          ;; or we might have switched to fullscreen mode.
+          (when (and (buffer-live-p work-buffer)
+                     (buffer-live-p term-buffer))
+            (with-current-buffer work-buffer
+              (unless mistty-fullscreen
+                (mistty--refresh)
+                (mistty--maybe-truncate-when-idle)
+                (mistty--dequeue mistty--queue 'intermediate)
+                (mistty--dequeue-with-timer mistty--queue 'stable)))))))))))
 
 (defun mistty--maybe-scroll-window-down ()
   "Make sure that newly inserted text is visible.
@@ -1575,6 +1627,8 @@ Also updates prompt and point."
           (point-was-at-cursor (or (null mistty--cursor-after-last-refresh)
                                    (= (point) mistty--cursor-after-last-refresh)))
           on-prompt)
+      (mistty--copy-buffer-local-variables
+       mistty-variables-to-copy mistty-term-buffer)
       (mistty--inhibit-undo
        (save-restriction
          (widen)

@@ -937,6 +937,7 @@ buffer and `mistty-proc' to that buffer's process."
     (setq mistty-proc proc)
     (setq mistty-term-buffer term-buffer)
     (setq mistty--queue (mistty--make-queue proc))
+    (mistty--needs-refresh)
 
     (with-current-buffer term-buffer
       (setq mistty-proc proc)
@@ -1288,9 +1289,9 @@ a special string describing the new process state."
            (buffer-live-p work-buffer))
       (term-sentinel proc msg)
       (mistty--with-live-buffer work-buffer
+        (mistty--needs-refresh) ;; term-buffer was modified by term-sentinel
         (save-restriction
           (widen)
-          (mistty--needs-refresh)
           (mistty--refresh)
           (when (and (processp mistty-proc)
                      (>= (point) (mistty-cursor)))
@@ -1365,21 +1366,14 @@ PROC is the calling shell process and STR the string it sent."
       (let ((rs1-before-pos (match-beginning 0))
             (rs1-after-pos (match-end 0))
             (home-pos))
-        ;; The work buffer must be updated before sending the reset to
-        ;; the terminal, or we'll lose data. This might interfere with
-        ;; collecting and applying modifications, but then so would
-        ;; reset.
-        (mistty--with-live-buffer term-buffer
-          (mistty--process-terminal-seq proc (substring str 0 rs1-before-pos)))
+        (mistty--process-terminal-seq proc work-buffer term-buffer (substring str 0 rs1-before-pos))
         (mistty-log "RESET")
         (mistty--with-live-buffer work-buffer
-          (mistty--needs-refresh)
-          (mistty--cancel-queue mistty--queue) ; might call mistty--refresh
+          (mistty--cancel-queue mistty--queue)
           (mistty--refresh)
           (setq home-pos (point)))
         (mistty--reset-markers)
-        (mistty--with-live-buffer term-buffer
-          (mistty--process-terminal-seq proc (substring str rs1-before-pos rs1-after-pos)))
+        (mistty--process-terminal-seq proc work-buffer term-buffer (substring str rs1-before-pos rs1-after-pos))
         (mistty--with-live-buffer work-buffer
           (setq mistty-bracketed-paste nil))
         (mistty--process-filter proc (substring str rs1-after-pos))
@@ -1394,8 +1388,7 @@ PROC is the calling shell process and STR the string it sent."
      ;; normal processing
      (t
       (mistty-log "RECV[%s]" str)
-      (mistty--with-live-buffer term-buffer
-        (mistty--process-terminal-seq proc str))
+      (mistty--process-terminal-seq proc work-buffer term-buffer str)
       (mistty--with-live-buffer work-buffer
         (mistty--copy-buffer-local-variables
          mistty-variables-to-copy term-buffer)
@@ -1403,7 +1396,6 @@ PROC is the calling shell process and STR the string it sent."
         (mistty--cancel-timeout mistty--queue)
 
         (let ((old-point-max (point-max)))
-          (mistty--needs-refresh)
           (mistty--refresh)
 
           ;; If there's something below the point in a prompt, scroll
@@ -1425,22 +1417,25 @@ PROC is the calling shell process and STR the string it sent."
         (mistty--dequeue mistty--queue 'intermediate)
         (mistty--dequeue-with-timer mistty--queue 'stable))))))
 
-(defun mistty--process-terminal-seq (proc str)
+(defun mistty--process-terminal-seq (proc work-buffer term-buffer str)
   "Process STR, sent to PROC, then update MisTTY internal state."
-  (mistty--require-term-buffer)
-  (let ((old-sync-position (marker-position mistty-sync-marker))
-        (old-last-non-ws (mistty--last-non-ws)))
-    (mistty--emulate-terminal proc str mistty-work-buffer)
-    (goto-char (process-mark proc))
-    (when (/= mistty-sync-marker old-sync-position)
-      (mistty-log "RESET; unexpected change")
-      (pcase-let ((`(,work-sync . ,term-sync) (mistty--align-buffers)))
-        (if (or work-sync term-sync)
-            (mistty-log "ALIGN %s <-> %s" work-sync term-sync)
-          (mistty-log "ALIGN failed; fallback to default"))
-        (mistty--reset-markers work-sync term-sync)))
-    (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
-      (mistty--detect-possible-prompt (point)))))
+  (unless (string-empty-p str)
+    (mistty--with-live-buffer term-buffer
+      (let ((old-sync-position (marker-position mistty-sync-marker))
+            (old-last-non-ws (mistty--last-non-ws)))
+        (mistty--emulate-terminal proc str mistty-work-buffer)
+        (goto-char (process-mark proc))
+        (when (/= mistty-sync-marker old-sync-position)
+          (mistty-log "RESET; unexpected change")
+          (pcase-let ((`(,work-sync . ,term-sync) (mistty--align-buffers)))
+            (if (or work-sync term-sync)
+                (mistty-log "ALIGN %s <-> %s" work-sync term-sync)
+              (mistty-log "ALIGN failed; fallback to default"))
+            (mistty--reset-markers work-sync term-sync)))
+        (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
+          (mistty--detect-possible-prompt (point)))))
+    (mistty--with-live-buffer work-buffer
+      (mistty--needs-refresh))))
 
 (defun mistty-goto-cursor ()
   "Move the point to the terminal's cursor."
@@ -1557,6 +1552,7 @@ not yet, if it the work buffer is out of sync with
 
 (defun mistty--needs-refresh ()
   "Let next call to `mistty--refresh' know there's something to refresh."
+  (mistty--require-work-buffer)
   (setq mistty--need-refresh t))
 
 (defun mistty--refresh ()
@@ -3298,7 +3294,6 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
         (setq mistty-fullscreen nil))
 
       (mistty--attach (process-buffer proc))
-      (mistty--needs-refresh)
       (mistty--refresh)
       (when (and proc (process-live-p proc))
         (mistty-goto-cursor))

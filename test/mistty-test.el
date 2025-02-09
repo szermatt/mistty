@@ -5282,7 +5282,7 @@
      (goto-char (point-min))
      (search-forward-regexp "if i > 2\\(.\\|\n\\)*print(i)")
      (replace-match "total += i" nil t))
-    (goto-char (point-min))
+    (mistty-wait-for-output :str "total += i")
 
     (should (equal (concat "In [1]: for i in (1, 2, 3):\n"
                            "   ...:     total += i")

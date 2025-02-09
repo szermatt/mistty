@@ -1392,30 +1392,30 @@ PROC is the calling shell process and STR the string it sent."
       (mistty--with-live-buffer work-buffer
         (mistty--copy-buffer-local-variables
          mistty-variables-to-copy term-buffer)
-
         (mistty--cancel-timeout mistty--queue)
-
-        (let ((old-point-max (point-max)))
-          (mistty--refresh)
-
-          ;; If there's something below the point in a prompt, scroll
-          ;; the window up so it's visible. Emacs won't do it on its
-          ;; own, since the point would still be visible in such a case.
-          (when (and (> (point-max) old-point-max)
-                     (equal (point) (mistty-cursor))
-                     (mistty-on-prompt-p (point)))
-            (let* ((pos (point))
-                   (end (mistty--last-non-ws))
-                   (lines-after-point (count-lines (point) end)))
-              (when (> lines-after-point 1)
-                (dolist (win (get-buffer-window-list))
-                  (when (and (equal pos (window-point win))
-                             (not (pos-visible-in-window-p end win)))
-                    (recenter (- lines-after-point))))))))
-
+        (mistty--refresh)
         (mistty--maybe-truncate-when-idle)
         (mistty--dequeue mistty--queue 'intermediate)
         (mistty--dequeue-with-timer mistty--queue 'stable))))))
+
+(defun mistty--maybe-scroll-window-down ()
+  "Make sure that newly inserted text is visible.
+
+If there's something below the point in a prompt, the window down so
+it's visible. Emacs won't do it on its own, since all it cares about is
+the point being visible."
+  (mistty--require-work-buffer)
+  (when (and mistty-proc
+             (equal (point) (mistty-cursor))
+             (mistty-on-prompt-p (point)))
+    (let* ((pos (point))
+           (end (mistty--last-non-ws))
+           (lines-after-point (count-lines (point) end)))
+      (when (> lines-after-point 1)
+        (dolist (win (get-buffer-window-list))
+          (when (and (equal pos (window-point win))
+                     (not (pos-visible-in-window-p end win)))
+            (recenter (- lines-after-point))))))))
 
 (defun mistty--process-terminal-seq (proc work-buffer term-buffer str)
   "Process STR, sent to PROC, then update MisTTY internal state."
@@ -1571,6 +1571,7 @@ Also updates prompt and point."
   (when (and mistty--need-refresh (not mistty--inhibit-refresh) (not mistty--inhibit))
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
+          (old-point-max (point-max))
           (point-was-at-cursor (or (null mistty--cursor-after-last-refresh)
                                    (= (point) mistty--cursor-after-last-refresh)))
           on-prompt)
@@ -1706,7 +1707,9 @@ Also updates prompt and point."
            (unless mistty--cursor-after-last-refresh
              (setq mistty--cursor-after-last-refresh (make-marker)))
            (move-marker mistty--cursor-after-last-refresh (mistty-cursor)))
-         (setq mistty-goto-cursor-next-time nil))))
+         (setq mistty-goto-cursor-next-time nil)))
+      (when (> (point-max) old-point-max)
+        (mistty--maybe-scroll-window-down)))
 
     (mistty--report-self-inserted-text)))
 

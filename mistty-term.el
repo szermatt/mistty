@@ -33,6 +33,7 @@
 ;;; Code:
 
 (autoload 'mistty-osc7 "mistty-osc7")
+(autoload 'mistty-osc-query-color "mistty-osc-colors")
 (autoload 'ansi-osc-window-title-handler "ansi-osc")
 (autoload 'ansi-osc-hyperlink-handler "ansi-osc")
 
@@ -46,12 +47,17 @@
     ;; These handlers are reasonably compatibly with MisTTY OSC. This
     ;; isn't necessary going to be the case for all such handlers.
     ("2" . ansi-osc-window-title-handler)
-    ("8" . ansi-osc-hyperlink-handler))
+    ("8" . ansi-osc-hyperlink-handler)
+
+    ;; Allow querying foreground and background color. While OSC 10/11
+    ;; normally supports changing color, this isn't supported here.
+    ("10" . mistty-osc-query-color)
+    ("11" . mistty-osc-query-color))
   "Hook run when unknown OSC sequences have been received.
 
-This hook is run on the `term-mode' buffer. It is passed the
-content of OSC sequence - everything between OSC (ESC ]) and
-ST (ESC \\ or \\a) and may choose to handle them.
+This hook is run on the `term-mode' buffer. It is passed the OSC code as
+a string and the content of OSC sequence - everything between OSC (ESC
+]) and ST (ESC \\ or \\a) and may choose to handle them.
 
 The current buffer a`term-mode' buffer. The hook is allowed to
 modify it, to add text properties, for example. In such case,

@@ -5791,3 +5791,26 @@
 
     (should (string-match "^\\$ <> *< right\n *echo bar"
                           (mistty-test-content :show (point)))))
+
+(ert-deftest mistty-test-accept-process-output ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "yes")
+    (mistty-send-command)
+
+    ;; Yes sends output continuously. As the process filter calls
+    ;; accept-process-output, yes could easily freeze Emacs if the
+    ;; time limit doesn't work, so this test would never return.
+
+    ;; Wait for some output, but without calling
+    ;; mistty-wait-for-output, as it waits for output to stop, and
+    ;; with yes, it never will.
+    (while (save-excursion
+             (goto-char (point-min))
+             (not (search-forward-regexp "^y" nil 'noerror)))
+      (accept-process-output nil 0.1 nil))
+
+    ;; Stop yes
+    (mistty-send-key 1 "\C-c")
+
+    ;; Wait for the next prompt
+    (mistty-wait-for-output :regexp "^\\$ $")))

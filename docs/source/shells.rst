@@ -331,9 +331,10 @@ such as the ones created by `powerlevel10k
 limitations.
 
 When using a multi-line prompt, to ensure proper functionality, keep
-the `prompt_sp` option enabled, as MisTTY depends on it to identify
-the start of multi-line prompts. If you prefer not to have any
-end-of-line (EOL) markers, set `PROMPT_EOL_MARK` to an empty string.
+the `prompt_sp` and `prompt_cr` options enabled, as MisTTY depends on
+these to identify the start of multi-line prompts. If you prefer not
+to have any end-of-line (EOL) markers, set `PROMPT_EOL_MARK` to an
+empty string.
 
 Transient prompts can interfere with MisTTY's commands, such as
 `mistty-previous-output` (:kbd:`C-c C-p`) and

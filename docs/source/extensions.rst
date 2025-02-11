@@ -106,7 +106,7 @@ within a MisTTY work buffer just after switching back to normal mode.
 In this mode, :code:`mistty-fullscreen` is nil and user commands run
 in the work buffer.
 
-.. _osc:
+.. _ext_osc:
 
 OSC Sequences
 -------------

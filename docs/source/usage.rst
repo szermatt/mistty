@@ -641,3 +641,68 @@ Emacs commands may not function, you can still use simple Emacs
 commands that insert text after the cursor, such as ``yank`` (with no
 special characters), or delete text before the cursor, such as
 ``backward-kill-word``. For more details, see :ref:`bs`
+
+.. _osc:
+
+Supported OSC Control Sequences
+-------------------------------
+
+OSC are optional “operating system command” control sequences that
+programs can use to communicate with the terminal and Emacs. MisTTY
+supports the following OSC control sequences:
+
+- *OSC 2; <title> ST* changes the window title. This sets the variable
+  ``ansi-osc-window-title`` in the MisTTY buffer, which can then be
+  referred to in ``frame-title-format`` to set the frame title
+  dynamically.
+
+- *OSC 7;file://<hostname>/<path> ST* reports the shell's current
+  directory to Emacs. See :ref:`dirtrack`
+
+- *OSC 8;;<url> ST <text> OSC 8;; ST* makes text clickable.
+
+  Example:
+
+  .. code-block:: bash
+
+    printf '\e]8;;http://example.com\e\\This is a link\e]8;;\e\\\n'
+
+- *OSC 10;? ST* and *OSC 11;? ST* query the foreground or background
+  color. The response is an hexadecimal 16 bit RGB value.
+
+  Example: Querying the background color in Bash:
+
+  .. code-block:: bash
+
+    $ read -t 0.1 -rs -d \\ -p $'\e]11;?\e\\' bg
+    $ echo "$bg" | strings
+    ]11;rgb:1313/1c1c/2b2b
+
+  Example: A Zsh function that can figure out whether you have a light
+  or dark background:
+
+  .. code-block:: zsh
+
+    function bg_brightness {
+        local bg
+        if read -t 0.1 -rs -d \\ "?$(printf '\e]11;?\e\\')"  bg; then
+            if [[ "$bg" =~ '11;rgb:([0-9a-f]{4})/([0-9a-f]{4})/([0-9a-f]{4})' ]]; then
+                local r g b brightness
+                typeset -i 10 r=16#${match[1]}
+                typeset -i 10 g=16#${match[2]}
+                typeset -i 10 b=16#${match[3]}
+                (( brightness = ( 0.2126 * r + 0.7152 * g + 0.0722 * b ) * ( 256.0 / 0xffff ) ))
+                if [[ $brightness -le 128 ]]; then
+                    echo dark
+                else
+                    echo light
+                fi
+                return 0
+            fi
+        fi
+        return 1
+    }
+
+
+
+To extend the set of OSC codes supported by MisTTY, see :ref:`ext_osc`.

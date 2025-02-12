@@ -234,22 +234,13 @@
 
 (ert-deftest mistty-test-reconcile-quick-single-char-changes ()
   (mistty-with-test-buffer ()
+    (goto-char (mistty-cursor))
+
     ;; nowait lets mistty join the replays together.
-    (mistty-run-command-nowait
-     (goto-char (mistty-cursor))
-     (self-insert-command 1 ?e))
-    (mistty-run-command-nowait
-     (self-insert-command 1 ?c))
-    (mistty-run-command-nowait
-     (self-insert-command 1 ?h))
-    (mistty-run-command-nowait
-     (self-insert-command 1 ?o))
-    (mistty-run-command-nowait
-     (self-insert-command 1 ?\ ))
-    (mistty-run-command-nowait
-     (self-insert-command 1 ?o))
-    (mistty-run-command
-     (self-insert-command 1 ?k))
+    (cl-loop for key across "echo ok"
+             do (mistty-run-command-nowait
+                 (self-insert-command 1 key)))
+
     (should (equal "$ echo ok<>" (mistty-test-content :show (point))))
     (should (equal "ok" (mistty-send-and-capture-command-output)))))
 
@@ -2246,16 +2237,9 @@
 
 (ert-deftest mistty-test-send-key ()
   (mistty-with-test-buffer ()
-    (mistty-run-command
-     (mistty-send-key 1 "e"))
-    (mistty-run-command
-     (mistty-send-key 1 "c"))
-    (mistty-run-command
-     (mistty-send-key 1 "h"))
-    (mistty-run-command
-     (mistty-send-key 1 "o"))
-    (mistty-run-command
-     (mistty-send-key 1 " "))
+    (cl-loop for key across "echo "
+             do (mistty-run-command
+                 (mistty-send-key 1 (char-to-string key))))
     (mistty-run-command
      (mistty-send-key 3 "a"))
 
@@ -2285,14 +2269,9 @@
 
 (ert-deftest mistty-test-self-insert ()
   (mistty-with-test-buffer ()
-    (mistty-run-command
-     (mistty-self-insert 1 ?e))
-    (mistty-run-command
-     (mistty-self-insert 1 ?c))
-    (mistty-run-command
-     (mistty-self-insert 1 ?h))
-    (mistty-run-command
-     (mistty-self-insert 1 ?o))
+    (cl-loop for key across "echo"
+             do (mistty-run-command-nowait
+                 (self-insert-command 1 key)))
 
     (mistty-wait-for-output :str "echo")))
 
@@ -2317,13 +2296,9 @@
 (ert-deftest mistty-test-send-key-from-term-buffer ()
   (mistty-with-test-buffer ()
     (with-current-buffer mistty-term-buffer
-      (mistty-send-key 1 "e")
-      (mistty-send-key 1 "c")
-      (mistty-send-key 1 "h")
-      (mistty-send-key 1 "o")
-      (mistty-send-key 1 " ")
-      (mistty-send-key 1 "o")
-      (mistty-send-key 1 "k"))
+      (cl-loop for key across "echo ok"
+               do (progn
+                    (mistty-send-key 1 (char-to-string key)))))
     (mistty-wait-for-output :str "echo ok")
     (should (equal "ok" (mistty-send-and-capture-command-output)))))
 
@@ -4152,18 +4127,12 @@
     (should (equal (concat "$ echo <>")
                    (mistty-test-content :show (point))))))
 
-
 (ert-deftest mistty-test-undo-insert ()
   (mistty-with-test-buffer ()
     (setq buffer-undo-list nil)
-    (mistty-run-command
-     (mistty-send-key 1 "e"))
-    (mistty-run-command
-     (mistty-send-key 1 "c"))
-    (mistty-run-command
-     (mistty-send-key 1 "h"))
-    (mistty-run-command
-     (mistty-send-key 1 "o"))
+    (cl-loop for key across "echo"
+             do (mistty-run-command
+                 (mistty-send-key 1 (char-to-string key))))
     (mistty-wait-for-output :str "echo" :start (point-min))
     (mistty-run-command (undo))
     (mistty-wait-for-output
@@ -4774,22 +4743,13 @@
                 (lambda ()
                   (push (mistty--safe-bufstring start (point))
                         calls)))
-      (setq this-command 'mistty-self-insert)
-      (mistty-run-command
-       (mistty-self-insert 1 ?e))
-      (setq last-command 'mistty-self-insert)
-      (mistty-run-command
-       (mistty-self-insert 1 ?c))
-      (mistty-run-command
-       (mistty-self-insert 1 ?h))
-      (mistty-run-command
-       (mistty-self-insert 1 ?o))
-      (mistty-run-command
-       (mistty-self-insert 1 ?\ ))
-      (mistty-run-command
-       (mistty-self-insert 1 ?o))
-      (mistty-run-command
-       (mistty-self-insert 1 ?k))
+
+      (cl-loop for key across "echo ok"
+               do (progn
+                    (setq this-command 'mistty-self-insert)
+                    (mistty-run-command
+                     (mistty-self-insert 1 key))
+                    (setq last-command 'mistty-self-insert)))
       (mistty-wait-for-output :str "echo ok")
       (should (length> calls 0))
       (should (equal "echo ok" (car calls)))
@@ -4807,22 +4767,12 @@
       (add-hook 'post-command-hook
                 (lambda ()
                   (push this-command post-calls)))
-      (setq this-command 'mistty-self-insert)
-      (mistty-run-command
-       (mistty-self-insert 1 ?e))
-      (setq last-command 'mistty-self-insert)
-      (mistty-run-command
-       (mistty-self-insert 1 ?c))
-      (mistty-run-command
-       (mistty-self-insert 1 ?h))
-      (mistty-run-command
-       (mistty-self-insert 1 ?o))
-      (mistty-run-command
-       (mistty-self-insert 1 ?\ ))
-      (mistty-run-command
-       (mistty-self-insert 1 ?o))
-      (mistty-run-command
-       (mistty-self-insert 1 ?k))
+      (cl-loop for key across "echo ok"
+               do (progn
+                    (setq this-command 'mistty-self-insert)
+                    (mistty-run-command
+                     (mistty-self-insert 1 key))
+                    (setq last-command 'mistty-self-insert)))
       (mistty-wait-for-output :str "echo ok")
       (should (length> pre-calls 0))
       (should (length> post-calls 0))
@@ -5814,3 +5764,11 @@
 
     ;; Wait for the next prompt
     (mistty-wait-for-output :regexp "^\\$ $")))
+
+(ert-deftest mistty-test-self-insert-command ()
+  (mistty-with-test-buffer ()
+    (cl-loop for key across "echo \"hello, world\""
+             do (mistty-run-command
+                 (self-insert-command 1 key)))
+    (should (equal "hello, world"
+                   (mistty-send-and-capture-command-output)))))

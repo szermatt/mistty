@@ -2422,7 +2422,18 @@ returns nil."
         trailing-ws-to-delete target
         backstage lower-limit upper-limit distance
         orig-beg content old-length waiting-for-last-change
-        inserted-detector-regexp)
+        inserted-detector-regexp point-after-last-insert)
+
+    ;; If the point is after the last insert, which is very common,
+    ;; trust the cursor position instead of relying on
+    ;; replace-buffer-contents to set the point properly. This is
+    ;; cheaper and more reliable, as replace-buffer-contents has
+    ;; trouble in some cases, especially when the inserted string is
+    ;; too short or contains only spaces.
+    (setq point-after-last-insert
+          (when-let ((m (car (last modifications))))
+            (when (length> (nth 1 m) 0)
+              (equal (point) (+ (nth 0 m) (length (nth 1 m)))))))
 
     (setf
      (mistty--interact-cb interact)
@@ -2451,7 +2462,7 @@ returns nil."
          ;; couldn't be replayed.
          (mistty--needs-refresh)
 
-         (if inhibit-moves
+         (if (or inhibit-moves point-after-last-insert)
              (setq mistty-goto-cursor-next-time t)
 
            ;; Move cursor back to point unless the next interact is a

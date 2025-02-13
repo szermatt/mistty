@@ -227,10 +227,12 @@ window while BODY is running."
     (mistty-wait-for-output :str "$ ")))
 
 (defun mistty-test-setup-zsh (tmpdir init)
-  (let ((orig-zdotdir (getenv "ZDOTDIR")))
+  (let ((orig-zdotdir (getenv "ZDOTDIR"))
+        (orig-prompt-eol-mark (getenv "PROMPT_EOL_MARK")))
     (unwind-protect
         (progn
           (setenv "ZDOTDIR" tmpdir)
+          (setenv "PROMPT_EOL_MARK" nil)
           (with-temp-file (concat tmpdir ".zshrc")
             (insert "PS1='$ '\n")
             (when init
@@ -239,7 +241,8 @@ window while BODY is running."
           (mistty-run-command) ;; detect early foreign overlay
           (mistty-test-set-prompt-re "$ ")
           (mistty-wait-for-output :str "$ "))
-      (setenv "ZDOTDIR" orig-zdotdir))))
+      (setenv "ZDOTDIR" orig-zdotdir)
+      (setenv "PROMPT_EOL_MARK" orig-prompt-eol-mark))))
 
 (defun mistty-test-setup-fish (tmpdir init)
   (mistty--exec

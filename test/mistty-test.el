@@ -281,6 +281,24 @@
     (should (equal "$ echo bbaa black sheep<>" (mistty-test-content :show (point))))
     (should (equal "bbaa black sheep" (mistty-send-and-capture-command-output)))))
 
+(ert-deftest mistty-test-reconcile-empty-modification ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo world")
+     (mistty-test-goto "world"))
+
+    ;; This empty modification will just be skipped
+    (mistty-run-command
+     (insert "j")
+     (delete-region (1- (point)) (point)))
+
+    ;; Make sure reconciliation still works.
+    (mistty-run-command
+     (insert "hello "))
+
+    (should (equal "$ echo hello <>world"
+                   (mistty-test-content :show (point))))))
+
 (ert-deftest mistty-test-change-before-prompt ()
   (mistty-with-test-buffer ()
     (let (beg end)

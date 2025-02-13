@@ -3004,37 +3004,39 @@ This function fails if there is no current or previous output."
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."
-  (mistty--detect-foreign-overlays 'noschedule)
-  (mistty--pre-command-for-undo)
-  (when (and mistty--self-insert-line
-             (not (eq this-command 'mistty-self-insert)))
-    (setq mistty--self-insert-line nil))
-  (setq mistty--old-point (point)))
+  (with-demoted-errors "mistty: pre-command error %S"
+    (mistty--detect-foreign-overlays 'noschedule)
+    (mistty--pre-command-for-undo)
+    (when (and mistty--self-insert-line
+               (not (eq this-command 'mistty-self-insert)))
+      (setq mistty--self-insert-line nil))
+    (setq mistty--old-point (point))))
 
 (defun mistty--post-command ()
   "Function called from the `post-command-hook' in `mistty-mode' buffers."
-  (mistty--post-command-for-undo)
+  (with-demoted-errors "mistty: post-command error %S"
+    (mistty--post-command-for-undo)
 
-  (ignore-errors
-    (when (and (or (eq this-command 'keyboard-quit)
-                   (eq this-original-command 'keyboard-quit)))
-      (when (not (mistty--queue-empty-p mistty--queue))
-        (mistty-log "CANCEL")
-        (message "MisTTY: Canceling replay")
-        (mistty--cancel-queue mistty--queue))
-      (mistty--ignore-foreign-overlays)
-      (mistty--inhibit-clear 'noschedule)
-      (when mistty--forbid-edit
-        (mistty-send-key 1 "\C-g"))))
+    (ignore-errors
+      (when (and (or (eq this-command 'keyboard-quit)
+                     (eq this-original-command 'keyboard-quit)))
+        (when (not (mistty--queue-empty-p mistty--queue))
+          (mistty-log "CANCEL")
+          (message "MisTTY: Canceling replay")
+          (mistty--cancel-queue mistty--queue))
+        (mistty--ignore-foreign-overlays)
+        (mistty--inhibit-clear 'noschedule)
+        (when mistty--forbid-edit
+          (mistty-send-key 1 "\C-g"))))
 
-  (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
-    ;; Show cursor again if the command moved the point.
-    (when point-moved
-      (mistty--show-cursor))
+    (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
+      ;; Show cursor again if the command moved the point.
+      (when point-moved
+        (mistty--show-cursor))
 
-    (run-with-idle-timer
-     0 nil #'mistty--post-command-1
-     mistty-work-buffer point-moved)))
+      (run-with-idle-timer
+       0 nil #'mistty--post-command-1
+       mistty-work-buffer point-moved))))
 
 (defun mistty--inhibit-add (sym)
   "Add a source of inhibition with SYM as id.

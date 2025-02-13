@@ -235,7 +235,7 @@ window while BODY is running."
             (insert "PS1='$ '\n")
             (when init
               (insert init)))
-          (mistty--exec (list mistty-test-zsh-exe "-i"))
+          (mistty--exec (list mistty-test-zsh-exe "-i" "+d"))
           (mistty-run-command) ;; detect early foreign overlay
           (mistty-test-set-prompt-re "$ ")
           (mistty-wait-for-output :str "$ "))

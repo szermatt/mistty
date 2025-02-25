@@ -703,6 +703,8 @@ This function returns the newly-created buffer."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
       (term-mode)
+      (font-lock-mode -1)
+      (jit-lock-mode nil)
       (setq-local term-char-mode-buffer-read-only t)
       (setq-local term-char-mode-point-at-process-mark t)
       (setq-local term-buffer-maximum-size 0)

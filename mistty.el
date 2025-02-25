@@ -3309,10 +3309,6 @@ only spaces with ==\'mistty-skip between them."
 TERMINAL-SEQUENCE is processed in fullscreen mode."
   (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
     (mistty--detach)
-    (setq mistty-fullscreen t)
-    (mistty--with-live-buffer mistty-term-buffer
-      (setq mistty-fullscreen t))
-
     (let ((msg (mistty--fullscreen-message)))
       (save-excursion
         (goto-char (point-max))
@@ -3323,9 +3319,13 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
       (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
       (with-current-buffer mistty-term-buffer
         (rename-buffer bufname)
+        (jit-lock-mode t)
         (turn-on-font-lock)))
     (mistty--swap-buffer-in-windows mistty-work-buffer mistty-term-buffer)
 
+    (setq mistty-fullscreen t)
+    (mistty--with-live-buffer mistty-term-buffer
+      (setq mistty-fullscreen t))
 
     (set-process-filter proc #'mistty--fs-process-filter)
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
@@ -3384,7 +3384,8 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
 
       (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer)
       (with-current-buffer mistty-term-buffer
-        (font-lock-mode -1))
+        (font-lock-mode -1)
+        (jit-lock-mode nil))
 
       (mistty--update-mode-lines proc)
       (run-hooks 'mistty-left-fullscreen-hook)

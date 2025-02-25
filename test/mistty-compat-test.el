@@ -276,3 +276,25 @@ that starts with the text currently between START and END."
       (execute-kbd-macro (kbd "i C-c n a SPC b SPC c C-c n e c h o SPC $ i C-c d"))
       (mistty-wait-for-output :test (lambda () (not mistty--inhibit)))
       (mistty-wait-for-output :str "for i in a b c; do echo $i; done"))))
+
+(turtles-ert-deftest mistty-compat-goto-address-mode (:instance 'mistty)
+  (unwind-protect
+      (progn
+        (global-goto-address-mode)
+        (mistty-with-test-buffer (:selected t)
+          (mistty-send-text "echo http://www.example.com/")
+          (redisplay t) ;; force fontification
+          (mistty-send-and-wait-for-prompt)
+          (redisplay t)
+          (goto-char (point-min))
+          (search-forward "http://www.example.com")
+          (should (mistty-test-has-goto-address-overlay-at (match-beginning 0)))
+          (search-forward "http://www.example.com")
+          (should (mistty-test-has-goto-address-overlay-at (match-beginning 0)))))
+    (global-goto-address-mode -1)))
+
+(defun mistty-test-has-goto-address-overlay-at (pos)
+  "Check whether POS has goto-address overlays."
+  (when (delq nil (mapcar (lambda (ov) (overlay-get ov 'goto-address))
+                          (overlays-at pos)))
+    t))

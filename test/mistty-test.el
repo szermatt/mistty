@@ -5790,3 +5790,30 @@
                  (self-insert-command 1 key)))
     (should (equal "hello, world"
                    (mistty-send-and-capture-command-output)))))
+
+(ert-deftest mistty-disable-jit-lock-mode-in-term-buf ()
+  (let ((was-enabled global-goto-address-mode))
+    (unwind-protect
+        (progn
+          ;; Turning on global-goto-address-mode force jit-lock-mode
+          ;; on all buffers, even the hidden ones.
+          (global-goto-address-mode)
+          (mistty-with-test-buffer ()
+            (let ((proc mistty-proc)
+                  (workbuf mistty-work-buffer)
+                  (termbuf mistty-term-buffer))
+              (mistty-send-text "echo OK | less")
+              (mistty-send-command)
+              (mistty-wait-for-output
+               :proc proc
+               :test
+               (lambda ()
+                 (buffer-local-value 'mistty-fullscreen workbuf)))
+              (with-current-buffer termbuf
+                (should jit-lock-mode))
+              (mistty-send-and-wait-for-prompt
+               (lambda () (process-send-string proc "q")))
+              (with-current-buffer termbuf
+                (should-not jit-lock-mode)))))
+      (unless was-enabled
+        (global-goto-address-mode -1)))))

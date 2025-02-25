@@ -3154,57 +3154,66 @@ post-command hook."
        (when (and (not mistty--inhibit)
                   (process-live-p mistty-proc)
                   (buffer-live-p mistty-term-buffer))
-         (let* ((cs (mistty--active-changeset))
-                shift replay)
-           (cond
-            ;; nothing to do
-            ((not (mistty--changeset-p cs)))
+         (let ((cs (mistty--active-changeset))
+               (replay nil))
+           (when cs
+             (if (setq replay (mistty--should-replay cs))
+                 ;; Give changeset over to the interaction to replay.
+                 (let ((last-interaction (mistty--queue-last-interact mistty--queue)))
+                   (unless (and last-interaction
+                                (eq 'replay (mistty--interact-type last-interaction))
+                                ;; append to existing interaction
+                                (mistty--call-interact last-interaction 'replay cs))
+                     (mistty--enqueue mistty--queue (mistty--replay-interaction cs))))
 
-            ;; modifications are part of the current prompt; replay them
-            ((mistty-on-prompt-p (mistty-cursor))
-             (setq replay t))
-
-            ;; modifications are part of a possible prompt; realize it, keep the modifications before the
-            ;; new prompt and replay the modifications after the new prompt.
-            ((and (mistty--possible-prompt-p)
-                  (setq shift (mistty--changeset-restrict
-                               cs (nth 0 mistty--possible-prompt))))
-             (mistty--realize-possible-prompt shift)
-             (setq replay t))
-
-            ;; leave all modifications if there's enough of an unmodified
-            ;; section at the end. moving the sync mark is only possible
-            ;; as long as the term and work buffers haven't diverged.
-            ((and (< (mistty--changeset-end cs)
-                     ;; modifiable limit
-                     (mistty--bol (point-max) -5))
-                  (not mistty--need-refresh))
-             (mistty--set-sync-mark-from-end
-              (mistty--bol (mistty--changeset-end cs) 3)))
-
-            (t ;; revert everything
-
-             ;; The following forces a call to refresh, in time, even if
-             ;; the process sent nothing new.
-             (mistty--needs-refresh)))
-
-           (when replay
-             (let ((last-interaction (mistty--queue-last-interact mistty--queue)))
-               (unless (and last-interaction
-                            (eq 'replay (mistty--interact-type last-interaction))
-                            ;; append to existing interaction
-                            (mistty--call-interact last-interaction 'replay cs))
-                 (mistty--enqueue mistty--queue (mistty--replay-interaction cs)))))
-
-           ;; Abandon changesets that haven't been picked up for replay.
-           (when (and (not replay) (mistty--changeset-p cs))
-             (mistty--release-changeset cs)
-             (mistty--refresh-after-changeset))
+               ;; Abandon changeset
+               (mistty--release-changeset cs)
+               (mistty--refresh-after-changeset)))
 
            (when (and (not replay) (not mistty--forbid-edit) point-moved)
              (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
 
            (mistty--refresh)))))))
+
+(defun mistty--should-replay (cs)
+  "Decide whether CS should be replayed.
+
+Might modify CS before allowing replay."
+  (let (replay shift)
+    (cond
+     ;; nothing to do
+     ((not (mistty--changeset-p cs)))
+
+     ;; modifications are part of the current prompt; replay them
+     ((mistty-on-prompt-p (mistty-cursor))
+      (setq replay t))
+
+     ;; modifications are part of a possible prompt; realize it, keep
+     ;; the modifications before the new prompt and replay the
+     ;; modifications after the new prompt.
+     ((and (mistty--possible-prompt-p)
+           (setq shift (mistty--changeset-restrict
+                        cs (nth 0 mistty--possible-prompt))))
+      (mistty--realize-possible-prompt shift)
+      (setq replay t))
+
+     ;; leave all modifications if there's enough of an unmodified
+     ;; section at the end. moving the sync mark is only possible
+     ;; as long as the term and work buffers haven't diverged.
+     ((and (< (mistty--changeset-end cs)
+              ;; modifiable limit
+              (mistty--bol (point-max) -5))
+           (not mistty--need-refresh))
+      (mistty--set-sync-mark-from-end
+       (mistty--bol (mistty--changeset-end cs) 3)))
+
+     (t ;; revert everything
+
+      ;; The following forces a call to refresh, in time, even if
+      ;; the process sent nothing new.
+      (mistty--needs-refresh)))
+
+    replay))
 
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."

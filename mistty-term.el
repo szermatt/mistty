@@ -131,11 +131,22 @@ definition, because it doesn't allow editing what's above."
 (defconst mistty-down-str "\eOB"
   "Sequence to send to the process when the left arrow is pressed.")
 
+(defconst mistty-del "\C-h"
+  "Sequence to send to the process when backspace is pressed.
+
+Both BS (\\C-h) and DEL (\\d) have been used to map to backspace, though
+inconsistently across terminals. Mistty 1.3 and earlier sent DEL, but
+that was switched to BS when Fish 4 started interpreting that as the
+delete key instead of the backspace key.
+
+If you change this key, remember to change the mapping in
+`mistty-term-key-map' as well")
+
 (defvar mistty-term-key-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "<tab>") "\t")
     (define-key map (kbd "<return>") "\C-m")
-    (define-key map (kbd "<backspace>") "\d")
+    (define-key map (kbd "<backspace>") mistty-del)
     (define-key map (kbd "<esc>") "\e")
 
     ;; The following is a reversed copy of xterm-function-map from
@@ -983,6 +994,9 @@ If N is specified, the string is repeated N times."
         (non-meta)
         translated-key)
     (cond
+     ;; DEL -> mistty-del
+     ((eq c ?\d)
+      (mistty--repeat-string n mistty-del))
      ;; Self-inserted characters
      ((and c (characterp c))
       (make-string n (elt key 0)))

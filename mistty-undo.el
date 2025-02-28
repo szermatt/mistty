@@ -81,6 +81,8 @@ function does that, for `self-inserted keys', `delete-char', and
                 'self-insert)
                ((eq ?\x7f c) ;; DEL
                 'backward-delete-char)
+               ((eq ?\C-h c) ;; BS
+                'backward-delete-char)
                ((eq ?\C-d c) ;; C-d
                 'delete-char))))
     (let ((n (or n 1))

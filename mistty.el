@@ -2172,7 +2172,7 @@ that many times instead."
       (call-interactively 'backward-delete-char)
     (if (and (numberp n) (< n 0))
         (mistty-send-key (abs n) "\C-d" 'positional)
-      (mistty-send-key n "\x7f" 'positional))))
+      (mistty-send-key n mistty-del 'positional))))
 
 (defun mistty-delete-char (&optional n)
 "Send Control D N times to the terminal.
@@ -2184,7 +2184,7 @@ that many times instead."
       (delete-char n)
     (setq mistty--interacted t)
     (if (and (numberp n) (< n 0))
-        (mistty-send-key (abs n) "\x7f" 'positional)
+        (mistty-send-key (abs n) mistty-del 'positional)
       (mistty-send-key n "\C-d" 'positional))))
 
 (defun mistty-tab-command (&optional n)
@@ -2692,7 +2692,7 @@ returns nil."
                  (when (> old-length 0)
                    (let ((char-count (mistty--distance beg old-end)))
                      (mistty-log "DELETE %s chars (was %s)" char-count old-length)
-                     (mistty--repeat-string char-count "\b")))
+                     (mistty--repeat-string char-count mistty-del)))
 
                  ;; delete trailing ws
                  (when (> trailing-ws-to-delete 0)

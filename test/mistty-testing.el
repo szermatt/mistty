@@ -269,7 +269,8 @@ window while BODY is running."
             "bind \\ca beginning-of-line; "
             "bind \\ce end-of-line; "
             "bind \\cg cancel; "
-            "bind \\b backward-delete-char; "
+            "bind \\b delete-char; " ;; simulate fish 4.0.0
+            "bind \\ch backward-delete-char; "
             init)))
   (mistty-run-command) ;; detect early foreign overlay
   (mistty-test-set-prompt-re "$ ")

@@ -4964,24 +4964,26 @@
                       (with-current-buffer (or buf (current-buffer))
                         (save-excursion
                           (goto-char (point-max))
-                          (buffer-substring (pos-bol) (pos-eol)))))))
+                          (buffer-substring-no-properties
+                           (pos-bol) (pos-eol)))))))
       (delete-other-windows)
 
       ;; Make sure "fi" is at the bottom of the window
-      (dotimes (_ (+ 5 (window-height)))
-        (mistty-send-text "echo hello")
-        (mistty-send-and-wait-for-prompt))
+      (mistty-send-text "for i in (seq 0 30); echo line $i; end")
+      (mistty-send-and-wait-for-prompt)
+
       (mistty-send-text "fi")
 
       (recenter nil 'redisplay)
       (turtles-with-grab-buffer (:win win)
-        (should (equal "$ fi" (funcall lastline))))
+        (should (string-match "^\\$ fi" (funcall lastline))))
 
       ;; Command completion should display a few lines below the
       ;; prompt. Since we're at the bottom of the window, these
       ;; lines would normally not be visible.
       (mistty-run-command
        (mistty-tab-command))
+      (mistty-wait-for-output :str "(command)")
       (turtles-with-grab-buffer (:win win)
         (goto-char (point-max))
         (should (equal

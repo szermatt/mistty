@@ -4983,7 +4983,7 @@
       ;; lines would normally not be visible.
       (mistty-run-command
        (mistty-tab-command))
-      (mistty-wait-for-output :str "(command)")
+      (mistty-wait-for-output :regexp "^fi")
       (turtles-with-grab-buffer (:win win)
         (goto-char (point-max))
         (should (equal

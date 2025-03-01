@@ -956,10 +956,10 @@ supports the following OSC control sequences:
 @itemize -
 
 @item 
-`OSC 2; <title> ST' changes the window title. This sets the variable
-@code{ansi-osc-window-title} in the MisTTY buffer, which can then be
-referred to in @code{frame-title-format} to set the frame title
-dynamically.
+`OSC 0; <title> ST' and `OSC 2; <title> ST' changes the window
+title. This sets the variable @code{ansi-osc-window-title} in the
+MisTTY buffer, which can then be referred to in
+@code{frame-title-format} to set the frame title dynamically.
 
 @item 
 `OSC 7;file://<hostname>/<path> ST' reports the shell’s current

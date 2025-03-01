@@ -651,10 +651,10 @@ OSC are optional “operating system command” control sequences that
 programs can use to communicate with the terminal and Emacs. MisTTY
 supports the following OSC control sequences:
 
-- *OSC 2; <title> ST* changes the window title. This sets the variable
-  ``ansi-osc-window-title`` in the MisTTY buffer, which can then be
-  referred to in ``frame-title-format`` to set the frame title
-  dynamically.
+- *OSC 0; <title> ST* and *OSC 2; <title> ST* changes the window
+  title. This sets the variable ``ansi-osc-window-title`` in the
+  MisTTY buffer, which can then be referred to in
+  ``frame-title-format`` to set the frame title dynamically.
 
 - *OSC 7;file://<hostname>/<path> ST* reports the shell's current
   directory to Emacs. See :ref:`dirtrack`

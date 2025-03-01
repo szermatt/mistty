@@ -3506,19 +3506,14 @@ This function keeps prev-buffers list unmodified."
   (mistty-send-string "\C-asudo \C-e"))
 
 (defun mistty-on-prompt-p (pos)
-  "Return non-nil if POS is on a prompt."
+  "Return non-nil if POS is on a prompt.
+
+Prompts can span multiple lines; everything after the beginning of a
+prompt is treated as being on a prompt, including completion options
+displayed below the prompt as fish or zsh do."
   (and mistty-sync-marker
        mistty--has-active-prompt
-       (>= pos mistty-sync-marker)
-       (or mistty-bracketed-paste
-           (<= pos (mistty--eol mistty-sync-marker))
-           ;; The position passed to (mistty-on-prompt-p
-           ;; (mistty-cursor)) might not be on the same line as
-           ;; mistty-sync-marker on the work buffer; check on the term
-           ;; buffer as well.
-           (mistty--with-live-buffer mistty-term-buffer
-             (<= (mistty--from-pos-of pos mistty-work-buffer)
-                 (mistty--eol mistty-sync-marker))))))
+       (>= pos mistty-sync-marker)))
 
 (defun mistty-before-positional ()
   "Prepare the state for executing a positional command.

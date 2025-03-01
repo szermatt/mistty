@@ -474,14 +474,15 @@ other packages.
 Directory Tracking
 ------------------
 
-If you're using :program:`Bash` as a shell, you'll discover that Emacs
-keeps track of the shell's current directory, so commands like
-:kbd:`M-x find-file` know where to start from.
+If you're using :program:`Bash` or :program:`Fish` version 4 or later,
+as a shell, you'll discover that Emacs keeps track of the shell's
+current directory, so commands like :kbd:`M-x find-file` know where to
+start from.
 
-If you're using another shell, however, you'll need to configure it to
-tell Emacs about its current directory, as described in
-:ref:`Directory Tracking for Fish <fish_dirtrack>` and in
-:ref:`Directory Tracking for Zsh <zsh_dirtrack>`.
+If you're using any other shell, you'll need to configure it to tell
+Emacs about its current directory, as described in :ref:`Directory
+Tracking for Fish <fish_dirtrack>` and in :ref:`Directory Tracking for
+Zsh <zsh_dirtrack>`.
 
 :program:`Bash` out-of-the-box directory tracking also doesn't work in
 shells you start using :program:`ssh` or :program:`docker`. For that

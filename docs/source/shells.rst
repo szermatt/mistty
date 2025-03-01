@@ -186,9 +186,12 @@ up/down/left/right directly to :program:`fish`, you can:
 Directory tracking in Fish
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Extend your prompt to send out an OSC7 sequence to have
-:program:`fish` send the current directory and hostname to MisTTY. To
-do that, you might add the following to
+Starting with version 4.0.0, Fish sends out an OSC7 sequence by
+default, so directory tracking doesn't require any configuration.
+
+For older versions of fish, extend your prompt to send out an OSC7
+sequence to have :program:`fish` send the current directory and
+hostname to MisTTY. To do that, you might add the following to
 :file:`~/.local/config/fish/config.fish`:
 
 .. code-block:: fish

@@ -759,14 +759,13 @@ other packages.
 @subsection Directory Tracking
 
 
-If you’re using @code{Bash} as a shell, you’ll discover that Emacs
-keeps track of the shell’s current directory, so commands like
-@code{M-x find-file} know where to start from.
+If you’re using @code{Bash} or @code{Fish} version 4 or later,
+as a shell, you’ll discover that Emacs keeps track of the shell’s
+current directory, so commands like @code{M-x find-file} know where to
+start from.
 
-If you’re using another shell, however, you’ll need to configure it to
-tell Emacs about its current directory, as described in
-@ref{20,,Directory Tracking for Fish} and in
-@ref{21,,Directory Tracking for Zsh}.
+If you’re using any other shell, you’ll need to configure it to tell
+Emacs about its current directory, as described in @ref{20,,Directory Tracking for Fish} and in @ref{21,,Directory Tracking for Zsh}.
 
 @code{Bash} out-of-the-box directory tracking also doesn’t work in
 shells you start using @code{ssh} or @code{docker}. For that
@@ -1244,9 +1243,12 @@ use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or e
 @subsubsection Directory tracking in Fish
 
 
-Extend your prompt to send out an OSC7 sequence to have
-@code{fish} send the current directory and hostname to MisTTY. To
-do that, you might add the following to
+Starting with version 4.0.0, Fish sends out an OSC7 sequence by
+default, so directory tracking doesn’t require any configuration.
+
+For older versions of fish, extend your prompt to send out an OSC7
+sequence to have @code{fish} send the current directory and
+hostname to MisTTY. To do that, you might add the following to
 @code{~/.local/config/fish/config.fish}:
 
 @example

@@ -46,6 +46,7 @@
 
     ;; These handlers are reasonably compatibly with MisTTY OSC. This
     ;; isn't necessary going to be the case for all such handlers.
+    ("0" . ansi-osc-window-title-handler)
     ("2" . ansi-osc-window-title-handler)
     ("8" . ansi-osc-hyperlink-handler)
 

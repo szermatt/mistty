@@ -1971,9 +1971,11 @@
     (mistty-wait-for-output :str "say something")
     (mistty-send-text "foo")
     (should (equal
-             (list
+             (mistty--make-prompt
+              'regexp
               (mistty--scrollrow (mistty-test-goto "say something>> "))
-              "say something>> ")
+              (1+ (mistty--scrollrow (mistty-test-goto "say something>> ")))
+              :text "say something>> ")
              mistty--possible-prompt))))
 
 (ert-deftest mistty-test-nobracketed-paste-just-type ()

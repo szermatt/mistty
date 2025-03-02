@@ -1970,13 +1970,14 @@
     (mistty-send-command)
     (mistty-wait-for-output :str "say something")
     (mistty-send-text "foo")
-    (should (equal
-             (mistty--make-prompt
-              'regexp
-              (mistty--scrollrow (mistty-test-goto "say something>> "))
-              (1+ (mistty--scrollrow (mistty-test-goto "say something>> ")))
-              :text "say something>> ")
-             (mistty--prompt)))))
+    (let ((prompt (mistty--prompt)))
+      (should (equal 'regexp (mistty--prompt-source prompt)))
+      (should (equal (mistty--scrollrow (mistty-test-goto "say something>> "))
+                     (mistty--prompt-start prompt)))
+      (should (equal (1+ (mistty--prompt-start prompt))
+                     (mistty--prompt-end prompt)))
+      (should (equal "say something>> "
+                     (mistty--prompt-text prompt))))))
 
 (ert-deftest mistty-test-nobracketed-paste-just-type ()
   (mistty-with-test-buffer (:shell bash)

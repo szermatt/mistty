@@ -511,7 +511,10 @@ Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 ;; uses scrollrows as units.
 (cl-defstruct (mistty--prompt
                (:constructor mistty--make-prompt
-                             (source start &optional end &key text)))
+                             (source start &optional end &key text
+                                     &aux (input-id (mistty--next-id)))))
+  input-id
+
   ;; prompt source:
   ;;  - regexp
   ;;  - bracketed paste
@@ -625,8 +628,7 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
            ((equal ext "[?2004h") ; enable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
             (unless mistty-bracketed-paste
-              (let* ((id (mistty--next-id))
-                     (props `(mistty-input-id ,id))
+              (let* ((prompt (mistty--prompt))
                      (inhibit-modification-hooks t)
                      ;; zsh enables bracketed paste only after having printed
                      ;; the prompt. Try to find the beginning of the prompt
@@ -647,17 +649,36 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                                (remove-text-properties pos (1+ pos) '(term-line-wrap t))
                                (throw 'mistty-prompt-start (1+ pos))))))
                        (pos-bol)))
-                     (prompt-end (pos-eol)))
-                (when (< prompt-start prompt-end)
-                  (add-text-properties prompt-start prompt-end props)
-                  (mistty--term-postprocess prompt-start prompt-end))
-                (mistty-register-text-properties 'mistty-bracketed-paste props))
+                     (scrollrow (mistty--term-scrollrow-at prompt-start)))
+                (if (or (null prompt)
+                        (not (mistty--prompt-contains prompt scrollrow)))
+                    (progn
+                      (setq prompt (mistty--make-prompt 'bracketed-paste scrollrow))
+                      (setf (mistty--prompt) prompt))
+                  (setf (mistty--prompt-source prompt) 'bracketed-paste)
+                  (when (< scrollrow (mistty--prompt-start prompt))
+                    (setf (mistty--prompt-start prompt) scrollrow))
+                  (setf (mistty--prompt-end prompt) nil))
+                (let ((props `(mistty-input-id ,(mistty--prompt-input-id prompt)))
+                      (eol (pos-eol)))
+                  (when (< prompt-start eol)
+                    (add-text-properties prompt-start eol props)
+                    (mistty--term-postprocess prompt-start eol))
+                  (mistty-register-text-properties 'mistty-bracketed-paste props)))
               (setq mistty-bracketed-paste t)
               (mistty--with-live-buffer work-buffer
                 (setq mistty-bracketed-paste t))))
            ((equal ext "[?2004l") ; disable bracketed paste
             (term-emulate-terminal proc (substring str start seq-end))
             (when mistty-bracketed-paste
+              (when-let ((prompt (mistty--prompt))
+                         (scrollrow (if (eq ?\n (char-before (point)))
+                                        (mistty--term-scrollrow)
+                                      (1+ (mistty--term-scrollrow)))))
+                (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
+                           (null (mistty--prompt-end prompt))
+                           (> scrollrow (mistty--prompt-start prompt)))
+                  (setf (mistty--prompt-end prompt) scrollrow)))
               (mistty-unregister-text-properties 'mistty-bracketed-paste)
               (setq mistty-bracketed-paste nil)
               (mistty--with-live-buffer work-buffer

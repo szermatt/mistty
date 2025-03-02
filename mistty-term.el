@@ -21,7 +21,9 @@
 ;; for many of these.
 
 (require 'term)
-(defvar term-width nil) ;; defined in term.el
+(defvar term-width) ; defined in term.el
+(defvar term-height) ; defined in term.el
+(defvar term-home-marker) ; defined in term.el
 
 (require 'subr-x)
 (eval-when-compile
@@ -498,6 +500,11 @@ value.
 
 Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 
+(defvar-local mistty--scrollrow-home nil
+  "Base of scrollrow numbers.")
+(defvar-local mistty--scrollrow-base nil
+  "Scrollrow number of `mistty--scrollrow-home'.")
+
 (defun mistty--emulate-terminal (proc str work-buffer)
   "Handle process output as a terminal would.
 
@@ -729,6 +736,8 @@ This function returns the newly-created buffer."
       (setq-local term-width width)
       (setq-local term-height height)
       (setq-local term-command-function #'mistty--term-command-hook)
+      (setq-local mistty--scrollrow-home (copy-marker (point-min)))
+      (setq-local mistty--scrollrow-base 0)
       (mistty-term--exec program args)
       (let ((proc (get-buffer-process term-buffer)))
         ;; TRAMP sets adjust-window-size-function to #'ignore, which
@@ -1108,6 +1117,39 @@ Detected dead spaces are marked with the text property \\='mistty-skip
                   (mistty-log "@%s %s dead spaces, %s real"
                               eol (- eol (point)) real-trailing-ws)
                   (put-text-property (point) eol 'mistty-skip 'dead))))))))))
+
+(defun mistty--adjust-scrollrow-base ()
+  "Move the scrollrow base to `term-home-marker'.
+
+Call this before deleting any region before `term-home-marker'."
+  (when (/= mistty--scrollrow-home term-home-marker)
+    (let ((delta (count-lines mistty--scrollrow-home term-home-marker)))
+      (cl-incf mistty--scrollrow-base delta))
+    (move-marker mistty--scrollrow-home term-home-marker)))
+
+(defun mistty--term-scrollrow ()
+  "Return the current scrollrow.
+
+The scrollrow count starts at the very beginning of the virtual buffer
+and doesn't change as the buffer scrolls up.
+
+Before using a scrollrow, convert it to a screen row or point."
+  (mistty--adjust-scrollrow-base)
+  (+ mistty--scrollrow-base (term-current-row)))
+
+(defun mistty--term-scrollrow-at (pos)
+  "Return the scrollrow at POS.
+
+The scrollrow count starts at the very beginning of the virtual buffer
+and doesn't change as the buffer scrolls up.
+
+Before using a scrollrow, convert it to a screen row or point."
+  (+ mistty--scrollrow-base (count-lines mistty--scrollrow-home pos)))
+
+(defun mistty--term-scrollrow-range ()
+  "Current scrollrow range, covering the screen."
+  (mistty--adjust-scrollrow-base)
+  (cons mistty--scrollrow-base (+ mistty--scrollrow-base term-height)))
 
 (provide 'mistty-term)
 

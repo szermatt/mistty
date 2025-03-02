@@ -5819,3 +5819,115 @@
                 (should-not jit-lock-mode)))))
       (unless was-enabled
         (global-goto-address-mode -1)))))
+
+(turtles-ert-deftest mistty-scrollrow-after-scrolling (:instance 'mistty)
+  (mistty-with-test-buffer ()
+    (save-restriction
+      (let (one two)
+        (mistty--send-string
+         mistty-proc
+         (concat "n=1; r=n; while [[ $r != q ]]; do"
+                 " for i in $(seq $n $((n+9))); do"
+                 "  echo line $i;"
+                 " done;"
+                 "n=$((n+10));"
+                 "read r;"
+                 "done"))
+        (mistty-wait-for-output :str "read r;done")
+        (mistty--send-string mistty-proc "\n")
+
+        (mistty-wait-for-output :str "line 10")
+        (mistty-send-text "one")
+        (setq one (mistty--cursor-scrollrow))
+
+        ;; scrollrow one is valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+
+        (mistty--send-string mistty-proc "\n")
+        (mistty-wait-for-output :str "line 20")
+
+        ;; after scrolling, scrollrow one is still valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+
+        (mistty-send-text "two")
+        (setq two (mistty--cursor-scrollrow))
+
+        (should (equal "two" (mistty-test-line-at-scrollrow two)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "two" (mistty-test-line-at-scrollrow two))))
+        (mistty--send-string mistty-proc "\n")
+        (mistty-wait-for-output :str "line 30")
+
+        ;; both are still valid, even though one is outside the screen,
+        ;; at this point; it's still below the sync mark
+        (let ((screen-start (car
+                             (with-current-buffer mistty-term-buffer
+                               (mistty--term-scrollrow-range)))))
+          (should (< one screen-start))
+          (should (> two screen-start)))
+
+        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+        (should (equal "two" (mistty-test-line-at-scrollrow two)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "two" (mistty-test-line-at-scrollrow two))))
+
+        (mistty-send-and-wait-for-prompt
+         (lambda ()
+           (mistty--send-string mistty-proc "q\n")))
+
+        ;; Both are now invalid, as they're below the sync mark
+        (should (null (mistty--scrollrow-pos one)))
+        (should (null (mistty--scrollrow-pos two)))))))
+
+(turtles-ert-deftest mistty-scrollrow-after-scrolling-long-lines (:instance 'mistty)
+  (mistty-with-test-buffer ()
+    (save-restriction
+      (let (one two)
+        ;; Each line counts double, as it is split by term.
+        (mistty--send-string
+         mistty-proc
+         (concat "n=1; r=n; while [[ $r != q ]]; do"
+                 " for i in $(seq $n $((n+4))); do"
+                 "  echo -n line $i:;"
+                 "  for j in $(seq 1 30); do echo -n ' foo'; done;"
+                 "  echo $i.;"
+                 " done;"
+                 "n=$((n+5));"
+                 "read r;"
+                 "done"))
+        (mistty-wait-for-output :str ";done")
+        (mistty--send-string mistty-proc "\n")
+
+        (mistty-wait-for-output :str "foo5.")
+        (mistty-send-text "one")
+        (setq one (mistty--cursor-scrollrow))
+
+        ;; scrollrow one is valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+
+        (mistty--send-string mistty-proc "\n")
+        (mistty-wait-for-output :str "foo10.")
+
+        ;; after scrolling, scrollrows are still valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+
+        (mistty--send-string mistty-proc "\n")
+        (mistty-wait-for-output :str "foo15.")
+
+        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (with-current-buffer mistty-term-buffer
+          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+
+        (mistty-send-and-wait-for-prompt
+         (lambda ()
+           (mistty--send-string mistty-proc "q\n")))))))

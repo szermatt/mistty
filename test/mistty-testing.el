@@ -721,6 +721,17 @@ This simulates what happens in the command loop."
 
     full-prefix))
 
+(defun mistty-test-line-at-scrollrow (scrollrow)
+  (save-excursion
+    (let ((pos (mistty--scrollrow-pos scrollrow)))
+      (unless pos
+        (error "Scrollrow at %s outside of range [%s, %s].<<EOF%sEOF"
+               scrollrow mistty--sync-marker-scrollrow
+               (mistty--scrollrow (point-max))
+               (mistty-test-content :start mistty-sync-marker)))
+      (goto-char pos)
+      (buffer-substring-no-properties (pos-bol) (pos-eol)))))
+
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.
 

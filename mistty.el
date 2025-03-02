@@ -660,6 +660,11 @@ kept in sync.
 This variable is available in both the work buffer and the term
 buffer.")
 
+(defvar-local mistty--sync-marker-scrollrow 0
+  "Scrollrow at `mistty-sync-marker.'
+
+This is updated at the same time as the marker, on both buffers.")
+
 (defvar-local mistty--has-active-prompt nil
   "Non-nil there is a prompt at `mistty-sync-marker'.")
 
@@ -1548,12 +1553,13 @@ markers have gone out-of-sync."
                            (goto-char term-home-marker)
                            (skip-chars-forward mistty--ws)
                            (point))))))
+    (mistty--with-live-buffer mistty-term-buffer
+      (move-marker mistty-sync-marker term-sync))
     (mistty--with-live-buffer mistty-work-buffer
       (setq mistty--end-prompt nil)
       (setq mistty--cursor-after-last-refresh nil)
-      (move-marker mistty-sync-marker work-sync))
-    (mistty--with-live-buffer mistty-term-buffer
-      (move-marker mistty-sync-marker term-sync))
+      (move-marker mistty-sync-marker work-sync)
+      (mistty--update-sync-marker-scrollrow))
     (mistty-log "RESET SYNC MARKER %s/%s to %s/%s term home: %s"
                 old-work-sync old-term-sync
                 work-sync term-sync
@@ -1589,6 +1595,11 @@ not yet, if it the work buffer is out of sync with
     (error "No process"))
   (mistty--from-pos-of (process-mark mistty-proc) mistty-term-buffer))
 
+(defun mistty--cursor-scrollrow ()
+  "Return the scrollrow position of the cursor."
+  (with-current-buffer mistty-term-buffer
+    (mistty--term-scrollrow)))
+
 (defun mistty--from-pos-of (pos buffer-of-pos)
   "Return the local equivalent to POS defined in BUFFER-OF-POS."
   (+ mistty-sync-marker (with-current-buffer buffer-of-pos
@@ -1601,6 +1612,28 @@ Note that the position might not exist in `mistty-work-buffer',
 not yet, if it the work buffer is out of sync with
 `mistty-term-buffer'."
   (mistty--from-pos-of pos mistty-term-buffer))
+
+(defun mistty--scrollrow (pos)
+  "Return the scrollrow that correspond to POS.
+
+This works in both the sync and term buffers.
+
+To get the position of the cursor `mistty--cursor-scrollrow' is more
+efficient that passing the result of `mistty-cursor' to this function."
+  (save-restriction
+    (+ mistty--sync-marker-scrollrow (count-lines mistty-sync-marker pos))))
+
+(defun mistty--scrollrow-pos (scrollrow)
+  "Return the position of the beginning of SCROLLROW.
+
+Return nil if SCROLLROW is not below the sync marker or outside the
+region accessible from the current buffer.
+
+Work in the work or term buffer."
+  (when (> scrollrow mistty--sync-marker-scrollrow)
+    (goto-char mistty--sync-marker-scrollrow)
+    (when (zerop (forward-line (- scrollrow mistty--sync-marker-scrollrow)))
+      (point))))
 
 (defun mistty--needs-refresh ()
   "Let next call to `mistty--refresh' know there's something to refresh."
@@ -1715,7 +1748,10 @@ Also updates prompt and point."
                          mistty--prompt-regexp
                          (mistty--safe-bufstring
                           (mistty--bol cursor) cursor)))
-               (mistty-log "Detected prompt: [%s-%s]" prompt-beg cursor)
+               (mistty-log "Detected prompt: [%s-%s] scrollrows [%s-%s]"
+                           prompt-beg cursor
+                           (mistty--scrollrow prompt-beg)
+                           (mistty--cursor-scrollrow))
                (mistty--set-sync-mark-from-end prompt-beg)
                (setq mistty--has-active-prompt (> cursor prompt-beg)))))
 
@@ -1748,6 +1784,7 @@ Also updates prompt and point."
              ;; the work buffer anyways. This has to be done now, after syncing
              ;; the marker, and not in term-emulate-terminal, which is why
              ;; term-buffer-maximum-size is set to 0.
+             (mistty--adjust-scrollrow-base)
              (save-excursion
                (goto-char term-home-marker)
                (forward-line -5)
@@ -2032,7 +2069,21 @@ instead `mistty--move-sync-mark-with-shift' or
       (move-marker mistty-sync-marker sync-pos)
       (when (< old-marker-position sync-pos)
         (mistty--prepare-for-scrollback old-marker-position mistty-sync-marker)))
+    (mistty--update-sync-marker-scrollrow)
     (move-overlay mistty--sync-ov mistty-sync-marker (point-max))))
+
+(defun mistty--update-sync-marker-scrollrow ()
+  "Update `mistty--sync-marker-scrollrow' on the term and work buffers."
+  (mistty--require-work-buffer)
+  (let (scrollrow)
+    (mistty--with-live-buffer mistty-term-buffer
+      (setq scrollrow (mistty--term-scrollrow-at mistty-sync-marker))
+      (setq mistty--sync-marker-scrollrow scrollrow)
+      (mistty-log "SYNC MARKER AT SCROLLROW %s ON SCREEN %s"
+                  scrollrow
+                  (mistty--term-scrollrow-range)))
+    (when scrollrow
+      (setq mistty--sync-marker-scrollrow scrollrow))))
 
 (defun mistty--prepare-for-scrollback (beg end)
   "Transition a region from the terminal to the scrollback zone.

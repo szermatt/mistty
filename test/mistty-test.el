@@ -5931,3 +5931,21 @@
         (mistty-send-and-wait-for-prompt
          (lambda ()
            (mistty--send-string mistty-proc "q\n")))))))
+
+(ert-deftest mistty-prompt-cell ()
+  (mistty-with-test-buffer ()
+    (should (eq mistty--prompt-cell
+                (buffer-local-value
+                 'mistty--prompt-cell mistty-term-buffer)))
+    (let ((prompt (mistty--make-prompt 'test 0 1))
+          (other-prompt (mistty--make-prompt 'other 0 1)))
+      (setf (mistty--prompt) prompt)
+      (should (eq prompt (mistty--prompt)))
+      (with-current-buffer mistty-term-buffer
+        (should (eq prompt (mistty--prompt)))
+        (setf (mistty--prompt) other-prompt))
+      (should (eq other-prompt (mistty--prompt)))
+      (setf (mistty--prompt) nil)
+
+      (with-current-buffer mistty-term-buffer
+        (should (null (mistty--prompt)))))))

@@ -960,6 +960,7 @@ buffer and `mistty-proc' to that buffer's process."
 
     (setq mistty-proc proc)
     (setq mistty-term-buffer term-buffer)
+    (setq mistty--prompt-cell (buffer-local-value 'mistty--prompt-cell term-buffer))
     (setq mistty--queue (mistty--make-queue proc))
     (mistty--needs-refresh)
 

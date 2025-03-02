@@ -505,6 +505,47 @@ Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 (defvar-local mistty--scrollrow-base nil
   "Scrollrow number of `mistty--scrollrow-home'.")
 
+;; A detected prompt.
+;;
+;; This datastructure is shared between the work and term buffer and
+;; uses scrollrows as units.
+(cl-defstruct (mistty--prompt
+               (:constructor mistty--make-prompt
+                             (source start &optional end)))
+  ;; prompt source:
+  ;;  - regexp
+  ;;  - bracketed paste
+  source
+
+  ;; Non-nil once the prompt has been accepted by MisTTY
+  realized
+
+  ;; Start scrollrow. Shouldn't be nil.
+  start
+
+  ;; End scrollrow, or nil if prompt is open-ended.
+  ;;
+  ;; This is the first scrollrow on which the prompt is *not* present, so
+  ;; a single-line prompt starting at 10 would end at 11.
+  end)
+
+(defvar-local mistty--prompt-cell nil
+  "A cons cell whose CAR is a mistty-prompt instance or nil.
+
+This is used to share prompts between the work and term buffers. This is
+accessible from either buffer.
+
+Always access it through the function `mistty--prompt' and set it
+using (setf (mistty--prompt) val)")
+
+(defun mistty--prompt ()
+  "Get the value of the current `mistty--prompt' struct or nil."
+  (car mistty--prompt-cell))
+
+(gv-define-setter mistty--prompt (val)
+  "Sets the value of the current `mistty--prompt' struct."
+  `(setcar mistty--prompt-cell ,val))
+
 (defun mistty--emulate-terminal (proc str work-buffer)
   "Handle process output as a terminal would.
 
@@ -738,6 +779,7 @@ This function returns the newly-created buffer."
       (setq-local term-command-function #'mistty--term-command-hook)
       (setq-local mistty--scrollrow-home (copy-marker (point-min)))
       (setq-local mistty--scrollrow-base 0)
+      (setq-local mistty--prompt-cell (cons nil nil))
       (mistty-term--exec program args)
       (let ((proc (get-buffer-process term-buffer)))
         ;; TRAMP sets adjust-window-size-function to #'ignore, which

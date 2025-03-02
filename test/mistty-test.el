@@ -1973,7 +1973,6 @@
     (should (equal
              (list
               (mistty--scrollrow (mistty-test-goto "say something>> "))
-              (length "say something>> ")
               "say something>> ")
              mistty--possible-prompt))))
 

@@ -701,7 +701,6 @@ process output or a new prompt.")
 
 This variable is either nil or a list that contains:
  - the start of the prompt (scrollrow)
- - the length of the prompt
  - the content of the prompt
 
 While start and end points to positions in the work buffer, such
@@ -1523,11 +1522,10 @@ of the terminal buffer has been updated."
              (content (mistty--safe-bufstring bol end)))
         (with-current-buffer mistty-work-buffer
           (setq mistty--possible-prompt
-                (list scrollrow (length content) content))
+                (list scrollrow content))
           (mistty-log "Possible prompt: %s '%s'"
                       (nth 0 mistty--possible-prompt)
-                      (nth 1 mistty--possible-prompt)
-                      (nth 2 mistty--possible-prompt)))))))
+                      (nth 1 mistty--possible-prompt)))))))
 
 (defun mistty--reset-markers (&optional work-sync term-sync)
   "Reset the sync marker on both the term and work buffer.
@@ -3595,7 +3593,7 @@ prompts."
 If SHIFT is non-nil, it specifies a position difference between
 the sync markers in the work and term buffer at the beginning of
 the prompt."
-  (pcase-let ((`(,scrollrow ,_ ,_ ) mistty--possible-prompt))
+  (pcase-let ((`(,scrollrow ,_ ) mistty--possible-prompt))
     (let ((start (mistty--scrollrow-pos scrollrow)))
       (mistty-log "realize possible prompt at %s (%s)" scrollrow start)
       (if shift
@@ -3607,8 +3605,9 @@ the prompt."
 (defun mistty--possible-prompt-p ()
   "Return non-nil if `mistty--possible-prompt' is usable."
   (when mistty--possible-prompt
-    (pcase-let ((`(,scrollrow ,length ,content) mistty--possible-prompt))
+    (pcase-let ((`(,scrollrow ,content) mistty--possible-prompt))
       (when-let* ((start (mistty--scrollrow-pos scrollrow))
+                  (length (length content))
                   (end (+ start length))
                   (cursor (mistty-cursor)))
         (and (or (> start mistty-sync-marker)
@@ -3622,8 +3621,9 @@ the prompt."
 (defun mistty--possible-prompt-contains (pos)
   "Return non-nil if POS is on `mistty--possible-prompt'."
   (when mistty--possible-prompt
-    (pcase-let ((`(,scrollrow ,length ,_) mistty--possible-prompt))
+    (pcase-let ((`(,scrollrow ,text) mistty--possible-prompt))
       (when-let* ((start (mistty--scrollrow-pos scrollrow))
+                  (length (length text))
                   (line-start (+ start length)))
         (and (>= pos line-start) (<= pos (mistty--eol start)))))))
 

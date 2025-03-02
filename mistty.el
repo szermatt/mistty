@@ -1476,7 +1476,7 @@ the point being visible."
               (mistty-log "ALIGN failed; fallback to default"))
             (mistty--reset-markers work-sync term-sync)))
         (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
-          (mistty--detect-possible-prompt (point)))))
+          (mistty--detect-possible-prompt))))
     (mistty--with-live-buffer work-buffer
       (mistty--needs-refresh))))
 
@@ -1491,13 +1491,14 @@ the point being visible."
         (when (= cursor (window-point win))
           (set-window-parameter win 'mistty--cursor-skip-state nil))))))
 
-(defun mistty--detect-possible-prompt (cursor)
-  "Look for a new prompt at CURSOR and store its position.
+(defun mistty--detect-possible-prompt ()
+  "Look for a new prompt at cursor and store its position.
 
 This function updates `mistty--prompt' after the content of the terminal
 buffer has been updated."
   (mistty--require-term-buffer)
-  (let ((bol (mistty--bol cursor))
+  (let ((cursor (point))
+        (bol (pos-bol))
         (scrollrow (mistty--cursor-scrollrow))
         (prompt (mistty--prompt)))
     (when (and (or (null prompt)
@@ -1508,13 +1509,13 @@ buffer has been updated."
                (string-match
                 mistty--prompt-regexp
                 (mistty--safe-bufstring bol cursor)))
-      (let* ((end (+ bol (match-end 0)))
-             (content (mistty--safe-bufstring bol end)))
+      (let ((content (mistty--safe-bufstring bol (+ bol (match-end 0)))))
         (setf (mistty--prompt)
-              (mistty--make-prompt 'regexp scrollrow (1+ scrollrow)
-                                   :text content))
-          (mistty-log "Possible prompt: %s '%s'"
-                      scrollrow (1+ scrollrow) content)))))
+              (mistty--make-prompt
+               'regexp scrollrow (1+ scrollrow)
+               :text content))
+        (mistty-log "Possible prompt: %s '%s'"
+                    scrollrow (1+ scrollrow) content)))))
 
 (defun mistty--reset-markers (&optional work-sync term-sync)
   "Reset the sync marker on both the term and work buffer.
@@ -3571,8 +3572,8 @@ prompts."
   (let ((pos (or pos (point))))
     (when (and (not (mistty-on-prompt-p pos))
                (mistty--possible-prompt-p)
-               (mistty--possible-prompt-contains pos)
-               (mistty--possible-prompt-contains (mistty-cursor)))
+               (mistty--prompt-contains-pos (mistty--prompt) pos)
+               (mistty--prompt-contains-pos (mistty--prompt) (mistty-cursor)))
       (mistty--realize-possible-prompt)
       t)))
 
@@ -3611,16 +3612,15 @@ the prompt."
                  (<= cursor (mistty--bol start 2)))
              (string= content (mistty--safe-bufstring start end)))))))
 
-(defun mistty--possible-prompt-contains (pos)
+(defun mistty--prompt-contains-pos (prompt pos)
   "Return non-nil if POS is inside `mistty--prompt'."
-  (when-let* ((prompt (mistty--prompt))
-              (scrollrow (mistty--prompt-start prompt))
+  (when-let* ((scrollrow (mistty--prompt-start prompt))
               (start (mistty--scrollrow-pos scrollrow))
               (length (if-let ((text (mistty--prompt-text prompt)))
                           (length text)
                         0))
-              (line-start (+ start length)))
-    (and (>= pos line-start) (<= pos (mistty--eol start)))))
+              (user-input-start (+ start length)))
+    (and (>= pos user-input-start) (<= pos (mistty--eol start)))))
 
 (defun mistty--create-backstage (proc)
   "Create a backstage buffer for PROC.

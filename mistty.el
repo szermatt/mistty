@@ -696,20 +696,6 @@ When this variable is non-nil, it contains a position in the work buffer
 that's on the current prompt. The line after that is going to be a
 process output or a new prompt.")
 
-(defvar-local mistty--possible-prompt nil
-  "Region of the work buffer identified as possible prompt.
-
-This variable is either nil or a list that contains:
- - the start of the prompt (scrollrow)
- - the content of the prompt
-
-While start and end points to positions in the work buffer, such
-position might not contain any data yet - if they haven't been
-copied from the terminal, or might contain data - if they have
-since been modified.
-
-This variable is available in the work buffer.")
-
 (defvar-local mistty--cursor-after-last-refresh nil
   "A marker on the cursor at the end of `mistty--refresh'.
 
@@ -1508,23 +1494,27 @@ the point being visible."
 (defun mistty--detect-possible-prompt (cursor)
   "Look for a new prompt at CURSOR and store its position.
 
-This function updates `mistty--possible-prompt' after the content
-of the terminal buffer has been updated."
+This function updates `mistty--prompt' after the content of the terminal
+buffer has been updated."
   (mistty--require-term-buffer)
-  (let* ((bol (mistty--bol cursor)))
-    (when (and (> cursor bol)
+  (let ((bol (mistty--bol cursor))
+        (scrollrow (mistty--cursor-scrollrow))
+        (prompt (mistty--prompt)))
+    (when (and (or (null prompt)
+                   (and (mistty--prompt-end prompt)
+                        (>= scrollrow (mistty--prompt-end prompt))))
+               (> cursor bol)
                (>= cursor (mistty--last-non-ws))
                (string-match
                 mistty--prompt-regexp
                 (mistty--safe-bufstring bol cursor)))
       (let* ((end (+ bol (match-end 0)))
-             (scrollrow (mistty--scrollrow bol))
              (content (mistty--safe-bufstring bol end)))
-        (with-current-buffer mistty-work-buffer
-          (setq mistty--possible-prompt
-                (mistty--make-prompt 'regexp scrollrow (1+ scrollrow) :text content))
+        (setf (mistty--prompt)
+              (mistty--make-prompt 'regexp scrollrow (1+ scrollrow)
+                                   :text content))
           (mistty-log "Possible prompt: %s '%s'"
-                      scrollrow (1+ scrollrow) content))))))
+                      scrollrow (1+ scrollrow) content)))))
 
 (defun mistty--reset-markers (&optional work-sync term-sync)
   "Reset the sync marker on both the term and work buffer.
@@ -3235,7 +3225,7 @@ Might modify CS before allowing replay."
      ;; modifications after the new prompt.
      ((and (mistty--possible-prompt-p)
            (setq shift (mistty--changeset-restrict
-                        cs (mistty--scrollrow-pos (mistty--prompt-start mistty--possible-prompt)))))
+                        cs (mistty--scrollrow-pos (mistty--prompt-start (mistty--prompt))))))
       (mistty--realize-possible-prompt shift)
       (setq replay t))
 
@@ -3587,46 +3577,50 @@ prompts."
       t)))
 
 (defun mistty--realize-possible-prompt (&optional shift)
-  "Create the prompt in `mistty--possible-prompt'.
+  "Realize a regexp prompt in `mistty--prompt'.
 
 If SHIFT is non-nil, it specifies a position difference between
 the sync markers in the work and term buffer at the beginning of
 the prompt."
-  (let* ((scrollrow (mistty--prompt-start mistty--possible-prompt))
+  (let* ((prompt (mistty--prompt))
+         (scrollrow (mistty--prompt-start prompt))
          (start (mistty--scrollrow-pos scrollrow)))
     (mistty-log "realize possible prompt at %s (%s)" scrollrow start)
     (if shift
         (mistty--move-sync-mark-with-shift start shift)
-      (mistty--set-sync-mark-from-end start)))
-  (setq mistty--has-active-prompt t)
-  (setq mistty--possible-prompt nil))
+      (mistty--set-sync-mark-from-end start))
+    (setq mistty--has-active-prompt t)
+    (setf (mistty--prompt-realized prompt) t)))
 
 (defun mistty--possible-prompt-p ()
   "Return non-nil if `mistty--possible-prompt' is usable."
-  (when mistty--possible-prompt
-    (when-let* ((scrollrow (mistty--prompt-start mistty--possible-prompt))
-                (content (mistty--prompt-text mistty--possible-prompt))
-                (start (mistty--scrollrow-pos scrollrow))
-                (length (length content))
-                (end (+ start length))
-                (cursor (mistty-cursor)))
-      (and (or (> start mistty-sync-marker)
-               (and (= start mistty-sync-marker)
-                    (not mistty--has-active-prompt)))
-           (>= cursor end)
-           (or (> cursor (point-max))
-               (<= cursor (mistty--bol start 2)))
-           (string= content (mistty--safe-bufstring start end))))))
+  (when-let ((prompt (mistty--prompt))
+             (scrollrow (mistty--prompt-start prompt))
+             (start (mistty--scrollrow-pos scrollrow)))
+    (when (and (eq 'regexp (mistty--prompt-source prompt))
+               (not (mistty--prompt-realized prompt)))
+      (let* ((content (mistty--prompt-text prompt))
+             (length (length content))
+             (end (+ start length))
+             (cursor (mistty-cursor)))
+        (and (or (> start mistty-sync-marker)
+                 (and (= start mistty-sync-marker)
+                      (not mistty--has-active-prompt)))
+             (>= cursor end)
+             (or (> cursor (point-max))
+                 (<= cursor (mistty--bol start 2)))
+             (string= content (mistty--safe-bufstring start end)))))))
 
 (defun mistty--possible-prompt-contains (pos)
-  "Return non-nil if POS is on `mistty--possible-prompt'."
-  (when mistty--possible-prompt
-    (when-let* ((scrollrow (mistty--prompt-start mistty--possible-prompt))
-                (text (mistty--prompt-text mistty--possible-prompt))
-                (start (mistty--scrollrow-pos scrollrow))
-                (length (length text))
-                (line-start (+ start length)))
-      (and (>= pos line-start) (<= pos (mistty--eol start))))))
+  "Return non-nil if POS is inside `mistty--prompt'."
+  (when-let* ((prompt (mistty--prompt))
+              (scrollrow (mistty--prompt-start prompt))
+              (start (mistty--scrollrow-pos scrollrow))
+              (length (if-let ((text (mistty--prompt-text prompt)))
+                          (length text)
+                        0))
+              (line-start (+ start length)))
+    (and (>= pos line-start) (<= pos (mistty--eol start)))))
 
 (defun mistty--create-backstage (proc)
   "Create a backstage buffer for PROC.

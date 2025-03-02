@@ -1976,7 +1976,7 @@
               (mistty--scrollrow (mistty-test-goto "say something>> "))
               (1+ (mistty--scrollrow (mistty-test-goto "say something>> ")))
               :text "say something>> ")
-             mistty--possible-prompt))))
+             (mistty--prompt)))))
 
 (ert-deftest mistty-test-nobracketed-paste-just-type ()
   (mistty-with-test-buffer (:shell bash)

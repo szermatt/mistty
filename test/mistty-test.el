@@ -1972,8 +1972,8 @@
     (mistty-send-text "foo")
     (should (equal
              (list
-              (mistty-test-goto "say something>> ")
-              (mistty-test-goto-after "say something>> ")
+              (mistty--scrollrow (mistty-test-goto "say something>> "))
+              (length "say something>> ")
               "say something>> ")
              mistty--possible-prompt))))
 

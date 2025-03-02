@@ -213,3 +213,18 @@
 
     (should (equal " [foo  \nbar]\n"
                    (mistty-test-content :show-property '(myprop 1) :trim nil)))))
+
+(ert-deftest mistty-prompt-contains-open-ended ()
+  (should (mistty--prompt-contains (mistty--make-prompt 'test 10) 10))
+  (should-not (mistty--prompt-contains (mistty--make-prompt 'test 10) 9))
+  (should-not (mistty--prompt-contains (mistty--make-prompt 'test 10) 1))
+  (should (mistty--prompt-contains (mistty--make-prompt 'test 10) 11))
+  (should (mistty--prompt-contains (mistty--make-prompt 'test 10) 100)))
+
+(ert-deftest mistty-prompt-contains-closed ()
+  (should (mistty--prompt-contains (mistty--make-prompt 'test 10 12) 10))
+  (should (mistty--prompt-contains (mistty--make-prompt 'test 10 12) 11))
+  (should-not (mistty--prompt-contains (mistty--make-prompt 'test 10 12) 9))
+  (should-not (mistty--prompt-contains (mistty--make-prompt 'test 10 12) 12))
+  (should-not (mistty--prompt-contains (mistty--make-prompt 'test 10 12) 1))
+  (should-not (mistty--prompt-contains (mistty--make-prompt 'test 10 12) 100)))

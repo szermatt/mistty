@@ -511,7 +511,7 @@ Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 ;; uses scrollrows as units.
 (cl-defstruct (mistty--prompt
                (:constructor mistty--make-prompt
-                             (source start &optional end)))
+                             (source start &optional end &key text)))
   ;; prompt source:
   ;;  - regexp
   ;;  - bracketed paste
@@ -527,7 +527,10 @@ Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
   ;;
   ;; This is the first scrollrow on which the prompt is *not* present, so
   ;; a single-line prompt starting at 10 would end at 11.
-  end)
+  end
+
+  ;; Text of the prompt, used when source=regexp.
+  text)
 
 (defvar-local mistty--prompt-cell nil
   "A cons cell whose CAR is a mistty-prompt instance or nil.
@@ -545,6 +548,12 @@ using (setf (mistty--prompt) val)")
 (gv-define-setter mistty--prompt (val)
   "Sets the value of the current `mistty--prompt' struct."
   `(setcar mistty--prompt-cell ,val))
+
+(defun mistty--prompt-contains (prompt scrollrow)
+  "Return non-nil if PROMPT contains SCROLLROW."
+  (and (>= scrollrow (mistty--prompt-start prompt))
+       (or (null (mistty--prompt-end prompt))
+           (< scrollrow (mistty--prompt-end prompt)))))
 
 (defun mistty--emulate-terminal (proc str work-buffer)
   "Handle process output as a terminal would.

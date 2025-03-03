@@ -1714,36 +1714,24 @@ Also updates prompt and point."
 
          ;; detect prompt from bracketed-past region and use that to
          ;; restrict the sync region.
-         (when (process-live-p mistty-proc)
-           (let* ((cursor (mistty-cursor))
-                  (prompt-beg
-                   (let ((pos cursor))
-                     (unless (and (> pos (point-min))
-                                  (get-text-property (1- pos) 'mistty-input-id))
-                       (setq pos (previous-single-property-change
-                                  pos 'mistty-input-id nil mistty-sync-marker)))
-                     (when (and (> pos (point-min))
-                                (get-text-property (1- pos) 'mistty-input-id))
-                       (setq pos (previous-single-property-change
-                                  pos 'mistty-input-id nil mistty-sync-marker)))
-                     (when (and (>= pos (point-min)) (< pos (point-max)))
-                       pos))))
-             (when (and prompt-beg
-                        (get-text-property prompt-beg 'mistty-input-id)
-                        (or (> prompt-beg mistty-sync-marker)
-                            (and (= prompt-beg mistty-sync-marker)
-                                 (not mistty--has-active-prompt)))
-                        (< prompt-beg cursor)
-                        (string-match
-                         mistty--prompt-regexp
-                         (mistty--safe-bufstring
-                          (mistty--bol cursor) cursor)))
-               (mistty-log "Detected prompt: [%s-%s] scrollrows [%s-%s]"
-                           prompt-beg cursor
-                           (mistty--scrollrow prompt-beg)
-                           (mistty--cursor-scrollrow))
-               (mistty--set-sync-mark-from-end prompt-beg)
-               (setq mistty--has-active-prompt (> cursor prompt-beg)))))
+         (when-let ((prompt (mistty--prompt)))
+           (when (and (not (mistty--prompt-realized prompt))
+                      (eq 'bracketed-paste (mistty--prompt-source prompt))
+                      (null (mistty--prompt-end prompt)))
+             (when-let ((prompt-beg (mistty--scrollrow-pos (mistty--prompt-start prompt)))
+                        (cursor (when (process-live-p mistty-proc)
+                                  (mistty-cursor))))
+               (when (and (> cursor prompt-beg)
+                          (string-match mistty--prompt-regexp
+                                        (mistty--safe-bufstring
+                                         (mistty--bol cursor) cursor)))
+                 (mistty-log "Realized prompt #%s [%s-] @%s"
+                             (mistty--prompt-input-id prompt)
+                             (mistty--prompt-start prompt)
+                             prompt-beg)
+                 (mistty--set-sync-mark-from-end prompt-beg)
+                 (setf (mistty--prompt-realized prompt) t)
+                 (setq mistty--has-active-prompt t)))))
 
          (let ((v (and on-prompt (mistty--can-move-vertically-p))))
            (unless (eq v mistty--can-move-vertically)

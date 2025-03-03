@@ -665,8 +665,8 @@ buffer.")
 
 This is updated at the same time as the marker, on both buffers.")
 
-(defvar-local mistty--has-active-prompt nil
-  "Non-nil there is a prompt at `mistty-sync-marker'.")
+(defvar-local mistty--active-prompt nil
+  "A `mistty--prompt' struct of the active prompt.")
 
 (defvar-local mistty--sync-ov nil
   "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
@@ -1509,13 +1509,16 @@ buffer has been updated."
                (string-match
                 mistty--prompt-regexp
                 (mistty--safe-bufstring bol cursor)))
-      (let ((content (mistty--safe-bufstring bol (+ bol (match-end 0)))))
-        (setf (mistty--prompt)
-              (mistty--make-prompt
-               'regexp scrollrow (1+ scrollrow)
-               :text content))
-        (mistty-log "Possible prompt: %s '%s'"
-                    scrollrow (1+ scrollrow) content)))))
+      (let ((prompt (mistty--make-prompt
+                     'regexp scrollrow (1+ scrollrow)
+                     :text (mistty--safe-bufstring bol (+ bol (match-end 0))))))
+        (setf (mistty--prompt) prompt)
+        (mistty-log "Suspected %s prompt #%s: [%s-%s] '%s'"
+                    (mistty--prompt-source prompt)
+                    (mistty--prompt-input-id prompt)
+                    (mistty--prompt-start prompt)
+                    (mistty--prompt-end prompt)
+                    (mistty--prompt-text prompt))))))
 
 (defun mistty--reset-markers (&optional work-sync term-sync)
   "Reset the sync marker on both the term and work buffer.
@@ -1688,24 +1691,21 @@ Also updates prompt and point."
 
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.
-         (when (and mistty--end-prompt
-                    (< mistty-sync-marker mistty--end-prompt (point-max)))
-           (when-let ((command-end
-                       (if (get-text-property mistty--end-prompt 'mistty-input-id)
-                           (next-single-property-change mistty-sync-marker 'mistty-input-id nil)
-                         (mistty--bol mistty--end-prompt 2))))
-             ;; Some versions of ZSH end the prompt just before the
-             ;; newline instead of just after. Extend the input-id
-             ;; region if necessary to account for that.
-             (when (and (not (eq ?\n (char-before command-end)))
-                        (eq ?\n (char-after command-end)))
-               (cl-incf command-end)
-               (when-let ((input-id (get-text-property mistty--end-prompt 'mistty-input-id)))
-                 (put-text-property (1- command-end) command-end 'mistty-input-id input-id)))
-             (when (and (eq ?\n (char-before command-end))
-                        (> (mistty--last-non-ws) command-end)
-                        (> command-end mistty-sync-marker))
-               (mistty--set-sync-mark-from-end command-end))))
+         (when mistty--end-prompt
+           (when-let ((prompt mistty--active-prompt)
+                      (scrollrow (mistty--with-live-buffer mistty-term-buffer
+                                   (mistty--term-scrollrow))))
+             (when (and (mistty--prompt-end prompt)
+                        (>= scrollrow (mistty--prompt-end prompt)))
+               (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrollrow %s)"
+                           (mistty--prompt-source prompt)
+                           (mistty--prompt-input-id prompt)
+                           (mistty--prompt-start prompt)
+                           (mistty--prompt-end prompt)
+                           scrollrow)
+               (mistty--set-sync-mark-from-end
+                (mistty--scrollrow-pos (mistty--prompt-end prompt))))))
+
 
          ;; detect prompt from bracketed-past region and use that to
          ;; restrict the sync region.
@@ -1727,7 +1727,7 @@ Also updates prompt and point."
                              prompt-beg)
                  (mistty--set-sync-mark-from-end prompt-beg)
                  (setf (mistty--prompt-realized prompt) t)
-                 (setq mistty--has-active-prompt t)))))
+                 (setq mistty--active-prompt prompt)))))
 
          (let ((v (and on-prompt (mistty--can-move-vertically-p))))
            (unless (eq v mistty--can-move-vertically)
@@ -1748,7 +1748,7 @@ Also updates prompt and point."
              (mistty--update-mode-lines)
              (mistty-log "FORBID EDIT off"))))
 
-         (unless mistty--has-active-prompt
+         (unless mistty--active-prompt
            (mistty--with-live-buffer mistty-term-buffer
              ;; Next time, only sync the visible portion of the terminal.
              (when (< mistty-sync-marker term-home-marker)
@@ -2029,7 +2029,7 @@ instead `mistty--move-sync-mark-with-shift' or
     (mistty-log "MOVE SYNC MARKER %s to %s"
                 (marker-position mistty-sync-marker)
                 sync-pos)
-    (setq mistty--has-active-prompt nil)
+    (setq mistty--active-prompt nil)
     (setq mistty--end-prompt nil)
     (mistty--process-archived-prompts sync-pos)
     (let ((old-marker-position (marker-position mistty-sync-marker)))
@@ -2925,7 +2925,7 @@ output."
                              (text-property-search-forward 'mistty-input-id nil t 'not-current)))
                (pos (prop-match-beginning prop-match)))
           (if (or (not mistty-sync-marker)
-                  (not mistty--has-active-prompt)
+                  (not mistty--active-prompt)
                   (< pos mistty-sync-marker))
               (progn
                 (goto-char pos)
@@ -3562,7 +3562,7 @@ Prompts can span multiple lines; everything after the beginning of a
 prompt is treated as being on a prompt, including completion options
 displayed below the prompt as fish or zsh do."
   (and mistty-sync-marker
-       mistty--has-active-prompt
+       mistty--active-prompt
        (>= pos mistty-sync-marker)))
 
 (defun mistty-before-positional ()
@@ -3611,7 +3611,7 @@ the prompt."
     (if shift
         (mistty--move-sync-mark-with-shift start shift)
       (mistty--set-sync-mark-from-end start))
-    (setq mistty--has-active-prompt t)
+    (setq mistty--active-prompt prompt)
     (setf (mistty--prompt-realized prompt) t)))
 
 (defun mistty--possible-prompt-p ()
@@ -3627,7 +3627,7 @@ the prompt."
              (cursor (mistty-cursor)))
         (and (or (> start mistty-sync-marker)
                  (and (= start mistty-sync-marker)
-                      (not mistty--has-active-prompt)))
+                      (not mistty--active-prompt)))
              (>= cursor end)
              (or (> cursor (point-max))
                  (<= cursor (mistty--bol start 2)))

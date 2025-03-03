@@ -505,6 +505,22 @@ Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 (defvar-local mistty--scrollrow-base nil
   "Scrollrow number of `mistty--scrollrow-home'.")
 
+(defvar-local mistty--prompt-cell nil
+  "A `mistty--prompt-cell' instance.
+
+This is used to share prompts between the work and term buffers. This is
+accessible from either buffer.
+
+Always access it through the places `mistty--prompt'
+`mistty--prompt-archive' and `mistty--prompt-counter'.")
+
+(cl-defstruct (mistty--prompt-cell
+               (:constructor mistty--make-prompt-cell
+                             (&aux (counter 0))))
+  current
+  archive
+  counter)
+
 ;; A detected prompt.
 ;;
 ;; This datastructure is shared between the work and term buffer and
@@ -512,7 +528,10 @@ Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 (cl-defstruct (mistty--prompt
                (:constructor mistty--make-prompt
                              (source start &optional end &key text
-                                     &aux (input-id (mistty--next-id)))))
+                                     &aux (input-id
+                                           (progn
+                                             (cl-incf (mistty--prompt-cell-counter
+                                                       mistty--prompt-cell)))))))
   input-id
 
   ;; prompt source:
@@ -535,35 +554,30 @@ Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
   ;; Text of the prompt, used when source=regexp.
   text)
 
-(defvar-local mistty--prompt-cell nil
-  "A cons cell whose CAR is a mistty-prompt instance or nil.
-
-This is used to share prompts between the work and term buffers. This is
-accessible from either buffer.
-
-Always access it through the function `mistty--prompt' and set it
-using (setf (mistty--prompt) val)")
-
 (defun mistty--prompt ()
   "Get the value of the current `mistty--prompt' struct or nil."
-  (car mistty--prompt-cell))
+  (mistty--prompt-cell-current mistty--prompt-cell))
 
 (defun mistty--prompt-archive ()
   "Get the list of archived `mistty--prompt' structs."
-  (cdr mistty--prompt-cell))
+  (mistty--prompt-cell-archive mistty--prompt-cell))
+
+(defun mistty--prompt-counter ()
+  "Get the number of prompt instances created in this buffer."
+  (mistty--prompt-cell-counter mistty--prompt-cell))
 
 (gv-define-setter mistty--prompt (val)
   "Sets the value of the current `mistty--prompt' struct.
 
 The old value, if any, is pushed into `mistty--prompt-archive'."
   `(progn
-     (when-let ((old (car mistty--prompt-cell)))
-       (push old (cdr mistty--prompt-cell)))
-     (setcar mistty--prompt-cell ,val)))
+     (when-let ((old (mistty--prompt-cell-current mistty--prompt-cell)))
+       (push old (mistty--prompt-cell-archive mistty--prompt-cell)))
+     (setf (mistty--prompt-cell-current mistty--prompt-cell) ,val)))
 
 (gv-define-setter mistty--prompt-archive (val)
   "Sets the value of `mistty--prompt-archive'."
-  `(setcdr mistty--prompt-cell ,val))
+  `(setf (mistty--prompt-cell-archive mistty--prompt-cell) ,val))
 
 (defun mistty--prompt-contains (prompt scrollrow)
   "Return non-nil if PROMPT contains SCROLLROW."
@@ -654,7 +668,8 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                               (catch 'mistty-prompt-start
                                 (dolist (i '(0 -1 -2 -3))
                                   (let ((pos (pos-eol i)))
-                                    (when (and (= pos 1) (> (point) (pos-bol)))
+                                    (when (and (zerop (mistty--prompt-counter))
+                                               (= pos 1) (> (point) (pos-bol)))
                                       (mistty-log "extend first prompt [1-%s]" (point))
                                       (throw 'mistty-prompt-start (point-min)))
                                     (when (get-text-property pos 'mistty-prompt-sp)
@@ -822,7 +837,7 @@ This function returns the newly-created buffer."
       (setq-local term-command-function #'mistty--term-command-hook)
       (setq-local mistty--scrollrow-home (copy-marker (point-min)))
       (setq-local mistty--scrollrow-base 0)
-      (setq-local mistty--prompt-cell (cons nil nil))
+      (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
       (mistty-term--exec program args)
       (let ((proc (get-buffer-process term-buffer)))
         ;; TRAMP sets adjust-window-size-function to #'ignore, which

@@ -1609,7 +1609,7 @@ This works in both the sync and term buffers.
 To get the position of the cursor `mistty--cursor-scrollrow' is more
 efficient that passing the result of `mistty-cursor' to this function."
   (save-restriction
-    (+ mistty--sync-marker-scrollrow (count-lines mistty-sync-marker pos))))
+    (+ mistty--sync-marker-scrollrow (mistty--count-lines mistty-sync-marker pos))))
 
 (defun mistty--scrollrow-pos (scrollrow)
   "Return the position of the beginning of SCROLLROW.
@@ -3830,17 +3830,9 @@ of them."
 
 Note that moving that distance vertically only gets the cursor to
 the *line* on which END is."
-  (save-excursion
-    (let ((count 0)
-          (sign (if (> beg end) -1 1))
-          (beg (min beg end))
-          (end (max beg end)))
-      (goto-char beg)
-      (while (search-forward "\n" end 'noerror)
-        (unless (get-text-property (match-beginning 0) 'term-line-wrap)
-          (cl-incf count)))
-
-      (* sign count))))
+  (mistty--count-lines beg end
+                       (lambda (pos)
+                         (not (get-text-property pos 'term-line-wrap)))))
 
 (defun mistty--distance (beg end)
   "Compute the number left/right key presses to get from BEG to END.
@@ -4100,7 +4092,7 @@ term buffer."
               (buffer-substring-no-properties (point-min) (point-max)))))
       (mistty-log "prelude: [%s]" prelude)
       (when (string-match-p "[^[:space:]]" prelude)
-        (let* ((term-lines (count-lines (point-min) (point-max)))
+        (let* ((term-lines (mistty--count-lines (point-min) (point-max)))
                (work-sync (with-current-buffer mistty-work-buffer
                             (let ((limit
                                    (save-excursion

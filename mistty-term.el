@@ -1195,9 +1195,9 @@ Detected dead spaces are marked with the text property \\='mistty-skip
 
 Call this before deleting any region before `term-home-marker'."
   (when (/= mistty--scrollrow-home term-home-marker)
-    (let ((delta (count-lines mistty--scrollrow-home term-home-marker)))
-      (cl-incf mistty--scrollrow-base delta))
-    (move-marker mistty--scrollrow-home term-home-marker)))
+    (let ((delta (mistty--count-lines mistty--scrollrow-home term-home-marker)))
+      (setq mistty--scrollrow-base (+ mistty--scrollrow-base delta)))
+    (move-marker mistty--scrollrow-home (marker-position term-home-marker))))
 
 (defun mistty--term-scrollrow ()
   "Return the current scrollrow.
@@ -1216,7 +1216,7 @@ The scrollrow count starts at the very beginning of the virtual buffer
 and doesn't change as the buffer scrolls up.
 
 Before using a scrollrow, convert it to a screen row or point."
-  (+ mistty--scrollrow-base (count-lines mistty--scrollrow-home pos)))
+  (+ mistty--scrollrow-base (mistty--count-lines mistty--scrollrow-home pos)))
 
 (defun mistty--term-scrollrow-range ()
   "Current scrollrow range, covering the screen."

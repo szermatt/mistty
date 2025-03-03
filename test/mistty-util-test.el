@@ -131,3 +131,24 @@
     (should-not (mistty--has-text-properties 1 '(a "a" b "c")))
 
     (should (mistty--has-text-properties 4 '(b "c" d "d")))))
+
+(ert-deftest mistty-util-count-lines ()
+  (ert-with-test-buffer ()
+    (dotimes (i 10)
+      (insert (format "line %s\n" i)))
+    (should (equal 10 (mistty--count-lines (point-min) (point-max))))
+
+    (should (equal 0 (mistty--count-lines (mistty-test-pos "line 1") (mistty-test-pos "line 1"))))
+
+    (should (equal 3 (mistty--count-lines (mistty-test-pos "line 1") (mistty-test-pos "line 4"))))
+    (should (equal -3 (mistty--count-lines (mistty-test-pos "line 4") (mistty-test-pos "line 1"))))))
+
+(ert-deftest mistty-util-count-lines-pred ()
+  (ert-with-test-buffer ()
+    (dotimes (i 10)
+      (insert (format "line %s.\nline %s!\n" (* i 2) (1+ (* i 2)))))
+
+    (should (equal 20 (mistty--count-lines (point-min) (point-max))))
+    (should (equal 10 (mistty--count-lines (point-min) (point-max))
+                   (lambda (pos)
+                     (eq ?. (char-before pos)))))))

@@ -175,6 +175,26 @@ Return nil if PROP is nil."
             (setq ret nil))))
       ret)))
 
+(defun mistty--count-lines (beg end &optional pred)
+  "Return number of newlines between BEG and END, including invisible ones.
+
+If END < BEG, return a negative number.
+
+If specified, PRED is a function that takes a position pointing to a
+newline and return non-nil if that newline should be counted."
+    (save-excursion
+    (let ((count 0)
+          (sign (if (> beg end) -1 1))
+          (beg (min beg end))
+          (end (max beg end))
+          (pred (or pred (lambda (_) t))))
+      (goto-char beg)
+      (while (search-forward "\n" end 'noerror)
+        (when (funcall pred (match-beginning 0))
+          (cl-incf count)))
+
+      (* sign count))))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

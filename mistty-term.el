@@ -630,95 +630,92 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
             (unless mistty-bracketed-paste
               (let* ((prompt (mistty--prompt))
                      (inhibit-modification-hooks t)
-                     ;; zsh enables bracketed paste only after having printed
-                     ;; the prompt. Try to find the beginning of the prompt
-                     ;; from prompt_sp or assume a single-line prompt.
-                     (prompt-start
-                      (or
-                       (catch 'mistty-prompt-start
-                         (dolist (i '(0 -1 -2 -3))
-                           (let ((pos (pos-eol i)))
-                             (when (and (< pos (point-max))
-                                        (get-text-property (1+ pos) 'mistty-input-id))
-                               (throw 'mistty-prompt-start nil))
-                             (when (and (= pos 1) (> (point) (pos-bol)))
-                               (mistty-log "extend first prompt [1-%s]" (point))
-                               (throw 'mistty-prompt-start (point-min)))
-                             (when (get-text-property pos 'mistty-prompt-sp)
-                               (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
-                               (remove-text-properties pos (1+ pos) '(term-line-wrap t))
-                               (throw 'mistty-prompt-start (1+ pos))))))
-                       (pos-bol)))
-                     (scrollrow (mistty--term-scrollrow-at prompt-start)))
-                (if (or (null prompt)
-                        (not (mistty--prompt-contains prompt scrollrow)))
-                    (progn
-                      (setq prompt (mistty--make-prompt 'bracketed-paste scrollrow))
-                      (setf (mistty--prompt) prompt))
-                  (setf (mistty--prompt-source prompt) 'bracketed-paste)
-                  (when (< scrollrow (mistty--prompt-start prompt))
-                    (setf (mistty--prompt-start prompt) scrollrow))
-                  (setf (mistty--prompt-end prompt) nil))
+                     (prompt-start (point))
+                     (scrollrow (mistty--term-scrollrow)))
+                (when (or (null prompt)
+                          (not (mistty--prompt-contains prompt scrollrow)))
+                  ;; zsh enables bracketed paste only after having printed
+                  ;; the prompt. Try to find the beginning of the prompt
+                  ;; from prompt_sp or assume a single-line prompt.
+                  (when-let ((real-start
+                              (catch 'mistty-prompt-start
+                                (dolist (i '(0 -1 -2 -3))
+                                  (let ((pos (pos-eol i)))
+                                    (when (and (= pos 1) (> (point) (pos-bol)))
+                                      (mistty-log "extend first prompt [1-%s]" (point))
+                                      (throw 'mistty-prompt-start (point-min)))
+                                    (when (get-text-property pos 'mistty-prompt-sp)
+                                      (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
+                                      (remove-text-properties
+                                       pos (1+ pos) '(term-line-wrap t 'mistty-prompt-sp nil))
+                                      (throw 'mistty-prompt-start (1+ pos))))))))
+                    (setq prompt-start real-start)
+                    (setq scrollrow (mistty--term-scrollrow-at real-start)))
+                  (setq prompt (mistty--make-prompt 'bracketed-paste scrollrow))
+                  (setf (mistty--prompt) prompt))
+
+                (setf (mistty--prompt-source prompt) 'bracketed-paste)
+                (setf (mistty--prompt-end prompt) nil)
                 (let ((props `(mistty-input-id ,(mistty--prompt-input-id prompt)))
                       (eol (pos-eol)))
                   (when (< prompt-start eol)
                     (add-text-properties prompt-start eol props)
                     (mistty--term-postprocess prompt-start eol))
                   (mistty-register-text-properties 'mistty-bracketed-paste props)))
-              (setq mistty-bracketed-paste t)
-              (mistty--with-live-buffer work-buffer
-                (setq mistty-bracketed-paste t))))
-           ((equal ext "[?2004l") ; disable bracketed paste
-            (term-emulate-terminal proc (substring str start seq-end))
-            (when mistty-bracketed-paste
-              (when-let ((prompt (mistty--prompt))
-                         (scrollrow (if (eq ?\n (char-before (point)))
-                                        (mistty--term-scrollrow)
-                                      (1+ (mistty--term-scrollrow)))))
-                (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
-                           (null (mistty--prompt-end prompt))
-                           (> scrollrow (mistty--prompt-start prompt)))
-                  (setf (mistty--prompt-end prompt) scrollrow)))
-              (mistty-unregister-text-properties 'mistty-bracketed-paste)
-              (setq mistty-bracketed-paste nil)
-              (mistty--with-live-buffer work-buffer
-                (setq mistty-bracketed-paste nil))))
-           ((equal ext "[?25h") ; make cursor visible
-            (term-emulate-terminal proc (substring str start seq-end))
+            (setq mistty-bracketed-paste t)
             (mistty--with-live-buffer work-buffer
-              (mistty--show-cursor)))
-           ((equal ext "[?25l") ; make cursor invisible
-            (term-emulate-terminal proc (substring str start seq-end))
-            (mistty--with-live-buffer work-buffer
-              (mistty--hide-cursor)))
-           ((and osc (length= osc-terminator 0))
-            (term-emulate-terminal proc (substring str start seq-start))
-            ;; sequence is not finished; save it for later
-            (setq mistty--undecoded-bytes (substring str seq-start)))
-           (osc
-            (term-emulate-terminal proc (substring str start seq-start))
-            (when-let ((code osc-code)
-                       (handler (cdr (assoc-string code mistty-osc-handlers))))
-              (funcall handler code
-                       (decode-coding-string
-                        (string-remove-prefix (concat code ";") osc)
-                        locale-coding-system t))))
-           (prompt-sp-end
-            (term-emulate-terminal proc (substring str start prompt-sp-end))
-            (when (or (and (= (1- term-width) (term-current-column))
-                           (eq ?\  (char-before (point))))
-                      (and (get-text-property (pos-eol 0) 'term-line-wrap)
-                           (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
-              (let ((inhibit-modification-hooks t)
-                    (pos (pos-eol 0)))
-                (put-text-property pos (1+ pos) 'mistty-prompt-sp t)))
-            ;; Include the \r in the next loop.
-            (setq seq-end prompt-sp-end)))
-          (setq start seq-end)))
-      (let ((split (mistty--split-incomplete-chars (substring str start))))
-        (when (length> (cdr split) 0)
-          (setq mistty--undecoded-bytes (cdr split)))
-        (term-emulate-terminal proc (car split)))))
+              (setq mistty-bracketed-paste t))))
+          ((equal ext "[?2004l") ; disable bracketed paste
+           (term-emulate-terminal proc (substring str start seq-end))
+           (when mistty-bracketed-paste
+             (when-let ((prompt (mistty--prompt))
+                        (scrollrow (if (eq ?\n (char-before (point)))
+                                       (mistty--term-scrollrow)
+                                     (1+ (mistty--term-scrollrow)))))
+               (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
+                          (null (mistty--prompt-end prompt))
+                          (> scrollrow (mistty--prompt-start prompt)))
+                 (setf (mistty--prompt-end prompt) scrollrow)))
+             (mistty-unregister-text-properties 'mistty-bracketed-paste)
+             (setq mistty-bracketed-paste nil)
+             (mistty--with-live-buffer work-buffer
+               (setq mistty-bracketed-paste nil))))
+          ((equal ext "[?25h") ; make cursor visible
+           (term-emulate-terminal proc (substring str start seq-end))
+           (mistty--with-live-buffer work-buffer
+             (mistty--show-cursor)))
+          ((equal ext "[?25l") ; make cursor invisible
+           (term-emulate-terminal proc (substring str start seq-end))
+           (mistty--with-live-buffer work-buffer
+             (mistty--hide-cursor)))
+          ((and osc (length= osc-terminator 0))
+           (term-emulate-terminal proc (substring str start seq-start))
+           ;; sequence is not finished; save it for later
+           (setq mistty--undecoded-bytes (substring str seq-start)))
+          (osc
+           (term-emulate-terminal proc (substring str start seq-start))
+           (when-let ((code osc-code)
+                      (handler (cdr (assoc-string code mistty-osc-handlers))))
+             (funcall handler code
+                      (decode-coding-string
+                       (string-remove-prefix (concat code ";") osc)
+                       locale-coding-system t))))
+          (prompt-sp-end
+           (term-emulate-terminal proc (substring str start prompt-sp-end))
+           (when (or (and (= (1- term-width) (term-current-column))
+                          (eq ?\  (char-before (point))))
+                     (and (get-text-property (pos-eol 0) 'term-line-wrap)
+                          (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
+             (let ((inhibit-modification-hooks t)
+                   (pos (pos-eol 0)))
+               (put-text-property pos (1+ pos) 'mistty-prompt-sp t)))
+           ;; Include the \r in the next loop.
+           (setq seq-end prompt-sp-end)))
+        (setq start seq-end)))
+    (let ((split (mistty--split-incomplete-chars (substring str start))))
+      (when (length> (cdr split) 0)
+        (setq mistty--undecoded-bytes (cdr split)))
+      (term-emulate-terminal proc (car split)))))
 
   (when-let ((change-start
               (when (and mistty--term-changed

@@ -149,6 +149,6 @@
       (insert (format "line %s.\nline %s!\n" (* i 2) (1+ (* i 2)))))
 
     (should (equal 20 (mistty--count-lines (point-min) (point-max))))
-    (should (equal 10 (mistty--count-lines (point-min) (point-max))
-                   (lambda (pos)
-                     (eq ?. (char-before pos)))))))
+    (should (equal 10 (mistty--count-lines (point-min) (point-max)
+                                           (lambda (pos)
+                                             (eq ?. (char-before pos))))))))

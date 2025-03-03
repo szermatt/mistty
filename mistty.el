@@ -1705,11 +1705,6 @@ Also updates prompt and point."
              (when (and (eq ?\n (char-before command-end))
                         (> (mistty--last-non-ws) command-end)
                         (> command-end mistty-sync-marker))
-               (unless (get-text-property command-end 'mistty-input-id)
-                 (mistty-log "End prompt. Mark input range: [%s-%s]"
-                             (marker-position mistty-sync-marker) command-end)
-                 (put-text-property mistty-sync-marker command-end
-                                    'mistty-input-id (mistty--next-id)))
                (mistty--set-sync-mark-from-end command-end))))
 
          ;; detect prompt from bracketed-past region and use that to
@@ -2036,6 +2031,7 @@ instead `mistty--move-sync-mark-with-shift' or
                 sync-pos)
     (setq mistty--has-active-prompt nil)
     (setq mistty--end-prompt nil)
+    (mistty--process-archived-prompts sync-pos)
     (let ((old-marker-position (marker-position mistty-sync-marker)))
       (move-marker mistty-sync-marker sync-pos)
       (when (< old-marker-position sync-pos)
@@ -2055,6 +2051,38 @@ instead `mistty--move-sync-mark-with-shift' or
                   (mistty--term-scrollrow-range)))
     (when scrollrow
       (setq mistty--sync-marker-scrollrow scrollrow))))
+
+(defun mistty--process-archived-prompts (limit)
+  "Remove archived prompts above END and mark their regions.
+
+This function cleans up `mistty--prompt-archive', removing prompts above END.
+
+It also marks the prompt region with the text property
+\\=`mistty-input-id so they can be detected by functions like
+`mistty-next-output'."
+  (when-let ((prompt (mistty--prompt)))
+    (when (and (mistty--prompt-end prompt)
+               (<= limit (mistty--prompt-end prompt)))
+      (setf (mistty--prompt) nil)))
+  (dolist (prompt (mistty--prompt-archive))
+    (when (mistty--prompt-realized prompt)
+      (when-let ((prompt-beg (mistty--scrollrow-pos
+                              (mistty--prompt-start prompt)))
+                 (prompt-end (when (mistty--prompt-end prompt)
+                               (mistty--scrollrow-pos
+                                (mistty--prompt-end prompt)))))
+        (when (> prompt-end prompt-beg)
+          (mistty-log "End %s prompt #%s. Mark input range: [%s-%s]/[%s-%s]"
+                      (mistty--prompt-source prompt)
+                      (mistty--prompt-input-id prompt)
+                      (mistty--prompt-start prompt)
+                      (mistty--prompt-end prompt)
+                      prompt-beg
+                      prompt-end)
+          (put-text-property
+           prompt-beg prompt-end
+           'mistty-input-id (mistty--prompt-input-id prompt))))))
+  (setf (mistty--prompt-archive) nil))
 
 (defun mistty--prepare-for-scrollback (beg end)
   "Transition a region from the terminal to the scrollback zone.

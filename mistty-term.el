@@ -548,9 +548,22 @@ using (setf (mistty--prompt) val)")
   "Get the value of the current `mistty--prompt' struct or nil."
   (car mistty--prompt-cell))
 
+(defun mistty--prompt-archive ()
+  "Get the list of archived `mistty--prompt' structs."
+  (cdr mistty--prompt-cell))
+
 (gv-define-setter mistty--prompt (val)
-  "Sets the value of the current `mistty--prompt' struct."
-  `(setcar mistty--prompt-cell ,val))
+  "Sets the value of the current `mistty--prompt' struct.
+
+The old value, if any, is pushed into `mistty--prompt-archive'."
+  `(progn
+     (when-let ((old (car mistty--prompt-cell)))
+       (push old (cdr mistty--prompt-cell)))
+     (setcar mistty--prompt-cell ,val)))
+
+(gv-define-setter mistty--prompt-archive (val)
+  "Sets the value of `mistty--prompt-archive'."
+  `(setcdr mistty--prompt-cell ,val))
 
 (defun mistty--prompt-contains (prompt scrollrow)
   "Return non-nil if PROMPT contains SCROLLROW."
@@ -652,8 +665,11 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                     (setq prompt-start real-start)
                     (setq scrollrow (mistty--term-scrollrow-at real-start)))
                   (setq prompt (mistty--make-prompt 'bracketed-paste scrollrow))
+                  (mistty-log "Detected %s prompt #%s [%s-]"
+                              (mistty--prompt-source prompt)
+                              (mistty--prompt-input-id prompt)
+                              (mistty--prompt-start prompt))
                   (setf (mistty--prompt) prompt))
-
                 (setf (mistty--prompt-source prompt) 'bracketed-paste)
                 (setf (mistty--prompt-end prompt) nil)
                 (let ((props `(mistty-input-id ,(mistty--prompt-input-id prompt)))

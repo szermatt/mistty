@@ -1725,7 +1725,8 @@ Also updates prompt and point."
                           (string-match mistty--prompt-regexp
                                         (mistty--safe-bufstring
                                          (mistty--bol cursor) cursor)))
-                 (mistty-log "Realized prompt #%s [%s-] @%s"
+                 (mistty-log "Realized %s prompt #%s [%s-] @%s"
+                             (mistty--prompt-source prompt)
                              (mistty--prompt-input-id prompt)
                              (mistty--prompt-start prompt)
                              prompt-beg)
@@ -3574,7 +3575,11 @@ the prompt."
   (let* ((prompt (mistty--prompt))
          (scrollrow (mistty--prompt-start prompt))
          (start (mistty--scrollrow-pos scrollrow)))
-    (mistty-log "realize possible prompt at %s (%s)" scrollrow start)
+    (mistty-log "Realized %s prompt #%s [%s-] @%s"
+                (mistty--prompt-source prompt)
+                (mistty--prompt-input-id prompt)
+                (mistty--prompt-start prompt)
+                start)
     (if shift
         (mistty--move-sync-mark-with-shift start shift)
       (mistty--set-sync-mark-from-end start))

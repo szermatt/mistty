@@ -2892,25 +2892,31 @@ up (negative)."
 (defun mistty-next-input (n)
   "Move the point to the Nth next input in the buffer."
   (interactive "p")
-  (dotimes (_ n)
-    (if-let ((prop-match (save-excursion
-                           (text-property-search-forward 'mistty-input-id nil nil 'not-current))))
-        (goto-char (prop-match-beginning prop-match))
-      (if (and (process-live-p mistty-proc)
-               (< (point) mistty-sync-marker)
-               (or (mistty-maybe-realize-possible-prompt (mistty-cursor))
-                   (mistty-on-prompt-p (mistty-cursor))))
-          (goto-char (mistty--bol (mistty-cursor)))
-        (error "No next input")))))
+  (if-let ((prompt
+            (mistty--forward-prompt-ranges
+             (let ((accepted-count 0))
+               (lambda (prompt)
+                 (when (< (point) (nth 0 prompt)) ; input must be below point
+                   (cl-incf accepted-count))
+
+                 (>= accepted-count n))))))
+      (goto-char (nth 0 prompt))
+    (error "No next input")))
 
 (defun mistty-previous-input (n)
   "Move the point to the Nth previous input in the buffer."
   (interactive "p")
-  (dotimes (_ n)
-    (if-let ((prop-match (save-excursion
-                           (text-property-search-backward 'mistty-input-id nil nil 'not-current))))
-        (goto-char (prop-match-beginning prop-match))
-      (error "No previous input"))))
+  (if-let ((prompt
+            (mistty--backward-prompt-ranges
+             (let ((accepted-count 0))
+               (lambda (prompt)
+                 (when (and (>= (point) (nth 1 prompt))  ; input must be above point
+                            (/= (point-max) (nth 2 prompt))) ;; ignore active prompt
+                   (cl-incf accepted-count))
+
+                 (>= accepted-count n))))))
+      (goto-char (nth 0 prompt))
+    (error "No previous input")))
 
 (defun mistty-next-output (n)
   "Move the point to the beginning of the Nth next output in the buffer.
@@ -2919,20 +2925,19 @@ In addition to moving the point, this function also returns a
 cons, (START . END) containing the start and end position of the
 output."
   (interactive "p")
-  (let (end)
-    (dotimes (_ n)
-      (if-let ((prop-match (save-excursion
-                             (text-property-search-forward 'mistty-input-id nil t 'not-current)))
-               (pos (prop-match-beginning prop-match)))
-          (if (or (not mistty-sync-marker)
-                  (not mistty--active-prompt)
-                  (< pos mistty-sync-marker))
-              (progn
-                (goto-char pos)
-                (setq end (prop-match-end prop-match)))
-            (error "No next output"))
-        (error "No next output")))
-    (cons (point) end)))
+  (if-let ((prompt
+            (mistty--forward-prompt-ranges
+             (let ((accepted-count 0))
+               (lambda (prompt)
+                 (when (and
+                        (< (point) (nth 1 prompt)) ; output must be above point
+                        (> (nth 2 prompt) (nth 1 prompt))) ; ignore empty prompts
+                   (cl-incf accepted-count))
+
+                 (>= accepted-count n))))))
+      (prog1 (cons (nth 1 prompt) (nth 2 prompt))
+        (goto-char (nth 1 prompt)))
+    (error "No next output")))
 
 (defun mistty-previous-output (n)
   "Move the point to the beginning of the Nth previous output in the buffer.
@@ -2941,15 +2946,18 @@ In addition to moving the point, this function also returns a
 cons, (START . END) containing the start and end position of the
 output."
   (interactive "p")
-  (let (end)
-    (dotimes (_ n)
-      (if-let ((prop-match (save-excursion
-                             (text-property-search-backward 'mistty-input-id nil t 'not-current)))
-               (pos (prop-match-beginning prop-match)))
-          (progn (goto-char pos)
-                 (setq end (prop-match-end prop-match)))
-        (error "No previous output")))
-    (cons (point) end)))
+  (if-let ((prompt
+            (mistty--backward-prompt-ranges
+             (let ((accepted-count 0))
+               (lambda (prompt)
+                 (when (and (> (point) (nth 2 prompt)) ; output must be above point
+                            (> (nth 2 prompt) (nth 1 prompt))) ; ignore empty prompts
+                   (cl-incf accepted-count))
+
+                 (>= accepted-count n))))))
+      (prog1 (cons (nth 1 prompt) (nth 2 prompt))
+        (goto-char (nth 1 prompt)))
+    (error "No previous output")))
 
 (defun mistty-current-output-range ()
   "Return the range of the current output, if point is on an output.
@@ -2957,15 +2965,12 @@ output."
 This function returns nil, if the point is not inside an output.
 Otherwise, it returns a cons containing the start and end
 position of the output."
-  (save-excursion
-    (unless (get-text-property (point) 'mistty-input-id)
-      (when-let ((beg (if (or (bobp)
-                              (get-text-property (1- (point)) 'mistty-input-id))
-                          (point)
-                        (previous-single-property-change
-                         (point) 'mistty-input-id nil (point-min))))
-                 (end (next-single-property-change (point) 'mistty-input-id)))
-        (cons beg end)))))
+  (let ((prompt (mistty--prompt-ranges-around
+                 (point) (mistty--active-or-potential-prompt-ranges))))
+    (if (and prompt
+             (and (<= (nth 1 prompt) (point))  ; point must be below input
+                  (< (point) (nth 2 prompt)))) ; point must be above output end
+        (cons (nth 1 prompt) (nth 2 prompt)))))
 
 (defun mistty-clear (n)
   "Clear the MisTTY buffer until the end of the last output.
@@ -3041,16 +3046,108 @@ Return nil if no command could be extracted."
 (defun mistty--current-or-previous-output-range (&optional n)
   "Return the range of the current or the Nth output.
 
-If called with no arguments and the point is on an output, create
-a buffer with that output, otherwise return the range of a
-previous output.
+If N is a number, behave like `mistty-previous-output', otherwise
+return either the current or te previous output
 
 This function fails if there is no current or previous output."
-  (save-excursion
-    (if (numberp n)
-        (mistty-previous-output n)
-      (or (mistty-current-output-range)
-          (mistty-previous-output 1)))))
+  (let ((must-be-above-point (numberp n))
+        (n (if (numberp n) n 1)))
+    (if-let ((prompt
+              (mistty--backward-prompt-ranges
+               (let ((accepted-count 0))
+                 (lambda (prompt)
+                   (when (and
+                          ;; Output must be above point (same as previous-output)
+                          (or (not must-be-above-point)
+                              (> (point) (nth 2 prompt)))
+                          ;; Ignore empty prompts
+                          (> (nth 2 prompt) (nth 1 prompt)))
+                     (cl-incf accepted-count))
+
+                   (>= accepted-count n))))))
+        (cons (nth 1 prompt) (nth 2 prompt))
+      (error "No current or previous output"))))
+
+(defun mistty--prompt-ranges-around (pos active-prompt-ranges)
+  "Return ranges of prompt around POS.
+
+If a prompt if found around POS, return (list prompt-start output-start
+output-end), otherwise return nil.
+
+active-prompt-range must be the output of
+`mistty--active-or-potential-prompt-ranges'."
+  (catch 'mistty-return
+    (when (and active-prompt-ranges (>= pos (nth 0 active-prompt-ranges)))
+      (throw 'mistty-return active-prompt-ranges))
+    (unless (get-text-property pos 'mistty-input-id)
+      (setq pos (previous-single-property-change (min (1+ pos) (point-max)) 'mistty-input-id))
+      (unless pos
+        (throw 'mistty-return nil))
+      (setq pos (1- pos)))
+    ;; At pos, mistty-input-id is non-nil
+    (setq pos (previous-single-property-change (min (1+ pos) (point-max)) 'mistty-input-id nil (point-min)))
+    (mistty--prompt-ranges-at pos active-prompt-ranges)))
+
+(defun mistty--prompt-ranges-at (start active-prompt-ranges)
+  "Return ranges of a prompt starting at START.
+
+If a prompt if found that starts at START, return (list START
+output-start output-end), otherwise return nil.
+
+active-prompt-range must be the output of
+`mistty--active-or-potential-prompt-ranges'."
+  (let ((limit (or (nth 0 active-prompt-ranges) (point-max))))
+    (if (and (< start limit) (get-text-property start 'mistty-input-id))
+        (let* ((prompt-end (next-single-property-change start 'mistty-input-id nil limit))
+               (output-end (if (or (>= prompt-end limit)
+                                   (get-text-property prompt-end 'mistty-input-id))
+                               prompt-end
+                             (next-single-property-change prompt-end 'mistty-input-id nil limit))))
+          (list start prompt-end output-end))
+      (if (equal start (nth 0 active-prompt-ranges))
+          active-prompt-ranges
+        (error "Invalid usage of mistty--prompt-ranges-at; no prompt starts at %s" start)))))
+
+(defun mistty--active-or-potential-prompt-ranges ()
+  "If a prompt is active, return (list prompt-start output-start output-end).
+
+Also accepts inactive (potential) prompts."
+  (when-let* ((prompt (or mistty--active-prompt (mistty--prompt)))
+              (start-pos (mistty--scrollrow-pos (mistty--prompt-start prompt)))
+              (end-pos (or (when-let ((end (mistty--prompt-end prompt)))
+                             (mistty--scrollrow-pos end))
+                           (point-max))))
+    (list start-pos end-pos end-pos)))
+
+(defun mistty--forward-prompt-ranges (accept)
+  "Go through prompt ranges forward until ACCEPT return non-nil.
+
+Return the prompt range that was accepted or nil."
+  (let* ((active-prompt-ranges (mistty--active-or-potential-prompt-ranges))
+         (prompt (mistty--prompt-ranges-around (point) active-prompt-ranges)))
+    (catch 'mistty--accepted
+      (when (and prompt (funcall accept prompt))
+        (throw 'mistty--accepted prompt))
+      (while
+          (setq prompt (when (and prompt (< (nth 2 prompt) (point-max)))
+                         (mistty--prompt-ranges-at (nth 2 prompt) active-prompt-ranges)))
+        (when (funcall accept prompt)
+          (throw 'mistty--accepted prompt))))))
+
+(defun mistty--backward-prompt-ranges (accept)
+  "Go through prompt ranges backward until ACCEPT return non-nil.
+
+Return the prompt range that was accepted or nil."
+  (let* ((active-prompt-ranges (mistty--active-or-potential-prompt-ranges))
+         (prompt (mistty--prompt-ranges-around (point) active-prompt-ranges)))
+    (catch 'mistty--accepted
+      (when (and prompt (funcall accept prompt))
+        (throw 'mistty--accepted prompt))
+      (while
+          (setq prompt (when (and prompt (> (nth 0 prompt) (point-min)))
+                         (mistty--prompt-ranges-around (1- (nth 0 prompt)) active-prompt-ranges)))
+        (when (funcall accept prompt)
+          (throw 'mistty--accepted prompt))))))
 
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."

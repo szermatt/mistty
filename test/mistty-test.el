@@ -1307,7 +1307,16 @@
                    (mistty-test-content :show (list (point) (mark)))))
 
     (mistty-test-goto "echo one")
-    (should-error (mistty-select-output))))
+    (mistty-select-output)
+    (should (equal (concat "$ echo one\n"
+                   "<>one\n<1>"
+                   "$ echo two\n"
+                   "two\n"
+                   "$\n"
+                   "$ echo three\n"
+                   "three\n"
+                   "$ echo current")
+                   (mistty-test-content :show (list (point) (mark)))))))
 
 (ert-deftest mistty-test-select-output-eob ()
   (mistty-with-test-buffer ()
@@ -1337,22 +1346,10 @@
     (forward-line)
     (delete-region (point-min) (point))
 
-    (mistty-select-output)
-    (should (equal (concat "<>one\n<1>"
-                   "$ echo current")
-                   (mistty-test-content :show (list (point) (mark)))))
+    (should-error (mistty-select-output))
 
-    (goto-char (1+ (point)))
-    (mistty-select-output)
-    (should (equal (concat "<>one\n<1>"
-                   "$ echo current")
-                   (mistty-test-content :show (list (point) (mark)))))
-
-    (goto-char (point-max))
-    (mistty-select-output)
-    (equal (concat "<>one\n<1>"
-                   "$ echo current")
-           (mistty-test-content :show (list (point) (mark))))))
+    (mistty-test-goto "echo current")
+    (should-error (mistty-select-output))))
 
 ;; https://github.com/szermatt/mistty/issues/33
 (ert-deftest mistty-test-previous-output-zsh ()

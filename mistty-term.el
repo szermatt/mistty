@@ -657,7 +657,6 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
             (unless mistty-bracketed-paste
               (let* ((prompt (mistty--prompt))
                      (inhibit-modification-hooks t)
-                     (prompt-start (point))
                      (scrollrow (mistty--term-scrollrow)))
                 (when (or (null prompt)
                           (not (mistty--prompt-contains prompt scrollrow)))
@@ -676,8 +675,14 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                                       (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
                                       (remove-text-properties
                                        pos (1+ pos) '(term-line-wrap t 'mistty-prompt-sp nil))
-                                      (throw 'mistty-prompt-start (1+ pos))))))))
-                    (setq prompt-start real-start)
+                                      (throw 'mistty-prompt-start (1+ pos)))))))
+                             (eol (pos-eol)))
+                    (when (> eol real-start)
+                      ;; mistty--changed is only called when bracketed
+                      ;; paste is on; mark past sections of the prompt
+                      ;; as changed, including to the eol to cover
+                      ;; right prompts, also written before.
+                      (mistty--changed real-start eol))
                     (setq scrollrow (mistty--term-scrollrow-at real-start)))
                   (setq prompt (mistty--make-prompt 'bracketed-paste scrollrow))
                   (mistty-log "Detected %s prompt #%s [%s-]"
@@ -686,16 +691,10 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                               (mistty--prompt-start prompt))
                   (setf (mistty--prompt) prompt))
                 (setf (mistty--prompt-source prompt) 'bracketed-paste)
-                (setf (mistty--prompt-end prompt) nil)
-                (let ((props `(mistty-input-id ,(mistty--prompt-input-id prompt)))
-                      (eol (pos-eol)))
-                  (when (< prompt-start eol)
-                    (add-text-properties prompt-start eol props)
-                    (mistty--term-postprocess prompt-start eol))
-                  (mistty-register-text-properties 'mistty-bracketed-paste props)))
-            (setq mistty-bracketed-paste t)
-            (mistty--with-live-buffer work-buffer
-              (setq mistty-bracketed-paste t))))
+                (setf (mistty--prompt-end prompt) nil))
+              (setq mistty-bracketed-paste t)
+              (mistty--with-live-buffer work-buffer
+                (setq mistty-bracketed-paste t))))
           ((equal ext "[?2004l") ; disable bracketed paste
            (term-emulate-terminal proc (substring str start seq-end))
            (when mistty-bracketed-paste
@@ -707,7 +706,6 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                           (null (mistty--prompt-end prompt))
                           (> scrollrow (mistty--prompt-start prompt)))
                  (setf (mistty--prompt-end prompt) scrollrow)))
-             (mistty-unregister-text-properties 'mistty-bracketed-paste)
              (setq mistty-bracketed-paste nil)
              (mistty--with-live-buffer work-buffer
                (setq mistty-bracketed-paste nil))))
@@ -939,13 +937,17 @@ BEG and END define the region that was modified."
         (add-text-properties beg end props)))
 
     (when mistty-bracketed-paste
-      (setq mistty--term-changed (if mistty--term-changed
-                                     (min mistty--term-changed beg)
-                                   beg))
-      (let ((beg (mistty--bol beg))
-            (end (mistty--eol end)))
-        (when (> end beg)
-          (add-text-properties beg end '(mistty-changed t)))))))
+      (mistty--changed beg end))))
+
+(defun mistty--changed (beg end)
+  "Mark text between BEG and AND as changed, forcing postprocess."
+  (setq mistty--term-changed (if mistty--term-changed
+                                 (min mistty--term-changed beg)
+                               beg))
+  (let ((beg (mistty--bol beg))
+        (end (mistty--eol end)))
+    (when (> end beg)
+      (put-text-property beg end 'mistty-changed t))))
 
 (defun mistty--around-move-to-column (orig-fun &rest args)
   "Add property \\='mistty-maybe-skip t to spaces added when just moving.

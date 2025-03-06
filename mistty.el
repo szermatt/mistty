@@ -2052,7 +2052,7 @@ instead `mistty--move-sync-mark-with-shift' or
     (when scrollrow
       (setq mistty--sync-marker-scrollrow scrollrow))))
 
-(defun mistty--process-archived-prompts (limit)
+(defun mistty--process-archived-prompts (limit-pos)
   "Remove archived prompts above END and mark their regions.
 
 This function cleans up `mistty--prompt-archive', removing prompts above END.
@@ -2060,29 +2060,30 @@ This function cleans up `mistty--prompt-archive', removing prompts above END.
 It also marks the prompt region with the text property
 \\=`mistty-input-id so they can be detected by functions like
 `mistty-next-output'."
-  (when-let ((prompt (mistty--prompt)))
-    (when (and (mistty--prompt-end prompt)
-               (<= limit (mistty--prompt-end prompt)))
-      (setf (mistty--prompt) nil)))
-  (dolist (prompt (mistty--prompt-archive))
-    (when (mistty--prompt-realized prompt)
-      (when-let ((prompt-beg (mistty--scrollrow-pos
-                              (mistty--prompt-start prompt)))
-                 (prompt-end (when (mistty--prompt-end prompt)
-                               (mistty--scrollrow-pos
-                                (mistty--prompt-end prompt)))))
-        (when (> prompt-end prompt-beg)
-          (mistty-log "End %s prompt #%s. Mark input range: [%s-%s]/[%s-%s]"
-                      (mistty--prompt-source prompt)
-                      (mistty--prompt-input-id prompt)
-                      (mistty--prompt-start prompt)
-                      (mistty--prompt-end prompt)
-                      prompt-beg
-                      prompt-end)
-          (put-text-property
-           prompt-beg prompt-end
-           'mistty-input-id (mistty--prompt-input-id prompt))))))
-  (setf (mistty--prompt-archive) nil))
+  (let ((limit (mistty--scrollrow limit-pos)))
+    (when-let ((prompt (mistty--prompt)))
+      (when (and (mistty--prompt-end prompt)
+                 (<= (mistty--prompt-end prompt) limit))
+        (setf (mistty--prompt) nil)))
+    (dolist (prompt (mistty--prompt-archive))
+      (when (mistty--prompt-realized prompt)
+        (when-let ((prompt-beg (mistty--scrollrow-pos
+                                (mistty--prompt-start prompt)))
+                   (prompt-end (when (mistty--prompt-end prompt)
+                                 (mistty--scrollrow-pos
+                                  (mistty--prompt-end prompt)))))
+          (when (> prompt-end prompt-beg)
+            (mistty-log "End %s prompt #%s. Mark input range: [%s-%s]/[%s-%s]"
+                        (mistty--prompt-source prompt)
+                        (mistty--prompt-input-id prompt)
+                        (mistty--prompt-start prompt)
+                        (mistty--prompt-end prompt)
+                        prompt-beg
+                        prompt-end)
+            (put-text-property
+             prompt-beg prompt-end
+             'mistty-input-id (mistty--prompt-input-id prompt))))))
+    (setf (mistty--prompt-archive) nil)))
 
 (defun mistty--prepare-for-scrollback (beg end)
   "Transition a region from the terminal to the scrollback zone.
@@ -3697,9 +3698,9 @@ prompts."
 If SHIFT is non-nil, it specifies a position difference between
 the sync markers in the work and term buffer at the beginning of
 the prompt."
-  (let* ((prompt (mistty--prompt))
-         (scrollrow (mistty--prompt-start prompt))
-         (start (mistty--scrollrow-pos scrollrow)))
+  (when-let* ((prompt (mistty--prompt))
+              (scrollrow (mistty--prompt-start prompt))
+              (start (mistty--scrollrow-pos scrollrow)))
     (mistty-log "Realized %s prompt #%s [%s-] @%s"
                 (mistty--prompt-source prompt)
                 (mistty--prompt-input-id prompt)
@@ -3713,9 +3714,9 @@ the prompt."
 
 (defun mistty--possible-prompt-p ()
   "Return non-nil if `mistty--possible-prompt' is usable."
-  (when-let ((prompt (mistty--prompt))
-             (scrollrow (mistty--prompt-start prompt))
-             (start (mistty--scrollrow-pos scrollrow)))
+  (when-let* ((prompt (mistty--prompt))
+              (scrollrow (mistty--prompt-start prompt))
+              (start (mistty--scrollrow-pos scrollrow)))
     (when (and (eq 'regexp (mistty--prompt-source prompt))
                (not (mistty--prompt-realized prompt)))
       (let* ((content (mistty--prompt-text prompt))

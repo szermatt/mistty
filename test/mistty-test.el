@@ -1968,6 +1968,7 @@
     (mistty-wait-for-output :str "say something")
     (mistty-send-text "foo")
     (let ((prompt (mistty--prompt)))
+      (should-not (null prompt))
       (should (equal 'regexp (mistty--prompt-source prompt)))
       (should (equal (mistty--scrollrow (mistty-test-goto "say something>> "))
                      (mistty--prompt-start prompt)))
@@ -4120,14 +4121,15 @@
 
       (should (equal
                (concat
-                "[output;\n"
+                "output;\n"
                 "$ non-prompt\n"
                 "continue\n"
                 ".\n"
-                "]$")
+                "<>$")
              (mistty-test-content
               :start start
-              :show-property '(mistty-input-id nil)))))))
+              :show (seq-filter (lambda (pos) (>= pos start))
+                                (mistty-test-all-inputs))))))))
 
 (ert-deftest mistty-test-kill-long-line ()
   (mistty-with-test-buffer ()

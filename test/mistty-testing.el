@@ -732,6 +732,19 @@ This simulates what happens in the command loop."
       (goto-char pos)
       (buffer-substring-no-properties (pos-bol) (pos-eol)))))
 
+(defun mistty-test-all-inputs ()
+  "Returns the position of all input, from point-min to point-max."
+  (save-excursion
+    (let ((inputs))
+      (goto-char (point-max))
+      (mistty-previous-input 0)
+      (push (point) inputs)
+      (while (ignore-errors
+               (mistty-previous-input 1)
+               (push (point) inputs)
+               t))
+      inputs)))
+
 (defun mistty-reload-all ()
   "Force a reload of all mistty .el files.
 

@@ -55,7 +55,8 @@
     ;; Allow querying foreground and background color. While OSC 10/11
     ;; normally supports changing color, this isn't supported here.
     ("10" . mistty-osc-query-color)
-    ("11" . mistty-osc-query-color))
+    ("11" . mistty-osc-query-color)
+    ("133" . mistty-osc133))
   "Hook run when unknown OSC sequences have been received.
 
 This hook is run on the `term-mode' buffer. It is passed the OSC code as
@@ -690,8 +691,9 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                               (mistty--prompt-input-id prompt)
                               (mistty--prompt-start prompt))
                   (setf (mistty--prompt) prompt))
-                (setf (mistty--prompt-source prompt) 'bracketed-paste)
-                (setf (mistty--prompt-end prompt) nil))
+                (unless (eq 'osc133 (mistty--prompt-source prompt))
+                  (setf (mistty--prompt-source prompt) 'bracketed-paste)
+                  (setf (mistty--prompt-end prompt) nil)))
               (setq mistty-bracketed-paste t)
               (mistty--with-live-buffer work-buffer
                 (setq mistty-bracketed-paste t))))
@@ -1252,6 +1254,39 @@ Before using a scrollrow, convert it to a screen row or point."
   "Current scrollrow range, covering the screen."
   (mistty--adjust-scrollrow-base)
   (cons mistty--scrollrow-base (+ mistty--scrollrow-base term-height)))
+
+(defun mistty-osc133 (_ osc-seq)
+  (when (length> osc-seq 0)
+    (let ((command-char (aref osc-seq 0)))
+      (pcase command-char
+        (?A ;; start a new command
+
+         ;; Overwrite any other prompt source.
+         (let ((prompt (mistty--make-prompt 'osc133 (mistty--term-scrollrow))))
+           (setf (mistty--prompt) prompt)
+           (mistty-log "Detected %s prompt #%s [%s-]"
+                       (mistty--prompt-source prompt)
+                       (mistty--prompt-input-id prompt)
+                       (mistty--prompt-start prompt))))
+
+        (?C ;; start of command output
+         (when-let ((prompt (mistty--prompt)))
+           (when (eq 'osc133 (mistty--prompt-source prompt))
+             (mistty-log "Closed %s prompt #%s [%s-]"
+                         (mistty--prompt-source prompt)
+                         (mistty--prompt-input-id prompt)
+                         (mistty--prompt-start prompt))
+             (setf (mistty--prompt-end prompt) (mistty--term-scrollrow)))))
+
+        (?D ;; end of command (possible anytime after ?A)
+         (when-let ((prompt (mistty--prompt)))
+           (when (and (eq 'osc133 (mistty--prompt-source prompt))
+                      (null (mistty--prompt-end prompt)))
+             (mistty-log "Aborted %s prompt #%s [%s-]"
+                         (mistty--prompt-source prompt)
+                         (mistty--prompt-input-id prompt)
+                         (mistty--prompt-start prompt))
+             (setf (mistty--prompt-end prompt) (mistty--term-scrollrow)))))))))
 
 (provide 'mistty-term)
 

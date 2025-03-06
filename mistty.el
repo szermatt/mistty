@@ -1711,15 +1711,16 @@ Also updates prompt and point."
          ;; restrict the sync region.
          (when-let ((prompt (mistty--prompt)))
            (when (and (not (mistty--prompt-realized prompt))
-                      (eq 'bracketed-paste (mistty--prompt-source prompt))
+                      (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
                       (null (mistty--prompt-end prompt)))
              (when-let ((prompt-beg (mistty--scrollrow-pos (mistty--prompt-start prompt)))
                         (cursor (when (process-live-p mistty-proc)
                                   (mistty-cursor))))
                (when (and (> cursor prompt-beg)
-                          (string-match mistty--prompt-regexp
-                                        (mistty--safe-bufstring
-                                         (mistty--bol cursor) cursor)))
+                          (or (eq 'osc133 (mistty--prompt-source prompt))
+                              (string-match mistty--prompt-regexp
+                                            (mistty--safe-bufstring
+                                             (mistty--bol cursor) cursor))))
                  (mistty-log "Realized %s prompt #%s [%s-] @%s"
                              (mistty--prompt-source prompt)
                              (mistty--prompt-input-id prompt)

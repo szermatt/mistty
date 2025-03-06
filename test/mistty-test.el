@@ -3214,8 +3214,7 @@
       (should (equal "$ echo \"hello, <>      \nworld\"\n"
                      (mistty-test-content :trim nil :show (point)))))))
 
-(defconst mistty-test-fish-right-prompt
-  "function fish_right_prompt; printf '< right'; end")
+(defconst mistty-test-fish-right-prompt "function fish_right_prompt; printf '< right'; end")
 
 (ert-deftest mistty-test-fish-right-prompt-simple-command ()
   (mistty-with-test-buffer (:shell fish :init mistty-test-fish-right-prompt)
@@ -5950,3 +5949,113 @@
 
       (with-current-buffer mistty-term-buffer
         (should (null (mistty--prompt)))))))
+
+(defconst mistty-test-zsh-osc133 "
+function osc133_precmd() {
+      printf '\033]133;A\007'
+}
+precmd_functions+=(osc133_precmd)
+
+function osc133_preexec() {
+      printf '\033]133;C\007'
+}
+preexec_functions+=(osc133_preexec)
+")
+
+(defconst mistty-test-zsh-osc133-multiline-prompt "
+setopt no_prompt_sp
+setopt no_prompt_cr
+
+function prompt_header() {
+      echo '<--->'
+}
+precmd_functions+=(prompt_header)
+
+")
+
+(ert-deftest mistty-osc133-zsh-multiline-prompt ()
+  ;; Normally, multiline prompt detection under zsh rely on prompt-sp
+  ;; and prompt-cr. This isn't necessary with OSC133.
+  (mistty-with-test-buffer (:shell zsh :init (concat
+                                              mistty-test-zsh-osc133
+                                              mistty-test-zsh-osc133-multiline-prompt))
+
+    (mistty-send-text "echo foo")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-run-command
+     (insert "echo bar"))
+    (mistty-send-and-wait-for-prompt)
+
+    ;; The prompt (and the sync marker) include the prompt header
+    (should (equal "<--->\n$ <>" (mistty-test-content
+                                  :start mistty-sync-marker
+                                  :show (mistty-cursor))))
+
+    (mistty-send-text "baa")
+
+    ;; Prompts were detected correctly, including the prompt header
+    (should (equal
+             (concat
+              "<><--->\n"
+              "$ echo foo\n"
+              "foo\n"
+              "<1><--->\n"
+              "$ echo bar\n"
+              "bar\n"
+              "<2><--->\n"
+              "$ baa")
+             (mistty-test-content
+              :show (mistty-test-all-inputs))))))
+
+(ert-deftest mistty-osc133-zsh-multiline-prompt-no-bracketed-paste ()
+  ;; Even bracketed-paste isn't necessary with osc133.
+  (mistty-with-test-buffer (:shell zsh :init (concat
+                                              mistty-test-zsh-osc133
+                                              mistty-test-zsh-osc133-multiline-prompt
+                                              "unset zle_bracketed_paste\n"))
+
+    (mistty-run-command
+     (insert "echo foo"))
+    (mistty-send-and-wait-for-prompt)
+
+    ;; The prompt (and the sync marker) include the prompt header
+    (should (equal "<--->\n$ <>" (mistty-test-content
+                                  :start mistty-sync-marker
+                                  :show (mistty-cursor))))
+
+    (mistty-run-command
+     (insert "echo bar"))
+
+    ;; Prompts were detected correctly, including the prompt header
+    (should (equal
+             (concat
+              "<><--->\n"
+              "$ echo foo\n"
+              "foo\n"
+              "<1><--->\n"
+              "$ echo bar")
+             (mistty-test-content
+              :show (mistty-test-all-inputs))))))
+
+(ert-deftest mistty-osc133-zsh-right-prompt-no-bracketed-paste ()
+  (mistty-with-test-buffer (:shell zsh :init (concat
+                                              mistty-test-zsh-osc133
+                                              mistty-test-zsh-right-prompt
+                                              "\nunset zle_bracketed_paste\n"))
+
+    (mistty-run-command
+     (insert "echo foo"))
+
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-run-command
+     (insert "echo bar"))
+
+    (should (equal
+             (concat
+              "<>$ echo foo                                                             < right\n"
+              "foo\n"
+              "<1>$ echo bar                                                             < right")
+             (mistty-test-content
+              :show (mistty-test-all-inputs))))))

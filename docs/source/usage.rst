@@ -314,6 +314,12 @@ use the shell native command history, as discussed in :ref:`history`.
 
 :kbd:`M-x mistty-goto-next-input` goes to the next command input.
 
+.. index:: pair: command; mistty-clear
+
+:kbd:`C-c C-l` or :kbd:`M-x mistty-clear` deletes the content of the
+buffer until the current prompt. With a numeric argument N, it deletes
+the content of the buffer until the Nth previous prompt.
+
 .. _fullscreen:
 
 Fullscreen Mode

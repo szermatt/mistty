@@ -548,6 +548,12 @@ use the shell native command history, as discussed in @ref{15,,Command History}.
 
 @code{M-x mistty-goto-next-input} goes to the next command input.
 
+@geindex command; mistty-clear
+
+@code{C-c C-l} or @code{M-x mistty-clear} deletes the content of the
+buffer until the current prompt. With a numeric argument N, it deletes
+the content of the buffer until the Nth previous prompt.
+
 @node Fullscreen Mode,Command History,Navigating the scrollback zone,Usage
 @anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{16}
 @subsection Fullscreen Mode

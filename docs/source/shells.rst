@@ -333,11 +333,28 @@ such as the ones created by `powerlevel10k
 <https://github.com/romkatv/powerlevel10k>`_, though there are some
 limitations.
 
-When using a multi-line prompt, to ensure proper functionality, keep
-the `prompt_sp` and `prompt_cr` options enabled, as MisTTY depends on
-these to identify the start of multi-line prompts. If you prefer not
-to have any end-of-line (EOL) markers, set `PROMPT_EOL_MARK` to an
-empty string.
+When using a multi-line prompt, to ensure proper functionality,
+configure your shell to send OSC 133 (Final Term) codes, at least A
+and C, so MisTTY correctly recognizes the beginning and end of the
+prompt. Several terminals support OSC 133, such as `wezterm
+<https://wezterm.org/shell-integration.html>`_, `kitty
+<https://sw.kovidgoyal.net/kitty/shell-integration/#notes-for-shell-developers>`_
+and `iTerm
+<https://iterm2.com/documentation-shell-integration.html>`_, so you
+might have it enabled already.
+
+.. code-block:: zsh
+
+ function osc133_precmd() {
+       printf '\033]133;A\007'
+ }
+ precmd_functions+=(osc133_precmd)
+
+ function osc133_preexec() {
+       printf '\033]133;C\007'
+ }
+ preexec_functions+=(osc133_preexec)
+
 
 Transient prompts can interfere with MisTTY's commands, such as
 `mistty-previous-output` (:kbd:`C-c C-p`) and

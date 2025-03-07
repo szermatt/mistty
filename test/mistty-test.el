@@ -1351,6 +1351,25 @@
     (mistty-test-goto "echo current")
     (should-error (mistty-select-output))))
 
+(ert-deftest mistty-test-next-output-bob ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "echo one"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo two"))
+    (mistty-send-and-wait-for-prompt)
+    (mistty-run-command
+     (insert "echo three"))
+
+    (mistty-test-goto "echo one")
+    (forward-line)
+    (delete-region (point-min) (point))
+
+    (goto-char (point-min))
+    (mistty-next-output 1)
+    (should (equal "two" (mistty-test-content :start (pos-bol) :end (pos-eol))))))
+
 ;; https://github.com/szermatt/mistty/issues/33
 (ert-deftest mistty-test-previous-output-zsh ()
   (mistty-with-test-buffer (:shell zsh)

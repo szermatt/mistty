@@ -3128,6 +3128,10 @@ Return the prompt range that was accepted or nil."
   (let* ((active-prompt-ranges (mistty--active-or-potential-prompt-ranges))
          (prompt (mistty--prompt-ranges-around (point) active-prompt-ranges)))
     (catch 'mistty--accepted
+      (unless prompt
+        ;; If there's no prompt at point, look for a prompt after point.
+        (when-let ((pos (next-single-property-change (point) 'mistty-input-id)))
+            (setq prompt (mistty--prompt-ranges-around pos active-prompt-ranges))))
       (when (and prompt (funcall accept prompt))
         (throw 'mistty--accepted prompt))
       (while

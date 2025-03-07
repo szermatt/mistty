@@ -1,0 +1,46 @@
+name: doc
+
+on:
+  push:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/doc.yml'
+
+jobs:
+  doc:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install Nix and set up Emacs
+      uses: jcs090218/setup-emacs@master
+      with:
+        version: 29.1
+
+    - name: Install Eldev
+      uses: emacs-eldev/setup-eldev@v1
+
+    - name: Check out the source code
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install Sphinx
+      run: |
+        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#texinfo
+        pip3 install -r docs/requirements.txt
+
+    - name: Re-build mistty.texi
+      run: 'eldev build --force mistty.texi'
+
+    - name: Update mistty.texi
+      # Only run on main branch push (e.g. after pull request merge) in one matrix version.
+      run: |
+        if git diff -s --exit-code mistty.texi; then
+          echo "mistty.texi not modified by this commit"
+        else
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add mistty.texi
+          git commit -m "Auto-update mistty.texi" --author "${{ env.CI_COMMIT_AUTHOR }}"
+          git push
+        fi

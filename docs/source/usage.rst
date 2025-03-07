@@ -710,6 +710,45 @@ supports the following OSC control sequences:
         return 1
     }
 
+.. _osc133:
 
+- *OSC 133; A-D ; <options> ST*
+
+Escape sequences that help terminals identify shell commands and their
+output, originally defined by FinalTerm. Several terminals support OSC
+133, such as `wezterm <https://wezterm.org/shell-integration.html>`_,
+`kitty
+<https://sw.kovidgoyal.net/kitty/shell-integration/#notes-for-shell-developers>`_
+and `iTerm
+<https://iterm2.com/documentation-shell-integration.html>`_, so you
+might have it enabled already.
+
+Without these commands, MisTTY uses heuristics to detect the beginning
+of a prompt or of a command, they should normally not be necessary.
+It's a good idea, however, to configure your shell to send them out.
+The iTerm2 website has `ready-made scripts
+<https://iterm2.com/documentation-shell-integration.html#install-by-hand>`_
+to configure most shells to send out OSC 133 codes.
+
+Starting with version 4.0.0, Fish sends out codes A, C and D
+automatically, but you still need to send out B at the end of your
+prompt.
+
+*OSC 133;A ST* should be sent just before the start of a prompt,
+usually from a precmd function. Sending out this code allows MisTTY to
+know that user input is expected.
+
+*OSC 133;B ST* should be sent just after having written the prompt, to
+signal the start of user input. It should be sent out at the very end
+of the prompt. Sending out this code allows MisTTY to mark prompts so
+that commands such as `beginning-of-line` are aware of where user
+input starts.
+
+*OSC 133;C ST* should be sent just before executing the command,
+usually from a preexec function. Sending out this code allows MisTTY
+to know where the prompt ends.
+
+*OSC 133;D ST* should be sent at the end of the command, or when the
+command is cancelled.
 
 To extend the set of OSC codes supported by MisTTY, see :ref:`ext_osc`.

@@ -133,9 +133,9 @@ MisTTY is compatible with stylized prompts, such as those produced by
 given the numerous variations in how these prompts are created, issues
 may arise.
 
-If you suspect that your shell prompt may be causing new problems,
-begin by switching to a standard prompt to confirm this. Regardless of
-the results, please report any bugs you find (:ref:`reporting`.)
+If you suspect that your shell prompt may be causing problems, try
+configuring your shell to send out :ref:`OSC 133 <osc133>` codes to
+help MisTTY correctly identify your prompt.
 
 .. _fish:
 
@@ -242,9 +242,9 @@ Fancy prompts in Fish
 MisTTY is known to work with powerline-shell prompts or `Tide, on Fish
 <https://github.com/IlanCosman/tide>`_, including right prompts.
 
-If you suspect your shell prompt is causing issues, please first try
-setting a traditional prompt to confirm, then, whatever the outcome,
-please file a bug (:ref:`reporting`.)
+If you suspect that your shell prompt may be causing problems, try
+configuring your shell to send out :ref:`OSC 133 <osc133>` codes to
+help MisTTY correctly identify your prompt.
 
 .. _zsh:
 
@@ -333,15 +333,18 @@ such as the ones created by `powerlevel10k
 <https://github.com/romkatv/powerlevel10k>`_, though there are some
 limitations.
 
+Transient prompts can interfere with MisTTY's commands, such as
+`mistty-previous-output` (:kbd:`C-c C-p`) and
+`mistty-create-buffer-with-output` (:kbd:`C-c C-r`). If these commands
+are important to you, disable transient prompts when `TERM` is set to
+`eterm-color`.
+
 When using a multi-line prompt, to ensure proper functionality,
 configure your shell to send OSC 133 (Final Term) codes, at least A
 and C, so MisTTY correctly recognizes the beginning and end of the
-prompt. Several terminals support OSC 133, such as `wezterm
-<https://wezterm.org/shell-integration.html>`_, `kitty
-<https://sw.kovidgoyal.net/kitty/shell-integration/#notes-for-shell-developers>`_
-and `iTerm
-<https://iterm2.com/documentation-shell-integration.html>`_, so you
-might have it enabled already.
+prompt. See :ref:`OSC 133 <osc133>`
+
+The minimum configuration that would help MisTTY might look like this:
 
 .. code-block:: zsh
 
@@ -355,17 +358,9 @@ might have it enabled already.
  }
  preexec_functions+=(osc133_preexec)
 
-
-Transient prompts can interfere with MisTTY's commands, such as
-`mistty-previous-output` (:kbd:`C-c C-p`) and
-`mistty-create-buffer-with-output` (:kbd:`C-c C-r`). If these commands
-are important to you, disable transient prompts when `TERM` is set to
-`eterm-color`.
-
-If you suspect that your shell prompt is introducing new problems,
-start by switching to a traditional prompt to verify this. Regardless
-of the outcome, please report any bugs you encounter
-(:ref:`reporting`.)
+If you suspect that your shell prompt may be causing problems, try
+configuring your shell to send out :ref:`OSC 133 codes <osc133>` to
+help MisTTY correctly identify your prompt.
 
 .. _ipython:
 

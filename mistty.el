@@ -851,6 +851,8 @@ to decide whether it's OK to kill the buffer.")
   (setq mistty-sync-marker (point-max-marker))
   (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
   (setq mistty--ignored-overlays (list mistty--sync-ov))
+  (setq-local beginning-of-defun-function #'mistty-beginning-of-defun)
+  (setq-local end-of-defun-function #'mistty-end-of-defun)
 
   (overlay-put mistty--sync-ov 'local-map (mistty--active-prompt-map))
 
@@ -3327,7 +3329,7 @@ post-command hook."
                (mistty--release-changeset cs)
                (mistty--refresh-after-changeset)))
 
-           (when (and (not replay) (not mistty--forbid-edit) point-moved)
+           (when (and (not replay) (not mistty--forbid-edit) point-moved (>= (point) mistty-sync-marker))
              (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
 
            (mistty--refresh)))))))
@@ -4235,6 +4237,39 @@ term buffer."
                                   (point)))))))
           (when work-sync
             (cons work-sync (marker-position term-home-marker))))))))
+
+(defun mistty-beginning-of-defun (&optional n)
+  "Go to the beginning of the N'th defun.
+
+This is meant to be set as `beginning-of-defun-function' in MisTTY
+buffers."
+  (let ((n (or n 1)))
+    (let ((accept (let ((accepted-count 0)
+                        (abs-n (abs n)))
+                    (lambda (prompt)
+                      (unless (and (eq this-command 'beginning-of-defun)
+                                   (= (point) (nth 0 prompt)))
+                        (cl-incf accepted-count))
+                      (>= accepted-count abs-n)))))
+      (if (>= n 0)
+          (when-let ((prompt (mistty--backward-prompt-ranges accept)))
+            (prog1 t
+              (goto-char (nth 0 prompt))))
+        (when-let ((prompt (mistty--forward-prompt-ranges accept)))
+          (prog1 t
+            (goto-char (nth 2 prompt))))))))
+
+(defun mistty-end-of-defun ()
+  "Go to the end of the current defun.
+
+This function assumes that the point is at the beginning of a defun, set
+by `mistty-beginning-of-defun'.
+
+This is meant to be set as `end-of-defun-function' in MisTTY buffers."
+  (let ((active-prompt-ranges (mistty--active-or-potential-prompt-ranges)))
+    (when-let ((ranges (mistty--prompt-ranges-at (point) active-prompt-ranges)))
+      (prog1 t
+        (goto-char (nth 2 ranges))))))
 
 (provide 'mistty)
 

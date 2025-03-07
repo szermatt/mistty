@@ -6109,3 +6109,184 @@ precmd_functions+=(prompt_header)
 
     (should (equal "echo two" (mistty--command-for-output 1)))
     (should (equal "echo one" (mistty--command-for-output 2)))))
+
+(ert-deftest mistty-prev-next-prompts-as-defuns ()
+  (mistty-with-test-buffer ()
+    (dolist (text '("one" "two" "three" "four" "five"))
+      (mistty-send-text (format "echo %s" text))
+      (mistty-send-and-wait-for-prompt))
+    (mistty-send-text "current")
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "$ current<>")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(beginning-of-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "<>$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(beginning-of-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "$ echo four\n"
+                           "four\n"
+                           "<>$ echo five\n"
+                           "five\n"
+                           "$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(beginning-of-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "<>$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(beginning-of-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "<>$ echo three\n"
+                           "three\n"
+                           "$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(end-of-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "<>$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(end-of-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "$ echo four\n"
+                           "four\n"
+                           "<>$ echo five\n"
+                           "five\n"
+                           "$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(end-of-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "<>$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(beginning-of-defun 4))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "<>$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "$ current")
+                   (mistty-test-content :show (point))))
+
+    (ert-simulate-command '(beginning-of-defun -1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ echo three\n"
+                           "three\n"
+                           "<>$ echo four\n"
+                           "four\n"
+                           "$ echo five\n"
+                           "five\n"
+                           "$ current")
+                   (mistty-test-content :show (point))))))
+
+(ert-deftest mistty-mark-prompt-as-defun ()
+  (mistty-with-test-buffer ()
+    (dolist (text '("one" "two" "three"))
+      (mistty-send-text (format "echo %s" text))
+      (mistty-send-and-wait-for-prompt))
+    (mistty-send-text "current")
+
+    (goto-char (point-min))
+    (mistty-test-goto "echo two")
+
+    (ert-simulate-command '(mark-defun 1))
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "<>$ echo two\n"
+                           "two\n<1>"
+                           "$ echo three\n"
+                           "three\n"
+                           "$ current")
+                   (mistty-test-content :show (list (point) (mark)))))))
+
+(ert-deftest mistty-narrow-to-prompt-as-defun ()
+  (mistty-with-test-buffer ()
+    (dolist (text '("one" "two" "three"))
+      (mistty-send-text (format "echo %s" text))
+      (mistty-send-and-wait-for-prompt))
+    (mistty-send-text "current")
+
+    (goto-char (point-min))
+    (mistty-test-goto "echo two")
+
+    (narrow-to-defun)
+
+    (ert-simulate-command '(mark-defun 1))
+    (should (equal "$ echo two\ntwo"
+                   (mistty-test-content)))))

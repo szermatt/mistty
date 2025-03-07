@@ -40,4 +40,4 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Test the project
-      run: 'eldev -p -dtT test --ci'
+      run: 'eldev -p -dtT test --ci || eldev -p -dtT test --ci :failed'

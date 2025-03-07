@@ -320,6 +320,18 @@ use the shell native command history, as discussed in :ref:`history`.
 buffer until the current prompt. With a numeric argument N, it deletes
 the content of the buffer until the Nth previous prompt.
 
+MisTTY defines prompts as defuns, so any function that applies on
+defun applies on prompts in a MisTTY buffer, so, for example:
+
+  - :kbd:`C-x n d` or :kbd:`M-x narrow-to-defun`, narrows the buffer
+    to the current prompt and its output
+  - :kbd:`C-M a` or :kbd:`M-x beginning-to-defun`, moves point
+    to the beginning of the current prompt
+  - :kbd:`C-M e` or :kbd:`M-x end-to-defun`, moves point to the end
+    of the current prompt's output
+  - :kbd:`C-M h` or :kbd:`M-x mark-defun`, marks the current prompt
+    and its output
+
 .. _fullscreen:
 
 Fullscreen Mode

@@ -554,6 +554,32 @@ use the shell native command history, as discussed in @ref{15,,Command History}.
 buffer until the current prompt. With a numeric argument N, it deletes
 the content of the buffer until the Nth previous prompt.
 
+MisTTY defines prompts as defuns, so any function that applies on
+defun applies on prompts in a MisTTY buffer, so, for example:
+
+@quotation
+
+
+@itemize -
+
+@item 
+@code{C-x n d} or @code{M-x narrow-to-defun}, narrows the buffer
+to the current prompt and its output
+
+@item 
+@code{C-M a} or @code{M-x beginning-to-defun}, moves point
+to the beginning of the current prompt
+
+@item 
+@code{C-M e} or @code{M-x end-to-defun}, moves point to the end
+of the current prompt’s output
+
+@item 
+@code{C-M h} or @code{M-x mark-defun}, marks the current prompt
+and its output
+@end itemize
+@end quotation
+
 @node Fullscreen Mode,Command History,Navigating the scrollback zone,Usage
 @anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{16}
 @subsection Fullscreen Mode

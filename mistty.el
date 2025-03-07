@@ -3029,11 +3029,15 @@ Return nil if no command could be extracted."
          (bol (mistty--bol eol))
          (command
           (save-excursion
+            (mistty-log "range: %s >>%s<<" range (buffer-substring-no-properties bol eol))
             (goto-char bol)
-            (when (search-forward-regexp
-                   "\\(^\\|[[:blank:]]\\)\\([[:alpha:]]+\\)"
-                   eol 'noerror)
-              (goto-char (match-beginning 2)))
+            (cond
+             ((eq 'prompt (get-text-property bol 'field))
+              (goto-char (text-property-not-all bol eol 'field 'prompt)))
+             ((search-forward-regexp
+               "\\(^\\|[[:blank:]]\\)\\([[:alpha:]]+\\)"
+               eol 'noerror)
+              (goto-char (match-beginning 2))))
             (string-trim
              (buffer-substring-no-properties
               (point)

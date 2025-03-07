@@ -1269,6 +1269,14 @@ Before using a scrollrow, convert it to a screen row or point."
                        (mistty--prompt-input-id prompt)
                        (mistty--prompt-start prompt))))
 
+        (?B ;; end of prompt/start of user input
+         (when (> (point) (pos-bol))
+           (add-text-properties (pos-bol) (point)
+                                '(field prompt
+                                  inhibit-line-move-field-capture t
+                                  front-sticky (field inhibit-line-move-field-capture)
+                                  rear-nonsticky t))))
+
         (?C ;; start of command output
          (when-let ((prompt (mistty--prompt)))
            (when (eq 'osc133 (mistty--prompt-source prompt))

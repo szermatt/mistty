@@ -6078,3 +6078,34 @@ precmd_functions+=(prompt_header)
               "<1>$ echo bar                                                             < right")
              (mistty-test-content
               :show (mistty-test-all-inputs))))))
+
+(ert-deftest mistty-osc133-prompt-set-properties ()
+  (mistty-with-test-buffer (:init "PS1='$ \\033]133;B\\007'")
+    (mistty-send-text "echo foobar")
+    ;; With OSC133 B, MisTTY sets text properties on the prompt that
+    ;; allow (beginning-of-line) to stop before the beginning of the
+    ;; user input area. This only works for the main (left) prompt.
+    (beginning-of-line)
+    (should (equal "[$ ]<>echo foobar"
+                   (mistty-test-content
+                    :show (point)
+                    :show-property '(field prompt))))))
+
+(ert-deftest mistty-osc133-command-for-output ()
+  (mistty-with-test-buffer (:shell zsh :init (concat
+                                              mistty-test-zsh-osc133
+                                              "function osc133_prompt { PS1='prompt \033]133;B\007'; }"))
+    (mistty-send-text "osc133_prompt")
+    (setq mistty-test-prompt-re "^prompt ")
+    (mistty-send-and-wait-for-prompt)
+
+    ;; The prompt really doesn't look like a prompt, but that doesn't
+    ;; matter since it's marked with OSC133.
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+
+    (should (equal "echo two" (mistty--command-for-output 1)))
+    (should (equal "echo one" (mistty--command-for-output 2)))))

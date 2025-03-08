@@ -4588,6 +4588,25 @@
     (mistty-send-text "echo $(tput cols)x$(tput lines)")
     (should (equal "79x22" (mistty-send-and-capture-command-output)))))
 
+(turtles-ert-deftest mistty-test-window-size-resize-other-window (:instance 'mistty)
+  (mistty-with-test-buffer (:selected t)
+    (let ((work-buffer mistty-work-buffer)
+          (work-window (selected-window)))
+      ;; initial window, half height
+      (mistty-send-text "echo $(tput cols)x$(tput lines)")
+      (should (equal "79x10" (mistty-send-and-capture-command-output)))
+
+      (should (equal 11 (window-size work-window)))
+      (other-window 1)
+      (shrink-window 2)
+      (should (equal 13 (window-size work-window)))
+
+      (should (redisplay t)) ;; recompute terminal size
+
+      (with-current-buffer work-buffer
+        (mistty-send-text "echo $(tput cols)x$(tput lines)")
+        (should (equal "79x12" (mistty-send-and-capture-command-output)))))))
+
 (turtles-ert-deftest mistty-test-window-width (:instance 'mistty)
   (mistty-with-test-buffer (:selected t)
     (delete-other-windows)

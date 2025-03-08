@@ -3451,19 +3451,21 @@ only spaces with ==\'mistty-skip between them."
           (high (max posa posb)))
       (not (text-property-any low high 'mistty-skip nil)))))
 
-(defun mistty--window-size-change (_win)
-  "Update the process terminal size, reacting to _WIN changing size."
-  (when (and (process-live-p mistty-proc)
-             (eq mistty-work-buffer (current-buffer)))
-    (let* ((adjust-func (or (process-get mistty-proc 'adjust-window-size-function)
-                            window-adjust-process-window-size-function))
-           (size (funcall adjust-func mistty-proc
-                          (get-buffer-window-list mistty-work-buffer nil t))))
-      (when size
-        (let ((width (car size))
-              (height (cdr size)))
-          (mistty-log "set-process-window-size %sx%s" width height)
-          (mistty--set-process-window-size width height))))))
+(defun mistty--window-size-change (win)
+  "Update the process terminal size, reacting to WIN changing size."
+  (when-let ((buffer (window-buffer win)))
+    (with-current-buffer buffer
+      (when (and (derived-mode-p 'mistty-mode)
+                 (process-live-p mistty-proc))
+        (let* ((adjust-func (or (process-get mistty-proc 'adjust-window-size-function)
+                                window-adjust-process-window-size-function))
+               (size (funcall adjust-func mistty-proc
+                              (get-buffer-window-list buffer nil t))))
+          (when size
+            (let ((width (car size))
+                  (height (cdr size)))
+              (mistty-log "set-process-window-size %sx%s" width height)
+              (mistty--set-process-window-size width height))))))))
 
 (defun mistty--set-process-window-size (width height)
   "Set the process terminal size to WIDTH x HEIGHT."

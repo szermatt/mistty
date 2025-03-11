@@ -19,7 +19,6 @@ jobs:
           - 29.1
           - 29.4
           - 30.1
-          - snapshot
 
     steps:
     - name: Install Nix and set up Emacs

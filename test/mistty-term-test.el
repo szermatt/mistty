@@ -15,7 +15,6 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'mistty-term)
-(require 'mistty-testing)
 (require 'ert)
 (require 'ert-x)
 
@@ -258,33 +257,3 @@
     (should (equal '(1 2) (mapcar #'mistty--prompt-start (mistty--prompt-archive))))
     (setf (mistty--prompt-archive) nil)
     (should (null (mistty--prompt-archive)))))
-
-(ert-deftest mistty-erase-in-line-2k ()
-  (mistty-with-test-buffer ()
-    (mistty-send-text "printf 'foo foo foo foo foo foo\\e[4D\\e[2K\\rbar foo\\r\\n...\\n'")
-    (mistty-send-and-wait-for-prompt)
-    (should (equal (concat "$ printf 'foo foo foo foo foo foo\\e[4D\\e[2K\\rbar foo\\r\\n...\\n'\n"
-                           "bar foo\n"
-                           "...\n"
-                           "$")
-                   (mistty-test-content)))))
-
-(ert-deftest mistty-erase-in-line-1k ()
-  (mistty-with-test-buffer ()
-    (mistty-send-text "printf 'foo foo foo foo foo foo\\e[1K\\rbar foo\\r\\n...\\n'")
-    (mistty-send-and-wait-for-prompt)
-    (should (equal (concat "$ printf 'foo foo foo foo foo foo\\e[1K\\rbar foo\\r\\n...\\n'\n"
-                           "bar foo\n"
-                           "...\n"
-                           "$")
-                   (mistty-test-content)))))
-
-(ert-deftest mistty-erase-in-line-0k ()
-  (mistty-with-test-buffer ()
-    (mistty-send-text "printf 'foo foo foo foo foo foo\\r\\e[Kbar foo\\r\\n...\\n'")
-    (mistty-send-and-wait-for-prompt)
-    (should (equal (concat "$ printf 'foo foo foo foo foo foo\\r\\e[Kbar foo\\r\\n...\\n'\n"
-                           "bar foo\n"
-                           "...\n"
-                           "$")
-                   (mistty-test-content)))))

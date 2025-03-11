@@ -24,6 +24,7 @@
 (defvar term-width) ; defined in term.el
 (defvar term-height) ; defined in term.el
 (defvar term-home-marker) ; defined in term.el
+(defvar term-vertical-motion) ; defined in term.el
 
 (require 'subr-x)
 (eval-when-compile
@@ -628,7 +629,11 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
             ((symbol-function 'move-to-column)
              (let ((orig (symbol-function 'move-to-column)))
                (lambda (&rest args)
-                 (apply #'mistty--around-move-to-column orig args)))))
+                 (apply #'mistty--around-move-to-column orig args))))
+            ((symbol-function 'term-erase-in-line)
+             (if (>= emacs-major-version 31)
+                 (symbol-function 'term-erase-in-line)
+               #'mistty--term-erase-in-line-emacs-31)))
     (mistty--with-live-buffer (process-buffer proc)
       (when mistty--undecoded-bytes
         (setq str (concat mistty--undecoded-bytes str))
@@ -1295,6 +1300,42 @@ Before using a scrollrow, convert it to a screen row or point."
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
              (setf (mistty--prompt-end prompt) (mistty--term-scrollrow)))))))))
+
+(defun mistty--term-erase-in-line-emacs-31 (kind)
+  "Copy of term-erase-in-line from Emacs 31 062c6ab.
+
+This version includes a fix for programs that use ESC [ N K (erase in
+line that would invalidate any sync marker at that line."
+  (when (>= kind 1) ;; erase left of point
+    (let ((cols (term-horizontal-column)) (saved-point (point)))
+      (term-vertical-motion 0)
+      (delete-region (point) saved-point)
+      (term-insert-char ?  cols)))
+  (when (not (eq kind 1)) ;; erase right of point
+    (let ((saved-point (point))
+          (wrapped (and (zerop (term-horizontal-column))
+                        (not (zerop (term-current-column))))))
+      (term-vertical-motion 1)
+      ;; Do nothing if we have nothing to delete
+      (unless (and (eq saved-point (1- (point)))
+                   (eq (char-before) ?\n)
+                   (not wrapped))
+        ;; Insert before deletion to preserve markers.
+        ;; wrapped is true if we're at the beginning of screen line,
+        ;; but not a buffer line.  If we delete the current screen line
+        ;; that will make the previous line no longer wrap, and (because
+        ;; of the way Emacs display works) point will be at the end of
+        ;; the previous screen line rather then the beginning of the
+        ;; current one.  To avoid that, we make sure that current line
+        ;; contain a space, to force the previous line to continue to wrap.
+        ;; We could do this always, but it seems preferable to not add the
+        ;; extra space when wrapped is false.
+        (when wrapped
+          (insert-before-markers ? ))
+        (insert-before-markers ?\n)
+        (delete-region saved-point (point)))
+      (put-text-property saved-point (point) 'font-lock-face 'default)
+      (goto-char saved-point))))
 
 (provide 'mistty-term)
 

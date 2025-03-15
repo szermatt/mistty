@@ -549,13 +549,21 @@ use the shell native command history, as discussed in @ref{15,,Command History}.
 @code{M-x mistty-goto-next-input} goes to the next command input.
 
 @geindex command; mistty-clear
+@geindex variable; mistty-allow-clearing-scrollback
 
 @code{C-c C-l} or @code{M-x mistty-clear} deletes the content of the
 buffer until the current prompt. With a numeric argument N, it deletes
 the content of the buffer until the Nth previous prompt.
 
-MisTTY defines prompts as defuns, so any function that applies on
-defun applies on prompts in a MisTTY buffer, so, for example:
+Alternatively, if you prefer clearing the scrollback zone from the
+command line instead of using an Emacs command, you can also do
+@code{M-x customize-option mistty-allow-clearing-scrollback} to let
+the @code{reset} and @code{clear} commands clear the whole buffer instead of
+just the terminal zone.
+
+Additionally, MisTTY defines prompts as defuns, so any function that
+applies on defun applies on prompts in a MisTTY buffer, so, for
+example:
 
 @quotation
 

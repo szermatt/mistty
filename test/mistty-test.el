@@ -1902,6 +1902,38 @@
     (should (equal "$ echo one\none\n$ clear\n$ echo two\ntwo\n$"
                    (mistty-test-content)))))
 
+(ert-deftest mistty-test-reset-clears-scrollback ()
+  (mistty-with-test-buffer ()
+    (let ((mistty-allow-clearing-scrollback t))
+      (mistty-send-text "echo one")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "printf '\\ec'")
+      (mistty-send-command)
+
+      ;; The normal mistty-send-and-wait-for-prompt doesn't work here,
+      ;; since it wants a prompt to come after the current command.
+      (mistty-wait-for-output :regexp "^\\$ $")
+      (mistty-send-text "echo two")
+      (mistty-send-and-wait-for-prompt)
+    (should (equal "$ echo two\ntwo\n$"
+                   (mistty-test-content))))))
+
+(ert-deftest mistty-test-clear-clears-scrollback ()
+  (mistty-with-test-buffer ()
+    (let ((mistty-allow-clearing-scrollback t))
+      (mistty-send-text "echo one")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "clear")
+      (mistty-send-command)
+
+      ;; The normal mistty-send-and-wait-for-prompt doesn't work here,
+      ;; since it wants a prompt to come after the current command.
+      (mistty-wait-for-output :regexp "^\\$ $")
+      (mistty-send-text "echo two")
+      (mistty-send-and-wait-for-prompt)
+    (should (equal "$ echo two\ntwo\n$"
+                   (mistty-test-content))))))
+
 (turtles-ert-deftest mistty-test-scrolls-window-after-clear ( :instance 'mistty)
   (mistty-with-test-buffer (:shell zsh :selected t)
     (mistty-send-text "echo one")

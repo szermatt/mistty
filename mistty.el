@@ -361,6 +361,21 @@ wants to use whose process is dead."
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-allow-clearing-scrollback nil
+  "Let terminal commands clear the work buffer.
+
+In normal operations, once buffer content has left the terminal area,
+they cannot be modified by the application tied to the terminal.
+
+With this option set to non-nil, terminal applications can clear the
+whole buffer content, including history kept in the scrollback area, by
+issuing reset (ESC C).
+
+In practice, this means that with this option set, the reset and clear
+command or a printf \"\\ec\" will clear the whole buffer."
+  :group 'mistty
+  :type 'boolean)
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -1393,13 +1408,15 @@ PROC is the calling shell process and STR the string it sent."
         (mistty--with-live-buffer work-buffer
           (setq mistty-bracketed-paste nil))
         (mistty--process-filter proc (substring str rs1-after-pos))
-        ;; After clear or reset, scroll the main window so the region
-        ;; that was cleared is not visible anymore, so it looks like
-        ;; the buffer was cleared even though history is kept.
-        (mistty--with-live-buffer work-buffer
-          (when-let (win (get-buffer-window work-buffer))
-            (with-selected-window win
-              (set-window-start win (mistty--bol home-pos) 'noforce))))))
+        (if mistty-allow-clearing-scrollback
+            (mistty--clear-scrollback)
+          ;; Scroll the main window so the region that was cleared is
+          ;; not visible anymore. This way, it looks like the buffer
+          ;; was cleared even though history is kept.
+          (mistty--with-live-buffer work-buffer
+            (when-let (win (get-buffer-window work-buffer))
+              (with-selected-window win
+                (set-window-start win (mistty--bol home-pos) 'noforce)))))))
 
      ;; normal processing
      (t
@@ -1442,6 +1459,18 @@ PROC is the calling shell process and STR the string it sent."
                 (mistty--maybe-truncate-when-idle)
                 (mistty--dequeue mistty--queue 'intermediate)
                 (mistty--dequeue-with-timer mistty--queue 'stable)))))))))))
+
+(defun mistty--clear-scrollback ()
+  "Clear the work buffer above `mistty-sync-marker'."
+  (mistty--with-live-buffer mistty-work-buffer
+    (mistty-log "CLEAR SCROLLBACK")
+    (when (< (point) mistty-sync-marker)
+      (goto-char mistty-sync-marker)
+      (setq mistty-goto-cursor-next-time 1))
+    (when (> mistty-sync-marker 1)
+      (let ((inhibit-modification-hooks t)
+            (inhibit-read-only t))
+        (delete-region 1 mistty-sync-marker)))))
 
 (defun mistty--maybe-scroll-window-down ()
   "Make sure that newly inserted text is visible.

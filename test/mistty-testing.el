@@ -129,6 +129,7 @@ window while BODY is running."
                (mistty-after-process-end-hook nil)
                (mistty-entered-fullscreen-hook nil)
                (mistty-left-fullscreen-hook nil)
+               (mistty-allow-clearing-scrollback nil)
                (mistty-log mistty-test-log))
            (ert-with-temp-directory mistty-tmpdir
              (unwind-protect

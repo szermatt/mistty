@@ -18,7 +18,7 @@
 
 (eldev-add-extra-dependencies '(test emacs) 'turtles)
 (eldev-use-vc-repository
- 'turtles :github "szermatt/turtles" :commit "2.0.0")
+ 'turtles :github "szermatt/turtles" :commit "2.0.1")
 
 ;; Exclude work and build files so Eldev doctor ignores them.
 (setf eldev-standard-excludes

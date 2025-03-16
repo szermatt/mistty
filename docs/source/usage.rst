@@ -773,4 +773,10 @@ to know where the prompt ends.
 *OSC 133;D ST* should be sent at the end of the command, or when the
 command is cancelled.
 
+.. note::
+
+   Different terminals may interpret OSS 133 codes differently. MisTTY
+   only supports codes A,B,C, and D for marking the user input and
+   prompt sections and ignores any extra fields.
+
 To extend the set of OSC codes supported by MisTTY, see :ref:`ext_osc`.

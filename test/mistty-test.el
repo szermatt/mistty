@@ -3324,10 +3324,14 @@
       (mistty-send-text (concat "echo " text))
       (mistty-send-and-wait-for-prompt))
 
-    (should (equal "echo four" (mistty--command-for-output 1)))
-    (should (equal "echo three" (mistty--command-for-output 2)))
-    (should (equal "echo two" (mistty--command-for-output 3)))
-    (should (equal "echo one" (mistty--command-for-output 4)))))
+    (should (equal "echo four" (mistty--command-for-output
+                                (mistty--prompt-ranges-for-current-or-previous-output 1))))
+    (should (equal "echo three" (mistty--command-for-output
+                                 (mistty--prompt-ranges-for-current-or-previous-output 2))))
+    (should (equal "echo two" (mistty--command-for-output
+                               (mistty--prompt-ranges-for-current-or-previous-output 3))))
+    (should (equal "echo one" (mistty--command-for-output
+                               (mistty--prompt-ranges-for-current-or-previous-output 4))))))
 
 (defconst mistty-test-zsh-right-prompt "RPS1='< right'")
 
@@ -3402,10 +3406,14 @@
       (mistty-send-text (concat "echo " text))
       (mistty-send-and-wait-for-prompt))
 
-    (should (equal "echo four" (mistty--command-for-output 1)))
-    (should (equal "echo three" (mistty--command-for-output 2)))
-    (should (equal "echo two" (mistty--command-for-output 3)))
-    (should (equal "echo one" (mistty--command-for-output 4)))))
+    (should (equal "echo four" (mistty--command-for-output
+                                (mistty--prompt-ranges-for-current-or-previous-output 1))))
+    (should (equal "echo three" (mistty--command-for-output
+                                 (mistty--prompt-ranges-for-current-or-previous-output 2))))
+    (should (equal "echo two" (mistty--command-for-output
+                               (mistty--prompt-ranges-for-current-or-previous-output 3))))
+    (should (equal "echo one" (mistty--command-for-output
+                               (mistty--prompt-ranges-for-current-or-previous-output 4))))))
 
 (ert-deftest mistty-test-zsh-right-prompt-kill-line-and-yank ()
   (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
@@ -4368,8 +4376,22 @@
           (with-current-buffer newbuf
             (should (equal "hello\nworld\n"
                            (buffer-substring-no-properties (point-min) (point-max))))
-            ;; Extracting the command line failed
-            (should (equal "command output" (buffer-name))))
+            (should (equal "for i in hello world; do; echo..." (buffer-name))))
+        (kill-buffer newbuf)))))
+
+(ert-deftest mistty-test-create-buffer-with-prev-output-single-line ()
+  (mistty-with-test-buffer ()
+    (mistty-run-command
+     (insert "for i in hello world; do echo $i; done"))
+    (mistty-send-and-wait-for-prompt)
+    (let ((newbuf (ert-simulate-keys
+                   (kbd "RET")
+                   (call-interactively 'mistty-create-buffer-with-output))))
+      (unwind-protect
+          (with-current-buffer newbuf
+            (should (equal "hello\nworld\n"
+                           (buffer-substring-no-properties (point-min) (point-max))))
+            (should (equal "for i in hello world; do echo ..." (buffer-name))))
         (kill-buffer newbuf)))))
 
 (ert-deftest mistty-test-create-buffer-with-current-output ()
@@ -6158,8 +6180,20 @@ precmd_functions+=(prompt_header)
     (mistty-send-text "echo two")
     (mistty-send-and-wait-for-prompt)
 
-    (should (equal "echo two" (mistty--command-for-output 1)))
-    (should (equal "echo one" (mistty--command-for-output 2)))))
+    (mistty-send-text "for i in a b c; do")
+    (mistty-newline)
+    (mistty-send-text "echo $i")
+    (mistty-newline)
+    (mistty-send-text "done")
+    (mistty-send-and-wait-for-prompt)
+
+    (should (equal "for i in a b c; do; echo $i; done"
+                   (mistty--command-for-output
+                    (mistty--prompt-ranges-for-current-or-previous-output 1))))
+    (should (equal "echo two" (mistty--command-for-output
+                               (mistty--prompt-ranges-for-current-or-previous-output 2))))
+    (should (equal "echo one" (mistty--command-for-output
+                               (mistty--prompt-ranges-for-current-or-previous-output 3))))))
 
 (ert-deftest mistty-prev-next-prompts-as-defuns ()
   (mistty-with-test-buffer ()

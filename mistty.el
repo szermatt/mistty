@@ -376,6 +376,18 @@ command or a printf \"\\ec\" will clear the whole buffer."
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-newline-replacement "; "
+  "What to replace newlines with when extracting commands.
+
+When extracting commands for imenu or for creating buffer names, MisTTY
+needs to turn multi-line commands into one line. This string is what it
+replaces newlines with.
+
+A semicolon, the default, looks good for many shells but might look out
+of place for some languages."
+  :group 'mistty
+  :type 'string)
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -3016,9 +3028,9 @@ With an argument, clear from the end of the last Nth output."
 (defun mistty-select-output (&optional n)
   "Select the current or Nth previous output range."
   (interactive "P")
-  (let ((range (mistty--current-or-previous-output-range n)))
-    (goto-char (car range))
-    (set-mark (cdr range))))
+  (let ((prompt-ranges (mistty--prompt-ranges-for-current-or-previous-output n)))
+    (goto-char (nth 1 prompt-ranges))
+    (set-mark (nth 2 prompt-ranges))))
 
 (defun mistty-create-buffer-with-output (buffer-name &optional n)
   "Create the new buffer BUFFER-NAME with N'th previous output.
@@ -3033,55 +3045,87 @@ a buffer with that output."
            (mistty--truncate-string
             (or
              (condition-case nil
-                 (mistty--command-for-output
-                  current-prefix-arg)
+                 (when-let ((prompt (mistty--prompt-ranges-for-current-or-previous-output
+                                     current-prefix-arg)))
+                   (mistty--command-for-output prompt))
                (error nil))
              "command output")
             30)))
           current-prefix-arg))
-  (let ((range (mistty--current-or-previous-output-range n))
+  (let ((prompt (mistty--prompt-ranges-for-current-or-previous-output n))
         (buffer (generate-new-buffer buffer-name)))
-    (copy-to-buffer buffer (car range) (cdr range))
+    (copy-to-buffer buffer (nth 1 prompt) (nth 2 prompt))
     (with-current-buffer buffer
       (set-auto-mode 'keep-mode-if-sane))
     (pop-to-buffer buffer)
     buffer))
 
-(defun mistty--command-for-output (&optional n)
-  "Extract command for the Nth output, if possible.
+(defun mistty--command-for-output (prompt-ranges)
+  "Extract command for PROMPT-RANGES, if possible.
 
-Note that this is VERY UNRELIABLE. It won't work with multi-line
-commands and might contain parts of the prompt. Use it only in
-cases where reliability doesn't matter.
+Note that this is very unreliable unless the shell issued OSS code B to
+mark the prompt beginning.
 
 Return nil if no command could be extracted."
-  (let* ((range (mistty--current-or-previous-output-range n))
-         (eol (mistty--eol (car range) 0))
-         (bol (mistty--bol eol))
-         (command
-          (save-excursion
-            (mistty-log "range: %s >>%s<<" range (buffer-substring-no-properties bol eol))
-            (goto-char bol)
-            (cond
-             ((eq 'prompt (get-text-property bol 'field))
-              (goto-char (text-property-not-all bol eol 'field 'prompt)))
-             ((search-forward-regexp
-               "\\(^\\|[[:blank:]]\\)\\([[:alpha:]]+\\)"
-               eol 'noerror)
-              (goto-char (match-beginning 2))))
-            (string-trim
-             (buffer-substring-no-properties
-              (point)
-              (or (text-property-any
-                   (point) eol 'mistty-skip 'right-prompt)
-                  eol))))))
-    (when (and (length> command 0)
-               (not (string-match-p
-                     "^\\(end\\|done\\|fi\\)" command)))
-      command)))
+  (let ((prompt-text (buffer-substring
+                      (nth 0 prompt-ranges) (nth 1 prompt-ranges)))
+        pos)
+    (with-temp-buffer
+      (insert prompt-text)
 
-(defun mistty--current-or-previous-output-range (&optional n)
-  "Return the range of the current or the Nth output.
+      ;; Remove anything marked mistty-skip.
+      (setq pos (point-min))
+      (while (and
+              (> (point-max) pos)
+              (setq pos (text-property-not-all
+                         pos (point-max) 'mistty-skip nil)))
+        (delete-region pos (next-single-property-change
+                            pos 'mistty-skip nil (point-max))))
+
+      ;; Remove everything up to the beginning of user input.
+      (cond
+       ;; Prompt is marked.
+       ((setq pos (text-property-any (point-min) (point-max) 'field 'prompt))
+        (delete-region (point-min)
+                       (next-single-property-change pos 'field nil (point-max))))
+
+       ;; Prompt is not marked. Look for something that looks like a prompt.
+       ((progn
+          (goto-char (point-max))
+          (search-backward-regexp "^[^#$%>\n]*[#$%>] +\\([[:alpha:]]+\\)" nil 'noerror))
+        (delete-region (point-min) (match-beginning 1)))
+
+       ;; Last line look like the end of a multi-line-prompt. Keep everything.
+       ((save-excursion
+          (goto-char (point-max))
+          (while (eq ?\n (char-before (point)))
+            (goto-char (1- (point))))
+          (goto-char (pos-bol))
+          (looking-at "[[:blank:]]*\\(end\\|done\\|fi\\)")))
+
+       ;; Keep only the last line
+       (t (delete-region (point-min) (mistty--bol (point-max)))))
+
+      ;; Trim
+      (goto-char (point-min))
+      (while (search-forward-regexp "^[[:blank:]\n\r]+" nil 'noerror)
+        (replace-match ""))
+      (goto-char (point-min))
+      (while (search-forward-regexp "[[:blank:]\n\r]+$" nil 'noerror)
+        (replace-match ""))
+
+      ;; Get rid of newlines.
+      (goto-char (point-min))
+      (while (search-forward-regexp
+              "[[:blank:]]*\n[[:blank:]]*" nil 'noerror)
+        (replace-match mistty-newline-replacement))
+
+      ;; Return whatever is left
+      (when (> (point-max) (point-min))
+        (buffer-substring-no-properties (point-min) (point-max))))))
+
+(defun mistty--prompt-ranges-for-current-or-previous-output (&optional n)
+  "Return the promptrange of the current or the Nth output.
 
 If N is a number, behave like `mistty-previous-output', otherwise
 return either the current or te previous output
@@ -3102,7 +3146,7 @@ This function fails if there is no current or previous output."
                      (cl-incf accepted-count))
 
                    (>= accepted-count n))))))
-        (cons (nth 1 prompt) (nth 2 prompt))
+        prompt
       (error "No current or previous output"))))
 
 (defun mistty--prompt-ranges-around (pos active-prompt-ranges)

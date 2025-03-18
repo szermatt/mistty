@@ -39,6 +39,7 @@
 (require 'text-property-search)
 (require 'fringe)
 (require 'cl-lib)
+(require 'imenu)
 (eval-when-compile
   (require 'files-x) ; with-connection-local-variables
   (require 'minibuffer))
@@ -880,6 +881,8 @@ to decide whether it's OK to kill the buffer.")
   (setq mistty--ignored-overlays (list mistty--sync-ov))
   (setq-local beginning-of-defun-function #'mistty-beginning-of-defun)
   (setq-local end-of-defun-function #'mistty-end-of-defun)
+  (setq-local imenu-create-index-function #'mistty-imenu-create-index)
+  (setq-local imenu-sort-function nil) ;; keep imenu entries in order
 
   (overlay-put mistty--sync-ov 'local-map (mistty--active-prompt-map))
 
@@ -3060,6 +3063,37 @@ a buffer with that output."
     (pop-to-buffer buffer)
     buffer))
 
+(defun mistty--user-input-start (prompt-ranges)
+  "Find the position of the start of user input within PROMPT-RANGES."
+  (let ((start (nth 0 prompt-ranges))
+        (end (nth 1 prompt-ranges))
+        pos)
+    (save-excursion
+      (cond
+       ;; Prompt is marked.
+       ((setq pos (text-property-any start end 'field 'prompt))
+        (next-single-property-change pos 'field nil end))
+
+       ;; Prompt is not marked. Look for something that looks like a prompt.
+       ((progn
+          (goto-char end)
+          (search-backward-regexp "^[^#$%>\n]*[#$%>] +\\([[:alpha:]]+\\)" start 'noerror))
+        (match-beginning 1))
+
+       ;; Last line look like the end of a multi-line-prompt. Keep
+       ;; everything in [start,end].
+       ((progn
+          (goto-char end)
+          (while (and (>= (point) start)
+                      (eq ?\n (char-before (point))))
+            (goto-char (1- (point))))
+          (goto-char (pos-bol))
+          (looking-at "[[:blank:]]*\\(end\\|done\\|fi\\)"))
+        start)
+
+       ;; Keep only the last line within [start,end].
+       (t (mistty--bol end))))))
+
 (defun mistty--command-for-output (prompt-ranges)
   "Extract command for PROMPT-RANGES, if possible.
 
@@ -3068,43 +3102,19 @@ mark the prompt beginning.
 
 Return nil if no command could be extracted."
   (let ((prompt-text (buffer-substring
-                      (nth 0 prompt-ranges) (nth 1 prompt-ranges)))
-        pos)
+                      (mistty--user-input-start prompt-ranges)
+                      (nth 1 prompt-ranges))))
     (with-temp-buffer
       (insert prompt-text)
 
       ;; Remove anything marked mistty-skip.
-      (setq pos (point-min))
-      (while (and
-              (> (point-max) pos)
-              (setq pos (text-property-not-all
-                         pos (point-max) 'mistty-skip nil)))
-        (delete-region pos (next-single-property-change
-                            pos 'mistty-skip nil (point-max))))
-
-      ;; Remove everything up to the beginning of user input.
-      (cond
-       ;; Prompt is marked.
-       ((setq pos (text-property-any (point-min) (point-max) 'field 'prompt))
-        (delete-region (point-min)
-                       (next-single-property-change pos 'field nil (point-max))))
-
-       ;; Prompt is not marked. Look for something that looks like a prompt.
-       ((progn
-          (goto-char (point-max))
-          (search-backward-regexp "^[^#$%>\n]*[#$%>] +\\([[:alpha:]]+\\)" nil 'noerror))
-        (delete-region (point-min) (match-beginning 1)))
-
-       ;; Last line look like the end of a multi-line-prompt. Keep everything.
-       ((save-excursion
-          (goto-char (point-max))
-          (while (eq ?\n (char-before (point)))
-            (goto-char (1- (point))))
-          (goto-char (pos-bol))
-          (looking-at "[[:blank:]]*\\(end\\|done\\|fi\\)")))
-
-       ;; Keep only the last line
-       (t (delete-region (point-min) (mistty--bol (point-max)))))
+      (let ((pos (point-min)))
+        (while (and
+                (> (point-max) pos)
+                (setq pos (text-property-not-all
+                           pos (point-max) 'mistty-skip nil)))
+          (delete-region pos (next-single-property-change
+                              pos 'mistty-skip nil (point-max)))))
 
       ;; Trim
       (goto-char (point-min))
@@ -4345,6 +4355,42 @@ This is meant to be set as `end-of-defun-function' in MisTTY buffers."
     (when-let ((ranges (mistty--prompt-ranges-at (point) active-prompt-ranges)))
       (prog1 t
         (goto-char (nth 2 ranges))))))
+
+(defun mistty-imenu-create-index ()
+  "Create an imenu index of prompts and commands.
+
+This is meant to be bound to `imenu-create-index-function'."
+  (let ((active-prompt (mistty--active-or-potential-prompt-ranges))
+        (maybe-marker (lambda (pos)
+                        (if imenu-use-markers
+                            (copy-marker pos)
+                          pos)))
+        output-alist prompt-alist)
+    (save-excursion
+      (goto-char (point-max))
+      (mistty--backward-prompt-ranges
+       (lambda (prompt)
+         (prog1 nil ;; keep looking
+           (if (equal prompt active-prompt)
+               ;; Active prompts
+               (push (cons "CURRENT"
+                           (funcall maybe-marker
+                                    (mistty--user-input-start prompt)))
+                     prompt-alist)
+
+             ;; Previous prompts
+             (when-let ((command (mistty--command-for-output prompt)))
+               (when (> (nth 2 prompt) (nth 1 prompt))
+                 (push (cons command
+                             (funcall maybe-marker (nth 1 prompt)))
+                       output-alist))
+               (when (> (nth 1 prompt) (nth 0 prompt))
+                 (push (cons command
+                             (funcall maybe-marker
+                                      (mistty--user-input-start prompt)))
+                       prompt-alist)))))))
+      `(("Outputs" . ,(nreverse output-alist))
+        ("Commands" . ,(nreverse prompt-alist))))))
 
 (provide 'mistty)
 

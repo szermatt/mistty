@@ -557,15 +557,18 @@ Always access it through the places `mistty--prompt'
 
 (defun mistty--prompt ()
   "Get the value of the current `mistty--prompt' struct or nil."
-  (mistty--prompt-cell-current mistty--prompt-cell))
+  (when-let ((cell mistty--prompt-cell))
+    (mistty--prompt-cell-current cell)))
 
 (defun mistty--prompt-archive ()
   "Get the list of archived `mistty--prompt' structs."
-  (mistty--prompt-cell-archive mistty--prompt-cell))
+  (when-let ((cell mistty--prompt-cell))
+    (mistty--prompt-cell-archive cell)))
 
 (defun mistty--prompt-counter ()
   "Get the number of prompt instances created in this buffer."
-  (mistty--prompt-cell-counter mistty--prompt-cell))
+  (when-let ((cell mistty--prompt-cell))
+    (mistty--prompt-cell-counter cell)))
 
 (gv-define-setter mistty--prompt (val)
   "Sets the value of the current `mistty--prompt' struct.

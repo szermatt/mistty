@@ -6375,3 +6375,97 @@ precmd_functions+=(prompt_header)
     (ert-simulate-command '(mark-defun 1))
     (should (equal "$ echo two\ntwo"
                    (mistty-test-content)))))
+
+(ert-deftest mistty-imenu-create-index ()
+  (mistty-with-test-buffer ()
+    (let ((prompt-pos (make-vector 4 nil)))
+      (cl-loop for index from 0
+               for text across ["one" "two" "three"]
+               do (progn
+                    (aset prompt-pos index (point))
+                    (mistty-send-text (format "echo %s" text))
+                    (mistty-send-and-wait-for-prompt)))
+      (aset prompt-pos 3 (point))
+      (mistty-send-text "current")
+
+    (let ((imenu-use-markers nil))
+      (should (equal `(("Outputs"
+                        ("echo three" . ,(mistty--bol (aref prompt-pos 2) 2))
+                        ("echo two" . ,(mistty--bol (aref prompt-pos 1) 2))
+                        ("echo one" . ,(mistty--bol (aref prompt-pos 0) 2)))
+                       ("Commands"
+                        ("CURRENT" . ,(aref prompt-pos 3))
+                        ("echo three" . ,(aref prompt-pos 2))
+                        ("echo two" . ,(aref prompt-pos 1))
+                        ("echo one" . ,(aref prompt-pos 0))))
+                     (mistty-imenu-create-index)))))))
+
+(ert-deftest mistty-imenu-create-index-use-markers ()
+  (mistty-with-test-buffer ()
+    (let ((prompt-pos (make-vector 4 nil)))
+      (cl-loop for index from 0
+               for text across ["one" "two" "three"]
+               do (progn
+                    (aset prompt-pos index (point))
+                    (mistty-send-text (format "echo %s" text))
+                    (mistty-send-and-wait-for-prompt)))
+      (aset prompt-pos 3 (point))
+      (mistty-send-text "current")
+
+    (let* ((imenu-use-markers t)
+           (index (mistty-imenu-create-index)))
+
+      ;; All positions are markers
+      (dolist (group-cell index)
+        (dolist (entry-cell (cdr group-cell))
+          (should (markerp (cdr entry-cell)))))
+
+      ;; Check marker positions
+      (dolist (group-cell index)
+        (mapc (lambda (cell)
+                (setcdr cell (marker-position (cdr cell))))
+              (cdr group-cell)))
+
+      (should (equal `(("Outputs"
+                        ("echo three" . ,(mistty--bol (aref prompt-pos 2) 2))
+                        ("echo two" . ,(mistty--bol (aref prompt-pos 1) 2))
+                        ("echo one" . ,(mistty--bol (aref prompt-pos 0) 2)))
+                       ("Commands"
+                        ("CURRENT" . ,(aref prompt-pos 3))
+                        ("echo three" . ,(aref prompt-pos 2))
+                        ("echo two" . ,(aref prompt-pos 1))
+                        ("echo one" . ,(aref prompt-pos 0))))
+                        index))))))
+
+(ert-deftest mistty-imenu-create-index-no-output ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo -n")
+    (mistty-send-and-wait-for-prompt)
+
+    (let ((imenu-use-markers nil)
+          (index (mistty-imenu-create-index)))
+      (should (equal '("CURRENT" "echo -n" "echo one")
+                     (mapcar #'car
+                             (alist-get "Commands" index nil nil #'string=))))
+
+      ;; Neither CURRENT nor echo -n has any outputs.
+      (should (equal '("echo one")
+                     (mapcar #'car
+                             (alist-get "Outputs" index nil nil #'string=)))))))
+
+(ert-deftest mistty-imenu-create-index-multiline ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "for i in a b c; do")
+    (mistty-newline)
+    (mistty-send-text " echo $i")
+    (mistty-newline)
+    (mistty-send-text "done")
+    (mistty-send-and-wait-for-prompt)
+
+    (let ((imenu-use-markers nil)
+          (index (mistty-imenu-create-index)))
+      (should (equal '("CURRENT" "for i in a b c; do; echo $i; done")
+                     (mapcar #'car
+                             (alist-get "Commands" index nil nil #'string=)))))))

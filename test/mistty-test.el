@@ -6469,3 +6469,50 @@ precmd_functions+=(prompt_header)
       (should (equal '("CURRENT" "for i in a b c; do; echo $i; done")
                      (mapcar #'car
                              (alist-get "Commands" index nil nil #'string=)))))))
+
+(ert-deftest mistty-user-input-start ()
+  (mistty-with-test-buffer ()
+    (let ((prompt (lambda ()
+                    (mistty--prompt-ranges-around
+                     (point)
+                     (mistty--active-or-potential-prompt-ranges)))))
+      (mistty-send-text "echo one")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo two")
+      (mistty-send-and-wait-for-prompt)
+
+      (should
+       (equal
+        "$ <>"
+        (mistty-test-content
+         :start (pos-bol)
+         :end (pos-eol)
+         :show (mistty--user-input-start (funcall prompt)))))
+
+      (mistty-test-goto "echo two")
+      (should
+       (equal
+        "$ <>echo two"
+        (mistty-test-content
+         :start (pos-bol)
+         :end (pos-eol)
+         :show (mistty--user-input-start (funcall prompt)))))
+
+      (forward-line -1)
+      (should
+       (equal
+        "$ <>"
+        (mistty-test-content
+         :start (pos-bol)
+         :end (pos-eol)
+         :show (mistty--user-input-start (funcall prompt)))))
+
+      (mistty-test-goto "echo one")
+      (should
+       (equal
+        "$ <>echo one"
+        (mistty-test-content
+         :start (pos-bol)
+         :end (pos-eol)
+         :show (mistty--user-input-start (funcall prompt))))))))

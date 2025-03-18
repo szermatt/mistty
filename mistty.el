@@ -3077,7 +3077,7 @@ a buffer with that output."
        ;; Prompt is not marked. Look for something that looks like a prompt.
        ((progn
           (goto-char end)
-          (search-backward-regexp "^[^#$%>\n]*[#$%>] +\\([[:alpha:]]+\\)" start 'noerror))
+          (search-backward-regexp "^[^#$%>\n]*[#$%>] +\\([[:alpha:]]+\\|$\\)" start 'noerror))
         (match-beginning 1))
 
        ;; Last line look like the end of a multi-line-prompt. Keep

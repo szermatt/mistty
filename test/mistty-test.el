@@ -740,7 +740,7 @@
     (should
      (equal (concat "$ echo one\n"
                     "one\n"
-                    "<>$ echo two\n"
+                    "$ <>echo two\n"
                     "two\n"
                     "$ echo three\n"
                     "three\n"
@@ -753,7 +753,7 @@
                     "one\n"
                     "$ echo two\n"
                     "two\n"
-                    "<>$ echo three\n"
+                    "$ <>echo three\n"
                     "three\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
@@ -766,7 +766,7 @@
                     "two\n"
                     "$ echo three\n"
                     "three\n"
-                    "<>$ echo current")
+                    "$ <>echo current")
             (mistty-test-content :show (point))))
 
     (should-error (mistty-next-input 1))
@@ -777,7 +777,7 @@
                     "two\n"
                     "$ echo three\n"
                     "three\n"
-                    "<>$ echo current")
+                    "$ <>echo current")
             (mistty-test-content :show (point))))
 
     (goto-char (point-min))
@@ -787,7 +787,7 @@
                     "one\n"
                     "$ echo two\n"
                     "two\n"
-                    "<>$ echo three\n"
+                    "$ <>echo three\n"
                     "three\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
@@ -801,7 +801,7 @@
                     "two\n"
                     "$ echo three\n"
                     "three\n"
-                    "<>$ echo current")
+                    "$ <>echo current")
             (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-previous-input ()
@@ -826,7 +826,7 @@
                     "one\n"
                     "$ echo two\n"
                     "two\n"
-                    "<>$ echo three\n"
+                    "$ <>echo three\n"
                     "three\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
@@ -835,7 +835,7 @@
     (should
      (equal (concat "$ echo one\n"
                     "one\n"
-                    "<>$ echo two\n"
+                    "$ <>echo two\n"
                     "two\n"
                     "$ echo three\n"
                     "three\n"
@@ -844,7 +844,7 @@
 
     (mistty-previous-input 1)
     (should
-     (equal (concat "<>$ echo one\n"
+     (equal (concat "$ <>echo one\n"
                     "one\n"
                     "$ echo two\n"
                     "two\n"
@@ -855,7 +855,7 @@
 
     (should-error (mistty-previous-input 1))
     (should
-     (equal (concat "<>$ echo one\n"
+     (equal (concat "$ <>echo one\n"
                     "one\n"
                     "$ echo two\n"
                     "two\n"
@@ -869,7 +869,7 @@
     (should
      (equal (concat "$ echo one\n"
                     "one\n"
-                    "<>$ echo two\n"
+                    "$ <>echo two\n"
                     "two\n"
                     "$ echo three\n"
                     "three\n"
@@ -895,7 +895,7 @@
     (should
      (equal (concat "$ echo one\n"
                     "one\n"
-                    "<>$ echo two\n"
+                    "$ <>echo two\n"
                     "two\n"
                     "$ echo three\n"
                     "three\n"
@@ -908,7 +908,7 @@
                     "one\n"
                     "$ echo two\n"
                     "two\n"
-                    "<>$ echo three\n"
+                    "$ <>echo three\n"
                     "three\n"
                     "$ echo current")
             (mistty-test-content :show (point))))))
@@ -932,7 +932,7 @@
     (should
      (equal (concat "$ echo one\n"
                     "one\n"
-                    "<>$ echo two\n"
+                    "$ <>echo two\n"
                     "two\n"
                     "$ echo three\n"
                     "three\n"
@@ -945,7 +945,7 @@
                     "one\n"
                     "$ echo two\n"
                     "two\n"
-                    "<>$ echo three\n"
+                    "$ <>echo three\n"
                     "three\n"
                     "$ echo current")
             (mistty-test-content :show (point))))))
@@ -962,7 +962,7 @@
     (mistty-next-input 1)
     (should
      (equal (concat "$\n"
-                    "<>$\n"
+                    "$ <>\n"
                     "$\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
@@ -971,7 +971,7 @@
     (should
      (equal (concat "$\n"
                     "$\n"
-                    "<>$\n"
+                    "$ <>\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
 
@@ -980,7 +980,7 @@
      (equal (concat "$\n"
                     "$\n"
                     "$\n"
-                    "<>$ echo current")
+                    "$ <>echo current")
             (mistty-test-content :show (point))))
 
     (should-error (mistty-next-input 1))
@@ -990,7 +990,7 @@
     (should
      (equal (concat "$\n"
                     "$\n"
-                    "<>$\n"
+                    "$ <>\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
 
@@ -1000,7 +1000,7 @@
      (equal (concat "$\n"
                     "$\n"
                     "$\n"
-                    "<>$ echo current")
+                    "$ <>echo current")
             (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-previous-input-empty-prompt ()
@@ -1016,21 +1016,21 @@
     (should
      (equal (concat "$\n"
                     "$\n"
-                    "<>$\n"
+                    "$ <>\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
 
     (mistty-previous-input 1)
     (should
      (equal (concat "$\n"
-                    "<>$\n"
+                    "$ <>\n"
                     "$\n"
                     "$ echo current")
             (mistty-test-content :show (point))))
 
     (mistty-previous-input 1)
     (should
-     (equal (concat "<>$\n"
+     (equal (concat "$ <>\n"
                     "$\n"
                     "$\n"
                     "$ echo current")
@@ -1042,7 +1042,7 @@
     (mistty-previous-input 2)
     (should
      (equal (concat "$\n"
-                    "<>$\n"
+                    "$ <>\n"
                     "$\n"
                     "$ echo current")
             (mistty-test-content :show (point))))))
@@ -1057,10 +1057,10 @@
     (mistty-next-input 1)
     (should (equal (concat "$ echo $((1 + 1))\n"
                            "2\n"
-                           "<>$ echo $((2 + 2))")
+                           "$ <>echo $((2 + 2))")
                    (mistty-test-content :show (point))))
     (mistty-previous-input 1)
-    (should (equal (concat "<>$ echo $((1 + 1))\n"
+    (should (equal (concat "$ <>echo $((1 + 1))\n"
                            "2\n"
                            "$ echo $((2 + 2))")
                    (mistty-test-content :show (point))))))
@@ -2036,7 +2036,7 @@
 
     ;; the input was identified and labelled
     (mistty-previous-input 1)
-    (should (looking-at (regexp-quote "$ echo ok")))))
+    (should (looking-at (regexp-quote "echo ok")))))
 
 (ert-deftest mistty-test-nobracketed-paste-move-and-type ()
   (mistty-with-test-buffer (:shell bash)
@@ -2050,7 +2050,7 @@
 
     ;; the input was identified and labelled
     (mistty-previous-input 1)
-    (should (looking-at (regexp-quote "$ echo nack")))))
+    (should (looking-at (regexp-quote "echo nack")))))
 
 (ert-deftest mistty-test-eof ()
   (mistty-with-test-buffer ()
@@ -2079,7 +2079,7 @@
 
     ;; the input was identified and labelled
     (mistty-previous-input 1)
-    (should (equal "<>$ echo ok\nok\n$"
+    (should (equal "$ <>echo ok\nok\n$"
                    (mistty-test-content :show (point))))))
 
 (ert-deftest mistty-test-zsh-completion-and-previous-input ()
@@ -4183,7 +4183,7 @@
                 "$ non-prompt\n"
                 "continue\n"
                 ".\n"
-                "<>$")
+                "$ <>")
              (mistty-test-content
               :start start
               :show (seq-filter (lambda (pos) (>= pos start))
@@ -6089,14 +6089,14 @@ precmd_functions+=(prompt_header)
     ;; Prompts were detected correctly, including the prompt header
     (should (equal
              (concat
-              "<><--->\n"
-              "$ echo foo\n"
+              "<--->\n"
+              "$ <>echo foo\n"
               "foo\n"
-              "<1><--->\n"
-              "$ echo bar\n"
+              "<--->\n"
+              "$ <1>echo bar\n"
               "bar\n"
-              "<2><--->\n"
-              "$ baa")
+              "<--->\n"
+              "$ <2>baa")
              (mistty-test-content
               :show (mistty-test-all-inputs))))))
 
@@ -6122,11 +6122,11 @@ precmd_functions+=(prompt_header)
     ;; Prompts were detected correctly, including the prompt header
     (should (equal
              (concat
-              "<><--->\n"
-              "$ echo foo\n"
+              "<--->\n"
+              "$ <>echo foo\n"
               "foo\n"
-              "<1><--->\n"
-              "$ echo bar")
+              "<--->\n"
+              "$ <1>echo bar")
              (mistty-test-content
               :show (mistty-test-all-inputs))))))
 
@@ -6146,9 +6146,9 @@ precmd_functions+=(prompt_header)
 
     (should (equal
              (concat
-              "<>$ echo foo                                                             < right\n"
+              "$ <>echo foo                                                             < right\n"
               "foo\n"
-              "<1>$ echo bar                                                             < right")
+              "$ <1>echo bar                                                             < right")
              (mistty-test-content
               :show (mistty-test-all-inputs))))))
 

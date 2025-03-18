@@ -2948,7 +2948,7 @@ up (negative)."
                    (cl-incf accepted-count))
 
                  (>= accepted-count n))))))
-      (goto-char (nth 0 prompt))
+      (goto-char (mistty--user-input-start prompt))
     (error "No next input")))
 
 (defun mistty-previous-input (n)
@@ -2963,7 +2963,7 @@ up (negative)."
                    (cl-incf accepted-count))
 
                  (>= accepted-count n))))))
-      (goto-char (nth 0 prompt))
+      (goto-char (mistty--user-input-start prompt))
     (error "No previous input")))
 
 (defun mistty-next-output (n)

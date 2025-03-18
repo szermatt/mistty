@@ -328,6 +328,11 @@ command line instead of using an Emacs command, you can also do
 the ``reset`` and ``clear`` commands clear the whole buffer instead of
 just the terminal zone.
 
+MisTTY defines an index for imenu, so that :kbd:`M-x imenu` lets you
+select commands and outputs to go to. This also allows packages based
+on imenu to work, such as `breadcrumbs
+<https://github.com/joaotavora/breadcrumb>`_ that can display the
+current command in a header, if enabled in a MisTTY buffer.
 
 Additionally, MisTTY defines prompts as defuns, so any function that
 applies on defun applies on prompts in a MisTTY buffer, so, for

@@ -334,6 +334,11 @@ on imenu to work, such as `breadcrumbs
 <https://github.com/joaotavora/breadcrumb>`_ that can display the
 current command in a header, if enabled in a MisTTY buffer.
 
+.. note::
+   If imenu shows strange commands, consider adding an OSC133 B
+   code ("\033]133;B\007") at the end of your prompt so MisTTY knows
+   when the prompt ends and where user input begins. See :ref:`osc`
+
 Additionally, MisTTY defines prompts as defuns, so any function that
 applies on defun applies on prompts in a MisTTY buffer, so, for
 example:

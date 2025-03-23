@@ -566,6 +566,14 @@ select commands and outputs to go to. This also allows packages based
 on imenu to work, such as breadcrumbs@footnote{https://github.com/joaotavora/breadcrumb} that can display the
 current command in a header, if enabled in a MisTTY buffer.
 
+@cartouche
+@quotation Note 
+If imenu shows strange commands, consider adding an OSC133 B
+code (”033]133;B007”) at the end of your prompt so MisTTY knows
+when the prompt ends and where user input begins. See @ref{16,,Supported OSC Control Sequences}
+@end quotation
+@end cartouche
+
 Additionally, MisTTY defines prompts as defuns, so any function that
 applies on defun applies on prompts in a MisTTY buffer, so, for
 example:
@@ -594,7 +602,7 @@ and its output
 @end quotation
 
 @node Fullscreen Mode,Command History,Navigating the scrollback zone,Usage
-@anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{16}
+@anchor{usage fullscreen}@anchor{2}@anchor{usage fullscreen-mode}@anchor{17}
 @subsection Fullscreen Mode
 
 
@@ -624,7 +632,7 @@ together. Please note that the output from the full-screen application
 is not available in the scrollback region.
 
 @node Command History,Backward Search,Fullscreen Mode,Usage
-@anchor{usage command-history}@anchor{17}@anchor{usage history}@anchor{15}
+@anchor{usage command-history}@anchor{18}@anchor{usage history}@anchor{15}
 @subsection Command History
 
 
@@ -661,7 +669,7 @@ in the terminal zone of the MisTTY buffer. For example:
 @end example
 
 @node Backward Search,Completion-at-point,Command History,Usage
-@anchor{usage backward-search}@anchor{18}@anchor{usage bs}@anchor{10}
+@anchor{usage backward-search}@anchor{19}@anchor{usage bs}@anchor{10}
 @subsection Backward Search
 
 
@@ -700,7 +708,7 @@ exits backward search mode without making a selection.
 @end itemize
 
 @node Completion-at-point,Template Expansion,Backward Search,Usage
-@anchor{usage cap}@anchor{19}@anchor{usage completion-at-point}@anchor{1a}
+@anchor{usage cap}@anchor{1a}@anchor{usage completion-at-point}@anchor{1b}
 @subsection Completion-at-point
 
 
@@ -734,7 +742,7 @@ close.
 
 Other packages might work or might be made to work with some efforts.
 Auto-completion is usually the main challenge, described in
-@ref{1b,,Auto-complete}. Please file a bug (@ref{3,,Reporting issues}) if you
+@ref{1c,,Auto-complete}. Please file a bug (@ref{3,,Reporting issues}) if you
 encounter issues with other completion packages.
 
 @menu
@@ -743,7 +751,7 @@ encounter issues with other completion packages.
 @end menu
 
 @node Autosuggestions,,,Completion-at-point
-@anchor{usage autosuggestions}@anchor{1c}
+@anchor{usage autosuggestions}@anchor{1d}
 @subsubsection Autosuggestions
 
 
@@ -771,13 +779,13 @@ autosuggestions, you can turn this off with @code{M-x customize-option
 mistty-wrap-capf-functions}
 
 @node Template Expansion,Directory Tracking,Completion-at-point,Usage
-@anchor{usage template-expansion}@anchor{1d}
+@anchor{usage template-expansion}@anchor{1e}
 @subsection Template Expansion
 
 
 Template expansion and other form of long-running editing command
 might be confused by the way MisTTY work in the terminal region. See
-@ref{1e,,Long-running commands} for details.
+@ref{1f,,Long-running commands} for details.
 
 The following template expansion packages are known to work with
 MisTTY out of the box, if enabled:
@@ -800,7 +808,7 @@ Please file a bug (@ref{3,,Reporting issues}) if you encounter issues with
 other packages.
 
 @node Directory Tracking,Remote Shells with TRAMP,Template Expansion,Usage
-@anchor{usage directory-tracking}@anchor{1f}@anchor{usage dirtrack}@anchor{b}
+@anchor{usage directory-tracking}@anchor{20}@anchor{usage dirtrack}@anchor{b}
 @subsection Directory Tracking
 
 
@@ -810,7 +818,7 @@ current directory, so commands like @code{M-x find-file} know where to
 start from.
 
 If you’re using any other shell, you’ll need to configure it to tell
-Emacs about its current directory, as described in @ref{20,,Directory Tracking for Fish} and in @ref{21,,Directory Tracking for Zsh}.
+Emacs about its current directory, as described in @ref{21,,Directory Tracking for Fish} and in @ref{22,,Directory Tracking for Zsh}.
 
 @code{Bash} out-of-the-box directory tracking also doesn’t work in
 shells you start using @code{ssh} or @code{docker}. For that
@@ -818,7 +826,7 @@ to work, the simplest solution is to start remote shells with
 TRAMP. (@ref{d,,Remote Shells with TRAMP})
 
 @node Remote Shells with TRAMP,Directory tracking and TRAMP,Directory Tracking,Usage
-@anchor{usage remote-shells}@anchor{d}@anchor{usage remote-shells-with-tramp}@anchor{22}
+@anchor{usage remote-shells}@anchor{d}@anchor{usage remote-shells-with-tramp}@anchor{23}
 @subsection Remote Shells with TRAMP
 
 
@@ -861,7 +869,7 @@ different from the current one. If you don’t want that, configure it
 on @code{M-x customize-option mistty-buffer-name}.
 
 @node Directory tracking and TRAMP,Keybindings used by MisTTY,Remote Shells with TRAMP,Usage
-@anchor{usage directory-tracking-and-tramp}@anchor{23}@anchor{usage tramp-dirtrack}@anchor{24}
+@anchor{usage directory-tracking-and-tramp}@anchor{24}@anchor{usage tramp-dirtrack}@anchor{25}
 @subsection Directory tracking and TRAMP
 
 
@@ -881,13 +889,13 @@ The simplest way to connect a host or docker instance you don’t
 want to configure is to just start it as described in
 @ref{d,,Remote Shells with TRAMP} and use @code{Bash} as your shell.
 Everything then just work out of the box, at least for Bash
-4.4 and later. (@ref{25,,Directory tracking in Bash})
+4.4 and later. (@ref{26,,Directory tracking in Bash})
 @end quotation
 @end cartouche
 
 If you haven’t already, configure your shell to tell Emacs about
 directory changes, even @code{Bash}. This is described in
-@ref{25,,Directory Tracking for Bash}, in @ref{20,,Directory Tracking for Fish}, and in @ref{21,,Directory Tracking for Zsh}.
+@ref{26,,Directory Tracking for Bash}, in @ref{21,,Directory Tracking for Fish}, and in @ref{22,,Directory Tracking for Zsh}.
 
 Once this is done, the shell sends out file: URLs that include the
 host name. By default, MisTTY will then use that to set the default
@@ -917,9 +925,9 @@ configure-option mistty-host-to-tramp-path-alist}
 If you want to configure the TRAMP path on the hosts, you can send
 it from the prompt as Emacs-specific @code{\\032/...\\n} code
 containing a TRAMP path instead of the standard file: URL
-recommended in @ref{25,,Directory Tracking for Bash},
-in @ref{20,,Directory Tracking for Fish}, and in
-@ref{21,,Directory Tracking for Zsh}. Here’s an example
+recommended in @ref{26,,Directory Tracking for Bash},
+in @ref{21,,Directory Tracking for Fish}, and in
+@ref{22,,Directory Tracking for Zsh}. Here’s an example
 of such a code for @code{Bash} that tells TRAMP to connect to
 the current docker instance:
 
@@ -940,7 +948,7 @@ just don’t want MisTTY to generate remote paths at all, unset the
 option @code{M-x configure-option mistty-allow-tramp-paths}.
 
 @node Keybindings used by MisTTY,Supported OSC Control Sequences,Directory tracking and TRAMP,Usage
-@anchor{usage keybindings}@anchor{12}@anchor{usage keybindings-used-by-mistty}@anchor{26}
+@anchor{usage keybindings}@anchor{12}@anchor{usage keybindings-used-by-mistty}@anchor{27}
 @subsection Keybindings used by MisTTY
 
 
@@ -988,7 +996,7 @@ special characters), or delete text before the cursor, such as
 @code{backward-kill-word}. For more details, see @ref{10,,Backward Search}
 
 @node Supported OSC Control Sequences,,Keybindings used by MisTTY,Usage
-@anchor{usage osc}@anchor{27}@anchor{usage supported-osc-control-sequences}@anchor{28}
+@anchor{usage osc}@anchor{16}@anchor{usage supported-osc-control-sequences}@anchor{28}
 @subsection Supported OSC Control Sequences
 
 
@@ -1142,7 +1150,7 @@ set enable-bracketed-paste on
 Bash versions older than 4.5 don’t support bracketed paste.
 
 Additionally, Bash versions older than 4.4 require extra setup to
-enable directory tracking, as documented in @ref{25,,Directory tracking in Bash}.
+enable directory tracking, as documented in @ref{26,,Directory tracking in Bash}.
 
 @menu
 * Multi-line prompts in Bash:: 
@@ -1176,7 +1184,7 @@ where these are significant, you will need to remove trailing spaces
 using @code{C-d} or @code{DEL}.
 
 @node Directory tracking in Bash,VI mode in Bash,Multi-line prompts in Bash,Bash
-@anchor{shells bash-dirtrack}@anchor{25}@anchor{shells directory-tracking-in-bash}@anchor{30}
+@anchor{shells bash-dirtrack}@anchor{26}@anchor{shells directory-tracking-in-bash}@anchor{30}
 @subsubsection Directory tracking in Bash
 
 
@@ -1333,7 +1341,7 @@ use @code{C-q <up>} @code{C-q <down>} @code{C-q <left>} @code{C-q <right>}, or e
 @end itemize
 
 @node Directory tracking in Fish,Multi-line prompts in Fish,Command History in Fish,Fish
-@anchor{shells directory-tracking-in-fish}@anchor{37}@anchor{shells fish-dirtrack}@anchor{20}
+@anchor{shells directory-tracking-in-fish}@anchor{37}@anchor{shells fish-dirtrack}@anchor{21}
 @subsubsection Directory tracking in Fish
 
 
@@ -1436,7 +1444,7 @@ The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
 @node Directory tracking in Zsh,Multi-line prompts in Zsh,Autosuggestions in Zsh,Zsh
-@anchor{shells directory-tracking-in-zsh}@anchor{3e}@anchor{shells zsh-dirtrack}@anchor{21}
+@anchor{shells directory-tracking-in-zsh}@anchor{3e}@anchor{shells zsh-dirtrack}@anchor{22}
 @subsubsection Directory tracking in Zsh
 
 
@@ -1636,7 +1644,7 @@ for text that is inserted or displayed by the shell.
 
 This hook provides an appropriate time to trigger auto-completion UI,
 which, by default, doesn’t work in the terminal region, as discussed
-in @ref{1b,,Auto-complete}.
+in @ref{1c,,Auto-complete}.
 
 Auto-completion doesn’t work in the terminal region because it often
 requires calling a post-command function. To work around that, in most
@@ -1866,7 +1874,7 @@ that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node Auto-complete,Long-running commands,Terminal Keymap,Extending MisTTY
-@anchor{extensions auto-complete}@anchor{53}@anchor{extensions autocomplete}@anchor{1b}
+@anchor{extensions auto-complete}@anchor{53}@anchor{extensions autocomplete}@anchor{1c}
 @subsection Auto-complete
 
 
@@ -1890,7 +1898,7 @@ should be possible to build a custom bridge between this hook and the
 auto-completion package.
 
 @node Long-running commands,,Auto-complete,Extending MisTTY
-@anchor{extensions long-running-commands}@anchor{54}@anchor{extensions lrc}@anchor{1e}
+@anchor{extensions long-running-commands}@anchor{54}@anchor{extensions lrc}@anchor{1f}
 @subsection Long-running commands
 
 
@@ -2091,7 +2099,7 @@ mistty-detect-foreign-overlays} or, if you know which package is
 causing trouble, remove the corresponding property in in @code{M-x
 customize-option mistty-foreign-overlay-properties}.
 
-For details, see @ref{1e,,Long-running commands}
+For details, see @ref{1f,,Long-running commands}
 
 If this keeps happening and the modeline does not contain CMD,
 this is likely a bug. For details on filing a bug report, see
@@ -2137,10 +2145,10 @@ than just editing text.
 One such issue is with interactivly editing the buffer over
 multiple Emacs command, which MisTTY calls a long-running command.
 There are ways of making such commands work if they don’t already,
-described in @ref{1e,,Long-running commands}.
+described in @ref{1f,,Long-running commands}.
 
 Another such issue is with autocomplete, with can also be made to
-work as described in @ref{1b,,Auto-complete}.
+work as described in @ref{1c,,Auto-complete}.
 
 While this works with some packages, it might not necessarily work
 with the package you want - it might even not be possible to make
@@ -2153,13 +2161,13 @@ such a package you’d like to work with MisTTY.
 @quotation
 
 Older versions used to detect any unknown overlay as a
-long-running command, described in @ref{1e,,Long-running commands}. Unfortunately, this
+long-running command, described in @ref{1f,,Long-running commands}. Unfortunately, this
 caused problems with many packages which, leaving overlays around
 for a long time, prevented MisTTY from working at all.
 
 The good news is that it’s likely easy to make it work again by
 detecting the specific kind of overlays the package is using.
-Please see @ref{1e,,Long-running commands}, or file a bug (@ref{3,,Reporting issues}) mentioning
+Please see @ref{1f,,Long-running commands}, or file a bug (@ref{3,,Reporting issues}) mentioning
 the package you’re using, its version and how you installed it.
 @end quotation
 

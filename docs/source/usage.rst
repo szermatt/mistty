@@ -772,9 +772,34 @@ know that user input is expected.
 
 *OSC 133;B ST* should be sent just after having written the prompt, to
 signal the start of user input. It should be sent out at the very end
-of the prompt. Sending out this code allows MisTTY to mark prompts so
-that commands such as `beginning-of-line` are aware of where user
-input starts.
+of the prompt.
+
+Sending out a OSC 133 B code allows MisTTY to mark prompts so that
+commands such as `beginning-of-line` or `imenu` are aware of where
+user input starts. This can be done independently of sending out the
+other codes.
+
+
+.. code-block:: bash
+   :caption: OSC 133 B code for bash
+
+   PS1=$PS1'\e]133;B\007'
+
+.. code-block:: zsh
+   :caption: OSC 133 B code for zsh
+
+   PS1=$PS1$(printf '\e]133;B\007')
+
+.. code-block:: fish
+   :caption: OSC 133 B code for fish
+
+   functions -c fish_prompt orig_fish_prompt
+
+   function fish_prompt
+     orig_fish_prompt
+     printf "\033]133;B\007"
+   end
+
 
 *OSC 133;C ST* should be sent just before executing the command,
 usually from a preexec function. Sending out this code allows MisTTY

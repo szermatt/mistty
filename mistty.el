@@ -1738,20 +1738,19 @@ Also updates prompt and point."
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.
          (when mistty--end-prompt
-           (when-let ((prompt mistty--active-prompt)
-                      (scrollrow (mistty--with-live-buffer mistty-term-buffer
-                                   (mistty--term-scrollrow))))
-             (when (and (mistty--prompt-end prompt)
-                        (>= scrollrow (mistty--prompt-end prompt)))
-               (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrollrow %s)"
-                           (mistty--prompt-source prompt)
-                           (mistty--prompt-input-id prompt)
-                           (mistty--prompt-start prompt)
-                           (mistty--prompt-end prompt)
-                           scrollrow)
-               (mistty--set-sync-mark-from-end
-                (mistty--scrollrow-pos (mistty--prompt-end prompt))))))
-
+           (when-let* ((prompt mistty--active-prompt)
+                       (scrollrow (mistty--with-live-buffer mistty-term-buffer
+                                    (mistty--term-scrollrow)))
+                       (end-scrollrow (mistty--prompt-end prompt)))
+             (when (>= scrollrow end-scrollrow)
+               (when-let ((end-pos (mistty--scrollrow-pos end-scrollrow)))
+                 (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrollrow %s)"
+                             (mistty--prompt-source prompt)
+                             (mistty--prompt-input-id prompt)
+                             (mistty--prompt-start prompt)
+                             end-scrollrow
+                             scrollrow)
+                 (mistty--set-sync-mark-from-end end-pos)))))
 
          ;; detect prompt from bracketed-past region and use that to
          ;; restrict the sync region.

@@ -383,7 +383,7 @@ buffer to a new region at the beginning of the new prompt."
             ;; If BACKSPACE was used, there could be leftover spaces
             ;; at the end of the line when the tty overwrites intead
             ;; of deleting.
-            (goto-char (line-end-position))
+            (goto-char (pos-eol))
             (1+ (point))))
     (setq output (mistty-test-content :start output-start :end next-prompt-start
                                       :show (unless nopointer (point))

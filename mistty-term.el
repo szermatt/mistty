@@ -1012,7 +1012,13 @@ BOL and EOL define the region to look in."
             (cl-decf pos))
           (cl-incf pos)
           (add-text-properties
-           pos eol '(mistty-skip right-prompt yank-handler (nil "" nil nil)))
+           pos eol '(mistty-skip
+                     right-prompt
+                     yank-handler
+                     (nil "" nil nil)
+                     field right-prompt
+                     inhibit-line-move-field-capture t
+                     rear-nonsticky t))
 
           pos)))))
 

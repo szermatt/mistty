@@ -3354,6 +3354,17 @@
       (should (string-match "^\\$ echo hello<> +< right$"
                             (mistty-test-content :show (point)))))))
 
+(ert-deftest mistty-test-zsh-right-prompt-set-field ()
+  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+    (mistty-send-text "echo foo")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo bar")
+    (goto-char (point-min))
+    (search-forward "echo foo")
+    (should (equal "$ echo foo"
+                   (buffer-substring-no-properties (line-beginning-position)
+                                                   (line-end-position))))))
+
 (ert-deftest mistty-test-zsh-right-prompt-skip-empty-spaces-empty-prompt ()
   (mistty-with-test-buffer (:shell zsh :selected t :init mistty-test-zsh-right-prompt)
     (let ((mistty-skip-empty-spaces t)
@@ -6162,7 +6173,31 @@ precmd_functions+=(prompt_header)
     (should (equal "[$ ]<>echo foobar"
                    (mistty-test-content
                     :show (point)
-                    :show-property '(field prompt))))))
+                    :show-property '(field prompt))))
+    (should (equal "echo foobar"
+                   (buffer-substring-no-properties
+                    (line-beginning-position)
+                    (line-end-position))))))
+
+(ert-deftest mistty-osc133-right-left-prompt-field ()
+  (mistty-with-test-buffer (:init (concat "PS1='$ \\033]133;B\\007'\n"
+                                          mistty-test-zsh-right-prompt))
+    ;; Fields are set on both prompts so line-beginning/end cover only
+    ;; the command.
+    (mistty-send-text "echo foobar")
+    (should (equal "echo foobar"
+                   (buffer-substring-no-properties
+                    (line-beginning-position)
+                    (line-end-position))))
+    (mistty-send-and-wait-for-prompt)
+
+    ;; The same thing happen when text is in the scrollback area
+    (goto-char (point-min))
+    (search-forward "echo foobar")
+    (should (equal "echo foobar"
+                   (buffer-substring-no-properties
+                    (line-beginning-position)
+                    (line-end-position))))))
 
 (ert-deftest mistty-osc133-command-for-output ()
   (mistty-with-test-buffer (:shell zsh :init (concat

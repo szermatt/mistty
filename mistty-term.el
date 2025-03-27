@@ -1259,6 +1259,16 @@ and doesn't change as the buffer scrolls up.
 Before using a scrollrow, convert it to a screen row or point."
   (+ mistty--scrollrow-base (mistty--count-lines mistty--scrollrow-home pos)))
 
+(defun mistty--term-scrollrow-pos (scrollrow)
+  "Return the char position of the beginning of SCROLLROW.
+
+Return nil if the row isn't reachable on the terminal."
+  (when (>= scrollrow mistty--scrollrow-base)
+    (save-excursion
+      (goto-char mistty--scrollrow-home)
+      (when (zerop (forward-line (- scrollrow mistty--scrollrow-base)))
+        (point)))))
+
 (defun mistty--term-scrollrow-range ()
   "Current scrollrow range, covering the screen."
   (mistty--adjust-scrollrow-base)

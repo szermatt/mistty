@@ -2046,30 +2046,30 @@ called recently enough."
     (mistty--with-live-buffer mistty-work-buffer
       (mistty--set-work-sync-mark (- (point-max) chars-from-end)))))
 
-(defun mistty--move-sync-mark-with-shift (sync-pos shift)
-  "Move the sync marker on the work buffer to SYNC-POS.
+(defun mistty--set-sync-mark (sync-pos scrollrow)
+  "Sync SYNC-POS with terminal at SCROLLROW.
 
-SYNC-POS must be a position on the work buffer, which must be the
-current buffer.
+SYNC-POS is a position on the work buffer that marks the start of the
+terminal region.
 
-SHIFT specifies the current difference between the sync marker on
-the work buffer and the term buffer. The shift value comes
-from `mistty--after-change-on-work' tracking the changes."
+SCROLLROW is a scrollrow that's currently visible on the terminal."
   (mistty--require-work-buffer)
-  (let ((diff (- sync-pos mistty-sync-marker)))
-    (with-current-buffer mistty-term-buffer
-      (move-marker mistty-sync-marker (+ mistty-sync-marker diff shift))))
-  (mistty--set-work-sync-mark sync-pos))
+  (mistty--with-live-buffer mistty-term-buffer
+    (let ((pos (mistty--term-scrollrow-pos scrollrow)))
+      (unless pos
+        (error "Scrollrow %s not visible on terminal [%s]"
+               scrollrow (mistty--term-scrollrow-range)))
+      (set-marker mistty-sync-marker pos)))
+  (mistty--set-work-sync-mark sync-pos scrollrow))
 
-(defun mistty--set-work-sync-mark (sync-pos)
+(defun mistty--set-work-sync-mark (sync-pos &optional scrollrow)
   "Set sync mark to SYNC-POS in the work buffer and init some vars.
 
 The caller is responsible for setting the sync mark on the term
 buffer.
 
-In most cases, this is the wrong function to call. Consider
-instead `mistty--move-sync-mark-with-shift' or
-`mistty--set-sync-mark-from-end'."
+In most cases, this is the wrong function to call. Consider instead
+`mistty--set-sync-mark' or `mistty--set-sync-mark-from-end'."
   (mistty--require-work-buffer)
   (unless (= sync-pos mistty-sync-marker)
     (mistty-log "MOVE SYNC MARKER %s to %s"
@@ -2082,7 +2082,9 @@ instead `mistty--move-sync-mark-with-shift' or
       (move-marker mistty-sync-marker sync-pos)
       (when (< old-marker-position sync-pos)
         (mistty--prepare-for-scrollback old-marker-position mistty-sync-marker)))
-    (mistty--update-sync-marker-scrollrow)
+    (if scrollrow
+        (setq mistty--sync-marker-scrollrow scrollrow)
+      (mistty--update-sync-marker-scrollrow))
     (move-overlay mistty--sync-ov mistty-sync-marker (point-max))))
 
 (defun mistty--update-sync-marker-scrollrow ()
@@ -3420,7 +3422,7 @@ post-command hook."
   "Decide whether CS should be replayed.
 
 Might modify CS before allowing replay."
-  (let (replay shift)
+  (let (replay)
     (cond
      ;; nothing to do
      ((not (mistty--changeset-p cs)))
@@ -3433,9 +3435,9 @@ Might modify CS before allowing replay."
      ;; the modifications before the new prompt and replay the
      ;; modifications after the new prompt.
      ((and (mistty--possible-prompt-p)
-           (setq shift (mistty--changeset-restrict
-                        cs (mistty--scrollrow-pos (mistty--prompt-start (mistty--prompt))))))
-      (mistty--realize-possible-prompt shift)
+           (mistty--changeset-restrict
+            cs (mistty--scrollrow-pos (mistty--prompt-start (mistty--prompt)))))
+      (mistty--realize-possible-prompt)
       (setq replay t))
 
      ;; leave all modifications if there's enough of an unmodified
@@ -3787,12 +3789,8 @@ prompts."
       (mistty--realize-possible-prompt)
       t)))
 
-(defun mistty--realize-possible-prompt (&optional shift)
-  "Realize a regexp prompt in `mistty--prompt'.
-
-If SHIFT is non-nil, it specifies a position difference between
-the sync markers in the work and term buffer at the beginning of
-the prompt."
+(defun mistty--realize-possible-prompt ()
+  "Realize a regexp prompt in `mistty--prompt'."
   (when-let* ((prompt (mistty--prompt))
               (scrollrow (mistty--prompt-start prompt))
               (start (mistty--scrollrow-pos scrollrow)))
@@ -3801,9 +3799,7 @@ the prompt."
                 (mistty--prompt-input-id prompt)
                 (mistty--prompt-start prompt)
                 start)
-    (if shift
-        (mistty--move-sync-mark-with-shift start shift)
-      (mistty--set-sync-mark-from-end start))
+    (mistty--set-sync-mark start scrollrow)
     (setq mistty--active-prompt prompt)
     (setf (mistty--prompt-realized prompt) t)))
 

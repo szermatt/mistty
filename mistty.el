@@ -1750,7 +1750,7 @@ Also updates prompt and point."
                              (mistty--prompt-start prompt)
                              end-scrollrow
                              scrollrow)
-                 (mistty--set-sync-mark-from-end end-pos)))))
+                 (mistty--set-sync-mark end-pos end-scrollrow)))))
 
          ;; detect prompt from bracketed-past region and use that to
          ;; restrict the sync region.
@@ -1771,7 +1771,7 @@ Also updates prompt and point."
                              (mistty--prompt-input-id prompt)
                              (mistty--prompt-start prompt)
                              prompt-beg)
-                 (mistty--set-sync-mark-from-end prompt-beg)
+                 (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
                  (setf (mistty--prompt-realized prompt) t)
                  (setq mistty--active-prompt prompt)))))
 
@@ -1798,7 +1798,9 @@ Also updates prompt and point."
            (mistty--with-live-buffer mistty-term-buffer
              ;; Next time, only sync the visible portion of the terminal.
              (when (< mistty-sync-marker term-home-marker)
-               (mistty--set-sync-mark-from-end term-home-marker))
+               (let ((scrollrow (car (mistty--term-scrollrow-range))))
+                 (mistty--with-live-buffer mistty-work-buffer
+                   (mistty--set-sync-mark (mistty--scrollrow-pos scrollrow) scrollrow))))
 
              ;; Truncate the term buffer, since scrolling back is available on
              ;; the work buffer anyways. This has to be done now, after syncing
@@ -2027,25 +2029,6 @@ This is the reverse operation of `mistty--save-properties'."
   (pcase-dolist (`(,beg ,end ,props) intervals)
     (set-text-properties (+ beg start) (+ end start) props)))
 
-(defun mistty--set-sync-mark-from-end (sync-pos)
-  "Set the sync marker to SYNC-POS, assuming buffer ends are the same.
-
-This function sets the `mistty-sync-marker' on both the term and
-the work buffer.
-
-SYNC-POS is a position on the current buffer, which might be
-either the work or the term buffer.
-
-For this to work, the term and work buffer starting with SYNC-POS
-must have the same content, which is only true when SYNC-POS is
-bigger than `mistty-sync-marker' and `mistty--refresh' was
-called recently enough."
-  (let ((chars-from-end (- (point-max) sync-pos)))
-    (with-current-buffer mistty-term-buffer
-      (move-marker mistty-sync-marker (- (point-max) chars-from-end)))
-    (mistty--with-live-buffer mistty-work-buffer
-      (mistty--set-work-sync-mark (- (point-max) chars-from-end)))))
-
 (defun mistty--set-sync-mark (sync-pos scrollrow)
   "Sync SYNC-POS with terminal at SCROLLROW.
 
@@ -2057,24 +2040,15 @@ SCROLLROW is a scrollrow that's currently visible on the terminal."
   (mistty--with-live-buffer mistty-term-buffer
     (let ((pos (mistty--term-scrollrow-pos scrollrow)))
       (unless pos
-        (error "Scrollrow %s not visible on terminal [%s]"
-               scrollrow (mistty--term-scrollrow-range)))
+        (error "Scrollrow %s not accessible in terminal buffer" scrollrow))
       (set-marker mistty-sync-marker pos)))
-  (mistty--set-work-sync-mark sync-pos scrollrow))
 
-(defun mistty--set-work-sync-mark (sync-pos &optional scrollrow)
-  "Set sync mark to SYNC-POS in the work buffer and init some vars.
-
-The caller is responsible for setting the sync mark on the term
-buffer.
-
-In most cases, this is the wrong function to call. Consider instead
-`mistty--set-sync-mark' or `mistty--set-sync-mark-from-end'."
-  (mistty--require-work-buffer)
-  (unless (= sync-pos mistty-sync-marker)
-    (mistty-log "MOVE SYNC MARKER %s to %s"
+  (unless (and (= sync-pos mistty-sync-marker)
+               (= scrollrow mistty--sync-marker-scrollrow))
+    (mistty-log "MOVE SYNC MARKER %s to %s at scrollrow %s"
                 (marker-position mistty-sync-marker)
-                sync-pos)
+                sync-pos
+                scrollrow)
     (setq mistty--active-prompt nil)
     (setq mistty--end-prompt nil)
     (mistty--process-archived-prompts sync-pos)
@@ -2082,9 +2056,7 @@ In most cases, this is the wrong function to call. Consider instead
       (move-marker mistty-sync-marker sync-pos)
       (when (< old-marker-position sync-pos)
         (mistty--prepare-for-scrollback old-marker-position mistty-sync-marker)))
-    (if scrollrow
-        (setq mistty--sync-marker-scrollrow scrollrow)
-      (mistty--update-sync-marker-scrollrow))
+    (setq mistty--sync-marker-scrollrow scrollrow)
     (move-overlay mistty--sync-ov mistty-sync-marker (point-max))))
 
 (defun mistty--update-sync-marker-scrollrow ()
@@ -3447,8 +3419,9 @@ Might modify CS before allowing replay."
               ;; modifiable limit
               (mistty--bol (point-max) -5))
            (not mistty--need-refresh))
-      (mistty--set-sync-mark-from-end
-       (mistty--bol (mistty--changeset-end cs) 3)))
+      (let* ((pos (mistty--bol (mistty--changeset-end cs) 3))
+             (scrollrow (mistty--scrollrow pos)))
+        (mistty--set-sync-mark pos scrollrow)))
 
      (t ;; revert everything
 

@@ -1263,11 +1263,10 @@ Before using a scrollrow, convert it to a screen row or point."
   "Return the char position of the beginning of SCROLLROW.
 
 Return nil if the row isn't reachable on the terminal."
-  (when (>= scrollrow mistty--scrollrow-base)
-    (save-excursion
-      (goto-char mistty--scrollrow-home)
-      (when (zerop (forward-line (- scrollrow mistty--scrollrow-base)))
-        (point)))))
+  (save-excursion
+    (goto-char mistty--scrollrow-home)
+    (when (zerop (forward-line (- scrollrow mistty--scrollrow-base)))
+      (point))))
 
 (defun mistty--term-scrollrow-range ()
   "Current scrollrow range, covering the screen."

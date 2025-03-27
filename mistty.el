@@ -808,7 +808,7 @@ running command at a time.")
 (defvar mistty--inhibit-fake-nl-cleanup nil
   "Inhibit deletion of fake newline when moving the sync marker.
 
-Normally, fake newlines are removed by mistty--set-sync-mark-,
+Normally, fake newlines are removed by mistty--set-sync-mark,
 when the terminal zone is moved, so they don't confuse cursor
 movements.
 
@@ -1743,14 +1743,13 @@ Also updates prompt and point."
                                     (mistty--term-scrollrow)))
                        (end-scrollrow (mistty--prompt-end prompt)))
              (when (>= scrollrow end-scrollrow)
-               (when-let ((end-pos (mistty--scrollrow-pos end-scrollrow)))
+               (when (mistty--maybe-move-sync-mark end-scrollrow)
                  (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrollrow %s)"
                              (mistty--prompt-source prompt)
                              (mistty--prompt-input-id prompt)
                              (mistty--prompt-start prompt)
                              end-scrollrow
-                             scrollrow)
-                 (mistty--set-sync-mark end-pos end-scrollrow)))))
+                             scrollrow)))))
 
          ;; detect prompt from bracketed-past region and use that to
          ;; restrict the sync region.
@@ -1800,7 +1799,7 @@ Also updates prompt and point."
              (when (< mistty-sync-marker term-home-marker)
                (let ((scrollrow (car (mistty--term-scrollrow-range))))
                  (mistty--with-live-buffer mistty-work-buffer
-                   (mistty--set-sync-mark (mistty--scrollrow-pos scrollrow) scrollrow))))
+                   (mistty--maybe-move-sync-mark scrollrow))))
 
              ;; Truncate the term buffer, since scrolling back is available on
              ;; the work buffer anyways. This has to be done now, after syncing
@@ -2028,6 +2027,19 @@ relative to START."
 This is the reverse operation of `mistty--save-properties'."
   (pcase-dolist (`(,beg ,end ,props) intervals)
     (set-text-properties (+ beg start) (+ end start) props)))
+
+(defun mistty--maybe-move-sync-mark (scrollrow)
+  "Move sync mark to SCROLLROW on both buffers, if possible.
+
+This function checks whether SCROLLROW is displayed on the work buffer.
+If it is, it sets the sync marker at that position and call
+`mistty--set-sync-mark'.
+
+Return nil if SCROLLROW is not accessible on the work buffer."
+  (when-let ((pos (mistty--scrollrow-pos scrollrow)))
+    (mistty--set-sync-mark pos scrollrow)
+
+    t))
 
 (defun mistty--set-sync-mark (sync-pos scrollrow)
   "Sync SYNC-POS with terminal at SCROLLROW.
@@ -3765,16 +3777,15 @@ prompts."
 (defun mistty--realize-possible-prompt ()
   "Realize a regexp prompt in `mistty--prompt'."
   (when-let* ((prompt (mistty--prompt))
-              (scrollrow (mistty--prompt-start prompt))
-              (start (mistty--scrollrow-pos scrollrow)))
-    (mistty-log "Realized %s prompt #%s [%s-] @%s"
-                (mistty--prompt-source prompt)
-                (mistty--prompt-input-id prompt)
-                (mistty--prompt-start prompt)
-                start)
-    (mistty--set-sync-mark start scrollrow)
-    (setq mistty--active-prompt prompt)
-    (setf (mistty--prompt-realized prompt) t)))
+              (scrollrow (mistty--prompt-start prompt)))
+    (when (mistty--maybe-move-sync-mark scrollrow)
+      (mistty-log "Realized %s prompt #%s [%s-] @%s"
+                  (mistty--prompt-source prompt)
+                  (mistty--prompt-input-id prompt)
+                  (mistty--prompt-start prompt)
+                  (marker-position mistty-sync-marker))
+      (setq mistty--active-prompt prompt)
+      (setf (mistty--prompt-realized prompt) t))))
 
 (defun mistty--possible-prompt-p ()
   "Return non-nil if `mistty--possible-prompt' is usable."

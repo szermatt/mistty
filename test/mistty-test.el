@@ -5359,6 +5359,56 @@ function prompt {
                    (mistty-test-content
                     :start (mistty-test-pos "$ echo 19"))))))
 
+(ert-deftest mistty-issue44 ()
+  (mistty-with-test-buffer (:init "
+function prompt {
+    printf \"====\nPrompt: \"
+    while [[ \"$c\" != $'\n' ]]; do
+        if [[ \"$c\" = $'\x7f' || \"$c\" = $'\x08' ]]; then
+          input=\"${input:0:-1}\"
+        else
+          input=\"$input$c\"
+        fi
+        printf \"\\e[0K\\e[1K\\r\\e[1A\\e[0K\\e[1K\\r====\\nPrompt: $input\"
+        read -s -N 1 c
+    done
+    printf \"\\r\\e[0KGot: $input\n\"
+}")
+    (mistty-send-text "prompt")
+    (mistty-send-command)
+    (mistty-wait-for-output :str "Prompt:")
+    (should (equal "$ prompt\n<>====\nPrompt:"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty--realize-possible-prompt)
+    ;; The detected prompt has a line before it, ====, that's constantly
+    ;; erased and re-created. That shouldn't cause resets.
+    (should (equal "$ prompt\n====\n<>Prompt:"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty--send-string mistty-proc "f")
+    (mistty-wait-for-output :str "Prompt: f")
+    (should (equal "$ prompt\n====\n<>Prompt: f"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty--send-string mistty-proc "o")
+    (mistty-wait-for-output :str "Prompt: fo")
+    (should (equal "$ prompt\n====\n<>Prompt: fo"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty--send-string mistty-proc "o")
+    (mistty-wait-for-output :str "Prompt: foo")
+    (should (equal "$ prompt\n====\n<>Prompt: foo"
+                   (mistty-test-content :show mistty-sync-marker)))
+     (mistty--send-string mistty-proc "bar")
+    (mistty-wait-for-output :str "bar")
+    (should (equal "$ prompt\n====\n<>Prompt: foobar"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty--send-string mistty-proc (mistty--repeat-string 3 mistty-del))
+    (mistty-wait-for-output :str "foo" :cursor-at-end t)
+    (should (equal "$ prompt\n====\n<>Prompt: foo"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty-send-command)
+    (mistty-wait-for-output :regexp "foo\n\\$ ")
+    (should (equal "$ prompt\n====\nGot: foo\n$"
+                   (mistty-test-content)))))
+
 ;; https://github.com/szermatt/mistty/issues/27
 (turtles-ert-deftest mistty-test-bash-reverse-i-search-and-nl ( :instance 'mistty)
   ;; This is a turtles test, because the problem only appears when you

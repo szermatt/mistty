@@ -1408,7 +1408,7 @@ PROC is the calling shell process and STR the string it sent."
 
      ;; reset
      ((or (string-match "\ec" str)
-          (string-match "\e\\[H\e[[02]?J" str))
+          (string-match "\\(\e\\[H\e\\[0?J\\|\e\\[2J\\)" str))
       (let ((rs1-before-pos (match-beginning 0))
             (rs1-after-pos (match-end 0))
             (reset-scrollrow)

@@ -1964,11 +1964,11 @@
   (mistty-with-test-buffer ()
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
-    (mistty-send-text "printf '\\e[2J'")
+    (mistty-send-text "printf '\\e[2J\\e[H'")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo two")
     (mistty-send-and-wait-for-prompt)
-    (should (equal "$ echo one\none\n$ printf '\\e[2J'\n$ echo two\ntwo"
+    (should (equal "$ echo one\none\n$ printf '\\e[2J\\e[H'\n$ echo two\ntwo"
                    (mistty-test-content :strip-last-prompt t)))))
 
 (ert-deftest mistty-test-hide-cursor ()

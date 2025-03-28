@@ -5359,7 +5359,7 @@ function prompt {
                    (mistty-test-content
                     :start (mistty-test-pos "$ echo 19"))))))
 
-(ert-deftest mistty-issue44 ()
+(ert-deftest mistty-issue47 ()
   (mistty-with-test-buffer (:init "
 function prompt {
     printf \"====\nPrompt: \"

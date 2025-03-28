@@ -1231,6 +1231,18 @@ Detected dead spaces are marked with the text property \\='mistty-skip
                               eol (- eol (point)) real-trailing-ws)
                   (put-text-property (point) eol 'mistty-skip 'dead))))))))))
 
+(defun mistty--term-reset-scrollrow (scrollrow)
+  "Make the screen start at SCROLLROW.
+
+This is useful after a reset, where scrollrow have been lost. Generally,
+this allows arbitrarily manipulating the alignment between the work and
+terminal buffers. To avoid issues with prompt locations, it should only
+be used to increase the value of `mistty--scrollrow-base'."
+  (setq mistty--scrollrow-base scrollrow)
+  (move-marker mistty--scrollrow-home
+               (or (marker-position term-home-marker)
+                   (point-min))))
+
 (defun mistty--adjust-scrollrow-base ()
   "Move the scrollrow base to `term-home-marker'.
 

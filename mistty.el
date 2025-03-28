@@ -1411,17 +1411,27 @@ PROC is the calling shell process and STR the string it sent."
           (string-match "\e\\[H\e[[02]?J" str))
       (let ((rs1-before-pos (match-beginning 0))
             (rs1-after-pos (match-end 0))
+            (reset-scrollrow)
             (home-pos))
         (mistty--process-terminal-seq proc work-buffer term-buffer (substring str 0 rs1-before-pos))
-        (mistty-log "RESET")
         (mistty--with-live-buffer work-buffer
           (mistty--cancel-queue mistty--queue)
+          (while-let ((cs (car mistty--changesets)))
+            (mistty--release-changeset cs))
+          (setq mistty--inhibit-refresh nil)
+          (setq mistty--need-refresh t)
           (mistty--refresh)
+          (mistty--prepare-end-for-reset)
+          (setq reset-scrollrow (mistty--scrollrow (point-max)))
           (setq home-pos (point)))
-        (mistty--reset-markers)
-        (mistty--process-terminal-seq proc work-buffer term-buffer (substring str rs1-before-pos rs1-after-pos))
-        (mistty--with-live-buffer work-buffer
+        (mistty--emulate-terminal proc (substring str rs1-before-pos rs1-after-pos) work-buffer)
+        (mistty-log "RESET terminal at scrollrow %s" reset-scrollrow)
+        (mistty--with-live-buffer term-buffer
+          (mistty--term-reset-scrollrow reset-scrollrow)
           (setq mistty-bracketed-paste nil))
+        (mistty--with-live-buffer work-buffer
+          (setq mistty-bracketed-paste nil)
+          (mistty--set-sync-mark (point-max) reset-scrollrow))
         (mistty--process-filter proc (substring str rs1-after-pos))
         (if mistty-allow-clearing-scrollback
             (mistty--clear-scrollback)
@@ -1475,6 +1485,17 @@ PROC is the calling shell process and STR the string it sent."
                 (mistty--dequeue mistty--queue 'intermediate)
                 (mistty--dequeue-with-timer mistty--queue 'stable)))))))))))
 
+(defun mistty--prepare-end-for-reset ()
+  "Prepare work buffer to put terminal region at (point-max).
+
+This function might erase whitespaces at the end of the buffer."
+  (mistty--require-work-buffer)
+  (save-excursion
+    (goto-char (mistty--last-non-ws))
+    (let ((inhibit-modification-hooks t))
+      (insert "\n")
+      (delete-region (point) (point-max)))))
+
 (defun mistty--clear-scrollback ()
   "Clear the work buffer above `mistty-sync-marker'."
   (mistty--with-live-buffer mistty-work-buffer
@@ -1515,12 +1536,9 @@ the point being visible."
         (mistty--emulate-terminal proc str mistty-work-buffer)
         (goto-char (process-mark proc))
         (when (/= mistty-sync-marker old-sync-position)
-          (mistty-log "RESET; unexpected change")
-          (pcase-let ((`(,work-sync . ,term-sync) (mistty--align-buffers)))
-            (if (or work-sync term-sync)
-                (mistty-log "ALIGN %s <-> %s" work-sync term-sync)
-              (mistty-log "ALIGN failed; fallback to default"))
-            (mistty--reset-markers work-sync term-sync)))
+          (mistty-log "Detected terminal change above sync mark, at scrollrow %s"
+                      mistty--sync-marker-scrollrow)
+          (mistty--realign-buffers))
         (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
           (mistty--detect-possible-prompt))))
     (mistty--with-live-buffer work-buffer
@@ -1565,43 +1583,6 @@ buffer has been updated."
                     (mistty--prompt-start prompt)
                     (mistty--prompt-end prompt)
                     (mistty--prompt-text prompt))))))
-
-(defun mistty--reset-markers (&optional work-sync term-sync)
-  "Reset the sync marker on both the term and work buffer.
-
-If specified WORK-SYNC is the new position of sync mark in the
-work buffer, and TERM-SYNC the corresponding mark in the term
-buffer.
-
-This function should be called to fix a situation where the
-markers have gone out-of-sync."
-  (let ((old-work-sync (mistty--with-live-buffer mistty-work-buffer (marker-position mistty-sync-marker)))
-        (old-term-sync (mistty--with-live-buffer mistty-term-buffer (marker-position mistty-sync-marker)))
-        (work-sync (or work-sync
-                       (mistty--with-live-buffer mistty-work-buffer
-                         (let ((inhibit-read-only t)
-                               (inhibit-modification-hooks t))
-                           (delete-region (mistty--last-non-ws) (point-max))
-                           (insert "\n")
-                           (point-max)))))
-        (term-sync (or term-sync
-                       (mistty--with-live-buffer mistty-term-buffer
-                         (save-excursion
-                           (goto-char term-home-marker)
-                           (skip-chars-forward mistty--ws)
-                           (point))))))
-    (mistty--with-live-buffer mistty-term-buffer
-      (move-marker mistty-sync-marker term-sync))
-    (mistty--with-live-buffer mistty-work-buffer
-      (setq mistty--end-prompt nil)
-      (setq mistty--cursor-after-last-refresh nil)
-      (move-marker mistty-sync-marker work-sync)
-      (mistty--update-sync-marker-scrollrow))
-    (mistty-log "RESET SYNC MARKER %s/%s to %s/%s term home: %s"
-                old-work-sync old-term-sync
-                work-sync term-sync
-                (mistty--with-live-buffer mistty-term-buffer
-                  (marker-position term-home-marker)))))
 
 (defun mistty--fs-process-filter (proc str)
   "Process filter for MisTTY in fullscreen mode.
@@ -2067,7 +2048,8 @@ SCROLLROW is a scrollrow that's currently visible on the terminal."
     (let ((old-marker-position (marker-position mistty-sync-marker)))
       (move-marker mistty-sync-marker sync-pos)
       (when (< old-marker-position sync-pos)
-        (mistty--prepare-for-scrollback old-marker-position mistty-sync-marker)))
+        (mistty--prepare-for-scrollback
+         old-marker-position mistty--sync-marker-scrollrow mistty-sync-marker)))
     (setq mistty--sync-marker-scrollrow scrollrow)
     (move-overlay mistty--sync-ov mistty-sync-marker (point-max))))
 
@@ -2117,17 +2099,38 @@ It also marks the prompt region with the text property
              'mistty-input-id (mistty--prompt-input-id prompt))))))
     (setf (mistty--prompt-archive) nil)))
 
-(defun mistty--prepare-for-scrollback (beg end)
+(defun mistty--prepare-for-scrollback (beg scrollrow end)
   "Transition a region from the terminal to the scrollback zone.
 
 This function modifies the region from BEG to END as appropriate
 for a scrollback area that's not going to be refreshed from the
 terminal anymore.
 
+SCROLLROW is the scrollrow at BEG.
+
 It removes the fake newlines which are not useful anymore and
 just tend to cause issues."
-  (when (not mistty--inhibit-fake-nl-cleanup)
-    (mistty--remove-fake-newlines beg end)))
+  (let ((inhibit-modification-hooks t)
+        (inhibit-read-only t))
+    (mistty--mark-scrollrows beg scrollrow end)
+    (when (not mistty--inhibit-fake-nl-cleanup)
+      (mistty--remove-fake-newlines beg end))))
+
+(defun mistty--mark-scrollrows (beg scrollrow end)
+  "Add text property \\='mistty-scrollrow to scrollrows from BEG to END.
+
+SCROLLROW is the scrollrow at BEG."
+  (save-excursion
+    (goto-char beg)
+    (while (< (point) end)
+      (let ((bol (pos-bol))
+            (eol (pos-eol)))
+        (when (eq ?\n (char-after eol))
+          (cl-incf eol))
+        (when (> eol bol)
+          (put-text-property bol eol 'mistty-scrollrow scrollrow))
+        (cl-incf scrollrow)
+        (goto-char (pos-bol 2))))))
 
 (defun mistty--last-non-ws ()
   "Return the position of the last non-whitespace in the buffer."
@@ -4268,39 +4271,38 @@ This function is meant to be used in the configuration option
     (unless (string= remote-host (system-name))
       (concat "@" remote-host))))
 
-(defun mistty--align-buffers()
-  "Return reasonable sync marks for the work and term buffers.
-
-Return nil or \\='(WORK-SYNC . TERM-SYNC) with WORK-SYNC
-aposition on the work buffer and TERM-SYNC the position on the
-term buffer."
+(defun mistty--realign-buffers()
+  "Realign the work and terminal buffers, if possible."
   (mistty--require-term-buffer)
+  (let ((term-start-scrollrow (car (mistty--term-scrollrow-range))))
+    (mistty--with-live-buffer mistty-work-buffer
+      (let ((prop (save-excursion
+                    (goto-char mistty-sync-marker)
+                    (text-property-search-backward
+                     'mistty-scrollrow
+                     term-start-scrollrow ;; goal
+                     (lambda (goal val)
+                       (and val (<= val goal)))))))
+        (cond
+         ;; Found exact scrollrow, align at that line
+         ((and prop (= term-start-scrollrow (prop-match-value prop)))
+          (mistty-log "REALIGN scrollrow %s to pos %s"
+                      term-start-scrollrow (prop-match-beginning prop))
+          (mistty--set-sync-mark (prop-match-beginning prop) term-start-scrollrow))
 
-  (when (buffer-live-p mistty-work-buffer)
-    (let* ((term-home term-home-marker)
-           (term-buffer mistty-term-buffer)
-           (prelude
-            (with-temp-buffer
-              (insert-buffer-substring term-buffer nil term-home)
-              (mistty--prepare-for-scrollback (point-min) (point-max))
-              (buffer-substring-no-properties (point-min) (point-max)))))
-      (mistty-log "prelude: [%s]" prelude)
-      (when (string-match-p "[^[:space:]]" prelude)
-        (let* ((term-lines (mistty--count-lines (point-min) (point-max)))
-               (work-sync (with-current-buffer mistty-work-buffer
-                            (let ((limit
-                                   (save-excursion
-                                     (goto-char (point-max))
-                                     (forward-line (- term-lines))
-                                     (point))))
+         ;; Found scrollrow < goal, align at line after
+         (prop
+          (let ((sync-pos (mistty--bol (prop-match-beginning prop) 2)))
+            (mistty-log "REALIGN APPROXIMATE scrollrow %s to pos %s (scrollback modified)"
+                        term-start-scrollrow sync-pos)
+            (mistty--set-sync-mark sync-pos term-start-scrollrow)))
 
-                              (save-excursion
-                                (goto-char (point-max))
-                                (when (search-backward prelude limit 'noerror)
-                                  (goto-char (match-end 0))
-                                  (point)))))))
-          (when work-sync
-            (cons work-sync (marker-position term-home-marker))))))))
+         ;; Fallback: align at buffer end
+         (t
+          (mistty--prepare-end-for-reset)
+          (mistty-log "REALIGN FALLBACK scrollrow %s to point-max %s"
+                      term-start-scrollrow (point-max))
+          (mistty--set-sync-mark (point-max) term-start-scrollrow)))))))
 
 (defun mistty-beginning-of-defun (&optional n)
   "Go to the beginning of the N'th defun.

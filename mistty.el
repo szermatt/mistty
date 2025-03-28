@@ -2074,7 +2074,9 @@ This function cleans up `mistty--prompt-archive', removing prompts above END.
 It also marks the prompt region with the text property
 \\=`mistty-input-id so they can be detected by functions like
 `mistty-next-output'."
-  (let ((limit (mistty--scrollrow limit-pos)))
+  (let ((limit (mistty--scrollrow limit-pos))
+        (inhibit-modification-hooks t)
+        (inhibit-read-only t))
     (when-let ((prompt (mistty--prompt)))
       (when (and (mistty--prompt-end prompt)
                  (<= (mistty--prompt-end prompt) limit))
@@ -4274,35 +4276,62 @@ This function is meant to be used in the configuration option
 (defun mistty--realign-buffers()
   "Realign the work and terminal buffers, if possible."
   (mistty--require-term-buffer)
-  (let ((term-start-scrollrow (car (mistty--term-scrollrow-range))))
+  (let* ((term-range (mistty--term-scrollrow-range))
+         (term-top (car term-range)))
     (mistty--with-live-buffer mistty-work-buffer
       (let ((prop (save-excursion
                     (goto-char mistty-sync-marker)
                     (text-property-search-backward
                      'mistty-scrollrow
-                     term-start-scrollrow ;; goal
+                     term-top ;; goal
                      (lambda (goal val)
                        (and val (<= val goal)))))))
         (cond
-         ;; Found exact scrollrow, align at that line
-         ((and prop (= term-start-scrollrow (prop-match-value prop)))
-          (mistty-log "REALIGN scrollrow %s to pos %s"
-                      term-start-scrollrow (prop-match-beginning prop))
-          (mistty--set-sync-mark (prop-match-beginning prop) term-start-scrollrow))
+         ;; Found exact scrollrow, align there or below if rows match
+         ((and prop (= term-top (prop-match-value prop)))
+          (let ((sync-pos (prop-match-beginning prop)))
+            (pcase-setq `(,sync-pos . ,term-top)
+                        (mistty--skip-identical-rows sync-pos term-top))
+            (mistty-log "REALIGN scrollrow %s to pos %s; terminal [%s]"
+                        term-top sync-pos term-range)
+            (mistty--set-sync-mark sync-pos term-top)))
 
          ;; Found scrollrow < goal, align at line after
          (prop
           (let ((sync-pos (mistty--bol (prop-match-beginning prop) 2)))
-            (mistty-log "REALIGN APPROXIMATE scrollrow %s to pos %s (scrollback modified)"
-                        term-start-scrollrow sync-pos)
-            (mistty--set-sync-mark sync-pos term-start-scrollrow)))
+            (mistty-log "REALIGN APPROXIMATE scrollrow %s to pos %s; terminal [%s]"
+                        term-top sync-pos term-range)
+            (mistty--set-sync-mark sync-pos term-top)))
 
-         ;; Fallback: align at buffer end
+         ;; Couldn't find beginning. It might have been deleted. Sync
+         ;; whole buffer.
          (t
-          (mistty--prepare-end-for-reset)
-          (mistty-log "REALIGN FALLBACK scrollrow %s to point-max %s"
-                      term-start-scrollrow (point-max))
-          (mistty--set-sync-mark (point-max) term-start-scrollrow)))))))
+          (mistty-log "REALIGN FALLBACK scrollrow %s to point-min %s"
+                      term-top (point-min))
+          (mistty--set-sync-mark (point-min) term-top)))))))
+
+(defun mistty--skip-identical-rows (pos scrollrow)
+  "Skip rows from POS to `mistty-sync-marker' that are the same on the term buffer.
+
+POS is a position in the work buffer before `mistty-sync-marker' that is
+believed to correspond to SCROLLROW.
+
+Return a (CONS new-pos new-scrollrow), possibly modified values for POS
+and SCROLLROW."
+  (mistty--with-live-buffer mistty-work-buffer
+    (while
+        (when (equal scrollrow (get-text-property pos 'mistty-scrollrow))
+          (when-let ((end-row (next-single-property-change pos 'mistty-scrollrow)))
+            (when (string= (string-trim (buffer-substring-no-properties pos end-row)
+                                        "" "\n")
+                           (mistty--with-live-buffer mistty-term-buffer
+                             (save-excursion
+                               (goto-char (mistty--term-scrollrow-pos scrollrow))
+                               (buffer-substring-no-properties (pos-bol) (pos-eol)))))
+              (setq pos end-row))))
+      (goto-char pos)
+      (cl-incf scrollrow)))
+  `(,pos . ,scrollrow))
 
 (defun mistty-beginning-of-defun (&optional n)
   "Go to the beginning of the N'th defun.

@@ -5121,7 +5121,7 @@
     (mistty-send-and-wait-for-prompt #'mistty-send-command)
     (should-not mark-active)))
 
-(ert-deftest mistty-test-sync-autoreset-recovery ()
+(ert-deftest mistty-test-recovery ()
   (mistty-with-test-buffer ()
     (mistty--set-process-window-size 80 20)
 
@@ -5186,7 +5186,7 @@
        :start (save-excursion (goto-char (point-min))
                               (mistty-test-pos "$ echo one")))))))
 
-(ert-deftest mistty-test-sync-autoreset-recovery-despite-fakenl-cleanup ()
+(ert-deftest mistty-test-recovery-despite-fakenl-cleanup ()
   (let ((mistty--inhibit-fake-nl-cleanup nil))
     (mistty-with-test-buffer ()
       (mistty--set-process-window-size 20 20)
@@ -5240,6 +5240,124 @@
         (mistty-test-content
          :start (save-excursion (goto-char (point-min))
                                 (mistty-test-pos "$ ^A\nline 0\n"))))))))
+
+(defconst mistty-test-clear-before-prompt "
+function prompt {
+    i=0
+    clear=\"\"
+    while [[ \"$c\" != $'\\n' ]]; do
+        if [[ \"$c\" = $'\\x7f' || \"$c\" = $'\\x08' ]]; then
+          input=\"${input:0:-1}\"
+        else
+          input=\"$input$c\"
+        fi
+        printf \"${clear}====\\n==== $i\\nPrompt: $input\"
+        read -s -N 1 c
+        clear=\"\\r\\e[2A\\e[J\"
+        i=$((i+1))
+    done
+    printf \"${clear}Got: $input\\n\"
+}")
+
+(ert-deftest mistty-test-recovery-clear-before-prompt ()
+  (mistty-with-test-buffer (:init mistty-test-clear-before-prompt)
+    (mistty-send-text "prompt")
+    (mistty-send-command)
+    (mistty-wait-for-output :str "Prompt: ")
+
+    ;; The prompt hasn't been realized, so the sync marker is at the
+    ;; beginning of the output.
+    (should (equal "$ prompt\n<>====\n==== 0\nPrompt:"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty--realize-possible-prompt)
+
+    ;; The sync marker is at the beginning of the newly realized
+    ;; prompt (but this is wrong, because text changes above the
+    ;; prompt).
+    (should (equal "$ prompt\n====\n==== 0\n<>Prompt:"
+                   (mistty-test-content :show mistty-sync-marker)))
+
+    (mistty-send-text "bar")
+
+    ;; The sync marker was moved before the line that changes, below
+    ;; the line that doesn't.
+    (should (equal "$ prompt\n====\n<>==== 3\nPrompt: bar"
+                   (mistty-test-content :show mistty-sync-marker)))
+    (mistty-send-command)
+
+    ;; Even that sync marker was wrong, as ==== was replaced by Got:
+    ;; bar, but that's ok.
+    (mistty-wait-for-output :str "Got: bar")
+    (should (equal "$ prompt\nGot: bar\n<>$"
+                   (mistty-test-content :show mistty-sync-marker)))))
+
+(ert-deftest mistty-test-recovery-clear-before-prompt-removed-buffer-start ()
+  (mistty-with-test-buffer (:init mistty-test-clear-before-prompt)
+      (mistty-send-text "echo one")
+      (mistty-send-and-wait-for-prompt)
+
+      (mistty-send-text "echo two")
+      (mistty-send-and-wait-for-prompt)
+
+      (delete-region (mistty-test-pos "$ echo one")
+                     (mistty-test-pos-after "\none\n"))
+
+      (setq start (pos-bol))
+      (mistty-send-text "prompt")
+      (mistty-send-command)
+      (mistty-wait-for-output :str "Prompt: ")
+      (mistty--realize-possible-prompt)
+      (mistty-send-text "bar")
+
+      ;; The deleted prompt reappeared.
+      (should (equal "$ echo one\none\n$ echo two\ntwo\n$ prompt\n====\n==== 3\nPrompt: bar"
+                     (mistty-test-content)))))
+
+(ert-deftest mistty-test-recovery-clear-before-prompt-removed-before-prompt ()
+  (mistty-with-test-buffer (:init mistty-test-clear-before-prompt)
+    (dotimes (i 20)
+      (mistty-send-text (format "echo %d" i))
+      (mistty-send-and-wait-for-prompt))
+
+    (mistty-send-text "echo deleteme")
+    (mistty-send-and-wait-for-prompt)
+
+    (delete-region (mistty-test-pos "$ echo deleteme")
+                   (mistty-test-pos-after "\ndeleteme"))
+
+    (mistty-send-text "prompt")
+    (mistty-send-command)
+    (mistty-wait-for-output :str "Prompt: ")
+    (mistty--realize-possible-prompt)
+    (mistty-send-text "bar")
+
+    ;; The deleted prompt reappeared.
+    (should (equal "$ echo 19\n19\n$ echo deleteme\ndeleteme\n$ prompt\n====\n==== 3\nPrompt: bar"
+                   (mistty-test-content
+                    :start (mistty-test-pos "$ echo 19"))))))
+
+(ert-deftest mistty-test-recovery-clear-before-prompt-removed-almost-everything-before-prompt ()
+  (mistty-with-test-buffer (:init mistty-test-clear-before-prompt)
+    (mistty-send-text "echo keep me")
+    (mistty-send-and-wait-for-prompt)
+
+    (dotimes (i 20)
+      (mistty-send-text (format "echo %d" i))
+      (mistty-send-and-wait-for-prompt))
+
+    (delete-region (mistty-test-pos "$ echo 1")
+                   (mistty-test-pos-after "\n19"))
+
+    (mistty-send-text "prompt")
+    (mistty-send-command)
+    (mistty-wait-for-output :str "Prompt: ")
+    (mistty--realize-possible-prompt)
+    (mistty-send-text "bar")
+
+    ;; Some of the deleted prompts reappeared.
+    (should (equal "$ echo 19\n19\n$ prompt\n====\n==== 3\nPrompt: bar"
+                   (mistty-test-content
+                    :start (mistty-test-pos "$ echo 19"))))))
 
 ;; https://github.com/szermatt/mistty/issues/27
 (turtles-ert-deftest mistty-test-bash-reverse-i-search-and-nl ( :instance 'mistty)

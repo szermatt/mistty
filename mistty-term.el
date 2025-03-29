@@ -501,10 +501,10 @@ value.
 
 Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 
-(defvar-local mistty--scrollrow-home nil
-  "Base of scrollrow numbers.")
-(defvar-local mistty--scrollrow-base nil
-  "Scrollrow number of `mistty--scrollrow-home'.")
+(defvar-local mistty--scrolline-home nil
+  "Base of scrolline numbers.")
+(defvar-local mistty--scrolline-base nil
+  "Scrolline number of `mistty--scrolline-home'.")
 
 (defvar-local mistty--prompt-cell nil
   "A `mistty--prompt-cell' instance.
@@ -525,7 +525,7 @@ Always access it through the places `mistty--prompt'
 ;; A detected prompt.
 ;;
 ;; This datastructure is shared between the work and term buffer and
-;; uses scrollrows as units.
+;; uses scrollines as units.
 (cl-defstruct (mistty--prompt
                (:constructor mistty--make-prompt
                              (source start &optional end &key text
@@ -543,12 +543,12 @@ Always access it through the places `mistty--prompt'
   ;; Non-nil once the prompt has been accepted by MisTTY
   realized
 
-  ;; Start scrollrow. Shouldn't be nil.
+  ;; Start scrolline. Shouldn't be nil.
   start
 
-  ;; End scrollrow, or nil if prompt is open-ended.
+  ;; End scrolline, or nil if prompt is open-ended.
   ;;
-  ;; This is the first scrollrow on which the prompt is *not* present, so
+  ;; This is the first scrolline on which the prompt is *not* present, so
   ;; a single-line prompt starting at 10 would end at 11.
   end
 
@@ -583,11 +583,11 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
   "Sets the value of `mistty--prompt-archive'."
   `(setf (mistty--prompt-cell-archive mistty--prompt-cell) ,val))
 
-(defun mistty--prompt-contains (prompt scrollrow)
-  "Return non-nil if PROMPT contains SCROLLROW."
-  (and (>= scrollrow (mistty--prompt-start prompt))
+(defun mistty--prompt-contains (prompt scrolline)
+  "Return non-nil if PROMPT contains SCROLLINE."
+  (and (>= scrolline (mistty--prompt-start prompt))
        (or (null (mistty--prompt-end prompt))
-           (< scrollrow (mistty--prompt-end prompt)))))
+           (< scrolline (mistty--prompt-end prompt)))))
 
 (defun mistty--emulate-terminal (proc str work-buffer)
   "Handle process output as a terminal would.
@@ -661,9 +661,9 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
             (unless mistty-bracketed-paste
               (let* ((prompt (mistty--prompt))
                      (inhibit-modification-hooks t)
-                     (scrollrow (mistty--term-scrollrow)))
+                     (scrolline (mistty--term-scrolline)))
                 (when (or (null prompt)
-                          (not (mistty--prompt-contains prompt scrollrow)))
+                          (not (mistty--prompt-contains prompt scrolline)))
                   ;; zsh enables bracketed paste only after having printed
                   ;; the prompt. Try to find the beginning of the prompt
                   ;; from prompt_sp or assume a single-line prompt.
@@ -687,8 +687,8 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                       ;; as changed, including to the eol to cover
                       ;; right prompts, also written before.
                       (mistty--changed real-start eol))
-                    (setq scrollrow (mistty--term-scrollrow-at real-start)))
-                  (setq prompt (mistty--make-prompt 'bracketed-paste scrollrow))
+                    (setq scrolline (mistty--term-scrolline-at real-start)))
+                  (setq prompt (mistty--make-prompt 'bracketed-paste scrolline))
                   (mistty-log "Detected %s prompt #%s [%s-]"
                               (mistty--prompt-source prompt)
                               (mistty--prompt-input-id prompt)
@@ -704,13 +704,13 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
            (term-emulate-terminal proc (substring str start seq-end))
            (when mistty-bracketed-paste
              (when-let ((prompt (mistty--prompt))
-                        (scrollrow (if (eq ?\n (char-before (point)))
-                                       (mistty--term-scrollrow)
-                                     (1+ (mistty--term-scrollrow)))))
+                        (scrolline (if (eq ?\n (char-before (point)))
+                                       (mistty--term-scrolline)
+                                     (1+ (mistty--term-scrolline)))))
                (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
                           (null (mistty--prompt-end prompt))
-                          (> scrollrow (mistty--prompt-start prompt)))
-                 (setf (mistty--prompt-end prompt) scrollrow)))
+                          (> scrolline (mistty--prompt-start prompt)))
+                 (setf (mistty--prompt-end prompt) scrolline)))
              (setq mistty-bracketed-paste nil)
              (mistty--with-live-buffer work-buffer
                (setq mistty-bracketed-paste nil))))
@@ -838,8 +838,8 @@ This function returns the newly-created buffer."
       (setq-local term-width width)
       (setq-local term-height height)
       (setq-local term-command-function #'mistty--term-command-hook)
-      (setq-local mistty--scrollrow-home (copy-marker (point-min)))
-      (setq-local mistty--scrollrow-base 0)
+      (setq-local mistty--scrolline-home (copy-marker (point-min)))
+      (setq-local mistty--scrolline-base 0)
       (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
       (mistty-term--exec program args)
       (let ((proc (get-buffer-process term-buffer)))
@@ -1231,58 +1231,60 @@ Detected dead spaces are marked with the text property \\='mistty-skip
                               eol (- eol (point)) real-trailing-ws)
                   (put-text-property (point) eol 'mistty-skip 'dead))))))))))
 
-(defun mistty--term-reset-scrollrow (scrollrow)
-  "Make the screen start at SCROLLROW.
+(defun mistty--term-reset-scrolline (scrolline)
+  "Make the screen start at SCROLLINE.
 
-This is useful after a reset, where scrollrow have been lost. Generally,
+This is useful after a reset, where scrolline have been lost. Generally,
 this allows arbitrarily manipulating the alignment between the work and
 terminal buffers. To avoid issues with prompt locations, it should only
-be used to increase the value of `mistty--scrollrow-base'."
-  (setq mistty--scrollrow-base scrollrow)
-  (move-marker mistty--scrollrow-home
+be used to increase the value of `mistty--scrolline-base'."
+  (setq mistty--scrolline-base scrolline)
+  (move-marker mistty--scrolline-home
                (or (marker-position term-home-marker)
                    (point-min))))
 
-(defun mistty--adjust-scrollrow-base ()
-  "Move the scrollrow base to `term-home-marker'.
+(defun mistty--adjust-scrolline-base ()
+  "Move the scrolline base to `term-home-marker'.
 
 Call this before deleting any region before `term-home-marker'."
-  (when (/= mistty--scrollrow-home term-home-marker)
-    (let ((delta (mistty--count-scrollrows mistty--scrollrow-home term-home-marker)))
-      (setq mistty--scrollrow-base (+ mistty--scrollrow-base delta)))
-    (move-marker mistty--scrollrow-home (marker-position term-home-marker))))
+  (when (/= mistty--scrolline-home term-home-marker)
+    (let ((delta (mistty--count-scrollines mistty--scrolline-home term-home-marker)))
+      (setq mistty--scrolline-base (+ mistty--scrolline-base delta)))
+    (move-marker mistty--scrolline-home (marker-position term-home-marker))))
 
-(defun mistty--term-scrollrow ()
-  "Return the current scrollrow.
+(defun mistty--term-scrolline ()
+  "Return the current scrolline.
 
-The scrollrow count starts at the very beginning of the virtual buffer
-and doesn't change as the buffer scrolls up.
+The scrolline count starts at the very beginning of the virtual buffer
+and doesn't change as the buffer scrolls up or the terminal size
+changes.
 
-Before using a scrollrow, convert it to a screen row or point."
-  (mistty--term-scrollrow-at (point)))
+Before using a scrolline, convert it to a screen row or point."
+  (mistty--term-scrolline-at (point)))
 
-(defun mistty--term-scrollrow-at (pos)
-  "Return the scrollrow at POS.
+(defun mistty--term-scrolline-at (pos)
+  "Return the scrolline at POS.
 
-The scrollrow count starts at the very beginning of the virtual buffer
-and doesn't change as the buffer scrolls up.
+The scrolline count starts at the very beginning of the virtual buffer
+and doesn't change as the buffer scrolls up or the terminal size
+changes.
 
-Before using a scrollrow, convert it to a screen row or point."
-  (+ mistty--scrollrow-base (mistty--count-scrollrows mistty--scrollrow-home pos)))
+Before using a scrolline, convert it to a screen row or point."
+  (+ mistty--scrolline-base (mistty--count-scrollines mistty--scrolline-home pos)))
 
-(defun mistty--term-scrollrow-pos (scrollrow)
-  "Return the char position of the beginning of SCROLLROW.
+(defun mistty--term-scrolline-pos (scrolline)
+  "Return the char position of the beginning of SCROLLINE.
 
 Return nil if the row isn't reachable on the terminal."
   (save-excursion
-    (goto-char mistty--scrollrow-home)
-    (when (zerop (mistty--go-down-scrollrows (- scrollrow mistty--scrollrow-base)))
+    (goto-char mistty--scrolline-home)
+    (when (zerop (mistty--go-down-scrollines (- scrolline mistty--scrolline-base)))
       (point))))
 
-(defun mistty--term-scrollrow-at-screen-start()
-  "Scrollrow at the top of the screen."
-  (mistty--adjust-scrollrow-base)
-  mistty--scrollrow-base)
+(defun mistty--term-scrolline-at-screen-start()
+  "Scrolline at the top of the screen."
+  (mistty--adjust-scrolline-base)
+  mistty--scrolline-base)
 
 (defun mistty-osc133 (_ osc-seq)
   (when (length> osc-seq 0)
@@ -1291,7 +1293,7 @@ Return nil if the row isn't reachable on the terminal."
         (?A ;; start a new command
 
          ;; Overwrite any other prompt source.
-         (let ((prompt (mistty--make-prompt 'osc133 (mistty--term-scrollrow))))
+         (let ((prompt (mistty--make-prompt 'osc133 (mistty--term-scrolline))))
            (setf (mistty--prompt) prompt)
            (mistty-log "Detected %s prompt #%s [%s-]"
                        (mistty--prompt-source prompt)
@@ -1313,7 +1315,7 @@ Return nil if the row isn't reachable on the terminal."
                          (mistty--prompt-source prompt)
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
-             (setf (mistty--prompt-end prompt) (mistty--term-scrollrow)))))
+             (setf (mistty--prompt-end prompt) (mistty--term-scrolline)))))
 
         (?D ;; end of command (possible anytime after ?A)
          (when-let ((prompt (mistty--prompt)))
@@ -1323,7 +1325,7 @@ Return nil if the row isn't reachable on the terminal."
                          (mistty--prompt-source prompt)
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
-             (setf (mistty--prompt-end prompt) (mistty--term-scrollrow)))))))))
+             (setf (mistty--prompt-end prompt) (mistty--term-scrolline)))))))))
 
 (provide 'mistty-term)
 

@@ -2021,7 +2021,7 @@
     (let ((prompt (mistty--prompt)))
       (should-not (null prompt))
       (should (equal 'regexp (mistty--prompt-source prompt)))
-      (should (equal (mistty--scrollrow (mistty-test-goto "say something>> "))
+      (should (equal (mistty--scrolline (mistty-test-goto "say something>> "))
                      (mistty--prompt-start prompt)))
       (should (equal (1+ (mistty--prompt-start prompt))
                      (mistty--prompt-end prompt)))
@@ -6091,7 +6091,7 @@ function prompt {
       (unless was-enabled
         (global-goto-address-mode -1)))))
 
-(turtles-ert-deftest mistty-scrollrow-after-scrolling (:instance 'mistty)
+(turtles-ert-deftest mistty-scrolline-after-scrolling (:instance 'mistty)
   (mistty-with-test-buffer ()
     (save-restriction
       (let (one two)
@@ -6109,53 +6109,53 @@ function prompt {
 
         (mistty-wait-for-output :str "line 10")
         (mistty-send-text "one")
-        (setq one (mistty--cursor-scrollrow))
+        (setq one (mistty--cursor-scrolline))
 
-        ;; scrollrow one is valid on both buffers
-        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        ;; scrolline one is valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrolline one)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+          (should (equal "one" (mistty-test-line-at-scrolline one))))
 
         (mistty--send-string mistty-proc "\n")
         (mistty-wait-for-output :str "line 20")
 
-        ;; after scrolling, scrollrow one is still valid on both buffers
-        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        ;; after scrolling, scrolline one is still valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrolline one)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+          (should (equal "one" (mistty-test-line-at-scrolline one))))
 
         (mistty-send-text "two")
-        (setq two (mistty--cursor-scrollrow))
+        (setq two (mistty--cursor-scrolline))
 
-        (should (equal "two" (mistty-test-line-at-scrollrow two)))
+        (should (equal "two" (mistty-test-line-at-scrolline two)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "two" (mistty-test-line-at-scrollrow two))))
+          (should (equal "two" (mistty-test-line-at-scrolline two))))
         (mistty--send-string mistty-proc "\n")
         (mistty-wait-for-output :str "line 30")
 
         ;; both are still valid, even though one is outside the screen,
         ;; at this point; it's still below the sync mark
         (let ((screen-start (with-current-buffer mistty-term-buffer
-                              (mistty--term-scrollrow-at-screen-start))))
+                              (mistty--term-scrolline-at-screen-start))))
           (should (< one screen-start))
           (should (> two screen-start)))
 
-        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (should (equal "one" (mistty-test-line-at-scrolline one)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "one" (mistty-test-line-at-scrollrow one))))
-        (should (equal "two" (mistty-test-line-at-scrollrow two)))
+          (should (equal "one" (mistty-test-line-at-scrolline one))))
+        (should (equal "two" (mistty-test-line-at-scrolline two)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "two" (mistty-test-line-at-scrollrow two))))
+          (should (equal "two" (mistty-test-line-at-scrolline two))))
 
         (mistty-send-and-wait-for-prompt
          (lambda ()
            (mistty--send-string mistty-proc "q\n")))
 
         ;; Both are now invalid, as they're below the sync mark
-        (should (null (mistty--scrollrow-pos one)))
-        (should (null (mistty--scrollrow-pos two)))))))
+        (should (null (mistty--scrolline-pos one)))
+        (should (null (mistty--scrolline-pos two)))))))
 
-(turtles-ert-deftest mistty-scrollrow-after-scrolling-long-lines (:instance 'mistty)
+(turtles-ert-deftest mistty-scrolline-after-scrolling-long-lines (:instance 'mistty)
   (mistty-with-test-buffer ()
     (save-restriction
       (let (one two)
@@ -6176,27 +6176,27 @@ function prompt {
 
         (mistty-wait-for-output :str "foo5.")
         (mistty-send-text "one")
-        (setq one (mistty--cursor-scrollrow))
+        (setq one (mistty--cursor-scrolline))
 
-        ;; scrollrow one is valid on both buffers
-        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        ;; scrolline one is valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrolline one)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+          (should (equal "one" (mistty-test-line-at-scrolline one))))
 
         (mistty--send-string mistty-proc "\n")
         (mistty-wait-for-output :str "foo10.")
 
-        ;; after scrolling, scrollrows are still valid on both buffers
-        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        ;; after scrolling, scrollines are still valid on both buffers
+        (should (equal "one" (mistty-test-line-at-scrolline one)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+          (should (equal "one" (mistty-test-line-at-scrolline one))))
 
         (mistty--send-string mistty-proc "\n")
         (mistty-wait-for-output :str "foo15.")
 
-        (should (equal "one" (mistty-test-line-at-scrollrow one)))
+        (should (equal "one" (mistty-test-line-at-scrolline one)))
         (with-current-buffer mistty-term-buffer
-          (should (equal "one" (mistty-test-line-at-scrollrow one))))
+          (should (equal "one" (mistty-test-line-at-scrolline one))))
 
         (mistty-send-and-wait-for-prompt
          (lambda ()

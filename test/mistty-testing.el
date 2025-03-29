@@ -722,13 +722,13 @@ This simulates what happens in the command loop."
 
     full-prefix))
 
-(defun mistty-test-line-at-scrollrow (scrollrow)
+(defun mistty-test-line-at-scrolline (scrolline)
   (save-excursion
-    (let ((pos (mistty--scrollrow-pos scrollrow)))
+    (let ((pos (mistty--scrolline-pos scrolline)))
       (unless pos
-        (error "Scrollrow at %s outside of range [%s, %s].<<EOF%sEOF"
-               scrollrow mistty--sync-marker-scrollrow
-               (mistty--scrollrow (point-max))
+        (error "Scrolline at %s outside of range [%s, %s].<<EOF%sEOF"
+               scrolline mistty--sync-marker-scrolline
+               (mistty--scrolline (point-max))
                (mistty-test-content :start mistty-sync-marker)))
       (goto-char pos)
       (buffer-substring-no-properties (pos-bol) (pos-eol)))))

@@ -181,8 +181,8 @@ newline and return non-nil if that newline should be counted."
 
       (* sign count))))
 
-(defun mistty--count-scrollrows (beg end)
-  "Count the number of scrollrows between BEG and END."
+(defun mistty--count-scrollines (beg end)
+  "Count the number of scrollines between BEG and END."
   (mistty--count-lines
    beg end
    #'mistty--real-nl-p))
@@ -199,14 +199,14 @@ POS defaults to the current point."
     (and (eq ?\n (char-after pos))
          (not (mistty--fake-nl-p pos)))))
 
-(defun mistty--go-down-scrollrows (count)
-  "Go down COUNT scrollrows from the current position.
+(defun mistty--go-down-scrollines (count)
+  "Go down COUNT scrollines from the current position.
 
-If COUNT is < 0, go up that many scrollrows instead.
+If COUNT is < 0, go up that many scrollines instead.
 
-Put point at the beginning of a scrollrow.
+Put point at the beginning of a scrolline.
 
-Go as far up as possible and return the remaining number of scrollrows
+Go as far up as possible and return the remaining number of scrollines
 to go down to, normally 0."
 
   ;; Go down, skipping fake newlines
@@ -219,62 +219,62 @@ to go down to, normally 0."
     (unless (mistty--fake-nl-p (match-beginning 0))
       (cl-incf count)))
 
-  (mistty--go-beginning-of-scrollrow)
+  (mistty--go-beginning-of-scrolline)
 
   count)
 
-(defsubst mistty--go-up-scrollrows (count)
-  "Go up COUNT scrollrows, skipping fake newlines.
+(defsubst mistty--go-up-scrollines (count)
+  "Go up COUNT scrollines, skipping fake newlines.
 
-Go down that many scrollrows if COUNT is negative.
+Go down that many scrollines if COUNT is negative.
 
-Put point at the beginning of a scrollrow.
+Put point at the beginning of a scrolline.
 
-Go as far down as possible and return the number of scrollrows to go up
+Go as far down as possible and return the number of scrollines to go up
 to, normally 0."
-  (- (mistty--go-down-scrollrows (- count))))
+  (- (mistty--go-down-scrollines (- count))))
 
-(defun mistty--go-beginning-of-scrollrow ()
-  "Go to the beginning of the scrollrow, skipping fake newlines."
+(defun mistty--go-beginning-of-scrolline ()
+  "Go to the beginning of the scrolline, skipping fake newlines."
   (while (progn
            (goto-char (pos-bol))
            (and (> (point) (point-min))
                 (mistty--fake-nl-p (1- (point)))))
     (goto-char (1- (point)))))
 
-(defsubst mistty--beginning-of-scrollrow-pos ()
-  "Position of the beginning of the current scrollrow."
+(defsubst mistty--beginning-of-scrolline-pos ()
+  "Position of the beginning of the current scrolline."
   (save-excursion
-    (mistty--go-beginning-of-scrollrow)
+    (mistty--go-beginning-of-scrolline)
     (point)))
 
-(defun mistty--go-end-of-scrollrow ()
-  "Go to the end of the scrollrow, skipping fake newlines."
+(defun mistty--go-end-of-scrolline ()
+  "Go to the end of the scrolline, skipping fake newlines."
   (while (progn
            (goto-char (pos-eol))
            (and (< (point) (point-max))
                 (mistty--fake-nl-p (point))))
     (goto-char (1+ (point)))))
 
-(defsubst mistty--end-of-scrollrow-pos ()
-  "Position of the end of the current scrollrow."
+(defsubst mistty--end-of-scrolline-pos ()
+  "Position of the end of the current scrolline."
   (save-excursion
-    (mistty--go-end-of-scrollrow)
+    (mistty--go-end-of-scrolline)
     (point)))
 
-(defun mistty--current-scrollrow-text (&optional no-properties)
-  "Return the text of the scrollrow at point as a string.
+(defun mistty--current-scrolline-text (&optional no-properties)
+  "Return the text of the scrolline at point as a string.
 
 Any fake newlines are stripped."
-  (mistty--text-without-fake-lines (mistty--beginning-of-scrollrow-pos)
-                                   (mistty--end-of-scrollrow-pos)
+  (mistty--text-without-fake-lines (mistty--beginning-of-scrolline-pos)
+                                   (mistty--end-of-scrolline-pos)
                                    no-properties))
 
-(defun mistty--scrollrow-text-before-point (&optional no-properties)
-  "Return text from the beginning of the scrollrow to the current point.
+(defun mistty--scrolline-text-before-point (&optional no-properties)
+  "Return text from the beginning of the scrolline to the current point.
 
 Any fake newlines are stripped."
-  (mistty--text-without-fake-lines (mistty--beginning-of-scrollrow-pos)
+  (mistty--text-without-fake-lines (mistty--beginning-of-scrolline-pos)
                                    (point)
                                    no-properties))
 

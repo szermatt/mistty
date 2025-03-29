@@ -262,6 +262,35 @@ to, normally 0."
     (mistty--go-end-of-scrollrow)
     (point)))
 
+(defun mistty--current-scrollrow-text (&optional no-properties)
+  "Return the text of the scrollrow at point as a string.
+
+Any fake newlines are stripped."
+  (mistty--text-without-fake-lines (mistty--beginning-of-scrollrow-pos)
+                                   (mistty--end-of-scrollrow-pos)
+                                   no-properties))
+
+(defun mistty--scrollrow-text-before-point (&optional no-properties)
+  "Return text from the beginning of the scrollrow to the current point.
+
+Any fake newlines are stripped."
+  (mistty--text-without-fake-lines (mistty--beginning-of-scrollrow-pos)
+                                   (point)
+                                   no-properties))
+
+(defun mistty--text-without-fake-lines (beg end &optional no-properties)
+  "Return text between BEG and END without fake newlines.
+
+If NO-PROPERTIES is non-nil, remove text properties."
+  (let ((text (buffer-substring beg end)))
+    (with-temp-buffer
+      (insert text)
+      (mistty--remove-text-with-property 'term-line-wrap)
+      (if no-properties
+          (buffer-substring-no-properties (point-min) (point-max))
+        (buffer-string)))))
+
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

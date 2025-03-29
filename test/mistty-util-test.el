@@ -450,3 +450,53 @@
 
     (mistty-test-goto "abc")
     (should (equal -2 (mistty--go-up-scrollrows -4)))))
+
+(ert-deftest mistty--current-scrollrow-text()
+  (ert-with-test-buffer ()
+    (insert "abc")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "def\n")
+    (insert "ghi")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "jkl")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "mno")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "pqr")
+
+    (mistty-test-goto "def")
+    (should (equal "abcdef" (mistty--current-scrollrow-text)))
+
+    (mistty-test-goto "mno")
+    (should (equal "ghijklmnopqr" (mistty--current-scrollrow-text)))
+
+
+    (mistty-test-goto "def")
+    (put-text-property (mistty-test-pos "def")
+                       (mistty-test-pos-after "def")
+                       'mistty-test 'foobar)
+    (should (equal 'foobar
+                   (get-text-property 3 'mistty-test
+                                      (mistty--current-scrollrow-text))))
+    (should (equal nil
+                   (get-text-property 3 'mistty-test
+                                      (mistty--current-scrollrow-text 'no-properties))))))
+
+(ert-deftest mistty--scrollrow-text-before-point ()
+  (ert-with-test-buffer ()
+    (insert "abc")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "def\n")
+    (insert "ghi")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "jkl")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "mno")
+    (insert (propertize "\n" 'term-line-wrap t))
+    (insert "pqr")
+
+    (mistty-test-goto-after "de")
+    (should (equal "abcde" (mistty--scrollrow-text-before-point)))
+
+    (mistty-test-goto "ef")
+    (should (equal "abcd" (mistty--scrollrow-text-before-point)))))

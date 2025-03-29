@@ -1744,8 +1744,10 @@ Also updates prompt and point."
                (when (and (> cursor prompt-beg)
                           (or (eq 'osc133 (mistty--prompt-source prompt))
                               (string-match mistty--prompt-regexp
-                                            (mistty--safe-bufstring
-                                             (mistty--bol cursor) cursor))))
+                                            (save-excursion
+                                              (goto-char cursor)
+                                              (mistty--scrollrow-text-before-point
+                                               'no-properties)))))
                  (mistty-log "Realized %s prompt #%s [%s-] @%s"
                              (mistty--prompt-source prompt)
                              (mistty--prompt-input-id prompt)
@@ -4324,7 +4326,7 @@ and SCROLLROW."
                            (mistty--with-live-buffer mistty-term-buffer
                              (save-excursion
                                (goto-char (mistty--term-scrollrow-pos scrollrow))
-                               (buffer-substring-no-properties (pos-bol) (pos-eol)))))
+                               (mistty--current-scrollrow-text 'no-properties))))
               (setq pos end-row))))
       (goto-char pos)
       (cl-incf scrollrow)))

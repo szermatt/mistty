@@ -6135,9 +6135,8 @@ function prompt {
 
         ;; both are still valid, even though one is outside the screen,
         ;; at this point; it's still below the sync mark
-        (let ((screen-start (car
-                             (with-current-buffer mistty-term-buffer
-                               (mistty--term-scrollrow-range)))))
+        (let ((screen-start (with-current-buffer mistty-term-buffer
+                              (mistty--term-scrollrow-at-screen-start))))
           (should (< one screen-start))
           (should (> two screen-start)))
 

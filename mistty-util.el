@@ -168,7 +168,7 @@ If END < BEG, return a negative number.
 
 If specified, PRED is a function that takes a position pointing to a
 newline and return non-nil if that newline should be counted."
-    (save-excursion
+  (save-excursion
     (let ((count 0)
           (sign (if (> beg end) -1 1))
           (beg (min beg end))
@@ -180,6 +180,87 @@ newline and return non-nil if that newline should be counted."
           (cl-incf count)))
 
       (* sign count))))
+
+(defun mistty--count-scrollrows (beg end)
+  "Count the number of scrollrows between BEG and END."
+  (mistty--count-lines
+   beg end
+   #'mistty--real-nl-p))
+
+(defun mistty--fake-nl-p (&optional pos)
+  "Check whether newline at POS is a fake newline.
+
+POS defaults to the current point."
+  (get-text-property (or pos (point)) 'term-line-wrap))
+
+(defun mistty--real-nl-p (&optional pos)
+  "Check whether char at POS is a real newline."
+  (let ((pos (or pos (point))))
+    (and (eq ?\n (char-after pos))
+         (not (mistty--fake-nl-p pos)))))
+
+(defun mistty--go-down-scrollrows (count)
+  "Go down COUNT scrollrows from the current position.
+
+If COUNT is < 0, go up that many scrollrows instead.
+
+Put point at the beginning of a scrollrow.
+
+Go as far up as possible and return the remaining number of scrollrows
+to go down to, normally 0."
+
+  ;; Go down, skipping fake newlines
+  (while (and (> count 0) (search-forward "\n" nil 'noerror))
+    (unless (mistty--fake-nl-p (match-beginning 0))
+      (cl-decf count)))
+
+  ;; Go up, skipping fake newlines
+  (while (and (< count 0) (search-backward "\n" nil 'noerror))
+    (unless (mistty--fake-nl-p (match-beginning 0))
+      (cl-incf count)))
+
+  (mistty--go-beginning-of-scrollrow)
+
+  count)
+
+(defsubst mistty--go-up-scrollrows (count)
+  "Go up COUNT scrollrows, skipping fake newlines.
+
+Go down that many scrollrows if COUNT is negative.
+
+Put point at the beginning of a scrollrow.
+
+Go as far down as possible and return the number of scrollrows to go up
+to, normally 0."
+  (- (mistty--go-down-scrollrows (- count))))
+
+(defun mistty--go-beginning-of-scrollrow ()
+  "Go to the beginning of the scrollrow, skipping fake newlines."
+  (while (progn
+           (goto-char (pos-bol))
+           (and (> (point) (point-min))
+                (mistty--fake-nl-p (1- (point)))))
+    (goto-char (1- (point)))))
+
+(defsubst mistty--beginning-of-scrollrow-pos ()
+  "Position of the beginning of the current scrollrow."
+  (save-excursion
+    (mistty--go-beginning-of-scrollrow)
+    (point)))
+
+(defun mistty--go-end-of-scrollrow ()
+  "Go to the end of the scrollrow, skipping fake newlines."
+  (while (progn
+           (goto-char (pos-eol))
+           (and (< (point) (point-max))
+                (mistty--fake-nl-p (point))))
+    (goto-char (1+ (point)))))
+
+(defsubst mistty--end-of-scrollrow-pos ()
+  "Position of the end of the current scrollrow."
+  (save-excursion
+    (mistty--go-end-of-scrollrow)
+    (point)))
 
 (provide 'mistty-util)
 

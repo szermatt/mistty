@@ -1248,7 +1248,7 @@ be used to increase the value of `mistty--scrollrow-base'."
 
 Call this before deleting any region before `term-home-marker'."
   (when (/= mistty--scrollrow-home term-home-marker)
-    (let ((delta (mistty--count-lines mistty--scrollrow-home term-home-marker)))
+    (let ((delta (mistty--count-scrollrows mistty--scrollrow-home term-home-marker)))
       (setq mistty--scrollrow-base (+ mistty--scrollrow-base delta)))
     (move-marker mistty--scrollrow-home (marker-position term-home-marker))))
 
@@ -1259,8 +1259,7 @@ The scrollrow count starts at the very beginning of the virtual buffer
 and doesn't change as the buffer scrolls up.
 
 Before using a scrollrow, convert it to a screen row or point."
-  (mistty--adjust-scrollrow-base)
-  (+ mistty--scrollrow-base (term-current-row)))
+  (mistty--term-scrollrow-at (point)))
 
 (defun mistty--term-scrollrow-at (pos)
   "Return the scrollrow at POS.
@@ -1269,7 +1268,7 @@ The scrollrow count starts at the very beginning of the virtual buffer
 and doesn't change as the buffer scrolls up.
 
 Before using a scrollrow, convert it to a screen row or point."
-  (+ mistty--scrollrow-base (mistty--count-lines mistty--scrollrow-home pos)))
+  (+ mistty--scrollrow-base (mistty--count-scrollrows mistty--scrollrow-home pos)))
 
 (defun mistty--term-scrollrow-pos (scrollrow)
   "Return the char position of the beginning of SCROLLROW.
@@ -1277,13 +1276,13 @@ Before using a scrollrow, convert it to a screen row or point."
 Return nil if the row isn't reachable on the terminal."
   (save-excursion
     (goto-char mistty--scrollrow-home)
-    (when (zerop (forward-line (- scrollrow mistty--scrollrow-base)))
+    (when (zerop (mistty--go-down-scrollrows (- scrollrow mistty--scrollrow-base)))
       (point))))
 
-(defun mistty--term-scrollrow-range ()
-  "Current scrollrow range, covering the screen."
+(defun mistty--term-scrollrow-at-screen-start()
+  "Scrollrow at the top of the screen."
   (mistty--adjust-scrollrow-base)
-  (cons mistty--scrollrow-base (+ mistty--scrollrow-base term-height)))
+  mistty--scrollrow-base)
 
 (defun mistty-osc133 (_ osc-seq)
   (when (length> osc-seq 0)

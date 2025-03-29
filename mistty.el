@@ -1562,20 +1562,20 @@ This function updates `mistty--prompt' after the content of the terminal
 buffer has been updated."
   (mistty--require-term-buffer)
   (let ((cursor (point))
-        (bol (pos-bol))
+        (bos (mistty--beginning-of-scrollrow-pos))
         (scrollrow (mistty--cursor-scrollrow))
         (prompt (mistty--prompt)))
     (when (and (or (null prompt)
                    (and (mistty--prompt-end prompt)
                         (>= scrollrow (mistty--prompt-end prompt))))
-               (> cursor bol)
+               (> cursor bos)
                (>= cursor (mistty--last-non-ws))
                (string-match
                 mistty--prompt-regexp
-                (mistty--safe-bufstring bol cursor)))
+                (mistty--safe-bufstring bos cursor)))
       (let ((prompt (mistty--make-prompt
                      'regexp scrollrow (1+ scrollrow)
-                     :text (mistty--safe-bufstring bol (+ bol (match-end 0))))))
+                     :text (mistty--safe-bufstring bos (+ bos (match-end 0))))))
         (setf (mistty--prompt) prompt)
         (mistty-log "Suspected %s prompt #%s: [%s-%s] '%s'"
                     (mistty--prompt-source prompt)
@@ -1639,7 +1639,7 @@ This works in both the sync and term buffers.
 To get the position of the cursor `mistty--cursor-scrollrow' is more
 efficient that passing the result of `mistty-cursor' to this function."
   (save-restriction
-    (+ mistty--sync-marker-scrollrow (mistty--count-lines mistty-sync-marker pos))))
+    (+ mistty--sync-marker-scrollrow (mistty--count-scrollrows mistty-sync-marker pos))))
 
 (defun mistty--scrollrow-pos (scrollrow)
   "Return the position of the beginning of SCROLLROW.
@@ -1652,7 +1652,7 @@ Work in the work or term buffer."
     (save-excursion
       (when (>= scrollrow mistty--sync-marker-scrollrow)
         (goto-char mistty-sync-marker)
-        (when (zerop (forward-line (- scrollrow mistty--sync-marker-scrollrow)))
+        (when (zerop (mistty--go-down-scrollrows (- scrollrow mistty--sync-marker-scrollrow)))
           (point))))))
 
 (defun mistty--needs-refresh ()
@@ -1778,7 +1778,7 @@ Also updates prompt and point."
            (mistty--with-live-buffer mistty-term-buffer
              ;; Next time, only sync the visible portion of the terminal.
              (when (< mistty-sync-marker term-home-marker)
-               (let ((scrollrow (car (mistty--term-scrollrow-range))))
+               (let ((scrollrow (mistty--term-scrollrow-at-screen-start)))
                  (mistty--with-live-buffer mistty-work-buffer
                    (mistty--maybe-move-sync-mark scrollrow))))
 
@@ -2060,9 +2060,9 @@ SCROLLROW is a scrollrow that's currently visible on the terminal."
     (mistty--with-live-buffer mistty-term-buffer
       (setq scrollrow (mistty--term-scrollrow-at mistty-sync-marker))
       (setq mistty--sync-marker-scrollrow scrollrow)
-      (mistty-log "SYNC MARKER AT SCROLLROW %s ON SCREEN %s"
+      (mistty-log "SYNC MARKER AT SCROLLROW %s ON SCREEN %s-"
                   scrollrow
-                  (mistty--term-scrollrow-range)))
+                  (mistty--term-scrollrow-at-screen-start)))
     (when scrollrow
       (setq mistty--sync-marker-scrollrow scrollrow))))
 
@@ -2125,14 +2125,14 @@ SCROLLROW is the scrollrow at BEG."
   (save-excursion
     (goto-char beg)
     (while (< (point) end)
-      (let ((bol (pos-bol))
-            (eol (pos-eol)))
-        (when (eq ?\n (char-after eol))
-          (cl-incf eol))
-        (when (> eol bol)
-          (put-text-property bol eol 'mistty-scrollrow scrollrow))
+      (let ((bos (mistty--beginning-of-scrollrow-pos))
+            (eos (mistty--end-of-scrollrow-pos)))
+        (when (eq ?\n (char-after eos))
+          (cl-incf eos))
+        (when (> eos bos)
+          (put-text-property bos eos 'mistty-scrollrow scrollrow))
         (cl-incf scrollrow)
-        (goto-char (pos-bol 2))))))
+        (mistty--go-down-scrollrows 1)))))
 
 (defun mistty--last-non-ws ()
   "Return the position of the last non-whitespace in the buffer."
@@ -4029,9 +4029,7 @@ of them."
 
 Note that moving that distance vertically only gets the cursor to
 the *line* on which END is."
-  (mistty--count-lines beg end
-                       (lambda (pos)
-                         (not (get-text-property pos 'term-line-wrap)))))
+  (mistty--count-lines beg end #'mistty--real-nl-p))
 
 (defun mistty--distance (beg end)
   "Compute the number left/right key presses to get from BEG to END.
@@ -4276,8 +4274,7 @@ This function is meant to be used in the configuration option
 (defun mistty--realign-buffers()
   "Realign the work and terminal buffers, if possible."
   (mistty--require-term-buffer)
-  (let* ((term-range (mistty--term-scrollrow-range))
-         (term-top (car term-range)))
+  (let ((term-top (mistty--term-scrollrow-at-screen-start)))
     (mistty--with-live-buffer mistty-work-buffer
       (let ((prop (save-excursion
                     (goto-char mistty-sync-marker)
@@ -4292,15 +4289,15 @@ This function is meant to be used in the configuration option
           (let ((sync-pos (prop-match-beginning prop)))
             (pcase-setq `(,sync-pos . ,term-top)
                         (mistty--skip-identical-rows sync-pos term-top))
-            (mistty-log "REALIGN scrollrow %s to pos %s; terminal [%s]"
-                        term-top sync-pos term-range)
+            (mistty-log "REALIGN scrollrow %s to pos %s; terminal [%s-]"
+                        term-top sync-pos term-top)
             (mistty--set-sync-mark sync-pos term-top)))
 
          ;; Found scrollrow < goal, align at line after
          (prop
           (let ((sync-pos (mistty--bol (prop-match-beginning prop) 2)))
-            (mistty-log "REALIGN APPROXIMATE scrollrow %s to pos %s; terminal [%s]"
-                        term-top sync-pos term-range)
+            (mistty-log "REALIGN APPROXIMATE scrollrow %s to pos %s; terminal [%s-]"
+                        term-top sync-pos term-top)
             (mistty--set-sync-mark sync-pos term-top)))
 
          ;; Couldn't find beginning. It might have been deleted. Sync

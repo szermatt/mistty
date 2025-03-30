@@ -99,7 +99,7 @@ This is handled by `mistty-test-report-issue' and must contain
 the symbol of the expected issues, in order.")
 
 (cl-defmacro mistty-with-test-buffer
-    ((&key (shell 'bash) selected init) &body body)
+    ((&key (shell 'bash) selected init term-size) &body body)
   "Run BODY in a MisTTY buffer.
 
 SHELL specifies the program that is run in that buffer, bash,
@@ -108,7 +108,10 @@ zsh, or fish.
 INIT is a string to append to the shell RC file.
 
 If SELECTED is non-nil, make sure the buffer is in a selected
-window while BODY is running."
+window while BODY is running.
+
+TERM-SIZE specifies a fixed terminal size, detached from window size,
+as (cons WIDTH HEIGHT)."
   (declare (indent 1))
   (let ((exec-var (intern (concat "mistty-test-" (symbol-name shell) "-exe"))))
     `(progn
@@ -136,10 +139,10 @@ window while BODY is running."
                  (prog1
                      ,(if selected
                           `(with-selected-window (display-buffer (current-buffer))
-                             (mistty-test-setup (quote ,shell) mistty-tmpdir ,init)
+                             (mistty-test-setup (quote ,shell) mistty-tmpdir ,init ,term-size)
                              ,@body)
                         `(progn
-                           (mistty-test-setup (quote ,shell) mistty-tmpdir ,init)
+                           (mistty-test-setup (quote ,shell) mistty-tmpdir ,init ,term-size)
                            ,@body))
                    (should-not mistty-test-had-issues)
                    (setq mistty-test-ok 'ok))
@@ -199,35 +202,37 @@ window while BODY is running."
   (setq mistty-test-content-start start)
   (narrow-to-region start (point-max)))
 
-(defun mistty-test-setup (shell tmpdir init)
+(defun mistty-test-setup (shell tmpdir init term-size)
   (mistty-mode)
   (cond
    ((eq shell 'bash)
-    (mistty-test-setup-bash tmpdir init))
+    (mistty-test-setup-bash tmpdir init term-size))
 
    ((eq shell 'zsh)
-    (mistty-test-setup-zsh tmpdir init))
+    (mistty-test-setup-zsh tmpdir init term-size))
 
    ((eq shell 'fish)
-    (mistty-test-setup-fish tmpdir init))
+    (mistty-test-setup-fish tmpdir init term-size))
 
    ((eq shell 'ipython)
-    (mistty-test-setup-ipython tmpdir init))
+    (mistty-test-setup-ipython tmpdir init term-size))
 
    (t (error "Unsupported shell %s" shell))))
 
-(defun mistty-test-setup-bash (tmpdir init)
+(defun mistty-test-setup-bash (tmpdir init term-size)
   (let ((rcfile (concat tmpdir "bashrc")))
     (with-temp-file rcfile
       (insert "PS1='$ '\n")
       (when init
         (insert init)))
     (mistty-test-set-prompt-re "$ ")
-    (mistty--exec (list mistty-test-bash-exe "--noprofile" "--rcfile" rcfile "-i"))
+    (mistty--exec
+     (list mistty-test-bash-exe "--noprofile" "--rcfile" rcfile "-i")
+     :width (car term-size) :height (cdr term-size))
     (mistty-run-command) ;; detect early foreign overlay
     (mistty-wait-for-output :str "$ ")))
 
-(defun mistty-test-setup-zsh (tmpdir init)
+(defun mistty-test-setup-zsh (tmpdir init term-size)
   (let ((orig-zdotdir (getenv "ZDOTDIR"))
         (orig-prompt-eol-mark (getenv "PROMPT_EOL_MARK")))
     (unwind-protect
@@ -238,14 +243,15 @@ window while BODY is running."
             (insert "PS1='$ '\n")
             (when init
               (insert init)))
-          (mistty--exec (list mistty-test-zsh-exe "-i" "+d"))
+          (mistty--exec (list mistty-test-zsh-exe "-i" "+d")
+                        :width (car term-size) :height (cdr term-size))
           (mistty-run-command) ;; detect early foreign overlay
           (mistty-test-set-prompt-re "$ ")
           (mistty-wait-for-output :str "$ "))
       (setenv "ZDOTDIR" orig-zdotdir)
       (setenv "PROMPT_EOL_MARK" orig-prompt-eol-mark))))
 
-(defun mistty-test-setup-fish (tmpdir init)
+(defun mistty-test-setup-fish (tmpdir init term-size)
   (mistty--exec
    (list
     mistty-test-fish-exe
@@ -272,19 +278,21 @@ window while BODY is running."
             "bind \\cg cancel; "
             "bind \\b delete-char; " ;; simulate fish 4.0.0
             "bind \\ch backward-delete-char; "
-            init)))
+            init))
+   :width (car term-size) :height (cdr term-size))
   (mistty-run-command) ;; detect early foreign overlay
   (mistty-test-set-prompt-re "$ ")
   (mistty-wait-for-output :regexp mistty-test-prompt-re))
 
-(defun mistty-test-setup-ipython (tmpdir init)
+(defun mistty-test-setup-ipython (tmpdir init term-size)
   (when init
     (error "Test setup of ipython doesn't support :INIT yet."))
   (mistty--exec (list mistty-test-ipython-exe
                       "--quick"
                       "--no-banner"
                       "--no-confirm-exit"
-                      (concat "--BaseIPythonApplication.ipython_dir=" tmpdir)))
+                      (concat "--BaseIPythonApplication.ipython_dir=" tmpdir))
+                :width (car term-size) :height (cdr term-size))
   (setq mistty-test-prompt-re "^\\(In \\[[0-9]+\\]\\|   ...\\): ")
   (mistty-run-command))
 

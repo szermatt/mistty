@@ -4708,6 +4708,81 @@
            "C")
           (buffer-substring start end)))))))
 
+(turtles-ert-deftest mistty-test-set-terminal-size (:instance 'mistty)
+  (mistty-with-test-buffer (:selected t)
+    (mistty--set-terminal-size 40 10)
+    (mistty-send-text "echo $(tput cols)x$(tput lines)")
+    (should (equal "40x10" (mistty-send-and-capture-command-output)))
+
+    (delete-other-windows)
+    (should (redisplay t))
+
+    ;; The above should not have changed the terminal size
+    (mistty-send-text "echo $(tput cols)x$(tput lines)")
+    (should (equal "40x10" (mistty-send-and-capture-command-output)))
+
+    (mistty--set-terminal-size 160 25)
+    (mistty-send-text "echo $(tput cols)x$(tput lines)")
+    (should (equal "160x25" (mistty-send-and-capture-command-output)))
+
+    ;; This should re-enable window size tracking
+    (mistty--terminal-size-tracks-window)
+    (mistty-send-text "echo $(tput cols)x$(tput lines)")
+    (should (equal "79x22" (mistty-send-and-capture-command-output)))
+
+    (split-window)
+    (should (redisplay t))
+
+    (mistty-send-text "echo $(tput cols)x$(tput lines)")
+    (should (equal "79x10" (mistty-send-and-capture-command-output)))))
+
+(turtles-ert-deftest mistty-test-set-terminal-size-and-fullscreen (:instance 'mistty)
+  (mistty-with-test-buffer (:selected t)
+    (let ((proc mistty-proc)
+          (work-buffer mistty-work-buffer)
+          (term-buffer mistty-term-buffer))
+
+      (mistty--set-terminal-size 40 10)
+      (delete-other-windows)
+      (should (redisplay t))
+
+      ;; Enter fullscreen
+      (mistty--send-string
+       proc "printf '\\e[?1047hPress ENTER: ' && read && printf '\\e[?1047lfullscreen off'\n")
+      (mistty-wait-for-output
+       :proc proc
+       :test
+       (lambda ()
+         (buffer-local-value 'mistty-fullscreen work-buffer)))
+
+      ;; In fullscreen mode, terminal size should come from the window
+      (should (equal 79 (buffer-local-value 'term-width term-buffer)))
+      (should (equal 22 (buffer-local-value 'term-height term-buffer)))
+
+      (split-window)
+      (should (redisplay t))
+      (should (equal 79 (buffer-local-value 'term-width term-buffer)))
+      (should (equal 10 (buffer-local-value 'term-height term-buffer)))
+
+      ;; Leave fullscreen
+      (mistty--send-string proc "\n")
+      (mistty-wait-for-output
+       :proc proc
+       :test
+       (lambda ()
+         (not (buffer-local-value 'mistty-fullscreen work-buffer))))
+
+      ;; We're back to the fixed terminal size
+      (mistty-send-text "echo $(tput cols)x$(tput lines)")
+      (should (equal "40x10" (mistty-send-and-capture-command-output)))
+
+      ;; And ignoring window change sizes
+      (delete-other-windows)
+      (should (redisplay t))
+
+      (mistty-send-text "echo $(tput cols)x$(tput lines)")
+      (should (equal "40x10" (mistty-send-and-capture-command-output))))))
+
 (ert-deftest mistty-test-detect-foreign-overlays-labelled ()
   (let ((mistty-detect-foreign-overlays t))
     (mistty-with-test-buffer ()

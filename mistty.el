@@ -851,6 +851,12 @@ connect to the same host.")
 This is used by `mistty-kill-buffer' and `mistty-kill-buffer-and-window'
 to decide whether it's OK to kill the buffer.")
 
+(defvar-local mistty--terminal-size nil
+  "If non-nil, a (cons WIDTH HEIGHT) that specify the terminal size.
+
+When non-nil, tracking window size change is disabled outside of
+fullscreen mode.")
+
 (eval-when-compile
   ;; defined in term.el
   (defvar term-home-marker))
@@ -939,27 +945,43 @@ differently from modifications made inside of the synced region."
   "Asserts that the current buffer has a live process."
   (unless (process-live-p mistty-proc) (error "No running process")))
 
-(defun mistty--exec (program)
+(cl-defun mistty--exec (program &key width height)
   "Execute PROGRAM in the current buffer.
+
+Buffer must be a `mistty-mode' buffer.
 
 PROGRAM can be either a string or a list. If it is a string, it
 should be the name of an executable to run, without arguments. If
-it is a string, it should be a list of executable and its
-arguments."
+it is a list, it should be a list of executable and its
+arguments.
+
+WIDTH and HEIGHT, if specified, are used as the initial dimensions of
+the terminal. When not specified, the dimension of the terminal is taken
+from the window showing the current buffer or, if the buffer isn't
+displayed yet, the selected window."
   (unless (derived-mode-p 'mistty-mode)
     (error "Not a mistty-mode buffer"))
-  (let ((win (or (get-buffer-window (current-buffer)) (selected-window)))
-        (command (if (consp program) (car program) program))
+
+  (let ((command (if (consp program) (car program) program))
         (args (if (consp program) (cdr program) nil)))
+    (if (or width height)
+        (progn
+          (unless (and width height)
+            (error "Both width and height must be specified, not just one"))
+          (setq-local mistty--terminal-size (cons width height)))
+
+      (setq-local mistty--terminal-size nil)
+      (let ((win (or (get-buffer-window (current-buffer))
+                     (selected-window))))
+        (setq width (window-max-chars-per-line win))
+        (setq height (floor (with-selected-window win
+                                   (window-screen-lines))))))
     (mistty--attach
      (mistty--create-term
       (concat " mistty tty " (buffer-name)) command args
       ;; local-map
       mistty-fullscreen-map
-      ;; width
-      (window-max-chars-per-line win)
-      ;;height
-      (floor (with-selected-window win (window-screen-lines))))))
+      width height)))
   (mistty--wrap-capf-functions)
   (mistty--update-mode-lines)
   (run-hooks 'mistty-after-process-start-hook))
@@ -994,10 +1016,14 @@ buffer and `mistty-proc' to that buffer's process."
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
-    (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
     (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
     (add-hook 'pre-command-hook #'mistty--pre-command nil t)
-    (add-hook 'post-command-hook #'mistty--post-command nil t)))
+    (add-hook 'post-command-hook #'mistty--post-command nil t)
+
+    (if-let ((size mistty--terminal-size))
+        (mistty--set-process-window-size (car size) (cdr size))
+      (mistty--set-process-window-size-from-windows)
+      (add-hook 'window-size-change-functions #'mistty--window-size-change nil t))))
 
 (defun mistty--create-or-reuse-marker (m initial-pos)
   "Create the marker M set to INITIAL-POS or move it to that position.
@@ -1014,10 +1040,10 @@ Returns M or a new marker."
   (mistty--require-work-buffer)
 
   (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
-  (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
   (remove-hook 'after-change-functions #'mistty--after-change-on-work t)
   (remove-hook 'pre-command-hook #'mistty--pre-command t)
   (remove-hook 'post-command-hook #'mistty--post-command t)
+  (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
 
   (when mistty--queue
     (mistty--cancel-queue mistty--queue)
@@ -3528,27 +3554,48 @@ only spaces with ==\'mistty-skip between them."
           (high (max posa posb)))
       (not (text-property-any low high 'mistty-skip nil)))))
 
+(defun mistty--terminal-size-tracks-window ()
+  "Set terminal size automatically from the size of the windows."
+  (unless mistty-fullscreen
+    (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
+    (mistty--set-process-window-size-from-windows))
+  (setq mistty--terminal-size nil))
+
+(defun mistty--set-terminal-size (width height)
+  "Set size of the terminal to WIDTH x HEIGHT outside of fullscreen"
+  (unless mistty-fullscreen
+    (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
+    (mistty--set-process-window-size width height))
+  (setq mistty--terminal-size (cons width height)))
+
 (defun mistty--window-size-change (win)
   "Update the process terminal size, reacting to WIN changing size."
   (when-let ((buffer (window-buffer win)))
     (with-current-buffer buffer
-      (when (and (derived-mode-p 'mistty-mode)
-                 (process-live-p mistty-proc))
-        (let* ((adjust-func (or (process-get mistty-proc 'adjust-window-size-function)
-                                window-adjust-process-window-size-function))
-               (size (funcall adjust-func mistty-proc
-                              (get-buffer-window-list buffer nil t))))
-          (when size
-            (let ((width (car size))
-                  (height (cdr size)))
-              (mistty-log "set-process-window-size %sx%s" width height)
-              (mistty--set-process-window-size width height))))))))
+      (when (derived-mode-p 'mistty-mode)
+        (mistty--set-process-window-size-from-windows)))))
+
+(defun mistty--set-process-window-size-from-windows ()
+  "Adjust process terminal size based on the windows displaying it."
+  (when (process-live-p mistty-proc)
+    (let* ((adjust-func (or (process-get mistty-proc 'adjust-window-size-function)
+                            window-adjust-process-window-size-function))
+           (size (funcall adjust-func mistty-proc
+                          (append
+                           (get-buffer-window-list mistty-work-buffer nil t)
+                           (get-buffer-window-list mistty-term-buffer nil t)))))
+      (when size
+        (let ((width (car size))
+              (height (cdr size)))
+          (mistty-log "set-process-window-size %sx%s" width height)
+          (mistty--set-process-window-size width height))))))
 
 (defun mistty--set-process-window-size (width height)
   "Set the process terminal size to WIDTH x HEIGHT."
-  (mistty--with-live-buffer mistty-term-buffer
-    (set-process-window-size mistty-proc height width)
-    (term-reset-size height width)))
+  (when (process-live-p mistty-proc)
+    (mistty--with-live-buffer mistty-term-buffer
+      (set-process-window-size mistty-proc height width)
+      (term-reset-size height width))))
 
 (defun mistty--enter-fullscreen (proc terminal-sequence)
   "Enter fullscreen mode for PROC.
@@ -3576,8 +3623,8 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
 
     (set-process-filter proc #'mistty--fs-process-filter)
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
-
     (mistty--update-mode-lines proc)
+    (mistty--set-process-window-size-from-windows)
     (run-hooks 'mistty-entered-fullscreen-hook)
     (when (length> terminal-sequence 0)
       (funcall (process-filter proc) proc terminal-sequence))))

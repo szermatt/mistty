@@ -841,6 +841,7 @@ This function returns the newly-created buffer."
       (setq-local mistty--scrolline-home (copy-marker (point-min)))
       (setq-local mistty--scrolline-base 0)
       (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
+      (setq-local scroll-margin 0)
       (mistty-term--exec program args)
       (let ((proc (get-buffer-process term-buffer)))
         ;; TRAMP sets adjust-window-size-function to #'ignore, which

@@ -868,6 +868,7 @@ to decide whether it's OK to kill the buffer.")
   ;; commands such as more expect than the default Emacs behavior.
   (setq-local scroll-conservatively 1024)
   (setq-local window-point-insertion-type t)
+  (setq-local scroll-margin 0)
 
   ;; Mistty hides the fake newlines term added and relies on large
   ;; lines being wrapped for display and proper resizing.

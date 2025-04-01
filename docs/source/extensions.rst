@@ -155,9 +155,48 @@ Writing Your Own Commands
 You might find the following functions useful if you'd like to write
 commands that extend MisTTY's behavior:
 
+.. index:: pair: function; mistty-mode
+
+(mistty-mode): function
+  This function sets the major mode of the current buffer to
+  mistty-mode. This only useful when followed by a call to
+  ``mistty-exec``, described below.
+
+.. index:: pair: function; mistty-exec
+
+(mistty-exec PROGRAM &optional :width WIDTH :height HEIGHT)
+  This functions starts PROGRAM in the current buffer, which must
+  be a ``mistty-mode`` buffer.
+
+  PROGRAM is normally a list of executable and its argument. It can
+  also be a string containing only the executable, if no arguments
+  to be set.
+
+  It is a good idea to display the buffer before calling this
+  function, because the size of the terminal when PROGRAM is started
+  is taken from the windows displaying the buffer.
+
+  Example:
+
+  .. code-block:: elisp
+
+    (with-current-buffer (generate-new-buffer "*terminal*")
+      (mistty-mode)
+      (pop-to-buffer (current-buffer))
+      (mistty-exec '("bash" "-i")))
+
+
+  If the buffer isn't displayed, the terminal size is taken from the
+  currently selected window, which might not be what you want. You can
+  also set an arbitrary terminal size by passing the :width and
+  :height optional keyword arguments and calling
+  ``mistty-terminal-size-tracks-windows`` once the buffer has been
+  tied to a window of a reasonable size, but that might cause a
+  visible terminal refresh.
+
 .. index:: pair: function; mistty-send-string
 
-mistty-send-string : function
+(mistty-send-string STR): function
   This function sends a string to the terminal, unmodified. The string
   that is sent appear only after the function return - and it might
   not ever appear at all depending on the application attached to the
@@ -165,22 +204,23 @@ mistty-send-string : function
 
 .. index:: pair: function; mistty-on-prompt-p
 
-mistty-on-prompt-p : function
-  This function returns non-nil if the given position is inside of a
-  prompt MisTTY is aware of. This is useful for writing commands that
-  behave differently on a prompt than on program output, even while
-  inside of the terminal zone. It is used to implement
+(mistty-on-prompt-p POS) : function
+  This function returns non-nil if the POS is inside of a prompt
+  MisTTY is aware of. This is useful for writing commands that behave
+  differently on a prompt than on program output, even while inside of
+  the terminal zone. It is used to implement
   :code:`mistty-beginning-of-line` for example.
 
 .. index:: pair: function; mistty-maybe-realize-possible-prompt
 
-mistty-maybe-realize-possible-prompt : function
+(mistty-maybe-realize-possible-prompt &optional POS) : function
   This function might be useful to call in your commands to tell
-  MisTTY that there's likely a prompt at the current pointer position.
+  MisTTY that there's likely a prompt at the current pointer
+  position or at POS.
 
 .. index:: pair: function; mistty-before-position
 
-mistty-before-position : function
+(mistty-before-positional) : function
   This function not only checks whether there's a prompt at the
   position, but also attempt to move the terminal cursor to that
   position.

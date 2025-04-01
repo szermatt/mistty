@@ -1808,12 +1808,60 @@ same argument.
 You might find the following functions useful if you’d like to write
 commands that extend MisTTY’s behavior:
 
+@geindex function; mistty-mode
+
+
+@table @asis
+
+@item (mistty-mode): function
+
+This function sets the major mode of the current buffer to
+mistty-mode. This only useful when followed by a call to
+@code{mistty-exec}, described below.
+@end table
+
+@geindex function; mistty-exec
+
+
+@table @asis
+
+@item (mistty-exec PROGRAM &optional :width WIDTH :height HEIGHT)
+
+This functions starts PROGRAM in the current buffer, which must
+be a @code{mistty-mode} buffer.
+
+PROGRAM is normally a list of executable and its argument. It can
+also be a string containing only the executable, if no arguments
+to be set.
+
+It is a good idea to display the buffer before calling this
+function, because the size of the terminal when PROGRAM is started
+is taken from the windows displaying the buffer.
+
+Example:
+
+@example
+(with-current-buffer (generate-new-buffer "*terminal*")
+  (mistty-mode)
+  (pop-to-buffer (current-buffer))
+  (mistty-exec '("bash" "-i")))
+@end example
+
+If the buffer isn’t displayed, the terminal size is taken from the
+currently selected window, which might not be what you want. You can
+also set an arbitrary terminal size by passing the :width and
+:height optional keyword arguments and calling
+@code{mistty-terminal-size-tracks-windows} once the buffer has been
+tied to a window of a reasonable size, but that might cause a
+visible terminal refresh.
+@end table
+
 @geindex function; mistty-send-string
 
 
 @table @asis
 
-@item mistty-send-string : function
+@item (mistty-send-string STR): function
 
 This function sends a string to the terminal, unmodified. The string
 that is sent appear only after the function return - and it might
@@ -1826,12 +1874,12 @@ terminal. This is used to implement @code{mistty-sudo} for example.
 
 @table @asis
 
-@item mistty-on-prompt-p : function
+@item (mistty-on-prompt-p POS) : function
 
-This function returns non-nil if the given position is inside of a
-prompt MisTTY is aware of. This is useful for writing commands that
-behave differently on a prompt than on program output, even while
-inside of the terminal zone. It is used to implement
+This function returns non-nil if the POS is inside of a prompt
+MisTTY is aware of. This is useful for writing commands that behave
+differently on a prompt than on program output, even while inside of
+the terminal zone. It is used to implement
 @code{mistty-beginning-of-line} for example.
 @end table
 
@@ -1840,10 +1888,11 @@ inside of the terminal zone. It is used to implement
 
 @table @asis
 
-@item mistty-maybe-realize-possible-prompt : function
+@item (mistty-maybe-realize-possible-prompt &optional POS) : function
 
 This function might be useful to call in your commands to tell
-MisTTY that there’s likely a prompt at the current pointer position.
+MisTTY that there’s likely a prompt at the current pointer
+position or at POS.
 @end table
 
 @geindex function; mistty-before-position
@@ -1851,7 +1900,7 @@ MisTTY that there’s likely a prompt at the current pointer position.
 
 @table @asis
 
-@item mistty-before-position : function
+@item (mistty-before-positional) : function
 
 This function not only checks whether there’s a prompt at the
 position, but also attempt to move the terminal cursor to that

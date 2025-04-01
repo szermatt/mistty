@@ -4696,7 +4696,7 @@
 
 (turtles-ert-deftest mistty-test-set-terminal-size (:instance 'mistty)
   (mistty-with-test-buffer (:selected t :term-size 'window)
-    (mistty--set-terminal-size 40 10)
+    (mistty-set-terminal-size 40 10)
     (mistty-send-text "echo $(tput cols)x$(tput lines)")
     (should (equal "40x10" (mistty-send-and-capture-command-output)))
 
@@ -4707,12 +4707,12 @@
     (mistty-send-text "echo $(tput cols)x$(tput lines)")
     (should (equal "40x10" (mistty-send-and-capture-command-output)))
 
-    (mistty--set-terminal-size 160 25)
+    (mistty-set-terminal-size 160 25)
     (mistty-send-text "echo $(tput cols)x$(tput lines)")
     (should (equal "160x25" (mistty-send-and-capture-command-output)))
 
     ;; This should re-enable window size tracking
-    (mistty--terminal-size-tracks-window)
+    (mistty-terminal-size-tracks-window)
     (mistty-send-text "echo $(tput cols)x$(tput lines)")
     (should (equal "79x22" (mistty-send-and-capture-command-output)))
 
@@ -4728,7 +4728,7 @@
           (work-buffer mistty-work-buffer)
           (term-buffer mistty-term-buffer))
 
-      (mistty--set-terminal-size 40 10)
+      (mistty-set-terminal-size 40 10)
       (delete-other-windows)
       (should (redisplay t))
 
@@ -4771,8 +4771,8 @@
 
 (ert-deftest mistty-enforce-min-terminal-size ()
   (mistty-with-test-buffer ()
-    (should-error (mistty--set-terminal-size 2 20))
-    (should-error (mistty--set-terminal-size 80 2))
+    (should-error (mistty-set-terminal-size 2 20))
+    (should-error (mistty-set-terminal-size 80 2))
     (should-error (mistty--exec "/usr/bin/false" :width 2 :height 20))
     (should-error (mistty--exec "/usr/bin/false" :width 80 :height 2))))
 
@@ -4782,14 +4782,14 @@
       (should (equal 8 mistty-min-terminal-width))
       (should (equal 4 mistty-min-terminal-height))
 
-      (mistty--set-terminal-size 8 4)
+      (mistty-set-terminal-size 8 4)
       (mistty--send-string mistty-proc "echo $(tput cols)x$(tput lines)")
       (should (equal "8x4" (mistty-send-and-capture-command-output))))))
 
 (turtles-ert-deftest mistty-test-min-terminal-size ()
   (mistty-with-test-buffer (:selected t :term-size 'window)
     (let ((mistty--inhibit-fake-nl-cleanup nil))
-      (mistty--set-terminal-size 8 4)
+      (mistty-set-terminal-size 8 4)
 
       (mistty--send-string mistty-proc "for i in $(seq 0 10); do echo hello, world; done")
       (mistty-wait-for-output :regexp "d\n?o\n?n\n?e")

@@ -3565,8 +3565,15 @@ only spaces with ==\'mistty-skip between them."
           (high (max posa posb)))
       (not (text-property-any low high 'mistty-skip nil)))))
 
-(defun mistty--terminal-size-tracks-window ()
-  "Set terminal size automatically from the size of the windows."
+(defun mistty-terminal-size-tracks-window ()
+  "Set terminal size automatically from the size of the windows.
+
+By default, MisTTY sets the terminal to a size that fits the windows the
+buffer is currently displayed in.
+
+This can be modified by calling `mistty-set-terminal-size', which see.
+This function reverts to the default behavior."
+  (interactive)
   (unless mistty-fullscreen
     (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
     (mistty--set-process-window-size-from-windows))
@@ -3581,8 +3588,22 @@ only spaces with ==\'mistty-skip between them."
   (unless (>= height mistty-min-terminal-height)
     (error "Terminal height must be at least %s" mistty-min-terminal-height)))
 
-(defun mistty--set-terminal-size (width height)
-  "Set size of the terminal to WIDTH x HEIGHT outside of fullscreen"
+(defun mistty-set-terminal-size (width height)
+  "Set size of the terminal to WIDTH x HEIGHT outside of fullscreen.
+
+By default, MisTTY sets the terminal to a size that fits the windows the
+buffer is currently displayed in.
+
+If you prefer, you can instead give the terminal a fixed dimension. This
+might be useful if you're running program that don't check the size of
+the terminal before displaying.
+
+Note that this setting doesn't apply to the fullscreen mode. Terminal
+size always matches window size when in fullscreen mode.
+
+To go back to tracking window size, call
+`mistty-terminal-size-tracks-window'."
+  (interactive "nTerminal width: \nnTerminal height: ")
   (mistty--check-terminal-size width height)
   (unless mistty-fullscreen
     (remove-hook 'window-size-change-functions #'mistty--window-size-change t)

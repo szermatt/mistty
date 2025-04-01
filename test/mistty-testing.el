@@ -134,6 +134,7 @@ Defaults to 80x24"
                (mistty-entered-fullscreen-hook nil)
                (mistty-left-fullscreen-hook nil)
                (mistty-allow-clearing-scrollback nil)
+               (mistty-default-terminal-size nil)
                (mistty-log mistty-test-log))
            (ert-with-temp-directory mistty-tmpdir
              (unwind-protect

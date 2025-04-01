@@ -389,6 +389,32 @@ of place for some languages."
   :group 'mistty
   :type 'string)
 
+(defcustom mistty-default-terminal-size nil
+  "Sets the size of the terminal backing MisTTY.
+
+By default, MisTTY sets the terminal to a size that fits the windows the
+buffer is currently displayed in.
+
+If you prefer, you can instead give the terminal a fixed dimension, by
+setting this option to (cons WIDTH HEIGHT).
+
+This might be useful if you're running program that don't check the size
+of the terminal before displaying. On the other hand, this might be
+confusing if you run programs that do check the size of the terminal,
+such as more.
+
+Note that this setting doesn't apply to the fullscreen mode. Terminal
+size always matches window size when in fullscreen mode.
+
+You can also change the terminal size of existing MisTTY buffers with
+the commands `mistty-set-terminal-size' and
+`mistty-terminal-size-tracks-window'."
+  :group 'mistty
+  :type '(choice (const :tag "Track Windows" nil)
+                 (cons :tag "Fixed Size"
+                       (natnum :tag "Width")
+                       (natnum :tag "Height"))))
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -968,14 +994,21 @@ it is a list, it should be a list of executable and its
 arguments.
 
 WIDTH and HEIGHT, if specified, are used as the initial dimensions of
-the terminal. When not specified, the dimension of the terminal is taken
-from the window showing the current buffer or, if the buffer isn't
-displayed yet, the selected window."
+the terminal. When not specified and `mistty-default-terminal-size' is
+nil, the dimension of the terminal is taken from the window showing the
+current buffer or, if the buffer isn't displayed yet, the selected
+window."
   (unless (derived-mode-p 'mistty-mode)
     (error "Not a mistty-mode buffer"))
 
   (let ((command (if (consp program) (car program) program))
         (args (if (consp program) (cdr program) nil)))
+    (when (and mistty-default-terminal-size
+               (null width)
+               (null height))
+      (setq width (car mistty-default-terminal-size))
+      (setq height (cdr mistty-default-terminal-size)))
+
     (if (or width height)
         (progn
           (mistty--check-terminal-size width height)

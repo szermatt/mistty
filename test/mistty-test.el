@@ -426,7 +426,7 @@
       ;; mistty-with-test-buffer clears
       ;; mistty-after-process-start-hook, so can't be used here.
       (mistty-mode)
-      (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
+      (mistty-exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
       (setq term-proc mistty-proc)
       (setq term-buffer mistty-term-buffer)
       (should (equal (length calls) 1))
@@ -4773,8 +4773,8 @@
   (mistty-with-test-buffer ()
     (should-error (mistty-set-terminal-size 2 20))
     (should-error (mistty-set-terminal-size 80 2))
-    (should-error (mistty--exec "/usr/bin/false" :width 2 :height 20))
-    (should-error (mistty--exec "/usr/bin/false" :width 80 :height 2))))
+    (should-error (mistty-exec "/usr/bin/false" :width 2 :height 20))
+    (should-error (mistty-exec "/usr/bin/false" :width 80 :height 2))))
 
 (turtles-ert-deftest mistty-test-terminal-accepts-min-terminal-size ()
   (mistty-with-test-buffer (:selected t :term-size 'window)
@@ -5053,7 +5053,7 @@
         (mistty-at-end 'kill-buffer-and-window))
     (ert-with-test-buffer ()
       (mistty-mode)
-      (mistty--exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
+      (mistty-exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
 
       ;; Wait for the default prompt
       (mistty-wait-for-output :str "$")
@@ -6833,6 +6833,28 @@ precmd_functions+=(prompt_header)
   (let ((mistty-default-terminal-size '(160 . 50)))
     (ert-with-test-buffer ()
       (mistty-mode)
-      (mistty--exec mistty-test-bash-exe)
+      (mistty-exec mistty-test-bash-exe)
       (should (equal 160 (buffer-local-value 'term-width mistty-term-buffer)))
       (should (equal 50 (buffer-local-value 'term-height mistty-term-buffer))))))
+
+(ert-deftest mistty-test-exec-called-multiple-times ()
+  (mistty-with-test-buffer ()
+    (let ((first-proc mistty-proc)
+          (first-term-buffer mistty-term-buffer))
+      (mistty-send-text "i=1")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo i:$i")
+      (should (equal "i:1" (mistty-send-and-capture-command-output)))
+
+      ;; Calls mistty-exec a second time. This should stop the first
+      ;; process.
+      (ert-with-temp-directory tmpdir
+        (mistty-test-setup-bash tmpdir nil nil)
+        (mistty-send-text "echo i:$i")
+        (should (equal "i:" (mistty-send-and-capture-command-output)))
+
+        (should-not (equal first-proc mistty-proc))
+        (should-not (equal first-term-buffer mistty-term-buffer))
+
+        (should-not (process-live-p first-proc))
+        (should-not (buffer-live-p first-term-buffer))))))

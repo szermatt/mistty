@@ -228,7 +228,7 @@ Defaults to 80x24"
       (when init
         (insert init)))
     (mistty-test-set-prompt-re "$ ")
-    (mistty--exec
+    (mistty-exec
      (list mistty-test-bash-exe "--noprofile" "--rcfile" rcfile "-i")
      :width (if (eq 'window term-size)
                 nil
@@ -250,7 +250,7 @@ Defaults to 80x24"
             (insert "PS1='$ '\n")
             (when init
               (insert init)))
-          (mistty--exec (list mistty-test-zsh-exe "-i" "+d")
+          (mistty-exec (list mistty-test-zsh-exe "-i" "+d")
                         :width (car term-size) :height (cdr term-size))
           (mistty-run-command) ;; detect early foreign overlay
           (mistty-test-set-prompt-re "$ ")
@@ -259,7 +259,7 @@ Defaults to 80x24"
       (setenv "PROMPT_EOL_MARK" orig-prompt-eol-mark))))
 
 (defun mistty-test-setup-fish (tmpdir init term-size)
-  (mistty--exec
+  (mistty-exec
    (list
     mistty-test-fish-exe
     "-i" "-N" "-C"
@@ -294,7 +294,7 @@ Defaults to 80x24"
 (defun mistty-test-setup-ipython (tmpdir init term-size)
   (when init
     (error "Test setup of ipython doesn't support :INIT yet."))
-  (mistty--exec (list mistty-test-ipython-exe
+  (mistty-exec (list mistty-test-ipython-exe
                       "--quick"
                       "--no-banner"
                       "--no-confirm-exit"

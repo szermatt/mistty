@@ -983,10 +983,11 @@ differently from modifications made inside of the synced region."
   "Asserts that the current buffer has a live process."
   (unless (process-live-p mistty-proc) (error "No running process")))
 
-(cl-defun mistty--exec (program &key width height)
+(cl-defun mistty-exec (program &key width height)
   "Execute PROGRAM in the current buffer.
 
-Buffer must be a `mistty-mode' buffer.
+Buffer must be a `mistty-mode' buffer. If it is already running a
+program, it is replaced with the new one.
 
 PROGRAM can be either a string or a list. If it is a string, it
 should be the name of an executable to run, without arguments. If
@@ -1000,6 +1001,9 @@ current buffer or, if the buffer isn't displayed yet, the selected
 window."
   (unless (derived-mode-p 'mistty-mode)
     (error "Not a mistty-mode buffer"))
+
+  (mistty--kill-term-buffer)
+  (erase-buffer)
 
   (let ((command (if (consp program) (car program) program))
         (args (if (consp program) (cdr program) nil)))
@@ -1104,6 +1108,9 @@ Returns M or a new marker."
       (mistty--detach))
     (mistty--update-mode-lines)
     (when (buffer-live-p term-buffer)
+      (when-let ((proc (get-buffer-process term-buffer)))
+        (when (process-live-p proc)
+          (delete-process proc)))
       (let ((kill-buffer-query-functions nil))
         (kill-buffer term-buffer)))))
 
@@ -1327,7 +1334,7 @@ Upon success, the function returns the newly-created buffer."
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.
     (mistty--pop-to-buffer buf other-window)
-    (with-current-buffer buf (mistty--exec command))
+    (with-current-buffer buf (mistty-exec command))
     buf))
 
 (defun mistty--generate-new-buffer-name (bufname)

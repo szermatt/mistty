@@ -608,15 +608,25 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
             (inhibit-read-only t) ;; allow modifications in char mode
             (start 0)
             ;; Using term-buffer-vertical-motion causes strange
-            ;; issues; avoid it. Using mistty's window to compute
-            ;; vertical motion is correct since the window dimension
-            ;; are kept in sync with the terminal size. Falling back
-            ;; to using the selected window, on the other hand, is
-            ;; questionable.
+            ;; issues; avoid it. Additionally, it's not actually
+            ;; necessary since term.el adds newlines instead of
+            ;; relying on Emacs wrapping lines. Mistty makes sure of
+            ;; that by forcing term-suppress-hard-newline off.
             ((symbol-function 'term-buffer-vertical-motion)
              (lambda (count)
-               (vertical-motion count (or (get-buffer-window work-buffer)
-                                          (selected-window)))))
+               (let ((start-point (point))
+                     (res (forward-line count)))
+                 ;; Convert forward-line return value (lines left to
+                 ;; go through) to vertical-motion's (lines gone
+                 ;; through) with a workaround for forward-line
+                 ;; special handling of the last line.
+                 (setq res (- count res))
+                 (when (and (> count 0)
+                            (= (point) (point-max))
+                            (> (point) start-point)
+                            (not (eq ?\n (char-before (point-max)))))
+                   (cl-decf res))
+                 res)))
             ((symbol-function 'term-delete-chars)
              (lambda (count)
                (let ((save-point (point)))
@@ -842,6 +852,14 @@ This function returns the newly-created buffer."
       (setq-local mistty--scrolline-base 0)
       (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
       (setq-local scroll-margin 0)
+
+      ;; This makes sure the obsolete option
+      ;; term-suppress-hard-newline is not set, as MisTTY relies on
+      ;; term.el inserting fake newlines marked with term-line-wrap.
+      (let ((var 'term-suppress-hard-newline))
+        (when (and (boundp var) (symbol-value var))
+          (setf (buffer-local-value var (current-buffer)) nil)))
+
       (mistty-term--exec program args)
       (let ((proc (get-buffer-process term-buffer)))
         ;; TRAMP sets adjust-window-size-function to #'ignore, which

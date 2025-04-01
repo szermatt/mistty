@@ -4769,6 +4769,59 @@
       (mistty-send-text "echo $(tput cols)x$(tput lines)")
       (should (equal "40x10" (mistty-send-and-capture-command-output))))))
 
+(ert-deftest mistty-enforce-min-terminal-size ()
+  (mistty-with-test-buffer ()
+    (should-error (mistty--set-terminal-size 2 20))
+    (should-error (mistty--set-terminal-size 80 2))
+    (should-error (mistty--exec "/usr/bin/false" :width 2 :height 20))
+    (should-error (mistty--exec "/usr/bin/false" :width 80 :height 2))))
+
+(turtles-ert-deftest mistty-test-terminal-accepts-min-terminal-size ()
+  (mistty-with-test-buffer (:selected t :term-size 'window)
+    (let ((mistty--inhibit-fake-nl-cleanup nil))
+      (should (equal 8 mistty-min-terminal-width))
+      (should (equal 4 mistty-min-terminal-height))
+
+      (mistty--set-terminal-size 8 4)
+      (mistty--send-string mistty-proc "echo $(tput cols)x$(tput lines)")
+      (should (equal "8x4" (mistty-send-and-capture-command-output))))))
+
+(turtles-ert-deftest mistty-test-min-terminal-size ()
+  (mistty-with-test-buffer (:selected t :term-size 'window)
+    (let ((mistty--inhibit-fake-nl-cleanup nil))
+      (mistty--set-terminal-size 8 4)
+
+      (mistty--send-string mistty-proc "for i in $(seq 0 10); do echo hello, world; done")
+      (mistty-wait-for-output :regexp "d\n?o\n?n\n?e")
+
+      ;; Fake newlines exist on the terminal...
+      (should (equal "$ for i\nin $(seq\n 0 10);\ndo echo\nhello, w\norld; do\nne"
+                     (mistty-test-content)))
+
+      ;; ... but they're invisible
+      (turtles-with-grab-buffer ()
+        (should (equal "$ for i in $(seq 0 10); do echo hello, world; done"
+                       (buffer-string))))
+
+      (mistty-send-and-wait-for-prompt)
+
+      ;; Only the correct newlines are left when leaving the terminal area
+      (should (equal (concat
+                      "$ for i in $(seq 0 10); do echo hello, world; done\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "hello, world\n"
+                      "$")
+                     (mistty-test-content))))))
+
 (ert-deftest mistty-test-detect-foreign-overlays-labelled ()
   (let ((mistty-detect-foreign-overlays t))
     (mistty-with-test-buffer ()

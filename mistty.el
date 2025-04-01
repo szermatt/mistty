@@ -864,6 +864,18 @@ fullscreen mode.")
 (defconst mistty--ws "[:blank:]\n\r"
   "A character class that matches spaces and newlines, for MisTTY.")
 
+(defconst mistty-min-terminal-width 8
+  "Minimum terminal width.
+
+Width smaller than that will not be accepted as terminal size and will
+be ignored if coming from window size.")
+
+(defconst mistty-min-terminal-height 4
+  "Minimum terminal height.
+
+Height smaller than that will not be accepted as terminal size and will
+be ignored if coming from window size.")
+
 (define-derived-mode mistty-mode fundamental-mode "misTTY" "Line-based TTY."
   :interactive nil
   (setq buffer-read-only nil)
@@ -966,8 +978,7 @@ displayed yet, the selected window."
         (args (if (consp program) (cdr program) nil)))
     (if (or width height)
         (progn
-          (unless (and width height)
-            (error "Both width and height must be specified, not just one"))
+          (mistty--check-terminal-size width height)
           (setq-local mistty--terminal-size (cons width height)))
 
       (setq-local mistty--terminal-size nil)
@@ -3561,8 +3572,18 @@ only spaces with ==\'mistty-skip between them."
     (mistty--set-process-window-size-from-windows))
   (setq mistty--terminal-size nil))
 
+(defun mistty--check-terminal-size (width height)
+  "Make sure that WIDTH and HEIGHT are acceptable term sizes."
+  (unless (and width height)
+    (error "Specify both width and height"))
+  (unless (>= width mistty-min-terminal-width)
+    (error "Terminal width must be at least %s" mistty-min-terminal-width))
+  (unless (>= height mistty-min-terminal-height)
+    (error "Terminal height must be at least %s" mistty-min-terminal-height)))
+
 (defun mistty--set-terminal-size (width height)
   "Set size of the terminal to WIDTH x HEIGHT outside of fullscreen"
+  (mistty--check-terminal-size width height)
   (unless mistty-fullscreen
     (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
     (mistty--set-process-window-size width height))
@@ -3591,11 +3612,16 @@ only spaces with ==\'mistty-skip between them."
           (mistty--set-process-window-size width height))))))
 
 (defun mistty--set-process-window-size (width height)
-  "Set the process terminal size to WIDTH x HEIGHT."
+  "Set the process terminal size to WIDTH x HEIGHT.
+
+Width and height are limited to `mistty-min-terminal-width' and
+`mistty-min-terminal-height'."
   (when (process-live-p mistty-proc)
-    (mistty--with-live-buffer mistty-term-buffer
-      (set-process-window-size mistty-proc height width)
-      (term-reset-size height width))))
+    (let ((width (max width mistty-min-terminal-width))
+          (height (max height mistty-min-terminal-height)))
+      (mistty--with-live-buffer mistty-term-buffer
+        (set-process-window-size mistty-proc height width)
+        (term-reset-size height width)))))
 
 (defun mistty--enter-fullscreen (proc terminal-sequence)
   "Enter fullscreen mode for PROC.

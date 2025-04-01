@@ -87,9 +87,7 @@
     (should (equal "hello" (mistty-send-and-capture-command-output)))))
 
 (ert-deftest mistty-test-reconcile-delete-on-long-prompt ()
-  (mistty-with-test-buffer ()
-    (mistty--set-process-window-size 20 20)
-
+  (mistty-with-test-buffer (:term-size '(20 . 20))
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
     (mistty-wait-for-output :str "nine" :cursor-at-end t)
@@ -1469,9 +1467,7 @@
                     :show-property '(mistty-skip indent))))))
 
 (ert-deftest mistty-test-insert-long-prompt ()
-  (mistty-with-test-buffer ()
-    (mistty--set-process-window-size 20 20)
-
+  (mistty-with-test-buffer (:term-size '(20 . 20))
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
     (mistty-wait-for-output :str "nine" :cursor-at-end t)
@@ -1479,9 +1475,7 @@
                    (mistty-test-content)))))
 
 (ert-deftest mistty-test-keep-sync-marker-on-long-prompt ()
-  (mistty-with-test-buffer ()
-    (mistty--set-process-window-size 20 20)
-
+  (mistty-with-test-buffer (:term-size '(20 . 20))
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
     (mistty-wait-for-output :str "nine" :cursor-at-end t)
@@ -1490,9 +1484,7 @@
     (should (equal (marker-position mistty-sync-marker) (point-min)))))
 
 (ert-deftest mistty-test-keep-pointer-on-long-prompt ()
-  (mistty-with-test-buffer ()
-    (mistty--set-process-window-size 20 20)
-
+  (mistty-with-test-buffer (:term-size '(20 . 20))
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
     (mistty-wait-for-output :str "nine" :cursor-at-end t)
@@ -1506,10 +1498,8 @@
         (should (equal (mistty-cursor) goal-pos))))))
 
 (ert-deftest mistty-test-delete-fake-nl-after-long-prompts ()
-  (mistty-with-test-buffer ()
+  (mistty-with-test-buffer (:term-size '(20 . 20))
     (let ((mistty--inhibit-fake-nl-cleanup nil))
-      (mistty--set-process-window-size 20 20)
-
       (mistty-run-command
        (insert "echo one two three four five six seven eight nine"))
       (mistty-wait-for-output :str "nine" :cursor-at-end t)
@@ -3204,9 +3194,7 @@
                      (buffer-string)))))))
 
 (ert-deftest mistty-test-yank-handler ()
-  (mistty-with-test-buffer ()
-    (mistty--set-process-window-size 20 20)
-
+  (mistty-with-test-buffer (:term-size '(20 . 20))
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
     (mistty-wait-for-output :str "nine" :cursor-at-end t)
@@ -4201,9 +4189,7 @@
                                 (mistty-test-all-inputs))))))))
 
 (ert-deftest mistty-test-kill-long-line ()
-  (mistty-with-test-buffer ()
-    (mistty--set-process-window-size 20 20)
-
+  (mistty-with-test-buffer (:term-size '(20 . 20))
     (mistty-run-command
      (insert "echo one two three four five six seven eight nine"))
     (mistty-wait-for-output :str "nine" :cursor-at-end t)
@@ -4633,7 +4619,7 @@
         (kill-buffer buf)))))
 
 (turtles-ert-deftest mistty-test-window-size (:instance 'mistty)
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer (:selected t :term-size 'window)
     ;; initial window, half height
     (should (equal (cons 79 10)
                    (with-current-buffer mistty-term-buffer
@@ -4654,7 +4640,7 @@
     (should (equal "79x22" (mistty-send-and-capture-command-output)))))
 
 (turtles-ert-deftest mistty-test-window-size-resize-other-window (:instance 'mistty)
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer (:selected t :term-size 'window)
     (let ((work-buffer mistty-work-buffer)
           (work-window (selected-window)))
       ;; initial window, half height
@@ -4673,7 +4659,7 @@
         (should (equal "79x12" (mistty-send-and-capture-command-output)))))))
 
 (turtles-ert-deftest mistty-test-window-width (:instance 'mistty)
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer (:selected t :term-size 'window)
     (delete-other-windows)
     (should (redisplay t)) ;; recompute size
 
@@ -4709,7 +4695,7 @@
           (buffer-substring start end)))))))
 
 (turtles-ert-deftest mistty-test-set-terminal-size (:instance 'mistty)
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer (:selected t :term-size 'window)
     (mistty--set-terminal-size 40 10)
     (mistty-send-text "echo $(tput cols)x$(tput lines)")
     (should (equal "40x10" (mistty-send-and-capture-command-output)))
@@ -4737,7 +4723,7 @@
     (should (equal "79x10" (mistty-send-and-capture-command-output)))))
 
 (turtles-ert-deftest mistty-test-set-terminal-size-and-fullscreen (:instance 'mistty)
-  (mistty-with-test-buffer (:selected t)
+  (mistty-with-test-buffer (:selected t :term-size 'window)
     (let ((proc mistty-proc)
           (work-buffer mistty-work-buffer)
           (term-buffer mistty-term-buffer))
@@ -5197,9 +5183,7 @@
     (should-not mark-active)))
 
 (ert-deftest mistty-test-recovery ()
-  (mistty-with-test-buffer ()
-    (mistty--set-process-window-size 80 20)
-
+  (mistty-with-test-buffer (:term-size '(80 . 20))
     ;; Make sure that there's more text in the term buffer than the
     ;; window height allows.
     (dotimes (i 20)
@@ -5263,9 +5247,7 @@
 
 (ert-deftest mistty-test-recovery-despite-fakenl-cleanup ()
   (let ((mistty--inhibit-fake-nl-cleanup nil))
-    (mistty-with-test-buffer ()
-      (mistty--set-process-window-size 20 20)
-
+    (mistty-with-test-buffer (:term-size '(20 . 20))
       ;; Insert text that'll be too long for the window, so term
       ;; inserts fake newlines, which later get cleaned up when the
       ;; zone transitions to scrollback. These changes should not
@@ -6167,7 +6149,7 @@ function prompt {
         (global-goto-address-mode -1)))))
 
 (turtles-ert-deftest mistty-scrolline-after-scrolling (:instance 'mistty)
-  (mistty-with-test-buffer ()
+  (mistty-with-test-buffer (:term-size 'window)
     (save-restriction
       (let (one two)
         (mistty--send-string
@@ -6231,7 +6213,7 @@ function prompt {
         (should (null (mistty--scrolline-pos two)))))))
 
 (turtles-ert-deftest mistty-scrolline-after-scrolling-long-lines (:instance 'mistty)
-  (mistty-with-test-buffer ()
+  (mistty-with-test-buffer (:term-size 'window)
     (save-restriction
       (let (one two)
         ;; Each line counts double, as it is split by term.

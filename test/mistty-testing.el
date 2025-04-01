@@ -110,8 +110,9 @@ INIT is a string to append to the shell RC file.
 If SELECTED is non-nil, make sure the buffer is in a selected
 window while BODY is running.
 
-TERM-SIZE specifies a fixed terminal size, detached from window size,
-as (cons WIDTH HEIGHT)."
+TERM-SIZE specifies either 'window, to track window size or a fixed
+terminal size, detached from window size, as (cons WIDTH HEIGHT).
+Defaults to 80x24"
   (declare (indent 1))
   (let ((exec-var (intern (concat "mistty-test-" (symbol-name shell) "-exe"))))
     `(progn
@@ -228,7 +229,12 @@ as (cons WIDTH HEIGHT)."
     (mistty-test-set-prompt-re "$ ")
     (mistty--exec
      (list mistty-test-bash-exe "--noprofile" "--rcfile" rcfile "-i")
-     :width (car term-size) :height (cdr term-size))
+     :width (if (eq 'window term-size)
+                nil
+              (or (car term-size) 80))
+     :height (if (eq 'window term-size)
+                 nil
+               (or (cdr term-size) 24)))
     (mistty-run-command) ;; detect early foreign overlay
     (mistty-wait-for-output :str "$ ")))
 

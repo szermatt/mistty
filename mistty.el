@@ -2575,10 +2575,6 @@ append that changeset to the current one. If that works, the
 changeset is released and the call returns t, otherwise the call
 returns nil."
   (let ((interact (mistty--make-interact 'replay))
-        next-modification-f
-        move-to-target-f after-move-vertically-f after-move-to-target-f
-        delete-lines-f after-delete-lines-f
-        insert-and-delete-f after-insert-and-delete-f
 
         ;; mistty--changeset-modification extracts modification from
         ;; the buffer. It must be called when the interaction is
@@ -2595,12 +2591,6 @@ returns nil."
         orig-beg content old-length waiting-for-last-change
         inserted-detector-regexp point-after-last-insert)
 
-    (if (null modifications)
-        (prog1 nil
-          (mistty--release-changeset cs)
-          (unless mistty--changesets
-            (setq mistty--inhibit-refresh nil)))
-
       ;; If the point is after the last insert, which is very common,
       ;; trust the cursor position instead of relying on
       ;; replace-buffer-contents to set the point properly. This is
@@ -2612,360 +2602,370 @@ returns nil."
               (when (length> (nth 1 m) 0)
                 (equal (point) (+ (nth 0 m) (length (nth 1 m)))))))
 
-      (setf
-       (mistty--interact-cb interact)
-       (lambda (&optional _)
-         (set-buffer calling-buffer)
-         (setq backstage (mistty--create-backstage mistty-proc))
-         (let ((work-sync-marker (marker-position mistty-sync-marker)))
-           (set-buffer backstage)
-           ;; Move modifications positions into the backstage buffer.
-           ;; Rely on markers to keep the positions valid through
-           ;; buffer modifications.
-           (dolist (m modifications)
-             (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min))))))
-         (setq lower-limit (point-min-marker))
-         (setq upper-limit (point-max-marker))
-         (funcall next-modification-f)))
+      ;; Init interact
+      (cl-labels
+          ((start (&optional _) ;; Interact entry point
+             (set-buffer calling-buffer)
+             (setq backstage (mistty--create-backstage mistty-proc))
+             (let ((work-sync-marker (marker-position mistty-sync-marker)))
+               (set-buffer backstage)
+               ;; Move modifications positions into the backstage buffer.
+               ;; Rely on markers to keep the positions valid through
+               ;; buffer modifications.
+               (dolist (m modifications)
+                 (setcar m (copy-marker (+ (car m) (- work-sync-marker) (point-min))))))
+             (setq lower-limit (point-min-marker))
+             (setq upper-limit (point-max-marker))
+             (next-modification))
 
-      (setq
-       next-modification-f
-       (lambda ()
-         ;; No more modifications.
-         (unless modifications
-           (set-buffer calling-buffer)
+           (next-modification ()
+             (if modifications
+                 (handle-modification (pop modifications))
+               (done-handling-modifications)))
 
-           ;; Force refresh, even if nothing was sent, if only to revert what
-           ;; couldn't be replayed.
-           (mistty--needs-refresh)
+           (handle-modification (m)
+             (setq orig-beg (nth 0 m))
+             (setq content (nth 1 m))
+             (setq old-length (nth 2 m))
 
-           (if (or inhibit-moves point-after-last-insert)
-               (setq mistty-goto-cursor-next-time t)
+             (move-marker beg orig-beg)
+             (if (< old-length 0)
+                 (let ((end
+                        ;; When looking for the end of the text to be
+                        ;; deleted marked with old-length=-1, ignore the
+                        ;; final \n or anything marked mistty-skip, as
+                        ;; these cannot be deleted.
+                        (save-excursion
+                          (goto-char (point-max))
+                          (when (eq (char-before) ?\n)
+                            (goto-char (1- (point))))
+                          (while (get-text-property (1- (point)) 'mistty-skip)
+                            (goto-char (1- (point))))
+                          (point))))
+                   (setq old-length (if (> end orig-beg) (- end orig-beg) 0))
+                   (move-marker old-end (max orig-beg end)))
+               (move-marker old-end (+ orig-beg old-length)))
 
-             ;; Move cursor back to point unless the next interact is a
-             ;; replay, in which case we let the replay move the cursor.
-             (setq mistty-goto-cursor-next-time 'off)
-             (let ((next (car (mistty--queue-more-interacts mistty--queue))))
-               (when (or (null next)
-                         (not (eq 'replay (mistty--interact-type next))))
-                 (mistty--enqueue
-                  mistty--queue
-                  (mistty--cursor-to-point-interaction) 'prepend))))
-           (mistty--interact-done))
+             ;; never delete the final \n that some shells add.
+             (when (and (> old-length 0)
+                        (= old-end (point-max))
+                        (= ?\n (char-before old-end)))
+               (move-marker old-end (1- old-end))
+               (setq old-length (1- old-length)))
 
-         ;; Handle modification.
-         (let ((m (car modifications)))
-           (setq modifications (cdr modifications))
+             ;; don't even try to move through trailing ws, as they may
+             ;; not exist (Issue #34)
+             (setq trailing-ws-to-delete 0)
+             (when (memq (char-after old-end) '(nil ?\n))
+               (let ((at-end (<= (mistty--last-non-ws) old-end )))
+                 (while (and (> old-length 0)
+                             (eq ?\  (char-before old-end)))
+                   (move-marker old-end (1- old-end))
+                   (when at-end
+                     (cl-incf trailing-ws-to-delete))
+                   (cl-decf old-length))))
 
-           (setq orig-beg (nth 0 m))
-           (setq content (nth 1 m))
-           (setq old-length (nth 2 m))
+             (mistty-log "replay: %s %s %s old-content: '%s' (limit: [%s-%s])"
+                         (marker-position orig-beg)
+                         content
+                         old-length
+                         (mistty--safe-bufstring beg old-end)
+                         (marker-position lower-limit)
+                         (marker-position upper-limit))
+             (if (> old-length 0)
+                 (setq target old-end)
+               (setq target beg))
+             (if (and (zerop old-length) (equal "" content))
+                 ;; The modification is empty, move on to the next one.
+                 ;; This can happen when the change specified "delete to
+                 ;; the end of the buffer" and there was nothing to
+                 ;; delete.
+                 (next-modification)
+               (move-to-target)))
 
-           (move-marker beg orig-beg)
-           (if (< old-length 0)
-               (let ((end
-                      ;; When looking for the end of the text to be
-                      ;; deleted marked with old-length=-1, ignore the
-                      ;; final \n or anything marked mistty-skip, as
-                      ;; these cannot be deleted.
-                      (save-excursion
-                        (goto-char (point-max))
-                        (when (eq (char-before) ?\n)
-                          (goto-char (1- (point))))
-                        (while (get-text-property (1- (point)) 'mistty-skip)
-                          (goto-char (1- (point))))
-                        (point))))
-                 (setq old-length (if (> end orig-beg) (- end orig-beg) 0))
-                 (move-marker old-end (max orig-beg end)))
-             (move-marker old-end (+ orig-beg old-length)))
+           (move-to-target ()
+             (cond
+              ((> target upper-limit)
+               (mistty-log "SKIP target=%s > upper-limit=%s"
+                           (marker-position target)
+                           (marker-position upper-limit))
+                              (next-modification))
 
-           ;; never delete the final \n that some shells add.
-           (when (and (> old-length 0)
-                      (= old-end (point-max))
-                      (= ?\n (char-before old-end)))
-             (move-marker old-end (1- old-end))
-             (setq old-length (1- old-length)))
+              ((and (< target lower-limit))
+               (mistty-log "SKIP target=%s < lower-limit=%s"
+                           (marker-position target)
+                           (marker-position lower-limit))
+               (next-modification))
 
-           ;; don't even try to move through trailing ws, as they may
-           ;; not exist (Issue #34)
-           (setq trailing-ws-to-delete 0)
-           (when (memq (char-after old-end) '(nil ?\n))
-             (let ((at-end (<= (mistty--last-non-ws) old-end )))
-               (while (and (> old-length 0)
-                           (eq ?\  (char-before old-end)))
-                 (move-marker old-end (1- old-end))
-                 (when at-end
-                   (cl-incf trailing-ws-to-delete))
-                 (cl-decf old-length))))
+              (t
+               (when inhibit-moves
+                 (mistty-log "INHIBITED: to target: %s -> %s" (point) target)
+                 (after-move-to-target))
 
-           (mistty-log "replay: %s %s %s old-content: '%s' (limit: [%s-%s])"
-                       (marker-position orig-beg)
-                       content
-                       old-length
-                       (mistty--safe-bufstring beg old-end)
-                       (marker-position lower-limit)
-                       (marker-position upper-limit))
-           (if (> old-length 0)
-               (setq target old-end)
-             (setq target beg))
-           (if (and (zerop old-length) (equal "" content))
-               ;; The modification is empty, move on to the next one.
-               ;; This can happen when the change specified "delete to
-               ;; the end of the buffer" and there was nothing to
-               ;; delete.
-               (funcall next-modification-f)
-             (funcall move-to-target-f)))))
+               (let* ((distance (mistty--vertical-distance (point) target))
+                      (term-seq (mistty--move-vertically-str distance)))
+                 (when (mistty--nonempty-str-p term-seq)
+                   (mistty-log "to target: %s -> %s lines: %s (can-move-vertically=%s)"
+                               (point) target distance mistty--can-move-vertically)
+                   (mistty--interact-return
+                    interact term-seq
+                    :wait-until (let ((comparison (cond (mistty--can-move-vertically '=)
+                                                        ((< distance 0) '<=)
+                                                        (t '>=))))
+                                  (lambda ()
+                                    (mistty--update-backstage)
+                                    (funcall comparison 0 (mistty--vertical-distance
+                                                           (point) target))))
+                    :then #'move-horizontally
+                    ;; after-move-to-target-f deals with the point not being
+                    ;; where it should.
+                    :else #'after-move-to-target))
+                 (move-horizontally)))))
 
-      (setq
-       move-to-target-f
-       (lambda ()
-         (cond
-          ((> target upper-limit)
-           (mistty-log "SKIP target=%s > upper-limit=%s"
-                       (marker-position target)
-                       (marker-position upper-limit))
-           (funcall next-modification-f))
-
-          ((and (< target lower-limit))
-           (mistty-log "SKIP target=%s < lower-limit=%s"
-                       (marker-position target)
-                       (marker-position lower-limit))
-           (funcall next-modification-f))
-
-          (t
-           (when inhibit-moves
-             (mistty-log "INHIBITED: to target: %s -> %s" (point) target)
-             (funcall after-move-to-target-f))
-
-           (let* ((distance (mistty--vertical-distance (point) target))
-                  (term-seq (mistty--move-vertically-str distance)))
-             (when (mistty--nonempty-str-p term-seq)
-               (mistty-log "to target: %s -> %s lines: %s (can-move-vertically=%s)"
-                           (point) target distance mistty--can-move-vertically)
-               (mistty--interact-return
-                interact term-seq
-                :wait-until (let ((comparison (cond (mistty--can-move-vertically '=)
-                                                    ((< distance 0) '<=)
-                                                    (t '>=))))
-                              (lambda ()
-                                (mistty--update-backstage)
-                                (funcall comparison 0 (mistty--vertical-distance
-                                                       (point) target))))
-                :then after-move-vertically-f
-                ;; after-move-to-target-f deals with the point not being
-                ;; where it should.
-                :else after-move-to-target-f))
-             (funcall after-move-vertically-f))))))
-
-      (setq after-move-vertically-f
-            (lambda ()
-              (setq distance (mistty--distance (point) target))
-              (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
-              (let ((term-seq (mistty--move-horizontally-str distance)))
-                (when (mistty--nonempty-str-p term-seq)
-                  (mistty--interact-return
-                   interact term-seq
-                   :wait-until (lambda ()
-                                 (mistty--update-backstage)
-                                 (zerop (mistty--distance (point) target)))
-                   :then after-move-to-target-f)))
-              (funcall delete-lines-f)))
-
-      (setq
-       after-move-to-target-f
-       (lambda ()
-         (mistty--update-backstage)
-         (mistty-log "Got to %s" (point))
-         (cond
-          ((and (> (point) target)
-                (> (mistty--distance target (point)) 0))
-           (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) target)
-           (move-marker lower-limit (point))
-           (if (= old-length 0)
-               ;; insert anyways
-               (progn
-                 (mistty-log "insert anyway, at %s instead of %s"
-                             (point) (marker-position target))
-                 (move-marker target (point))
-                 (funcall insert-and-delete-f))
-             ;; skip delete or replace
-             (mistty-log "SKIP delete or replace; %s (wanted %s)"
-                         (point) (marker-position target))
-             (funcall next-modification-f)))
-
-          ((and (> target (point))
-                (> (mistty--distance (point) target) 0))
-           (mistty-log "UPPER LIMIT: %s (wanted %s)"
-                       (point) (marker-position target))
-           (move-marker upper-limit (point))
-           (if (>= (point) beg)
-               (progn
-                 (move-marker old-end (point))
-                 (setq old-length (- old-end beg))
-                 (funcall insert-and-delete-f))
-             (funcall next-modification-f)))
-
-          (t
-           (move-marker target (point))
-           (funcall delete-lines-f)))))
-
-      ;; For multi-line delete, delete line by line. This allows not
-      ;; knowing where a line really ends (Issue #34).
-      (setq
-       delete-lines-f
-       (lambda ()
-         (let ((lines (mistty--vertical-distance beg old-end)))
-           (when (> lines 0)
-             (let ((bol (save-excursion
-                          (goto-char old-end)
-                          (catch 'mistty-bol
-                            (while (search-backward "\n" beg 'noerror)
-                              (unless (get-text-property (match-beginning 0) 'term-line-wrap)
-                                (throw 'mistty-bol (match-end 0))))))))
-               (when (and bol (<= beg bol old-end))
-                 (mistty-log "delete line: [%s-%s] beg: %s"
-                             (1- bol)
-                             (marker-position old-end)
-                             (marker-position beg))
+           (move-horizontally ()
+             (setq distance (mistty--distance (point) target))
+             (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
+             (let ((term-seq (mistty--move-horizontally-str distance)))
+               (when (mistty--nonempty-str-p term-seq)
                  (mistty--interact-return
-                  interact (mistty--repeat-string
-                            (1+ (mistty--distance bol old-end)) "\b")
+                  interact term-seq
                   :wait-until (lambda ()
                                 (mistty--update-backstage)
-                                (< (mistty--vertical-distance
+                                (zerop (mistty--distance (point) target)))
+                  :then #'after-move-to-target)))
+             (delete-lines))
+
+           (after-move-to-target ()
+             (mistty--update-backstage)
+             (mistty-log "Got to %s" (point))
+             (cond
+              ((and (> (point) target)
+                    (> (mistty--distance target (point)) 0))
+               (mistty-log "LOWER LIMIT: %s (wanted %s)" (point) target)
+               (move-marker lower-limit (point))
+               (if (= old-length 0)
+                   ;; insert anyways
+                   (progn
+                     (mistty-log "insert anyway, at %s instead of %s"
+                                 (point) (marker-position target))
+                     (move-marker target (point))
+                     (insert-and-delete))
+                 ;; skip delete or replace
+                 (mistty-log "SKIP delete or replace; %s (wanted %s)"
+                             (point) (marker-position target))
+                 (next-modification)))
+
+              ((and (> target (point))
+                    (> (mistty--distance (point) target) 0))
+               (mistty-log "UPPER LIMIT: %s (wanted %s)"
+                           (point) (marker-position target))
+               (move-marker upper-limit (point))
+               (if (>= (point) beg)
+                   (progn
+                     (move-marker old-end (point))
+                     (setq old-length (- old-end beg))
+                     (insert-and-delete))
+                 (next-modification)))
+
+              (t
+               (move-marker target (point))
+               (delete-lines))))
+
+           ;; For multi-line delete, delete line by line. This allows not
+           ;; knowing where a line really ends (Issue #34).
+           (delete-lines ()
+             (let ((lines (mistty--vertical-distance beg old-end)))
+               (when (> lines 0)
+                 (let ((bol (save-excursion
+                              (goto-char old-end)
+                              (catch 'mistty-bol
+                                (while (search-backward "\n" beg 'noerror)
+                                  (unless (get-text-property (match-beginning 0) 'term-line-wrap)
+                                    (throw 'mistty-bol (match-end 0))))))))
+                   (when (and bol (<= beg bol old-end))
+                     (mistty-log "delete line: [%s-%s] beg: %s"
+                                 (1- bol)
+                                 (marker-position old-end)
+                                 (marker-position beg))
+                     (mistty--interact-return
+                      interact (mistty--repeat-string
+                                (1+ (mistty--distance bol old-end)) "\b")
+                      :wait-until (lambda ()
+                                    (mistty--update-backstage)
+                                    (< (mistty--vertical-distance
                                     beg (point)) lines))
-                  :then after-delete-lines-f
-                  ;; If we can't even delete lines, just give up and move
-                  ;; on to the next modification.
-                  :else after-insert-and-delete-f))))
-           (funcall insert-and-delete-f))))
+                      :then (lambda ()
+                              (move-marker old-end (point))
+                              (setq old-length (max 0 (- old-end beg)))
 
-      (setq
-       after-delete-lines-f
-       (lambda ()
-         (move-marker old-end (point))
-         (setq old-length (max 0 (- old-end beg)))
-         (funcall delete-lines-f)))
+                              ;; Maybe delete another line
+                              (delete-lines))
 
-      (setq
-       insert-and-delete-f
-       (lambda ()
-         (mistty-log "insert and delete: point: %s beg: %s old-end: %s"
-                     (point)
-                     (marker-position beg)
-                     (marker-position old-end))
-         (let ((term-seq
-                (concat
-                 ;; delete
-                 (when (> old-length 0)
-                   (let ((char-count (mistty--distance beg old-end)))
-                     (mistty-log "DELETE %s chars (was %s)" char-count old-length)
-                     (mistty--repeat-string char-count mistty-del)))
+                      ;; If we can't even delete lines, just give up and move
+                      ;; on to the next modification.
+                      :else #'after-insert-and-delete))))
+               (insert-and-delete)))
 
-                 ;; delete trailing ws
-                 (when (> trailing-ws-to-delete 0)
-                   (mistty-log "DELETE %s trailing whitespaces with C-k" trailing-ws-to-delete)
-                   (mistty--repeat-string 1 "\C-k"))
+           (insert-and-delete ()
+             (mistty-log "insert and delete: point: %s beg: %s old-end: %s"
+                         (point)
+                         (marker-position beg)
+                         (marker-position old-end))
+             (let ((term-seq
+                    (concat
+                     ;; delete
+                     (when (> old-length 0)
+                       (let ((char-count (mistty--distance beg old-end)))
+                         (mistty-log "DELETE %s chars (was %s)" char-count old-length)
+                         (mistty--repeat-string char-count mistty-del)))
 
-                 ;; insert
-                 (when (length> content 0)
-                   (mistty-log "INSERT: '%s'" content)
-                   (mistty--maybe-bracketed-str content)))))
-           (when (mistty--nonempty-str-p term-seq)
+                     ;; delete trailing ws
+                     (when (> trailing-ws-to-delete 0)
+                       (mistty-log "DELETE %s trailing whitespaces with C-k" trailing-ws-to-delete)
+                       (mistty--repeat-string 1 "\C-k"))
 
-             ;; ignore term-line-wrap and mistty-skip when
-             ;; building and running the detector.
-             (mistty--remove-text-with-property 'term-line-wrap)
-             (mistty--remove-text-with-property 'mistty-skip)
-             (setq inserted-detector-regexp
-                   (concat
-                    "^"
-                    (regexp-quote (mistty--safe-bufstring
-                                   (mistty--bol beg) beg))
-                    (string-replace "\n" " *\n" (regexp-quote content))))
-             (mistty-log "RE /%s/" inserted-detector-regexp)
-             (unless modifications
-               (setq waiting-for-last-change t))
-             (mistty--interact-return
-              interact term-seq
-              :wait-until (lambda ()
-                            (mistty--update-backstage)
-                            (mistty--remove-text-with-property 'term-line-wrap)
-                            (mistty--remove-text-with-property 'mistty-skip)
-                            (looking-back inserted-detector-regexp (point-min)))
-              :then after-insert-and-delete-f)))
-         (funcall next-modification-f)))
+                     ;; insert
+                     (when (length> content 0)
+                       (mistty-log "INSERT: '%s'" content)
+                       (mistty--maybe-bracketed-str content)))))
+               (when (mistty--nonempty-str-p term-seq)
 
-      (setq
-       after-insert-and-delete-f
-       (lambda ()
-         (setq waiting-for-last-change nil)
-         (mistty--update-backstage)
-         (mistty--with-live-buffer term-buffer
-           (mistty--detect-dead-spaces-after-insert
-            content (+ mistty-sync-marker (marker-position beg))))
+                 ;; ignore term-line-wrap and mistty-skip when
+                 ;; building and running the detector.
+                 (mistty--remove-text-with-property 'term-line-wrap)
+                 (mistty--remove-text-with-property 'mistty-skip)
+                 (setq inserted-detector-regexp
+                       (concat
+                        "^"
+                        (regexp-quote (mistty--safe-bufstring
+                                       (mistty--bol beg) beg))
+                        (string-replace "\n" " *\n" (regexp-quote content))))
+                 (mistty-log "RE /%s/" inserted-detector-regexp)
+                 (unless modifications
+                   (setq waiting-for-last-change t))
+                 (mistty--interact-return
+                  interact term-seq
+                  :wait-until (lambda ()
+                                (mistty--update-backstage)
+                                (mistty--remove-text-with-property 'term-line-wrap)
+                                (mistty--remove-text-with-property 'mistty-skip)
+                                (looking-back inserted-detector-regexp (point-min)))
+                  :then #'after-insert-and-delete)))
 
-         ;; Move right prompt just like the shell would, to avoid it
-         ;; confusing the sync happening after applying all
-         ;; modifications.
-         (when-let ((content-nl (string-match "\n" content)))
-           (with-current-buffer calling-buffer
-             (let* ((content-end (+ orig-beg (length content)))
-                    (eol (mistty--eol content-end)))
-               (when-let ((right-prompt
-                           (text-property-any content-end eol
-                                              'mistty-skip 'right-prompt)))
-                 (save-excursion
-                   (let ((inhibit-modification-hooks t)
-                         (inhibit-read-only t)
-                         (right-prompt-content (buffer-substring right-prompt eol)))
-                     (goto-char (+ orig-beg content-nl))
-                     (delete-region right-prompt eol)
-                     (insert right-prompt-content)))))))
+             ;; Nothing to do, move on to the next modification, if any
+             (next-modification))
 
-         (funcall next-modification-f)))
+           (after-insert-and-delete ()
+             (setq waiting-for-last-change nil)
+             (mistty--update-backstage)
+             (mistty--with-live-buffer term-buffer
+               (mistty--detect-dead-spaces-after-insert
+                content (+ mistty-sync-marker (marker-position beg))))
 
-      (setf
-       (mistty--interact-call interact)
-       (lambda (other-cs)
-         (when-let ((text-to-insert (mistty--changeset-single-insert other-cs)))
-           (when (and
-                  (eql (mistty--changeset-beg other-cs)
-                       (mistty--changeset-end cs))
-                  (cond
-                   (modifications
-                    (let* ((tail (last modifications))
-                           (m (car tail))
-                           (beg (nth 0 m))
-                           (content (nth 1 m))
-                           (old-length (nth 2 m)))
-                      (setcar tail
-                              (list beg (concat content text-to-insert) old-length))
-                      t))
+             ;; Move right prompt just like the shell would, to avoid it
+             ;; confusing the sync happening after applying all
+             ;; modifications.
+             (when-let ((content-nl (string-match "\n" content)))
+               (with-current-buffer calling-buffer
+                 (let* ((content-end (+ orig-beg (length content)))
+                        (eol (mistty--eol content-end)))
+                   (when-let ((right-prompt
+                               (text-property-any content-end eol
+                                                  'mistty-skip 'right-prompt)))
+                     (save-excursion
+                       (let ((inhibit-modification-hooks t)
+                             (inhibit-read-only t)
+                             (right-prompt-content (buffer-substring right-prompt eol)))
+                         (goto-char (+ orig-beg content-nl))
+                         (delete-region right-prompt eol)
+                         (insert right-prompt-content)))))))
 
-                   ((and (null modifications) waiting-for-last-change)
-                    (mistty--send-string mistty-proc text-to-insert)
-                    (setq inserted-detector-regexp
-                          (concat inserted-detector-regexp
-                                  (regexp-quote text-to-insert)))
-                    (mistty-log "updated RE /%s/" inserted-detector-regexp)
-                    t)))
-             (setf (mistty--changeset-end cs)
-                   (mistty--changeset-end other-cs))
-             (mistty--release-changeset other-cs)
-             t))))
+             (next-modification))
 
-      (setf
-       (mistty--interact-cleanup interact)
-       (lambda ()
-         (mistty--delete-backstage backstage)
+           (done-handling-modifications ()
+             (set-buffer calling-buffer)
 
-         ;; Always release the changeset at the end and re-enable
-         ;; refresh.
-         (mistty--release-changeset cs)
-         (mistty--refresh-after-changeset)))
+             ;; Force refresh, even if nothing was sent, if only to revert what
+             ;; couldn't be replayed.
+             (mistty--needs-refresh)
 
-      interact)))
+             (if (or inhibit-moves point-after-last-insert)
+                 (setq mistty-goto-cursor-next-time t)
+
+               ;; Move cursor back to point unless the next interact is a
+               ;; replay, in which case we let the replay move the cursor.
+               (setq mistty-goto-cursor-next-time 'off)
+               (let ((next (car (mistty--queue-more-interacts mistty--queue))))
+                 (when (or (null next)
+                           (not (eq 'replay (mistty--interact-type next))))
+                   (mistty--enqueue
+                    mistty--queue
+                    (mistty--cursor-to-point-interaction) 'prepend))))
+             (mistty--interact-done))
+
+           ;; Handles (mistty--call-interact)
+           ;;
+           ;; (mistty--call-interact interact 'replay OTHER-CS)
+           ;; attempts to append modifications to an existing replay.
+           ;;
+           ;; OTHER-CS must be a changeset.
+           ;;
+           ;; If OTHER-CS can be appended to the current set of
+           ;; modifications, this function takes ownership of OTHER-CS
+           ;; and returns non-nil. Otherwise, this function returns
+           ;; nil and the caller retains ownership of OTHER-CS.
+           (handle-call-interact (other-cs)
+             (when-let ((text-to-insert (mistty--changeset-single-insert other-cs)))
+               (when (and
+                      (eql (mistty--changeset-beg other-cs)
+                           (mistty--changeset-end cs))
+                      (cond
+                       (modifications
+                        (let* ((tail (last modifications))
+                               (m (car tail))
+                               (beg (nth 0 m))
+                               (content (nth 1 m))
+                               (old-length (nth 2 m)))
+                          (setcar tail
+                                  (list beg (concat content text-to-insert) old-length))
+                          t))
+
+                       ((and (null modifications) waiting-for-last-change)
+                        (mistty--send-string mistty-proc text-to-insert)
+                        (setq inserted-detector-regexp
+                              (concat inserted-detector-regexp
+                                      (regexp-quote text-to-insert)))
+                        (mistty-log "updated RE /%s/" inserted-detector-regexp)
+                        t)))
+                 (setf (mistty--changeset-end cs)
+                       (mistty--changeset-end other-cs))
+                 (mistty--release-changeset other-cs)
+                 t)))
+
+           ;; Cleanup any open state. This is called when the interact
+           ;; is closed, from (mistty--interact-close interact).
+           ;;
+           ;; The interact might have been run fully, not have been
+           ;; run at all, or have been run partially. Cleanup can be
+           ;; done in all cases.
+           (cleanup ()
+             (mistty--delete-backstage backstage)
+
+             ;; Always release the changeset at the end and re-enable
+             ;; refresh.
+             (mistty--release-changeset cs)
+             (mistty--refresh-after-changeset)))
+
+        (setf (mistty--interact-cb interact) #'start)
+        (setf (mistty--interact-call interact) #'handle-call-interact)
+        (setf (mistty--interact-cleanup interact) #'cleanup))
+
+      (if modifications
+          interact
+
+        ;; Nothing to do; clean things up right away
+        (mistty--interact-close interact)
+        nil)))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."

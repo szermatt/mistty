@@ -2536,23 +2536,24 @@
          (mistty--interact test (interact)
            (setq enter-f
                  (lambda ()
-                   (mistty--interact-return
-                    interact "\C-m"
-                    :wait-until (lambda ()
-                                  (mistty-test-find-p "reset done" start))
-                    :then bar-f)))
+                   (mistty--interact-send interact "\C-m")
+                   (mistty--interact-return-then
+                    interact bar-f
+                    :pred (lambda ()
+                            (mistty-test-find-p "reset done" start)))))
 
            (setq bar-f
                  (lambda ()
-                   (mistty--interact-return
-                    interact "bar" :then #'mistty--interact-done)))
+                   (mistty--interact-send interact "bar")
+                   (mistty--interact-return-then
+                    interact #'mistty--interact-done)))
 
            ;; start test interaction
-           (mistty--interact-return
-            interact "hello"
-            :wait-until (lambda ()
-                          (mistty-test-find-p "hello" start))
-            :then enter-f))))
+           (mistty--interact-send interact "hello")
+           (mistty--interact-return-then
+            interact enter-f
+            :pred (lambda ()
+                    (mistty-test-find-p "hello" start))))))
       (mistty-wait-for-output :str "$ " :start start)
 
       (should (equal (concat "read> hello\n"
@@ -2575,9 +2576,9 @@
        mistty--queue
        (mistty--interact test (interact)
          (mistty-log "foo-f")
-         (mistty--interact-return
-          interact "foo"
-          :then
+         (mistty--interact-send interact "foo")
+         (mistty--interact-return-then
+          interact
           (lambda (val)
             (mistty-log "error-f %s" val)
             (error "fake")))))
@@ -3797,7 +3798,9 @@
        (mistty--interact test (interact)
          (setf (mistty--interact-cleanup interact)
                (lambda () (setq killed t)))
-         (mistty--interact-return interact ".")))
+         (mistty--interact-send interact ".")
+         ;; Loops: wait for output and call this function again.
+         (throw 'mistty--interact-return 'wait-for-output)))
 
       (should (not (mistty--queue-empty-p mistty--queue)))
 

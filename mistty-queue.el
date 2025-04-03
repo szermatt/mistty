@@ -94,11 +94,15 @@ possible problem:
   ;; Symbol that identifies the type of interaction.
   type
 
+  ;; Process to interact with. This is set when the interaction is
+  ;; enqueued.
+  proc
+
   ;; Callback function that will handle the next call to
   ;; mistty--interact-next. It takes a single argument.
   ;;
   ;; Such callbacks must never return a value. They must instead call
-  ;; mistty--interact-return, mistty--interact-keep-waiting or
+  ;; mistty--interact-return, mistty--interact-wait-for-output or
   ;; mistty--interact-done, which both throw 'mistty--interact-return.
   ;;
   ;; CB initially runs within the buffer that was current when
@@ -118,15 +122,14 @@ possible problem:
   ;;   not be complete
   ;; - 'stable once the process stops sending data for a certain time
   ;; - 'timeout if the process did not send anything for a long time
-  ;; - 'fire-and-forget if the last value returned was a fire-and-forget
   ;;
   ;; CB then raises 'mistty--interact-return with one of the following
   ;; values:
   ;; - a non-empty string to send to the terminal
-  ;; - 'keep-waiting to just wait for more output
+  ;; - 'wait-for-output to just wait for more output
   ;; - 'done once the interaction is done. It'll be closed and discarded.
   ;; (This is normally done by calling the function mistty--interact-return,
-  ;; mistty--interact-done or mistty--interact-keep-waiting.)
+  ;; mistty--interact-done or mistty--interact-wait-for-output.)
   cb
 
   ;; A function that releases any resource held during the
@@ -166,22 +169,12 @@ Returns the newly-created interaction."
   "Return non-nil if INTERACT is callable."
   (functionp (mistty--interact-call interact)))
 
-(defsubst mistty--interact-done (&optional _)
-  "Return \\='done from an interact.
-
-This is equivalent to calling:
-  (mistty--interact-return interact \\='done)
+(defun mistty--interact-done (&optional _)
+  "Throws \\='done from an interact.
 
 This function accepts an optional argument so that it can safely
 be pass to a :then argument in `mistty--interact-return'."
   (throw 'mistty--interact-return 'done))
-
-(defsubst mistty--interact-keep-waiting ()
-  "Return \\='keep-waiting from an interact.
-
-This is equivalent to calling:
-  (mistty--interact-return interact \\='keep-waiting)"
-  (throw 'mistty--interact-return 'keep-waiting))
 
 (defsubst mistty--queue-empty-p (queue)
   "Return t if QUEUE generator hasn't finished yet."
@@ -215,12 +208,11 @@ Does nothing is STR is nil or empty."
     (mistty--enqueue
      queue
      (mistty--interact send-str (interact)
-       (mistty--interact-return
-        interact
-        (if fire-and-forget
-            `(fire-and-forget ,str)
-          str)
-        :then #'mistty--interact-done)))))
+       (mistty--interact-send interact str)
+       (if fire-and-forget
+           (mistty--interact-done)
+         (mistty--interact-return-then
+          interact #'mistty--interact-done))))))
 
 (defun mistty--enqueue (queue interact &optional prepend)
   "Add INTERACT to QUEUE.
@@ -241,6 +233,8 @@ right away.
 Does nothing if INTERACT is nil."
   (cl-assert (mistty--queue-p queue))
   (when interact
+    (setf (mistty--interact-proc interact)
+          (mistty--queue-proc queue))
     (cond
      ;; This is the first mistty-interact; kick things off.
      ((mistty--queue-empty-p queue)
@@ -293,14 +287,8 @@ description for the meaning of QUEUE and VALUE."
            (mistty-log "NEXT %s" (mistty--queue-interact-type queue))))
 
         ;; Keep waiting
-        ('keep-waiting
+        ('wait-for-output
          (cl-return-from mistty--dequeue-1))
-
-        ;; Fire-and-forget; no need to wait for a response
-        ((and `(fire-and-forget ,str)
-              (guard (mistty--nonempty-str-p str)))
-         (mistty--send-string proc str)
-         (setq value 'fire-and-forget))
 
         ;; Normal sequences
         ((and (pred mistty--nonempty-str-p) str)
@@ -446,41 +434,39 @@ It returns non-nil once interaction should continue:
           (funcall mistty--report-issue-function 'soft-timeout))
         'give-up)))))
 
-(cl-defun mistty--interact-return
-    (interact value &key (wait-until nil) (then nil) (else nil))
-  "Convenience function for returning a value from INTERACT.
+(defun mistty--interact-send (interact str)
+  "Send STR to the process associated with INTERACT."
+  (mistty--send-string (mistty--interact-proc interact) str))
 
-This function optionally sets up the callback with THEN, a
-condition to wait on with WAIT-UNTIL, then returns VALUE, a
-string to be sent to the process.
+(cl-defun mistty--interact-return-then (interact then &key pred on-timeout)
+  "Return from current function and wait for process.
 
-WAIT-UNTIL must be a function that returns non-nil once the
-condition is met. It is wrapped with
+This function waits for output from the INTERACT's process.
+
+PRED must be a function that returns non-nil once output has been
+received and the condition is met. It is wrapped with
 `mistty--interact-wrap-accept' before it is used.
 
-after sending that value. Note that there is no guarantee that
-the CB is a function to call once the terminal has been updated,
-terminal contains the effect of sending that value.
+If THEN is set, this is the function that's called once output has been
+received and, if PRED is set, the condition has been met.
 
-If ELSE is set, and the interact times out waiting for WAIT-UNTIL to
-become non-nil, call ELSE instead of THEN. ELSE is ignored if WAIT-UNTIL
-is unset.
+If ON-TIMEOUT is set, and the interact times out waiting for PRED to
+succeed, call ON-TIMEOUT instead of THEN. ON-TIMEOUT is ignored if PRED is
+unset.
 
-Note that it makes no sense to return \\='done as a VALUE using
-this function, as CB would never be executed; Just return
-\\='done directly."
+This call gives back control to the queue."
   (cond
-   (wait-until
-    (let ((accept-f (mistty--interact-wrap-accept wait-until))
+   (pred
+    (let ((accept-f (mistty--interact-wrap-accept pred))
           (then (or then (mistty--interact-cb interact))))
       (setf (mistty--interact-cb interact)
             (lambda (value)
               (pcase (funcall accept-f value)
                 ('accept (funcall then))
-                ('give-up (funcall (or else then)))
-                (_ (mistty--interact-keep-waiting)))))))
+                ('give-up (funcall (or on-timeout then)))
+                (_ (throw 'mistty--interact-return 'wait-for-output)))))))
    (then (setf (mistty--interact-cb interact) then)))
-  (throw 'mistty--interact-return value))
+  (throw 'mistty--interact-return 'wait-for-output))
 
 (defun mistty--call-interact (interact type &rest args)
   "Call INTERACT and pass it ARGS.

@@ -580,7 +580,7 @@ forever - or until the test calls mistty--send-text directly."
     (if (with-current-buffer mistty-term-buffer
           (looking-back (regexp-quote text) nil))
         (mistty--interact-done)
-      (mistty--interact-keep-waiting))))
+      (throw 'mistty--interact-return 'wait-for-output))))
 
 (defun mistty-test-freeze-queue ()
   "Freezes `mistty-queue'.
@@ -597,7 +597,7 @@ redraw everything."
      (mistty--interact freeze (interact)
        (if can-continue
            (mistty--interact-done)
-         (mistty--interact-keep-waiting))))
+         (throw 'mistty--interact-return 'wait-for-output))))
 
     (lambda ()
       (setq can-continue t)

@@ -516,6 +516,15 @@ accessible from either buffer.
 Always access it through the places `mistty--prompt'
 `mistty--prompt-archive' and `mistty--prompt-counter'.")
 
+(defconst mistty--max-delay-processing-pending-output 0.1
+  "Limits how long to spend processing pending output.
+
+When MisTTY calls `accept-process-output', Emacs will read data from the
+process as long as there is some. If the process keeps sending data, the
+whole Emacs process would freeze for that long. This limit must be kept
+low or Emacs might become unresponsive when the process outputs data
+continuously.")
+
 (cl-defstruct (mistty--prompt-cell
                (:constructor mistty--make-prompt-cell
                              (&aux (counter 0))))
@@ -1386,9 +1395,53 @@ signature (PROC DATA).
 
 The return value of this type is also an oclosure of type
 mistty--accumulator whose slots can be accessed."
-  (oclosure-lambda (mistty--accumulator (destination dest))
-      (proc data)
-    (funcall destination proc data)))
+  (let ((pending nil)
+        (processing-pending-output nil))
+    (cl-labels
+        ;; Collect all pending data in a single string and clear
+        ;; pending.
+        ;;
+        ;; Return all pending data as a string.
+        ((all-pending-data ()
+           (prog1
+               (pcase (length pending)
+                 (0 "")
+                 (1 (car pending))
+                 (_ (mistty-log "Accumulator flushed %s pending entries" (length pending))
+                    (mapconcat #'identity (nreverse pending))))
+             (setq pending nil)))
+
+         ;; Check whether the current instance should flush the data.
+         ;;
+         ;; The accumulator calls accept-process-output, which, since
+         ;; the accumulator is the process filter, makes Emacs calls
+         ;; accumulator recursively.
+         ;;
+         ;; Recursive calls should not flush, only the toplevel call
+         ;; should.
+         (toplevel-accumulator-p (proc)
+           (if processing-pending-output
+            (prog1 nil ; don't flush
+              (when (>= (time-to-seconds (time-subtract
+                                          (current-time)
+                                          processing-pending-output))
+                        mistty--max-delay-processing-pending-output)
+                (throw 'mistty-stop-accumlating nil)))
+            (prog1 t ; flush
+              (unwind-protect
+                  (progn
+                    ;; accept-process-output calls the accumulator
+                    ;; recursively as there's pending data.
+                    (setq processing-pending-output (current-time))
+                    (catch 'mistty-stop-accumlating
+                      (accept-process-output proc 0 nil 'just-this-one)))
+                (setq processing-pending-output nil))))))
+
+      (oclosure-lambda (mistty--accumulator (destination dest))
+          (proc data)
+        (push data pending)
+        (when (toplevel-accumulator-p proc)
+          (funcall destination proc (all-pending-data)))))))
 
 (provide 'mistty-term)
 

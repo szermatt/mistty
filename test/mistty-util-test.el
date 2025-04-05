@@ -500,3 +500,45 @@
 
     (mistty-test-goto "ef")
     (should (equal "abcd" (mistty--scrolline-text-before-point)))))
+
+(ert-deftest mistty-test-fifo-one-element ()
+  (let ((fifo (mistty--make-fifo)))
+    (mistty--fifo-enqueue fifo 1)
+
+    (should (equal 1 (mistty--fifo-dequeue fifo)))
+    (should (equal nil (mistty--fifo-dequeue fifo)))))
+
+(ert-deftest mistty-test-fifo-multiple-elements ()
+  (let ((fifo (mistty--make-fifo)))
+    (mistty--fifo-enqueue fifo 1)
+    (mistty--fifo-enqueue fifo 2)
+    (mistty--fifo-enqueue fifo 3)
+
+    (should (equal 1 (mistty--fifo-dequeue fifo)))
+    (should (equal 2 (mistty--fifo-dequeue fifo)))
+    (should (equal 3 (mistty--fifo-dequeue fifo)))
+    (should (equal nil (mistty--fifo-dequeue fifo)))))
+
+(ert-deftest mistty-test-fifo-empty ()
+  (let ((fifo (mistty--make-fifo)))
+    (should (mistty--fifo-empty-p fifo))
+    (mistty--fifo-enqueue fifo 1)
+    (should-not (mistty--fifo-empty-p fifo))
+    (mistty--fifo-dequeue fifo)
+    (should (mistty--fifo-empty-p fifo))))
+
+(ert-deftest mistty-test-fifo-clear ()
+  (let ((fifo (mistty--make-fifo)))
+    (mistty--fifo-enqueue fifo 1)
+    (mistty--fifo-enqueue fifo 2)
+    (mistty--fifo-clear fifo)
+    (should-not (mistty--fifo-dequeue fifo))
+    (should (mistty--fifo-empty-p fifo))))
+
+(ert-deftest mistty-test-fifo-to-list ()
+  (let ((fifo (mistty--make-fifo)))
+    (mistty--fifo-enqueue fifo 1)
+    (mistty--fifo-enqueue fifo 2)
+    (mistty--fifo-enqueue fifo 3)
+    (should (equal '(1 2 3) (mistty--fifo-to-list fifo)))
+    (should (mistty--fifo-empty-p fifo))))

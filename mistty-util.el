@@ -21,6 +21,8 @@
 
 ;;; Code:
 
+(require 'cl-lib)
+
 (defmacro mistty--with-live-buffer (buf &rest body)
   "Execute BODY with BUF enabled, if BUF is live.
 
@@ -290,6 +292,62 @@ If NO-PROPERTIES is non-nil, remove text properties."
           (buffer-substring-no-properties (point-min) (point-max))
         (buffer-string)))))
 
+(cl-defstruct (mistty--fifo
+               (:constructor mistty--make-fifo ())
+               (:conc-name mistty--fifo-))
+  "A FIFO datastructure based on a doubly-linked list.
+
+`mistty--fifo-enqueue' adds to the fifo. `mistty--fifo-dequeue'
+removes and returns the oldest item in the fifo."
+  ;; nodes of type (cons (cons ITEM OLDER) NEWER)
+  newest
+  oldest)
+
+(defun mistty--fifo-empty-p (fifo)
+  "Return non-nil if FIFO is empty."
+  (null (mistty--fifo-oldest fifo)))
+
+(defun mistty--fifo-clear (fifo)
+  "Clear the FIFO."
+  (setf (mistty--fifo-newest fifo) nil)
+  (setf (mistty--fifo-oldest fifo) nil))
+
+(defun mistty--fifo-enqueue (fifo item)
+  "Add ITEM into the FIFO."
+  (let* ((older (mistty--fifo-newest fifo))
+         (node (cons (cons item older) nil)))
+    (setf (mistty--fifo-newest fifo) node)
+    (if older
+        (setcdr older node)
+      (setf (mistty--fifo-oldest fifo) node))))
+
+(defun mistty--fifo-dequeue (fifo)
+  "Remove the oldest entry from FIFO and return it.
+
+Return nil if there are no entry."
+  (when-let ((oldest (mistty--fifo-oldest fifo)))
+    (let ((item (caar oldest))
+          (newer (cdr oldest)))
+      (setf (mistty--fifo-oldest fifo) newer)
+      (if newer
+          (setcdr (car newer) nil)
+        (setf (mistty--fifo-newest fifo) nil))
+
+      item)))
+
+(defun mistty--fifo-to-list (fifo)
+  "Destructively converts FIFO into a list."
+  (let ((list (mistty--fifo-oldest fifo)))
+    (mistty--fifo-clear fifo)
+
+    ;; Turn (cons (cons ITEM OLDER) NEWER)
+    ;; into (cons ITEM NEWER)
+    (let ((cur list))
+      (while cur
+        (setcar cur (caar cur))
+        (setq cur (cdr cur))))
+
+    list))
 
 (provide 'mistty-util)
 

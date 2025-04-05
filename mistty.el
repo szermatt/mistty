@@ -1040,8 +1040,22 @@ buffer and `mistty-proc' to that buffer's process."
         (setq mistty-sync-marker (copy-marker term-home-marker))))
 
     (when proc
-      (setf (mistty--accumulator--destination (process-filter proc))
-            #'mistty--process-filter)
+      (let ((accum (process-filter proc)))
+        (setf (mistty--accumulator--destination accum)
+              #'mistty--process-filter)
+        (mistty--accumulator-clear-processors accum)
+        (mistty--accumulator-add-processor
+         accum
+         "\e\\[\\?25h"
+         (lambda (_)
+           (mistty--with-live-buffer work-buffer
+             (mistty--show-cursor))))
+        (mistty--accumulator-add-processor
+         accum
+         "\e\\[\\?25l"
+         (lambda (_)
+           (mistty--with-live-buffer work-buffer
+             (mistty--hide-cursor)))))
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
@@ -1078,8 +1092,10 @@ Returns M or a new marker."
     (mistty--cancel-queue mistty--queue)
     (setq mistty--queue nil))
   (when mistty-proc
-    (setf (mistty--accumulator--destination (process-filter mistty-proc))
-          #'term-emulate-terminal)
+    (let ((accum (process-filter mistty-proc)))
+      (setf (mistty--accumulator--destination accum)
+            #'term-emulate-terminal)
+      (mistty--accumulator-clear-processors accum))
     (set-process-sentinel mistty-proc #'term-sentinel)
     (setq mistty-proc nil)))
 
@@ -3657,8 +3673,10 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
     (mistty--with-live-buffer mistty-term-buffer
       (setq mistty-fullscreen t))
 
-    (setf (mistty--accumulator--destination (process-filter proc))
-          #'mistty--fs-process-filter)
+    (let ((accum (process-filter proc)))
+      (setf (mistty--accumulator--destination accum)
+            #'mistty--fs-process-filter)
+      (mistty--accumulator-clear-processors accum))
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
     (mistty--update-mode-lines proc)
     (mistty--set-process-window-size-from-windows)

@@ -13,12 +13,17 @@
 (eldev-add-loading-roots 'test "test")
 (eldev-add-extra-dependencies
  '(test emacs)
- '(:package tempel :version "0.8")
- '(:package yasnippet :version "0.14.0"))
+ '(:package tempel :version "0.8"))
 
 (eldev-add-extra-dependencies '(test emacs) 'turtles)
 (eldev-use-vc-repository
  'turtles :github "szermatt/turtles" :commit "2.0.1")
+
+(eldev-add-extra-dependencies '(test emacs) 'yasnippet)
+(eldev-use-vc-repository
+ 'yasnippet :github "joaotavora/yasnippet" :commit "0.14.0"
+ :setup (setq eldev-build-treat-warnings-as-errors nil
+              eldev-build-suppress-warnings t))
 
 ;; Exclude work and build files so Eldev doctor ignores them.
 (setf eldev-standard-excludes

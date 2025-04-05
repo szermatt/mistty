@@ -1060,7 +1060,8 @@ buffer and `mistty-proc' to that buffer's process."
         (setq mistty-sync-marker (copy-marker term-home-marker))))
 
     (when proc
-      (set-process-filter proc #'mistty--process-filter)
+      (setf (mistty--accumulator--destination (process-filter proc))
+            #'mistty--process-filter)
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
@@ -1097,7 +1098,8 @@ Returns M or a new marker."
     (mistty--cancel-queue mistty--queue)
     (setq mistty--queue nil))
   (when mistty-proc
-    (set-process-filter mistty-proc #'term-emulate-terminal)
+    (setf (mistty--accumulator--destination (process-filter mistty-proc))
+          #'term-emulate-terminal)
     (set-process-sentinel mistty-proc #'term-sentinel)
     (setq mistty-proc nil)))
 
@@ -3709,7 +3711,8 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
     (mistty--with-live-buffer mistty-term-buffer
       (setq mistty-fullscreen t))
 
-    (set-process-filter proc #'mistty--fs-process-filter)
+    (setf (mistty--accumulator--destination (process-filter proc))
+          #'mistty--fs-process-filter)
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
     (mistty--update-mode-lines proc)
     (mistty--set-process-window-size-from-windows)

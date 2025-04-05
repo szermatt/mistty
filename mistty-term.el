@@ -26,6 +26,7 @@
 (defvar term-home-marker) ; defined in term.el
 
 (require 'subr-x)
+(require 'oclosure)
 (eval-when-compile
   (require 'cl-lib))
 
@@ -866,7 +867,9 @@ This function returns the newly-created buffer."
         ;; prevents normal terminal resizing from working. This turns
         ;; it on again.
         (process-put proc 'adjust-window-size-function nil)
-        (set-process-window-size proc height width))
+        (set-process-window-size proc height width)
+        (set-process-filter proc (mistty--make-accumulator
+                                  (process-filter proc))))
       (setq-local term-raw-map local-map)
       (term-char-mode)
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))
@@ -1357,6 +1360,35 @@ Return nil if the row isn't reachable on the terminal."
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
              (setf (mistty--prompt-end prompt) (mistty--term-scrolline)))))))))
+
+(oclosure-define (mistty--accumulator
+                  (:predicate mistty--accumulator-p))
+  "Process Output Accumulator.
+
+Use this function as process filter to accumulate and pre-process data
+before sending it to its destination filter.
+
+Usage:
+  (process-set-filter proc (mistty--accumulator #'real-process-filter))"
+
+  ;; The real process filter; a function with arguments (proc data)
+  (destination :mutable t))
+
+(defun mistty--make-accumulator (dest)
+  "Make an accumulator that sends process output to DEST.
+
+An accumulator is a function with the signature (PROC DATA) that is
+meant to be used as process filter. It intercepts, buffers and
+transforms process data before sending it to DEST.
+
+DEST is the destination process filter function, with the same
+signature (PROC DATA).
+
+The return value of this type is also an oclosure of type
+mistty--accumulator whose slots can be accessed."
+  (oclosure-lambda (mistty--accumulator (destination dest))
+      (proc data)
+    (funcall destination proc data)))
 
 (provide 'mistty-term)
 

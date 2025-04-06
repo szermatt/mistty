@@ -1047,15 +1047,22 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--accumulator-add-processor
          accum
          "\e\\[\\?25h"
-         (lambda (_)
+         (lambda (_ _)
            (mistty--with-live-buffer work-buffer
              (mistty--show-cursor))))
         (mistty--accumulator-add-processor
          accum
          "\e\\[\\?25l"
-         (lambda (_)
+         (lambda (_ _)
            (mistty--with-live-buffer work-buffer
-             (mistty--hide-cursor)))))
+             (mistty--hide-cursor))))
+        (mistty--accumulator-add-processor
+         accum
+         "\e\\[\\(?:\\??47\\|\\?104[79]\\)h"
+         (lambda (ctx str)
+           (mistty--accumulator-ctx-flush ctx)
+           (mistty--enter-fullscreen proc)
+           (mistty--accumulator-ctx-push-down ctx str))))
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
@@ -1452,7 +1459,7 @@ special string describing the new process state."
         (work-buffer (process-get proc 'mistty-work-buffer)))
     (cond
      ((and process-dead (buffer-live-p term-buffer) (buffer-live-p work-buffer))
-      (mistty--leave-fullscreen proc "")
+      (mistty--leave-fullscreen proc)
       (mistty--process-sentinel proc msg))
      ((and process-dead (not (buffer-live-p term-buffer)) (buffer-live-p work-buffer))
       (let ((kill-buffer-query-functions nil))
@@ -1471,12 +1478,6 @@ PROC is the calling shell process and STR the string it sent."
      ;; detached term buffer
      ((or (not (buffer-live-p work-buffer)) (not (buffer-live-p term-buffer)))
       (term-emulate-terminal proc str))
-
-     ;; switch to fullscreen
-     ((string-match "\e\\[\\(\\??47\\|\\?104[79]\\)h" str)
-      (let ((smcup-pos (match-beginning 0)))
-        (mistty--process-filter proc (substring str 0 smcup-pos))
-        (mistty--enter-fullscreen proc (substring str smcup-pos))))
 
      ;; reset
      ((or (string-match "\ec" str)
@@ -1632,16 +1633,8 @@ buffer has been updated."
 This function detects commands to leave the fullscreen mode are
 detected in STR. Failing that, it forwards PROC and STR to be
 update the term buffer normally."
-  (let ((work-buffer (process-get proc 'mistty-work-buffer))
-        (term-buffer (process-get proc 'mistty-term-buffer)))
-    (if (and (string-match "\e\\[\\(\\??47\\|\\?104[79]\\)l\\(\e8\\|\e\\[\\?1048l\\)?" str)
-             (buffer-live-p work-buffer)
-             (buffer-live-p term-buffer))
-        (let ((after-rmcup-pos (match-beginning 0)))
-          (mistty--emulate-terminal proc (substring str 0 after-rmcup-pos) work-buffer)
-          (mistty--leave-fullscreen proc (substring str after-rmcup-pos)))
-      ;; normal processing
-      (mistty--emulate-terminal proc str work-buffer))))
+  (let ((work-buffer (process-get proc 'mistty-work-buffer)))
+    (mistty--emulate-terminal proc str work-buffer)))
 
 (defun mistty-cursor ()
   "Return the position of the terminal cursor in the MisTTY buffer.
@@ -3649,10 +3642,8 @@ Width and height are limited to `mistty-min-terminal-width' and
         (set-process-window-size mistty-proc height width)
         (term-reset-size height width)))))
 
-(defun mistty--enter-fullscreen (proc terminal-sequence)
-  "Enter fullscreen mode for PROC.
-
-TERMINAL-SEQUENCE is processed in fullscreen mode."
+(defun mistty--enter-fullscreen (proc)
+  "Enter fullscreen mode for PROC."
   (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
     (mistty--detach)
     (let ((msg (mistty--fullscreen-message)))
@@ -3676,13 +3667,18 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
     (let ((accum (process-filter proc)))
       (setf (mistty--accumulator--destination accum)
             #'mistty--fs-process-filter)
-      (mistty--accumulator-clear-processors accum))
+      (mistty--accumulator-clear-processors accum)
+      (mistty--accumulator-add-processor
+       accum
+       "\e\\[\\(\\??47\\|\\?104[79]\\)l\\(\e8\\|\e\\[\\?1048l\\)?"
+       (lambda (ctx str)
+         (mistty--accumulator-ctx-push-down ctx str)
+         (mistty--accumulator-ctx-flush ctx)
+         (mistty--leave-fullscreen proc))))
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
     (mistty--update-mode-lines proc)
     (mistty--set-process-window-size-from-windows)
-    (run-hooks 'mistty-entered-fullscreen-hook)
-    (when (length> terminal-sequence 0)
-      (funcall (process-filter proc) proc terminal-sequence))))
+    (run-hooks 'mistty-entered-fullscreen-hook)))
 
 (defun mistty--fullscreen-message ()
   "Build a user message when entering fullscreen mode.
@@ -3710,10 +3706,8 @@ This function looks into the maps to find the key bindings for
             (when keybinding-descr ". ")
             keybinding-descr)))
 
-(defun mistty--leave-fullscreen (proc terminal-sequence)
-  "Leave fullscreen mode for PROC.
-
-TERMINAL-SEQUENCE is processed in fullscreen mode."
+(defun mistty--leave-fullscreen (proc)
+  "Leave fullscreen mode for PROC."
   (mistty--with-live-buffer (process-get proc 'mistty-work-buffer)
     (save-restriction
       (widen)
@@ -3737,9 +3731,7 @@ TERMINAL-SEQUENCE is processed in fullscreen mode."
         (jit-lock-mode nil))
 
       (mistty--update-mode-lines proc)
-      (run-hooks 'mistty-left-fullscreen-hook)
-      (when (length> terminal-sequence 0)
-        (funcall (process-filter proc) proc terminal-sequence)))))
+      (run-hooks 'mistty-left-fullscreen-hook))))
 
 (defun mistty--update-mode-lines (&optional proc)
   "Update the mode lines of the work and term buffers of PROC.

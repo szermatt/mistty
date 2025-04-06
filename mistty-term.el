@@ -532,6 +532,56 @@ continuously.")
   archive
   counter)
 
+(oclosure-define (mistty--accumulator
+                  (:predicate mistty--accumulator-p))
+  "Process Output Accumulator.
+
+Use this function as process filter to accumulate and pre-process data
+before sending it to its destination filter.
+
+Usage:
+  (process-set-filter proc (mistty--accumulator #'real-process-filter))"
+
+  ;; The real process filter; a function with arguments (proc data)
+  (destination :mutable t)
+  ;; Alist of (cons regexp (lambda (ctx str)))
+  (processor-alist :mutable t)
+  ;; Set to non-nil after changing processor-alist.
+  (processor-alist-dirty :mutable t))
+
+(defsubst mistty--accumulator-clear-processors (accum)
+  "Remove all processors registered for ACCUM."
+  (setf (mistty--accumulator--processor-alist accum) nil)
+  (setf (mistty--accumulator--processor-alist-dirty accum) t))
+
+(defsubst mistty--accumulator-add-processor (accum regexp processor)
+  "Register PROCESSOR in ACCUM for processing REGEXP.
+
+PROCESSOR must be a function with signature (CTX STR)"
+  (push (cons regexp processor) (mistty--accumulator--processor-alist accum))
+  (setf (mistty--accumulator--processor-alist-dirty accum) t))
+
+(cl-defstruct (mistty--accumulator-ctx
+               (:constructor mistty--make-accumulator-ctx)
+               (:conc-name mistty--accumulator-ctx-))
+  "Allow processors to communicate with the accumulator"
+  ;; Flush accumulator (no-arg function)
+  flush-f
+  ;; Send processed string to destination (single-arg function)
+  push-down-f)
+
+(defsubst mistty--accumulator-ctx-flush (ctx)
+  "Flush accumulator from a processor.
+
+CTX is the context passed to the current processor."
+  (funcall (mistty--accumulator-ctx-flush-f ctx)))
+
+(defsubst mistty--accumulator-ctx-push-down (ctx str)
+  "Send STR to destination from a processor.
+
+CTX is the context passed to the current processor."
+  (funcall (mistty--accumulator-ctx-push-down-f ctx) str))
+
 ;; A detected prompt.
 ;;
 ;; This datastructure is shared between the work and term buffer and
@@ -1362,31 +1412,6 @@ Return nil if the row isn't reachable on the terminal."
                          (mistty--prompt-start prompt))
              (setf (mistty--prompt-end prompt) (mistty--term-scrolline)))))))))
 
-(oclosure-define (mistty--accumulator
-                  (:predicate mistty--accumulator-p))
-  "Process Output Accumulator.
-
-Use this function as process filter to accumulate and pre-process data
-before sending it to its destination filter.
-
-Usage:
-  (process-set-filter proc (mistty--accumulator #'real-process-filter))"
-
-  ;; The real process filter; a function with arguments (proc data)
-  (destination :mutable t)
-  (processor-alist :mutable t)
-  (processor-alist-dirty :mutable t))
-
-(defun mistty--accumulator-clear-processors (accum)
-  "Remove all processors registered for ACCUM."
-  (setf (mistty--accumulator--processor-alist accum) nil)
-  (setf (mistty--accumulator--processor-alist-dirty accum) t))
-
-(defun mistty--accumulator-add-processor (accum regexp processor)
-  "Register PROCESSOR in ACCUM for processing REGEXP."
-  (push (cons regexp processor) (mistty--accumulator--processor-alist accum))
-  (setf (mistty--accumulator--processor-alist-dirty accum) t))
-
 (defun mistty--make-accumulator (dest)
   "Make an accumulator that sends process output to DEST.
 
@@ -1405,12 +1430,14 @@ mistty--accumulator whose slots can be accessed."
         (processing-pending-output nil)
         (processor-vector []))
     (cl-labels
-        ;; Collect all pending data in a single string and clear
-        ;; pending.
+        ;; Collect all pending strings from FIFO into one
+        ;; single string.
         ;;
-        ;; Return all pending data as a string.
-        ((all-processed-data ()
-           (let ((lst (mistty--fifo-to-list processed)))
+        ;; The fifo is cleared.
+        ;;
+        ;; Return a single, possibly empty, string.
+        ((fifo-to-string (fifo)
+           (let ((lst (mistty--fifo-to-list fifo)))
              (pcase (length lst)
                (0 "")
                (1 (car lst))
@@ -1418,7 +1445,7 @@ mistty--accumulator whose slots can be accessed."
 
          ;; Send all processed data to DEST.
          (flush (dest proc)
-           (let ((data (all-processed-data)))
+           (let ((data (fifo-to-string processed)))
              (unless (string-empty-p data)
                (funcall dest proc data))))
 
@@ -1472,9 +1499,13 @@ mistty--accumulator whose slots can be accessed."
          (build-processor-vector (processor-alist)
            (vconcat (mapcar #'cdr processor-alist)))
 
+         ;; Add STR as processed string
+         (push-down (str)
+           (mistty--fifo-enqueue processed str))
+
          ;; Process any data in unprocessed and move it to processed.
          (process-data (dest proc)
-           (while-let ((data (mistty--fifo-dequeue unprocessed)))
+           (let ((data (fifo-to-string unprocessed)))
              (while (not (string-empty-p data))
                (if (and overall-processor-regexp
                         (string-match overall-processor-regexp data))
@@ -1490,9 +1521,12 @@ mistty--accumulator whose slots can be accessed."
 
                        (unless (string-empty-p before)
                          (mistty--fifo-enqueue processed before))
-                       (flush dest proc)
-                       (funcall processor matching)
-                       (mistty--fifo-enqueue processed matching)))
+                       (funcall
+                        processor
+                        (mistty--make-accumulator-ctx
+                         :flush-f (lambda () (flush dest proc))
+                         :push-down-f #'push-down)
+                        matching)))
                  (mistty--fifo-enqueue processed data)
                  (setq data ""))))))
 

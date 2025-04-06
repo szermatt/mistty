@@ -547,12 +547,17 @@ Usage:
   ;; Alist of (cons regexp (lambda (ctx str)))
   (processor-alist :mutable t)
   ;; Set to non-nil after changing processor-alist.
-  (processor-alist-dirty :mutable t))
+  (processor-alist-dirty :mutable t)
+  (post-processors :mutable t))
 
 (defsubst mistty--accumulator-clear-processors (accum)
-  "Remove all processors registered for ACCUM."
+  "Remove all (post-)processors registered for ACCUM."
   (setf (mistty--accumulator--processor-alist accum) nil)
-  (setf (mistty--accumulator--processor-alist-dirty accum) t))
+  (setf (mistty--accumulator--processor-alist-dirty accum) t)
+  (setf (mistty--accumulator--post-processors accum) nil))
+
+(defsubst mistty--accumulator-add-post-processor (accum post-processor)
+  (push post-processor (mistty--accumulator--post-processors accum)))
 
 (defsubst mistty--accumulator-add-processor (accum regexp processor)
   "Register PROCESSOR in ACCUM for processing REGEXP.
@@ -574,10 +579,17 @@ with the process buffer as current buffer."
 (defsubst mistty--accumulator-ctx-flush (ctx)
   "Flush accumulator from a processor.
 
+Flushing from a processor sends all data processed so far to the
+destination process filter. There's likely to be more data left
+afterwards.
+
+Post-processors are not run after every flush, but rather when all data
+has been processed.
+
 CTX is the context passed to the current processor.
 
-The rest of the calling processor is never run if the process buffer is
-killed while handling the flush."
+If the process buffer is killed while handling the flush, the processor
+is interrupted."
   (funcall (mistty--accumulator-ctx-flush-f ctx)))
 
 (defsubst mistty--accumulator-ctx-push-down (ctx str)
@@ -1442,7 +1454,8 @@ mistty--accumulator whose slots can be accessed."
         (processed (mistty--make-fifo))
         (overall-processor-regexp nil)
         (processing-pending-output nil)
-        (processor-vector []))
+        (processor-vector [])
+        (needs-postprocessing nil))
     (cl-labels
         ;; Collect all pending strings from FIFO into one
         ;; single string.
@@ -1461,7 +1474,16 @@ mistty--accumulator whose slots can be accessed."
          (flush (dest proc)
            (let ((data (fifo-to-string processed)))
              (unless (string-empty-p data)
-               (funcall dest proc data))))
+               (funcall dest proc data)
+               (setq needs-postprocessing t))))
+
+         ;; Call post-processors after everything has been processed.
+         (post-process (proc post-processors)
+           (when needs-postprocessing
+             (setq needs-postprocessing nil)
+             (dolist (p post-processors)
+               (mistty--with-live-buffer (process-buffer proc)
+                 (funcall p)))))
 
          ;; Check whether the current instance should flush the data.
          ;;
@@ -1558,7 +1580,8 @@ mistty--accumulator whose slots can be accessed."
             (setq processor-vector (build-processor-vector processor-alist))
             (setq processor-alist-dirty nil))
           (process-data destination proc)
-          (flush destination proc))))))
+          (flush destination proc)
+          (post-process proc post-processors))))))
 
 (provide 'mistty-term)
 

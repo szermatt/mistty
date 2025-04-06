@@ -953,7 +953,8 @@ differently from modifications made inside of the synced region."
 
 (defsubst mistty--require-work-buffer ()
   "Asserts that the current buffer is the work buffer."
-  (unless (eq mistty-work-buffer (current-buffer)) (error "Work buffer required")))
+  (unless (eq mistty-work-buffer (current-buffer))
+    (error "Work buffer required, got %s" (buffer-name))))
 
 (defsubst mistty--require-term-buffer ()
   "Asserts that the current buffer is the term buffer."
@@ -1044,6 +1045,8 @@ buffer and `mistty-proc' to that buffer's process."
         (setf (mistty--accumulator--destination accum)
               #'mistty--process-filter)
         (mistty--accumulator-clear-processors accum)
+        (mistty--accumulator-add-post-processor
+         accum #'mistty--postprocessor)
         (mistty--add-prompt-detection accum)
         (mistty--accumulator-add-processor
          accum
@@ -1490,14 +1493,18 @@ PROC is the calling shell process and STR the string it sent."
      ;; normal processing
      (t
       (mistty-log "RECV[%s]" str)
-      (mistty--process-terminal-seq proc work-buffer term-buffer str)
-      (mistty--with-live-buffer work-buffer
-        (mistty--cancel-timeout mistty--queue))
-      (with-current-buffer work-buffer
-        (mistty--refresh)
-        (mistty--maybe-truncate-when-idle)
-        (mistty--dequeue mistty--queue 'intermediate)
-        (mistty--dequeue-with-timer mistty--queue 'stable))))))
+      (mistty--process-terminal-seq proc work-buffer term-buffer str)))))
+
+(defun mistty--postprocessor ()
+  "React to changes on the term buffer.
+
+This is meant to be added to the accumulator as post-processor."
+  (mistty--with-live-buffer mistty-work-buffer
+    (mistty--cancel-timeout mistty--queue)
+    (mistty--refresh)
+    (mistty--maybe-truncate-when-idle)
+    (mistty--dequeue mistty--queue 'intermediate)
+    (mistty--dequeue-with-timer mistty--queue 'stable)))
 
 (defun mistty--reset ()
   "Reset the link between work and term buffer.

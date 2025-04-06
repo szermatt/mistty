@@ -557,7 +557,8 @@ Usage:
 (defsubst mistty--accumulator-add-processor (accum regexp processor)
   "Register PROCESSOR in ACCUM for processing REGEXP.
 
-PROCESSOR must be a function with signature (CTX STR)"
+PROCESSOR must be a function with signature (CTX STR). It is executed
+with the process buffer as current buffer."
   (push (cons regexp processor) (mistty--accumulator--processor-alist accum))
   (setf (mistty--accumulator--processor-alist-dirty accum) t))
 
@@ -573,7 +574,10 @@ PROCESSOR must be a function with signature (CTX STR)"
 (defsubst mistty--accumulator-ctx-flush (ctx)
   "Flush accumulator from a processor.
 
-CTX is the context passed to the current processor."
+CTX is the context passed to the current processor.
+
+The rest of the calling processor is never run if the process buffer is
+killed while handling the flush."
   (funcall (mistty--accumulator-ctx-flush-f ctx)))
 
 (defsubst mistty--accumulator-ctx-push-down (ctx str)
@@ -1509,24 +1513,28 @@ mistty--accumulator whose slots can be accessed."
              (while (not (string-empty-p data))
                (if (and overall-processor-regexp
                         (string-match overall-processor-regexp data))
-                   (progn
-                     (let* ((before (substring data 0 (match-beginning 0)))
-                            (matching (substring
-                                       data (match-beginning 0) (match-end 0)))
-                            (processor (cl-loop for i from 1
-                                                for p across processor-vector
-                                                thereis (when (match-beginning i)
-                                                          p))))
-                       (setq data (substring data (match-end 0))) ; next loop
+                   (let* ((before (substring data 0 (match-beginning 0)))
+                          (matching (substring
+                                     data (match-beginning 0) (match-end 0)))
+                          (processor (cl-loop for i from 1
+                                              for p across processor-vector
+                                              thereis (when (match-beginning i)
+                                                        p))))
+                     (setq data (substring data (match-end 0))) ; next loop
 
-                       (unless (string-empty-p before)
-                         (mistty--fifo-enqueue processed before))
-                       (funcall
-                        processor
-                        (mistty--make-accumulator-ctx
-                         :flush-f (lambda () (flush dest proc))
-                         :push-down-f #'push-down)
-                        matching)))
+                     (unless (string-empty-p before)
+                       (mistty--fifo-enqueue processed before))
+                     (mistty--with-live-buffer (process-buffer proc)
+                       (catch 'mistty-abort-processor
+                         (funcall
+                          processor
+                          (mistty--make-accumulator-ctx
+                           :flush-f (lambda ()
+                                      (flush dest proc)
+                                      (unless (buffer-live-p (process-buffer proc))
+                                        (throw 'mistty-abort-processor nil)))
+                           :push-down-f #'push-down)
+                          matching))))
                  (mistty--fifo-enqueue processed data)
                  (setq data ""))))))
 

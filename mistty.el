@@ -1062,6 +1062,13 @@ buffer and `mistty-proc' to that buffer's process."
          (lambda (ctx str)
            (mistty--accumulator-ctx-flush ctx)
            (mistty--enter-fullscreen proc)
+           (mistty--accumulator-ctx-push-down ctx str)))
+        (mistty--accumulator-add-processor
+         accum
+         "\ec\\|\e\\[H\e\\[0?J\\|\e\\[2J"
+         (lambda (ctx str)
+           (mistty--accumulator-ctx-flush ctx)
+           (mistty--reset)
            (mistty--accumulator-ctx-push-down ctx str))))
       (set-process-sentinel proc #'mistty--process-sentinel))
 
@@ -1479,43 +1486,6 @@ PROC is the calling shell process and STR the string it sent."
      ((or (not (buffer-live-p work-buffer)) (not (buffer-live-p term-buffer)))
       (term-emulate-terminal proc str))
 
-     ;; reset
-     ((or (string-match "\ec" str)
-          (string-match "\\(\e\\[H\e\\[0?J\\|\e\\[2J\\)" str))
-      (let ((rs1-before-pos (match-beginning 0))
-            (rs1-after-pos (match-end 0))
-            (reset-scrolline)
-            (home-pos))
-        (mistty--process-terminal-seq proc work-buffer term-buffer (substring str 0 rs1-before-pos))
-        (mistty--with-live-buffer work-buffer
-          (mistty--cancel-queue mistty--queue)
-          (while-let ((cs (car mistty--changesets)))
-            (mistty--release-changeset cs))
-          (setq mistty--inhibit-refresh nil)
-          (setq mistty--need-refresh t)
-          (mistty--refresh)
-          (mistty--prepare-end-for-reset)
-          (setq reset-scrolline (mistty--scrolline (point-max)))
-          (setq home-pos (point)))
-        (mistty--emulate-terminal proc (substring str rs1-before-pos rs1-after-pos) work-buffer)
-        (mistty-log "RESET terminal at scrolline %s" reset-scrolline)
-        (mistty--with-live-buffer term-buffer
-          (mistty--term-reset-scrolline reset-scrolline)
-          (setq mistty-bracketed-paste nil))
-        (mistty--with-live-buffer work-buffer
-          (setq mistty-bracketed-paste nil)
-          (mistty--set-sync-mark (point-max) reset-scrolline))
-        (mistty--process-filter proc (substring str rs1-after-pos))
-        (if mistty-allow-clearing-scrollback
-            (mistty--clear-scrollback)
-          ;; Scroll the main window so the region that was cleared is
-          ;; not visible anymore. This way, it looks like the buffer
-          ;; was cleared even though history is kept.
-          (mistty--with-live-buffer work-buffer
-            (when-let (win (get-buffer-window work-buffer))
-              (with-selected-window win
-                (set-window-start win (mistty--bol home-pos) 'noforce)))))))
-
      ;; normal processing
      (t
       (mistty-log "RECV[%s]" str)
@@ -1527,6 +1497,40 @@ PROC is the calling shell process and STR the string it sent."
         (mistty--maybe-truncate-when-idle)
         (mistty--dequeue mistty--queue 'intermediate)
         (mistty--dequeue-with-timer mistty--queue 'stable))))))
+
+(defun mistty--reset ()
+  "Reset the link between work and term buffer.
+
+This should be called just before reseting the terminal."
+  (let ((reset-scrolline nil)
+        (home-pos nil))
+    (mistty--with-live-buffer mistty-work-buffer
+      (mistty--cancel-queue mistty--queue)
+      (while-let ((cs (car mistty--changesets)))
+        (mistty--release-changeset cs))
+      (setq mistty--inhibit-refresh nil)
+      (setq mistty--need-refresh t)
+      (mistty--refresh)
+      (mistty--prepare-end-for-reset)
+      (setq reset-scrolline (mistty--scrolline (point-max)))
+      (setq home-pos (point)))
+    (mistty--with-live-buffer mistty-term-buffer
+      (mistty--term-reset-scrolline reset-scrolline)
+      (setq mistty-bracketed-paste nil))
+    (mistty--with-live-buffer mistty-work-buffer
+      (setq mistty-bracketed-paste nil)
+      (mistty--set-sync-mark (point-max) reset-scrolline)
+      (mistty-log "RESET terminal at scrolline %s" reset-scrolline))
+
+    (if mistty-allow-clearing-scrollback
+        (mistty--clear-scrollback)
+      ;; Scroll the main window so the region that was cleared is
+      ;; not visible anymore. This way, it looks like the buffer
+      ;; was cleared even though history is kept.
+      (mistty--with-live-buffer mistty-work-buffer
+        (when-let (win (get-buffer-window mistty-work-buffer))
+          (with-selected-window win
+            (set-window-start win (mistty--bol home-pos) 'noforce)))))))
 
 (defun mistty--prepare-end-for-reset ()
   "Prepare work buffer to put terminal region at (point-max).

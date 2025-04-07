@@ -815,21 +815,14 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
     (let ((split (mistty--split-incomplete-chars (substring str start))))
       (when (length> (cdr split) 0)
         (setq mistty--undecoded-bytes (cdr split)))
-      (term-emulate-terminal proc (car split)))))
-
-  (when-let ((change-start
-              (when (and mistty--term-changed
-                         (>= mistty--term-changed (point-min))
-                         (< mistty--term-changed (point-max)))
-                (text-property-any
-                 mistty--term-changed (point-max) 'mistty-changed t))))
-    (mistty--term-postprocess change-start term-width))
-  (setq mistty--term-changed nil))
+      (term-emulate-terminal proc (car split))))))
 
 (defun mistty--add-prompt-detection (accum)
   "Register processors to ACCUM for prompt detection.
 
 Detected prompts can be found in `mistty-prompt'."
+  (mistty--accumulator-add-post-processor
+   accum #'mistty--term-postprocess-changed)
   (mistty--accumulator-add-processor
    accum
    "     \r"
@@ -1075,6 +1068,22 @@ arguments."
     (when (> (point) initial-end)
       (put-text-property
        initial-end (point) 'mistty-maybe-skip t))))
+
+(defun mistty--term-postprocess-changed ()
+  "Process mistty-maybe-skip text properties.
+
+This function turns mistty-maybe-skip into mistty-skip properties on the
+lines that have changed, as detected by `mistty--term-changed'."
+  (when (and mistty--term-changed (< mistty--term-changed (point-min)))
+    (setq mistty--term-changed (point-min)))
+  (when (and mistty--term-changed (>= mistty--term-changed (point-max)))
+    (setq mistty--term-changed nil))
+  (when-let ((change-start
+              (when mistty--term-changed
+                (text-property-any
+                 mistty--term-changed (point-max) 'mistty-changed t))))
+    (mistty--term-postprocess change-start term-width))
+  (setq mistty--term-changed nil))
 
 (defun mistty--term-postprocess (region-start window-width)
   "Sets mistty-skip and yank handlers after REGION-START.
@@ -1481,7 +1490,7 @@ mistty--accumulator whose slots can be accessed."
          (post-process (proc post-processors)
            (when needs-postprocessing
              (setq needs-postprocessing nil)
-             (dolist (p post-processors)
+             (dolist (p (reverse post-processors))
                (mistty--with-live-buffer (process-buffer proc)
                  (funcall p)))))
 

@@ -1045,9 +1045,9 @@ buffer and `mistty-proc' to that buffer's process."
         (setf (mistty--accumulator--destination accum)
               #'mistty--process-filter)
         (mistty--accumulator-clear-processors accum)
+        (mistty--add-prompt-detection accum)
         (mistty--accumulator-add-post-processor
          accum #'mistty--postprocessor)
-        (mistty--add-prompt-detection accum)
         (mistty--accumulator-add-processor
          accum
          "\e\\[\\?25h"

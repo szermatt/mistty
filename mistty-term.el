@@ -26,12 +26,12 @@
 (defvar term-home-marker) ; defined in term.el
 
 (require 'subr-x)
-(require 'oclosure)
 (eval-when-compile
   (require 'cl-lib))
 
 (require 'mistty-util)
 (require 'mistty-log)
+(require 'mistty-accum)
 
 ;;; Code:
 
@@ -516,15 +516,6 @@ accessible from either buffer.
 Always access it through the places `mistty--prompt'
 `mistty--prompt-archive' and `mistty--prompt-counter'.")
 
-(defconst mistty--max-delay-processing-pending-output 0.1
-  "Limits how long to spend processing pending output.
-
-When MisTTY calls `accept-process-output', Emacs will read data from the
-process as long as there is some. If the process keeps sending data, the
-whole Emacs process would freeze for that long. This limit must be kept
-low or Emacs might become unresponsive when the process outputs data
-continuously.")
-
 (defconst mistty--prompt-regexp
   "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
   "Regexp used to identify prompts.
@@ -539,72 +530,6 @@ end of a prompt with no commands.")
   current
   archive
   counter)
-
-(oclosure-define (mistty--accumulator
-                  (:predicate mistty--accumulator-p))
-  "Process Output Accumulator.
-
-Use this function as process filter to accumulate and pre-process data
-before sending it to its destination filter.
-
-Usage:
-  (process-set-filter proc (mistty--accumulator #'real-process-filter))"
-
-  ;; The real process filter; a function with arguments (proc data)
-  (destination :mutable t)
-  ;; Alist of (cons regexp (lambda (ctx str)))
-  (processor-alist :mutable t)
-  ;; Set to non-nil after changing processor-alist.
-  (processor-alist-dirty :mutable t)
-  (post-processors :mutable t))
-
-(defsubst mistty--accumulator-clear-processors (accum)
-  "Remove all (post-)processors registered for ACCUM."
-  (setf (mistty--accumulator--processor-alist accum) nil)
-  (setf (mistty--accumulator--processor-alist-dirty accum) t)
-  (setf (mistty--accumulator--post-processors accum) nil))
-
-(defsubst mistty--accumulator-add-post-processor (accum post-processor)
-  (push post-processor (mistty--accumulator--post-processors accum)))
-
-(defsubst mistty--accumulator-add-processor (accum regexp processor)
-  "Register PROCESSOR in ACCUM for processing REGEXP.
-
-PROCESSOR must be a function with signature (CTX STR). It is executed
-with the process buffer as current buffer."
-  (push (cons regexp processor) (mistty--accumulator--processor-alist accum))
-  (setf (mistty--accumulator--processor-alist-dirty accum) t))
-
-(cl-defstruct (mistty--accumulator-ctx
-               (:constructor mistty--make-accumulator-ctx)
-               (:conc-name mistty--accumulator-ctx-))
-  "Allow processors to communicate with the accumulator"
-  ;; Flush accumulator (no-arg function)
-  flush-f
-  ;; Send processed string to destination (single-arg function)
-  push-down-f)
-
-(defsubst mistty--accumulator-ctx-flush (ctx)
-  "Flush accumulator from a processor.
-
-Flushing from a processor sends all data processed so far to the
-destination process filter. There's likely to be more data left
-afterwards.
-
-Post-processors are not run after every flush, but rather when all data
-has been processed.
-
-CTX is the context passed to the current processor.
-
-If the process buffer is killed while handling the flush, the processor
-is interrupted."
-  (funcall (mistty--accumulator-ctx-flush-f ctx)))
-
-(defsubst mistty--accumulator-ctx-push-down (ctx str)
-  "Send STR to destination from a processor.
-
-CTX is the context passed to the current processor."
-  (funcall (mistty--accumulator-ctx-push-down-f ctx) str))
 
 ;; A detected prompt.
 ;;
@@ -1496,151 +1421,6 @@ Return nil if the row isn't reachable on the terminal."
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
              (setf (mistty--prompt-end prompt) (mistty--term-scrolline)))))))))
-
-(defun mistty--make-accumulator (dest)
-  "Make an accumulator that sends process output to DEST.
-
-An accumulator is a function with the signature (PROC DATA) that is
-meant to be used as process filter. It intercepts, buffers and
-transforms process data before sending it to DEST.
-
-DEST is the destination process filter function, with the same
-signature (PROC DATA).
-
-The return value of this type is also an oclosure of type
-mistty--accumulator whose slots can be accessed."
-  (let ((unprocessed (mistty--make-fifo))
-        (processed (mistty--make-fifo))
-        (overall-processor-regexp nil)
-        (processing-pending-output nil)
-        (processor-vector [])
-        (needs-postprocessing nil))
-    (cl-labels
-        ;; Collect all pending strings from FIFO into one
-        ;; single string.
-        ;;
-        ;; The fifo is cleared.
-        ;;
-        ;; Return a single, possibly empty, string.
-        ((fifo-to-string (fifo)
-           (let ((lst (mistty--fifo-to-list fifo)))
-             (pcase (length lst)
-               (0 "")
-               (1 (car lst))
-               (_ (mapconcat #'identity lst)))))
-
-         ;; Send all processed data to DEST.
-         (flush (dest proc)
-           (let ((data (fifo-to-string processed)))
-             (unless (string-empty-p data)
-               (funcall dest proc data)
-               (setq needs-postprocessing t))))
-
-         ;; Call post-processors after everything has been processed.
-         (post-process (proc post-processors)
-           (when needs-postprocessing
-             (setq needs-postprocessing nil)
-             (dolist (p (reverse post-processors))
-               (mistty--with-live-buffer (process-buffer proc)
-                 (funcall p)))))
-
-         ;; Check whether the current instance should flush the data.
-         ;;
-         ;; The accumulator calls accept-process-output, which, since
-         ;; the accumulator is the process filter, makes Emacs calls
-         ;; accumulator recursively.
-         ;;
-         ;; Recursive calls should not flush, only the toplevel call
-         ;; should.
-         (toplevel-accumulator-p (proc)
-           (if processing-pending-output
-               (prog1 nil ; don't flush
-                 (when (>= (time-to-seconds (time-subtract
-                                             (current-time)
-                                             processing-pending-output))
-                           mistty--max-delay-processing-pending-output)
-                   (throw 'mistty-stop-accumlating nil)))
-             (prog1 t ; flush
-               (unwind-protect
-                   (progn
-                     ;; accept-process-output calls the accumulator
-                     ;; recursively as there's pending data.
-                     (setq processing-pending-output (current-time))
-                     (catch 'mistty-stop-accumlating
-                       (accept-process-output proc 0 nil 'just-this-one)))
-                 (setq processing-pending-output nil)))))
-
-         ;; Build a new value for overall-processor-regexp.
-         ;;
-         ;; This is a big concatenation of all regexps in
-         ;; PROCESSOR-ALIST or nil if the alist is empty.
-         ;;
-         ;; WARNING: regexps must not define groups. TODO: enforce
-         ;; this.
-         (build-overall-processor-regexp (processor-alist)
-           (when processor-alist
-             (let ((index 0))
-               (mapconcat
-                (pcase-lambda (`(,regexp . ,_))
-                  (cl-incf index)
-                  (format "\\(?%d:%s\\)" index regexp))
-                processor-alist
-                "\\|"))))
-
-         ;; Build a new value for processor-vector.
-         ;;
-         ;; The vector contain the processor function whose indexes
-         ;; correspond to groups in overall-processor-regexp.
-         (build-processor-vector (processor-alist)
-           (vconcat (mapcar #'cdr processor-alist)))
-
-         ;; Add STR as processed string
-         (push-down (str)
-           (mistty--fifo-enqueue processed str))
-
-         ;; Process any data in unprocessed and move it to processed.
-         (process-data (dest proc)
-           (let ((data (fifo-to-string unprocessed)))
-             (while (not (string-empty-p data))
-               (if (and overall-processor-regexp
-                        (string-match overall-processor-regexp data))
-                   (let* ((before (substring data 0 (match-beginning 0)))
-                          (matching (substring
-                                     data (match-beginning 0) (match-end 0)))
-                          (processor (cl-loop for i from 1
-                                              for p across processor-vector
-                                              thereis (when (match-beginning i)
-                                                        p))))
-                     (setq data (substring data (match-end 0))) ; next loop
-
-                     (unless (string-empty-p before)
-                       (mistty--fifo-enqueue processed before))
-                     (mistty--with-live-buffer (process-buffer proc)
-                       (catch 'mistty-abort-processor
-                         (funcall
-                          processor
-                          (mistty--make-accumulator-ctx
-                           :flush-f (lambda ()
-                                      (flush dest proc)
-                                      (unless (buffer-live-p (process-buffer proc))
-                                        (throw 'mistty-abort-processor nil)))
-                           :push-down-f #'push-down)
-                          matching))))
-                 (mistty--fifo-enqueue processed data)
-                 (setq data ""))))))
-
-      (oclosure-lambda (mistty--accumulator (destination dest)
-                                            (processor-alist-dirty t))
-          (proc data)
-        (mistty--fifo-enqueue unprocessed data)
-        (when (toplevel-accumulator-p proc)
-          (when processor-alist-dirty
-            (setq overall-processor-regexp (build-overall-processor-regexp processor-alist))
-            (setq processor-vector (build-processor-vector processor-alist))
-            (setq processor-alist-dirty nil))
-          (process-data destination proc)
-          (flush destination proc)
-          (post-process proc post-processors))))))
 
 (provide 'mistty-term)
 

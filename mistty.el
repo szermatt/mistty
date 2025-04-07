@@ -45,6 +45,7 @@
   (require 'minibuffer))
 
 (require 'mistty-changeset)
+(require 'mistty-accum)
 (require 'mistty-term)
 (require 'mistty-util)
 (require 'mistty-log)

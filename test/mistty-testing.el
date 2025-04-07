@@ -776,4 +776,37 @@ This is useful after files have changed, such as after checking
   (load "mistty-osc7.el" nil 'nomessage 'nosuffix)
   (load "mistty.el"nil 'nomessage 'nosuffix))
 
+
+(cl-defmacro mistty-with-test-process ((proc-var) &rest body)
+  "Evaluate BODY with a pipe process running.
+
+The process is accessible from within BODY as PROC-VAR."
+  (declare (indent 1))
+  `(mistty-with-test-process-1 (lambda (,proc-var) ,@body)))
+
+(defun mistty-with-test-process-1 (body)
+  "Call BODY with a pipe process running.
+
+Kill the process and its buffer once BODY returns."
+  (let* ((proc-buf (generate-new-buffer (concat " *proc ")))
+         (proc (make-process
+                :name (buffer-name proc-buf)
+                :buffer proc-buf
+                :noquery t
+                :connection-type 'pipe
+                :coding 'binary
+                :command (list "cat"))))
+    (unwind-protect
+        (funcall body proc)
+      (when (process-live-p proc)
+        (delete-process proc)
+        (when (buffer-live-p proc-buf)
+          (let ((kill-buffer-query-functions nil))
+            (kill-buffer proc-buf)))))))
+
+(defun mistty-test-proc-buffer-string (proc)
+  "Return the content of PROC's buffer."
+  (with-current-buffer (process-buffer proc)
+    (buffer-string)))
+
 (provide 'mistty-testing)

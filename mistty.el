@@ -1032,38 +1032,37 @@ buffer and `mistty-proc' to that buffer's process."
 
     (when proc
       (let ((accum (process-filter proc)))
-        (setf (mistty--accumulator--destination accum)
-              #'mistty--process-filter)
-        (mistty--accumulator-clear-processors accum)
+        (mistty--accum-redirect accum #'mistty--process-filter)
+        (mistty--accum-clear-processors accum)
         (mistty--add-prompt-detection accum)
-        (mistty--accumulator-add-post-processor
+        (mistty--accum-add-post-processor
          accum #'mistty--postprocessor)
-        (mistty--accumulator-add-processor
+        (mistty--accum-add-processor
          accum
          "\e\\[\\?25h"
          (lambda (_ _)
            (mistty--with-live-buffer work-buffer
              (mistty--show-cursor))))
-        (mistty--accumulator-add-processor
+        (mistty--accum-add-processor
          accum
          "\e\\[\\?25l"
          (lambda (_ _)
            (mistty--with-live-buffer work-buffer
              (mistty--hide-cursor))))
-        (mistty--accumulator-add-processor
+        (mistty--accum-add-processor
          accum
          "\e\\[\\(?:\\??47\\|\\?104[79]\\)h"
          (lambda (ctx str)
-           (mistty--accumulator-ctx-flush ctx)
+           (mistty--accum-ctx-flush ctx)
            (mistty--enter-fullscreen proc)
-           (mistty--accumulator-ctx-push-down ctx str)))
-        (mistty--accumulator-add-processor
+           (mistty--accum-ctx-push-down ctx str)))
+        (mistty--accum-add-processor
          accum
          "\ec\\|\e\\[H\e\\[0?J\\|\e\\[2J"
          (lambda (ctx str)
-           (mistty--accumulator-ctx-flush ctx)
+           (mistty--accum-ctx-flush ctx)
            (mistty--reset)
-           (mistty--accumulator-ctx-push-down ctx str))))
+           (mistty--accum-ctx-push-down ctx str))))
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
@@ -1101,9 +1100,8 @@ Returns M or a new marker."
     (setq mistty--queue nil))
   (when mistty-proc
     (let ((accum (process-filter mistty-proc)))
-      (setf (mistty--accumulator--destination accum)
-            #'term-emulate-terminal)
-      (mistty--accumulator-clear-processors accum))
+      (mistty--accum-redirect accum #'term-emulate-terminal)
+      (mistty--accum-clear-processors accum))
     (set-process-sentinel mistty-proc #'term-sentinel)
     (setq mistty-proc nil)))
 
@@ -3628,15 +3626,14 @@ Width and height are limited to `mistty-min-terminal-width' and
       (setq mistty-fullscreen t))
 
     (let ((accum (process-filter proc)))
-      (setf (mistty--accumulator--destination accum)
-            #'mistty--fs-process-filter)
-      (mistty--accumulator-clear-processors accum)
-      (mistty--accumulator-add-processor
+      (mistty--accum-redirect accum #'mistty--fs-process-filter)
+      (mistty--accum-clear-processors accum)
+      (mistty--accum-add-processor
        accum
        "\e\\[\\(\\??47\\|\\?104[79]\\)l\\(\e8\\|\e\\[\\?1048l\\)?"
        (lambda (ctx str)
-         (mistty--accumulator-ctx-push-down ctx str)
-         (mistty--accumulator-ctx-flush ctx)
+         (mistty--accum-ctx-push-down ctx str)
+         (mistty--accum-ctx-flush ctx)
          (mistty--leave-fullscreen proc))))
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
     (mistty--update-mode-lines proc)

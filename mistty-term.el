@@ -754,17 +754,17 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
   "Register processors to ACCUM for prompt detection.
 
 Detected prompts can be found in `mistty-prompt'."
-  (mistty--accumulator-add-post-processor
+  (mistty--accum-add-post-processor
    accum #'mistty--term-postprocess-changed)
-  (mistty--accumulator-add-post-processor
+  (mistty--accum-add-post-processor
    accum (mistty--regexp-prompt-detector))
-  (mistty--accumulator-add-processor
+  (mistty--accum-add-processor
    accum
    "     \r"
    (lambda (ctx str)
      ;; Look at the terminal state before the \r
-     (mistty--accumulator-ctx-push-down ctx (substring str 0 -1))
-     (mistty--accumulator-ctx-flush ctx)
+     (mistty--accum-ctx-push-down ctx (substring str 0 -1))
+     (mistty--accum-ctx-flush ctx)
      (when (or (and (= (1- term-width) (term-current-column))
                     (eq ?\  (char-before (point))))
                (and (get-text-property (pos-eol 0) 'term-line-wrap)
@@ -774,13 +774,13 @@ Detected prompts can be found in `mistty-prompt'."
              (pos (pos-eol 0)))
          (put-text-property pos (1+ pos) 'mistty-prompt-sp t)))
 
-     (mistty--accumulator-ctx-push-down ctx "\r"))))
+     (mistty--accum-ctx-push-down ctx "\r"))))
 
 (defun mistty--regexp-prompt-detector ()
   "Build a post-processor that look for a new prompt at cursor.
 
 The return value is meant to be
-`mistty--accumulator-add-post-processor'.
+`mistty--accum-add-post-processor'.
 
  The post-processor updates `mistty--prompt' after the content of the
 terminal buffer has been updated."

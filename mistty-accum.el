@@ -41,7 +41,7 @@ low or Emacs might become unresponsive when the process outputs data
 continuously.")
 
 (oclosure-define (mistty--accumulator
-                  (:predicate mistty--accumulator-p))
+                  (:predicate mistty--accum-p))
   "Process Output Accumulator.
 
 Use this function as process filter to accumulate and process data
@@ -49,16 +49,16 @@ before sending it to its destination filter.
 
 Processors can be added to the accumulator to react to specific terminal
 sequences being found in the flow before it gets to the real process
-filter. See `mistty--accumulator-add-processor'
+filter. See `mistty--accum-add-processor'
 
 Post-processors can be added to the accumulator to react to changes made
 by the real process filter. See
-`mistty--accumulator-add-post-processor'.
+`mistty--accum-add-post-processor'.
 
 Usage example:
   (let ((accum (mistty--make-accumulator #'real-process-filter)))
     (process-set-filter proc accum)
-    (mistty--accumulator-add-processor accum ...)
+    (mistty--accum-add-processor accum ...)
     ...
 "
   ;; The following slots are meant to be accessed only by
@@ -73,13 +73,17 @@ Usage example:
   ;; Set of no-arg functions to call after calling process-filter.
   (post-processors :mutable t))
 
-(defsubst mistty--accumulator-clear-processors (accum)
+(defun mistty--accum-redirect (accum new-destination)
+  "Change the process filter the accumulator sends output to."
+  (setf (mistty--accumulator--destination accum) new-destination))
+
+(defsubst mistty--accum-clear-processors (accum)
   "Remove all (post-)processors registered for ACCUM."
   (setf (mistty--accumulator--processor-alist accum) nil)
   (setf (mistty--accumulator--processor-alist-dirty accum) t)
   (setf (mistty--accumulator--post-processors accum) nil))
 
-(defsubst mistty--accumulator-add-post-processor (accum post-processor)
+(defsubst mistty--accum-add-post-processor (accum post-processor)
   "Add POST-PROCESSOR to ACCUM.
 
 POST-PROCESSOR must be a function that takes no argument. It is called
@@ -87,37 +91,38 @@ after the real process filter, once there are no remaining pending
 processed data to send."
   (push post-processor (mistty--accumulator--post-processors accum)))
 
-(defsubst mistty--accumulator-add-processor (accum regexp processor)
+(defsubst mistty--accum-add-processor (accum regexp processor)
   "Register PROCESSOR in ACCUM for processing REGEXP.
 
 PROCESSOR must be a function with signature (CTX STR). With CTX a
-`mistty--accumulator-ctx' instance and STR the terminal sequence that
+`mistty--accum-ctx' instance and STR the terminal sequence that
 matched the regexp. The processor is executed with the process buffer as
 current buffer.
 
 If PROCESSOR does nothing, the terminal sequence matching REGEXP is
 simply swallowed. To forward or modify it, PROCESSOR must call
-`mistty--accumulator-ctx-push-down'.
+`mistty--accum-ctx-push-down'.
 
 If PROCESSOR needs to check the state of the process buffer, it must
 first make sure that that state has been fully updated to take into
 account everything that was sent before the matching terminal sequence
-by calling `mistty--accumulator-ctx-flush'."
-  (push (cons regexp processor) (mistty--accumulator--processor-alist accum))
+by calling `mistty--accum-ctx-flush'."
+  (push (cons regexp processor)
+        (mistty--accumulator--processor-alist accum))
   (setf (mistty--accumulator--processor-alist-dirty accum) t))
 
-(cl-defstruct (mistty--accumulator-ctx
+(cl-defstruct (mistty--accum-ctx
                (:constructor mistty--make-accumulator-ctx)
-               (:conc-name mistty--accumulator-ctx-))
+               (:conc-name mistty--accum-ctx-))
   "Allow processors to communicate with the accumulator"
   ;; Flush accumulator (no-arg function).
-  ;; Call it through mistty--accumulator-ctx-flush.
+  ;; Call it through mistty--accum-ctx-flush.
   flush-f
   ;; Send processed string to destination (single-arg function)
-  ;; Call it through mistty--accumulator-ctx-push-down.
+  ;; Call it through mistty--accum-ctx-push-down.
   push-down-f)
 
-(defsubst mistty--accumulator-ctx-flush (ctx)
+(defsubst mistty--accum-ctx-flush (ctx)
   "Flush accumulator from a processor.
 
 Flushing from a processor sends all data processed so far to the
@@ -131,13 +136,13 @@ CTX is the context passed to the current processor.
 
 If the process buffer is killed while handling the flush, the processor
 is interrupted."
-  (funcall (mistty--accumulator-ctx-flush-f ctx)))
+  (funcall (mistty--accum-ctx-flush-f ctx)))
 
-(defsubst mistty--accumulator-ctx-push-down (ctx str)
+(defsubst mistty--accum-ctx-push-down (ctx str)
   "Send STR to destination from a processor.
 
 CTX is the context passed to the current processor."
-  (funcall (mistty--accumulator-ctx-push-down-f ctx) str))
+  (funcall (mistty--accum-ctx-push-down-f ctx) str))
 
 
 (defun mistty--make-accumulator (dest)
@@ -151,7 +156,7 @@ DEST is the destination process filter function, with the same
 signature (PROC DATA).
 
 The return value of this type is also an oclosure of type
-mistty--accumulator whose slots can be accessed."
+mistty--accum whose slots can be accessed."
   (let ((unprocessed (mistty--make-fifo))
         (processed (mistty--make-fifo))
         (overall-processor-regexp nil)

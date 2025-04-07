@@ -38,7 +38,7 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-processor accum "\e=" #'ignore)
+      (mistty--accum-add-processor accum "\e=" #'ignore)
 
       (funcall accum proc "foo\e=bar")
       (should (equal "foobar"
@@ -49,10 +49,10 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-processor
+      (mistty--accum-add-processor
        accum "\e="
        (lambda (ctx str)
-         (mistty--accumulator-ctx-push-down ctx str)))
+         (mistty--accum-ctx-push-down ctx str)))
 
       (funcall accum proc "foo\e=bar")
       (should (equal "foo\e=bar"
@@ -63,11 +63,11 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-processor
+      (mistty--accum-add-processor
        accum "\e="
        (lambda (ctx _)
-         (mistty--accumulator-ctx-push-down ctx "-")
-         (mistty--accumulator-ctx-push-down ctx "-")))
+         (mistty--accum-ctx-push-down ctx "-")
+         (mistty--accum-ctx-push-down ctx "-")))
 
       (funcall accum proc "foo\e=bar")
       (should (equal "foo--bar"
@@ -78,10 +78,10 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-processor
+      (mistty--accum-add-processor
        accum "\e="
        (lambda (ctx _)
-         (mistty--accumulator-ctx-flush ctx)
+         (mistty--accum-ctx-flush ctx)
          (should (equal "foo"
                         (mistty-test-proc-buffer-string proc)))))
 
@@ -94,25 +94,25 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-processor
+      (mistty--accum-add-processor
        accum "\e="
        (lambda (ctx data)
          ;; Anything pushed before flush is visible afterwards.
-         (mistty--accumulator-ctx-push-down ctx "-")
-         (mistty--accumulator-ctx-flush ctx)
+         (mistty--accum-ctx-push-down ctx "-")
+         (mistty--accum-ctx-flush ctx)
          (should (equal "foo-"
                         (mistty-test-proc-buffer-string proc)))
 
          ;; There can be more push-down and flushes.
-         (mistty--accumulator-ctx-push-down ctx "-")
-         (mistty--accumulator-ctx-push-down ctx "-")
-         (mistty--accumulator-ctx-flush ctx)
+         (mistty--accum-ctx-push-down ctx "-")
+         (mistty--accum-ctx-push-down ctx "-")
+         (mistty--accum-ctx-flush ctx)
          (should (equal "foo---"
                         (mistty-test-proc-buffer-string proc)))
 
          ;; Anything pushed after the flush is not visible
          ;; until later.
-         (mistty--accumulator-ctx-push-down ctx "-")
+         (mistty--accum-ctx-push-down ctx "-")
          (should (equal "foo---"
                         (mistty-test-proc-buffer-string proc)))))
 
@@ -125,7 +125,7 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-post-processor
+      (mistty--accum-add-post-processor
        accum
        (lambda ()
          (upcase-region (point-min) (point-max))))
@@ -140,16 +140,16 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-post-processor
+      (mistty--accum-add-post-processor
        accum
        (lambda ()
          (upcase-region (point-min) (point-max))))
 
-      (mistty--accumulator-add-processor
+      (mistty--accum-add-processor
        accum "\e="
        (lambda (ctx _)
-         (mistty--accumulator-ctx-push-down ctx "-foo-")
-         (mistty--accumulator-ctx-flush ctx)
+         (mistty--accum-ctx-push-down ctx "-foo-")
+         (mistty--accum-ctx-flush ctx)
          ;; The post-process hasn't been called on the current data
          ;; yet. It's only called at the end.
          (should (equal "FIRST-before-foo-"
@@ -166,10 +166,10 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accumulator-add-post-processor
+      (mistty--accum-add-post-processor
        accum (lambda () (insert "1")))
 
-      (mistty--accumulator-add-post-processor
+      (mistty--accum-add-post-processor
        accum (lambda () (insert "2")))
 
       (funcall accum proc "foo")

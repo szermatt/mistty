@@ -67,9 +67,9 @@ Usage example:
   ;; The real process filter; a function with arguments (proc data)
   (destination :mutable t)
   ;; Alist of (cons regexp (lambda (ctx str)))
-  (processor-alist :mutable t)
-  ;; Set to non-nil after changing processor-alist.
-  (processor-alist-dirty :mutable t)
+  (processors :mutable t)
+  ;; Set to non-nil after changing processors.
+  (processors-dirty :mutable t)
   ;; Set of no-arg functions to call after calling process-filter.
   (post-processors :mutable t))
 
@@ -79,8 +79,8 @@ Usage example:
 
 (defsubst mistty--accum-clear-processors (accum)
   "Remove all (post-)processors registered for ACCUM."
-  (setf (mistty--accumulator--processor-alist accum) nil)
-  (setf (mistty--accumulator--processor-alist-dirty accum) t)
+  (setf (mistty--accumulator--processors accum) nil)
+  (setf (mistty--accumulator--processors-dirty accum) t)
   (setf (mistty--accumulator--post-processors accum) nil))
 
 (defsubst mistty--accum-add-post-processor (accum post-processor)
@@ -107,12 +107,23 @@ If PROCESSOR needs to check the state of the process buffer, it must
 first make sure that that state has been fully updated to take into
 account everything that was sent before the matching terminal sequence
 by calling `mistty--accum-ctx-flush'."
-  (push (cons regexp processor)
-        (mistty--accumulator--processor-alist accum))
-  (setf (mistty--accumulator--processor-alist-dirty accum) t))
+  (push (mistty--accum-make-processor :regexp regexp :func processor)
+        (mistty--accumulator--processors accum))
+  (setf (mistty--accumulator--processors-dirty accum) t))
+
+(cl-defstruct (mistty--accum-processor
+               (:constructor mistty--accum-make-processor)
+               (:conc-name mistty--accum-processor-))
+  "Process specific regexps in an output filter.
+
+Register processors with `mistty--accum-add-processor'."
+  ;; Regexps whose matches should be sent.
+  regexp
+  ;; Function accepting (ctx str) for all match of regexps.
+  func)
 
 (cl-defstruct (mistty--accum-ctx
-               (:constructor mistty--make-accumulator-ctx)
+               (:constructor mistty--accum-make-ctx)
                (:conc-name mistty--accum-ctx-))
   "Allow processors to communicate with the accumulator"
   ;; Flush accumulator (no-arg function).
@@ -144,7 +155,6 @@ is interrupted."
 CTX is the context passed to the current processor."
   (funcall (mistty--accum-ctx-push-down-f ctx) str))
 
-
 (defun mistty--make-accumulator (dest)
   "Make an accumulator that sends process output to DEST.
 
@@ -161,7 +171,6 @@ mistty--accum whose slots can be accessed."
         (processed (mistty--make-fifo))
         (overall-processor-regexp nil)
         (processing-pending-output nil)
-        (processor-vector [])
         (needs-postprocessing nil))
     (cl-labels
         ;; Collect all pending strings from FIFO into one
@@ -221,33 +230,35 @@ mistty--accum whose slots can be accessed."
          ;; Build a new value for overall-processor-regexp.
          ;;
          ;; This is a big concatenation of all regexps in
-         ;; PROCESSOR-ALIST or nil if the alist is empty.
+         ;; PROCESSORS or nil if the alist is empty.
          ;;
          ;; WARNING: regexps must not define groups. TODO: enforce
          ;; this.
-         (build-overall-processor-regexp (processor-alist)
-           (when processor-alist
+         (build-overall-processor-regexp (processors)
+           (when processors
              (let ((index 0))
                (mapconcat
-                (pcase-lambda (`(,regexp . ,_))
+                (pcase-lambda (p)
                   (cl-incf index)
-                  (format "\\(?%d:%s\\)" index regexp))
-                processor-alist
+                  (format "\\(?%d:%s\\)"
+                          index
+                          (mistty--accum-processor-regexp p)))
+                processors
                 "\\|"))))
 
          ;; Build a new value for processor-vector.
          ;;
          ;; The vector contain the processor function whose indexes
          ;; correspond to groups in overall-processor-regexp.
-         (build-processor-vector (processor-alist)
-           (vconcat (mapcar #'cdr processor-alist)))
+         (build-processor-vector (processors)
+           (vconcat (mapcar #'cdr processors)))
 
          ;; Add STR as processed string
          (push-down (str)
            (mistty--fifo-enqueue processed str))
 
          ;; Process any data in unprocessed and move it to processed.
-         (process-data (dest proc)
+         (process-data (dest proc processors)
            (let ((data (fifo-to-string unprocessed)))
              (while (not (string-empty-p data))
                (if (and overall-processor-regexp
@@ -256,7 +267,7 @@ mistty--accum whose slots can be accessed."
                           (matching (substring
                                      data (match-beginning 0) (match-end 0)))
                           (processor (cl-loop for i from 1
-                                              for p across processor-vector
+                                              for p in processors
                                               thereis (when (match-beginning i)
                                                         p))))
                      (setq data (substring data (match-end 0))) ; next loop
@@ -266,8 +277,8 @@ mistty--accum whose slots can be accessed."
                      (mistty--with-live-buffer (process-buffer proc)
                        (catch 'mistty-abort-processor
                          (funcall
-                          processor
-                          (mistty--make-accumulator-ctx
+                          (mistty--accum-processor-func processor)
+                          (mistty--accum-make-ctx
                            :flush-f (lambda ()
                                       (flush dest proc)
                                       (unless (buffer-live-p (process-buffer proc))
@@ -279,15 +290,14 @@ mistty--accum whose slots can be accessed."
 
       ;; Build the accumulator as an open closure.
       (oclosure-lambda (mistty--accumulator (destination dest)
-                                            (processor-alist-dirty t))
+                                            (processors-dirty t))
           (proc data)
         (mistty--fifo-enqueue unprocessed data)
         (when (toplevel-accumulator-p proc)
-          (when processor-alist-dirty
-            (setq overall-processor-regexp (build-overall-processor-regexp processor-alist))
-            (setq processor-vector (build-processor-vector processor-alist))
-            (setq processor-alist-dirty nil))
-          (process-data destination proc)
+          (when processors-dirty
+            (setq overall-processor-regexp (build-overall-processor-regexp processors))
+            (setq processors-dirty nil))
+          (process-data destination proc processors)
           (flush destination proc)
           (post-process proc post-processors))))))
 

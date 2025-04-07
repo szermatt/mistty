@@ -148,6 +148,13 @@ Add an ellipsis if STR is truncated."
       (concat (substring str 0 n) "...")
     str))
 
+(defun mistty--last-non-ws ()
+  "Return the position of the last non-whitespace in the buffer."
+  (save-excursion
+    (goto-char (point-max))
+    (skip-chars-backward "[:blank:]\n\r")
+    (point)))
+
 (defun mistty--has-text-properties (pos props)
   "Return non-nil if properties at POS include PROP.
 

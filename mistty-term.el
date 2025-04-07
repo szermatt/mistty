@@ -525,6 +525,14 @@ whole Emacs process would freeze for that long. This limit must be kept
 low or Emacs might become unresponsive when the process outputs data
 continuously.")
 
+(defconst mistty--prompt-regexp
+  "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
+  "Regexp used to identify prompts.
+
+New, empty lines that might be prompts are evaluated against this
+regexp. This regexp should match something that looks like the
+end of a prompt with no commands.")
+
 (cl-defstruct (mistty--prompt-cell
                (:constructor mistty--make-prompt-cell
                              (&aux (counter 0))))
@@ -823,6 +831,8 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
 Detected prompts can be found in `mistty-prompt'."
   (mistty--accumulator-add-post-processor
    accum #'mistty--term-postprocess-changed)
+  (mistty--accumulator-add-post-processor
+   accum (mistty--regexp-prompt-detector))
   (mistty--accumulator-add-processor
    accum
    "     \r"
@@ -840,6 +850,46 @@ Detected prompts can be found in `mistty-prompt'."
          (put-text-property pos (1+ pos) 'mistty-prompt-sp t)))
 
      (mistty--accumulator-ctx-push-down ctx "\r"))))
+
+(defun mistty--regexp-prompt-detector ()
+  "Build a post-processor that look for a new prompt at cursor.
+
+The return value is meant to be
+`mistty--accumulator-add-post-processor'.
+
+ The post-processor updates `mistty--prompt' after the content of the
+terminal buffer has been updated."
+  (let ((last-nonempty-scrolline 0))
+    (lambda ()
+      (let ((scrolline (mistty--term-scrolline)))
+        ;; Only look at new lines
+        (when (> scrolline
+                 (prog1 last-nonempty-scrolline
+                   ;; for next time
+                   (setq last-nonempty-scrolline
+                         (mistty--term-scrolline-at
+                          (mistty--last-non-ws)))))
+          (let ((cursor (point))
+                (bos (mistty--beginning-of-scrolline-pos))
+                (prompt (mistty--prompt)))
+            (when (and (or (null prompt)
+                           (and (mistty--prompt-end prompt)
+                                (>= scrolline (mistty--prompt-end prompt))))
+                       (> cursor bos)
+                       (>= cursor (mistty--last-non-ws))
+                       (string-match
+                        mistty--prompt-regexp
+                        (mistty--safe-bufstring bos cursor)))
+              (let ((prompt (mistty--make-prompt
+                             'regexp scrolline (1+ scrolline)
+                             :text (mistty--safe-bufstring bos (+ bos (match-end 0))))))
+                (setf (mistty--prompt) prompt)
+                (mistty-log "Suspected %s prompt #%s: [%s-%s] '%s'"
+                            (mistty--prompt-source prompt)
+                            (mistty--prompt-input-id prompt)
+                            (mistty--prompt-start prompt)
+                            (mistty--prompt-end prompt)
+                            (mistty--prompt-text prompt))))))))))
 
 (defun mistty--split-incomplete-chars (str)
   "Extract incomplete multibyte chars at the end of STR.

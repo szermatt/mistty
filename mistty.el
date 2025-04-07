@@ -80,14 +80,6 @@ as a connection-local variable."
   :type '(repeat string)
   :group 'mistty)
 
-(defconst mistty--prompt-regexp
-  "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
-  "Regexp used to identify prompts.
-
-New, empty lines that might be prompts are evaluated against this
-regexp. This regexp should match something that looks like the
-end of a prompt with no commands.")
-
 (defcustom mistty-variables-to-copy
   '(default-directory
     ansi-osc-window-title)
@@ -867,9 +859,6 @@ fullscreen mode.")
   ;; defined in term.el
   (defvar term-home-marker))
 
-(defconst mistty--ws "[:blank:]\n\r"
-  "A character class that matches spaces and newlines, for MisTTY.")
-
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
 
@@ -1586,16 +1575,13 @@ the point being visible."
   "Process STR, sent to PROC, then update MisTTY internal state."
   (unless (string-empty-p str)
     (mistty--with-live-buffer term-buffer
-      (let ((old-sync-position (marker-position mistty-sync-marker))
-            (old-last-non-ws (mistty--last-non-ws)))
+      (let ((old-sync-position (marker-position mistty-sync-marker)))
         (mistty--emulate-terminal proc str mistty-work-buffer)
         (goto-char (process-mark proc))
         (when (/= mistty-sync-marker old-sync-position)
           (mistty-log "Detected terminal change above sync mark, at scrolline %s"
                       mistty--sync-marker-scrolline)
-          (mistty--realign-buffers))
-        (when (> (mistty--bol (point)) old-last-non-ws) ;; on a new line
-          (mistty--detect-possible-prompt))))
+          (mistty--realign-buffers))))
     (mistty--with-live-buffer work-buffer
       (mistty--needs-refresh))))
 
@@ -1609,35 +1595,6 @@ the point being visible."
       (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
         (when (= cursor (window-point win))
           (set-window-parameter win 'mistty--cursor-skip-state nil))))))
-
-(defun mistty--detect-possible-prompt ()
-  "Look for a new prompt at cursor and store its position.
-
-This function updates `mistty--prompt' after the content of the terminal
-buffer has been updated."
-  (mistty--require-term-buffer)
-  (let ((cursor (point))
-        (bos (mistty--beginning-of-scrolline-pos))
-        (scrolline (mistty--cursor-scrolline))
-        (prompt (mistty--prompt)))
-    (when (and (or (null prompt)
-                   (and (mistty--prompt-end prompt)
-                        (>= scrolline (mistty--prompt-end prompt))))
-               (> cursor bos)
-               (>= cursor (mistty--last-non-ws))
-               (string-match
-                mistty--prompt-regexp
-                (mistty--safe-bufstring bos cursor)))
-      (let ((prompt (mistty--make-prompt
-                     'regexp scrolline (1+ scrolline)
-                     :text (mistty--safe-bufstring bos (+ bos (match-end 0))))))
-        (setf (mistty--prompt) prompt)
-        (mistty-log "Suspected %s prompt #%s: [%s-%s] '%s'"
-                    (mistty--prompt-source prompt)
-                    (mistty--prompt-input-id prompt)
-                    (mistty--prompt-start prompt)
-                    (mistty--prompt-end prompt)
-                    (mistty--prompt-text prompt))))))
 
 (defun mistty--fs-process-filter (proc str)
   "Process filter for MisTTY in fullscreen mode.
@@ -2182,13 +2139,6 @@ SCROLLINE is the scrolline at BEG."
           (put-text-property bos eos 'mistty-scrolline scrolline))
         (cl-incf scrolline)
         (mistty--go-down-scrollines 1)))))
-
-(defun mistty--last-non-ws ()
-  "Return the position of the last non-whitespace in the buffer."
-  (save-excursion
-    (goto-char (point-max))
-    (skip-chars-backward mistty--ws)
-    (point)))
 
 (defun mistty-send-string (str)
   "Send STR to the process."

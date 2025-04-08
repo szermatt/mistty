@@ -760,7 +760,7 @@ Detected prompts can be found in `mistty-prompt'."
    accum (mistty--regexp-prompt-detector))
   (mistty--accum-add-processor
    accum
-   "     \r"
+   '(seq "     " CR)
    (lambda (ctx str)
      ;; Look at the terminal state before the \r
      (mistty--accum-ctx-push-down ctx (substring str 0 -1))
@@ -774,7 +774,12 @@ Detected prompts can be found in `mistty-prompt'."
              (pos (pos-eol 0)))
          (put-text-property pos (1+ pos) 'mistty-prompt-sp t)))
 
-     (mistty--accum-ctx-push-down ctx "\r"))))
+     (mistty--accum-ctx-push-down ctx "\r"))
+
+   ;; We can't just hold back anytime a chunk ends with a space. The
+   ;; whole approach of using a processor to detect prompt-sp needs to
+   ;; be rethought.
+   'no-hold-back))
 
 (defun mistty--regexp-prompt-detector ()
   "Build a post-processor that look for a new prompt at cursor.

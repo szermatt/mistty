@@ -38,7 +38,8 @@
     (let ((accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accum-add-processor accum "\e=" #'ignore)
+      (mistty--accum-add-processor
+       accum '(seq ESC ?=) #'ignore)
 
       (funcall accum proc "foo\e=bar")
       (should (equal "foobar"
@@ -50,7 +51,7 @@
       (set-process-filter proc accum)
 
       (mistty--accum-add-processor
-       accum "\e="
+       accum '(seq ESC ?=)
        (lambda (ctx str)
          (mistty--accum-ctx-push-down ctx str)))
 
@@ -64,7 +65,7 @@
       (set-process-filter proc accum)
 
       (mistty--accum-add-processor
-       accum "\e="
+       accum '(seq ESC ?=)
        (lambda (ctx _)
          (mistty--accum-ctx-push-down ctx "-")
          (mistty--accum-ctx-push-down ctx "-")))
@@ -79,7 +80,7 @@
       (set-process-filter proc accum)
 
       (mistty--accum-add-processor
-       accum "\e="
+       accum '(seq ESC ?=)
        (lambda (ctx _)
          (mistty--accum-ctx-flush ctx)
          (should (equal "foo"
@@ -95,7 +96,7 @@
       (set-process-filter proc accum)
 
       (mistty--accum-add-processor
-       accum "\e="
+       accum '(seq ESC ?=)
        (lambda (ctx data)
          ;; Anything pushed before flush is visible afterwards.
          (mistty--accum-ctx-push-down ctx "-")
@@ -146,7 +147,7 @@
          (upcase-region (point-min) (point-max))))
 
       (mistty--accum-add-processor
-       accum "\e="
+       accum '(seq ESC ?=)
        (lambda (ctx _)
          (mistty--accum-ctx-push-down ctx "-foo-")
          (mistty--accum-ctx-flush ctx)
@@ -199,3 +200,80 @@
       (funcall accum proc "Jbar")
       (should (equal '("foo" "\e[2J" "-" "\e[Jbar")
                      (reverse capture))))))
+
+(ert-deftest mistty--accum-build-hold-back ()
+  ;; test string
+  (should (equal '("h" "he" "hel" "hell")
+                 (mistty--accum-build-hold-back "hello")))
+
+  ;; test seq
+  (should (equal
+           '("\e")
+           (mistty--accum-build-hold-back
+            '(seq ?\e ?\=))))
+
+  ;; test star
+  (should (equal
+           '("\e" "\e[0-9;]*")
+           (mistty--accum-build-hold-back
+            '(seq ?\e (* (char "0-9;")) ?\J))))
+
+  ;; test optional and plus
+  (should (equal
+           '("\e" "\e[0-9]+" "\e[0-9]+;" "\e[0-9]+;[0-9]+")
+           (mistty--accum-build-hold-back
+            '(seq ?\e (? (seq (+ (char "0-9")) ?\; (+ (char "0-9")))) ?H))))
+
+  ;; test seq in star
+  (should (equal
+           '("\e" "\e\\(?:[0-9];\\)*" "\e\\(?:[0-9];\\)*[0-9]")
+           (mistty--accum-build-hold-back
+            '(seq ?\e (* (seq (char "0-9") ?\;)) ?H))))
+
+  ;; test or
+  (should (equal
+           '("\e" "\e]" "\e][a-z]*" "\e][a-z]*\e")
+           (mistty--accum-build-hold-back
+            '(seq ?\e ?\] (* (char "a-z")) (or ?\a (seq ?\e ?\\))))))
+
+  ;; test or followed by something
+  (should (equal
+           '("\e" "\e]" "\e][a-z]*" "\e][a-z]*\e"
+             "\e][a-z]*\\(?:\a\\|\e\\\\\\)")
+           (mistty--accum-build-hold-back
+            '(seq ?\e ?\] (* (char "a-z")) (or ?\a (seq ?\e ?\\)) ?.)))))
+
+(ert-deftest mistty--accum-build-hold-back-csi-to-regexp ()
+  ;; CSI includes [, which must be quoted properly
+  (should (equal '("\e" "\e\\[" "\e\\[[0-9]*")
+                 (mistty--accum-build-hold-back
+                  (mistty--accum-expand-shortcuts
+                   '(seq CSI Ps ?J))))))
+
+(defun mistty-test-expand-shortcuts (tree)
+  (rx-to-string (mistty--accum-expand-shortcuts tree) 'no-group))
+
+(ert-deftest mistty--accum-expand-shortcuts-single ()
+  (should (equal
+           "\e\\["
+           (mistty-test-expand-shortcuts 'CSI)))
+  (should (equal
+           "\e]"
+           (mistty-test-expand-shortcuts 'OSC)))
+  (should (equal
+           "[0-9]*"
+           (mistty-test-expand-shortcuts 'Ps)))
+  (should (equal
+           "[0-9;]*"
+           (mistty-test-expand-shortcuts 'Pm)))
+  (should (equal
+           "\a\\|\e\\\\"
+           (mistty-test-expand-shortcuts 'ST))))
+
+(ert-deftest mistty--accum-expand-shortcuts-recursive ()
+  (should (equal "\e\\[[0-9]*J"
+                 (mistty-test-expand-shortcuts '(seq CSI Ps ?J))))
+
+  (should (equal "\e][^\0-\7\x0e-\x1f\x7f]*\\(?:\a\\|\e\\\\\\)"
+                 (mistty-test-expand-shortcuts '(seq OSC Pt ST)))))
+

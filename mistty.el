@@ -1039,26 +1039,28 @@ buffer and `mistty-proc' to that buffer's process."
          accum #'mistty--postprocessor)
         (mistty--accum-add-processor
          accum
-         "\e\\[\\?25h"
+         '(seq CSI "?25h")
          (lambda (_ _)
            (mistty--with-live-buffer work-buffer
              (mistty--show-cursor))))
         (mistty--accum-add-processor
          accum
-         "\e\\[\\?25l"
+         '(seq CSI "?25l")
          (lambda (_ _)
            (mistty--with-live-buffer work-buffer
              (mistty--hide-cursor))))
         (mistty--accum-add-processor
          accum
-         "\e\\[\\(?:\\??47\\|\\?104[79]\\)h"
+         '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
          (lambda (ctx str)
            (mistty--accum-ctx-flush ctx)
            (mistty--enter-fullscreen proc)
            (mistty--accum-ctx-push-down ctx str)))
         (mistty--accum-add-processor
          accum
-         "\ec\\|\e\\[H\e\\[0?J\\|\e\\[2J"
+         '(or (seq ESC ?c)
+              (seq CSI ?H CSI (? ?0) ?J)
+              (seq CSI ?2 ?J))
          (lambda (ctx str)
            (mistty--accum-ctx-flush ctx)
            (mistty--reset)
@@ -3630,7 +3632,7 @@ Width and height are limited to `mistty-min-terminal-width' and
       (mistty--accum-clear-processors accum)
       (mistty--accum-add-processor
        accum
-       "\e\\[\\(\\??47\\|\\?104[79]\\)l\\(\e8\\|\e\\[\\?1048l\\)?"
+       '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
        (lambda (ctx str)
          (mistty--accum-ctx-push-down ctx str)
          (mistty--accum-ctx-flush ctx)

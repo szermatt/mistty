@@ -25,6 +25,7 @@
 (require 'pcase)
 (require 'oclosure)
 (require 'cl-lib)
+(require 'rx)
 
 (require 'mistty-util)
 (require 'mistty-log)
@@ -97,13 +98,43 @@ processed data to send."
         (mistty--accumulator--processors accum))
   (setf (mistty--accumulator--processors-dirty accum) t))
 
-(defsubst mistty--accum-add-processor (accum regexp processor)
-  "Register PROCESSOR in ACCUM for processing REGEXP.
+(defmacro mistty--accum-add-processor (accum rx-regexp processor &optional no-hold-back)
+  "Register PROCESSOR in ACCUM for processing RX-REGEXP.
+
+RX-REGEXP is a regexp in a restricted subset of the RX notation,
+which supports:
+  (seq ...)
+  (or ...)
+  (? ...)
+  (* ...)
+  (+ ...)
+  (char ...)
+  (not (char ...))
+  char
+  string
+
+In addition, the following notation shortcuts are supported, freely
+adapted from https://www.xfree86.org/current/ctlseqs.html#Definitions
+
+ ESC \\e
+ BEL \\a
+ TAB \\t
+ CR \\r
+ LF \\n
+ SP               (Space)
+ CSI ESC [        (Control Sequence Introducer )
+ OSC ESC ]        (Operating System Command)
+ DSC ESC P        (Device Control String)
+ Ps               (Single optional numeric parameter)
+ Pm               (Multiple optional numeric parameters ;-separated)
+ ST  BEL | ESC \\ (String Terminator)
+
+RX-REGEXP must be a quoted list.
 
 PROCESSOR must be a function with signature (CTX STR). With CTX a
-`mistty--accum-ctx' instance and STR the terminal sequence that
-matched the regexp. The processor is executed with the process buffer as
-current buffer.
+`mistty--accum-ctx' instance and STR the terminal sequence that matched
+the regexp. The processor is executed with the process buffer as current
+buffer.
 
 If PROCESSOR does nothing, the terminal sequence matching REGEXP is
 simply swallowed. To forward or modify it, PROCESSOR must call
@@ -112,10 +143,36 @@ simply swallowed. To forward or modify it, PROCESSOR must call
 If PROCESSOR needs to check the state of the process buffer, it must
 first make sure that that state has been fully updated to take into
 account everything that was sent before the matching terminal sequence
-by calling `mistty--accum-ctx-flush'."
-  (mistty--accum-add-processor-1
-   accum
-   (mistty--accum-make-processor :regexp regexp :func processor)))
+by calling `mistty--accum-ctx-flush'.
+
+If NO-HOLD-BACK is non-nil, don't generate hold-back regexps, which
+means that the pattern won't match if it's split between several chunks.
+Using is always a bug."
+  (unless (and (listp rx-regexp) (eq 'quote (car rx-regexp)))
+    (error "Regexp must be in quoted rx-notation, not: %S" rx-regexp))
+  (let* ((rx-regexp (mistty--accum-expand-shortcuts (cadr rx-regexp)))
+         (regexp (rx-to-string rx-regexp 'no-group))
+         (hold-back (unless no-hold-back (mistty--accum-build-hold-back rx-regexp))))
+    ;; canary: check the regexps at macro expansion time, so any error
+    ;; is thrown early with extra information.
+    (condition-case err
+        (string-match regexp "")
+      (invalid-regexp
+       (signal 'invalid-regexp
+               (format "%s [%S]" err regexp))))
+    (let ((hold-back-str (mapconcat #'identity hold-back "\\|")))
+      (condition-case err
+          (string-match hold-back-str "")
+        (invalid-regexp
+         (signal 'invalid-regexp
+                 (format "%s [%S]" err hold-back-str)))))
+
+    `(mistty--accum-add-processor-1
+      ,accum
+      (mistty--accum-make-processor
+       :regexp ,regexp
+       :hold-back-regexps (list ,@hold-back)
+       :func ,processor))))
 
 (cl-defstruct (mistty--accum-processor
                (:constructor mistty--accum-make-processor)
@@ -336,6 +393,125 @@ mistty--accum whose slots can be accessed."
           (process-data destination proc processors)
           (flush destination proc)
           (post-process proc post-processors))))))
+
+(defun mistty--accum-expand-shortcuts (tree)
+  "Expand in-place special shortcuts into base RX-notation.
+
+TREE might include notations inspired from
+https://www.xfree86.org/current/ctlseqs.html#Definitions
+
+The notation is documented in `mistty--accum-add-processor'.
+
+The transformed tree is returned."
+  (cl-labels ((transform-list (list)
+                (let ((cur list))
+                  (while cur
+                    (setcar cur (mistty--accum-expand-shortcuts (car cur)))
+                    (setq cur (cdr cur))))))
+    (pcase tree
+      (`(,_ . ,args)
+       (transform-list args)
+       tree)
+      ('ESC ?\e)
+      ('BEL ?\a)
+      ('CSI '(seq ?\e ?\[))
+      ('OSC '(seq ?\e ?\]))
+      ('DCS '(seq ?\e ?P))
+      ('Ps '(* (char "0-9")))
+      ('Pm '(* (char "0-9;")))
+      ('Pt '(* (not (char "\x00-\x07\x0e-\x1f\x7f"))))
+      ('ST '(or ?\a (seq ?\e ?\\)))
+      ('SP ?\ )
+      ('TAB ?\t)
+      ('CR ?\r)
+      ('LF ?\n)
+      (_ tree))))
+
+(defun mistty--accum-build-hold-back (tree)
+  "Build a set of hold-back regexps for TREE.
+
+TREE must be written in a limited subset of the RX notation, documented
+in `mistty--accum-add-processor'.
+
+TREE must have been transformed with `mistty--accum-expand-shortcuts' first."
+  (let ((collect (list "")))
+    (cl-labels
+        ((collect (tree)
+           (pcase tree
+             (`(seq . ,sub-trees)
+              ;; Collect partial sequences into sub.
+              (dolist (sub sub-trees)
+                (collect sub)))
+
+             (`(? ,sub)
+              ;; The case without sub is already in collect.
+              (collect sub))
+
+             (`(or . ,subs)
+              (let ((start collect)
+                    (subcollects nil))
+
+                (dolist (sub subs)
+                  ;; match an incomplete sub-rx tree
+                  (setq collect (list (car start)))
+                  (collect sub)
+                  (push (trim-list collect) subcollects))
+
+                (setq collect start)
+                (dolist (subcollect subcollects)
+                  (addall subcollect))
+
+                ;; match a complete a or a complete b
+                (addone
+                 (concat (car start)
+                         (rx-to-string tree)))))
+
+             ((or `(* ,sub) `(+ ,sub))
+              ;; The case without sub is already in collect, add the
+              ;; case with one or more sub, followed optionally by one
+              ;; partial sub.
+              (addone
+               (concat (car collect)
+                       (rx-to-string (list (car tree) sub) 'no-group)))
+
+              (collect sub)
+              ;; Remove the last where sub is complete; this is already
+              ;; covered by (+ sub)
+              (pop collect))
+
+             ((and (pred characterp) c)
+              ;; The case without the character is already in collect.
+              ;; Add the case with the character.
+              (addone
+               (concat (car collect) (rx-to-string c))))
+
+             ((and (pred stringp) str)
+              (cl-loop for c across str
+                       do (collect c)))
+
+             (`(char ,set)
+              ;; The case without the character set is already in
+              ;; collect. Add the case with the character set.
+              (addone
+               (concat (car collect) "[" set "]")))
+
+             (`(not (char ,set))
+              ;; The case without the character set is already in
+              ;; collect. Add the case with the character set.
+              (addone
+               (concat (car collect) "[^" set "]")))
+
+             (_ (error "Unsupported RX notation: %s" tree))))
+         (addall (lst)
+           (dolist (elt lst)
+             (addone elt)))
+         (addone (elt)
+           (cl-pushnew elt collect :test #'string=))
+         (trim-list (lst)
+           (cdr (butlast lst))))
+      (collect tree)
+      (pop collect)
+      (cdr (nreverse collect)))))
 
 (provide 'mistty-accum)
 

@@ -1821,7 +1821,7 @@
   (mistty-with-test-buffer ()
     (let* ((start nil)
            (mistty-osc-handlers
-            `(("f" . ,(lambda (_ text)
+            `(("7" . ,(lambda (_ text)
                         (cond
                          ((string= "start" text)
                           (setq start (point)))
@@ -1829,7 +1829,7 @@
                           (put-text-property
                            start (point) 'mistty-test t))
                          (t (error "unexpected: '%s'" text))))))))
-      (mistty-send-text "printf 'abc \\e]f;start\\adef\\e]f;end\\a ghi\\n'")
+      (mistty-send-text "printf 'abc \\e]7;start\\adef\\e]7;end\\a ghi\\n'")
       (should (equal "abc def ghi" (mistty-send-and-capture-command-output)))
       (mistty-test-goto "abc def ghi")
       (should (equal "abc [def] ghi"
@@ -1839,35 +1839,34 @@
                       :strip-last-prompt t))))))
 
 (ert-deftest mistty-test-split-osc-sequence ()
-  (mistty-with-test-buffer ()
-    (let* (osc-list
+  (mistty-with-test-process (proc)
+    (let* ((accum (mistty--make-accumulator (process-filter proc)))
+           (osc-list nil)
            (mistty-osc-handlers
             `(("999" . ,(lambda (_ text)
                           (push text osc-list))))))
-      (mistty--emulate-terminal
-       mistty-proc "foo\e]999;he" mistty-work-buffer)
-      (mistty--emulate-terminal
-       mistty-proc "llo, w" mistty-work-buffer)
-      (mistty--emulate-terminal
-       mistty-proc "orld\abar" mistty-work-buffer)
-      (mistty--needs-refresh)
-      (mistty--refresh)
-      (should (equal "$ foobar" (mistty-test-content)))
+      (set-process-filter proc accum)
+      (mistty--add-osc-detection accum)
+
+      (funcall accum proc "foo\e]999;he")
+      (funcall accum proc "llo, w")
+      (funcall accum proc "orld\abar")
+      (should (equal "foobar" (mistty-test-content)))
       (should (equal '("hello, world") osc-list)))))
 
-(ert-deftest mistty-test-decode-osc ()
-  (mistty-with-test-buffer ()
-    (let* (osc-list
+(ert-deftest mistty-test-osc-detection ()
+  (mistty-with-test-process (proc)
+    (let* ((accum (mistty--make-accumulator (process-filter proc)))
+           (osc-list nil)
            (mistty-osc-handlers
             `(("999" . ,(lambda (_ text)
                           (push text osc-list))))))
-      (mistty--emulate-terminal
-       mistty-proc
-       "foo\e]999;\xce\xb1\xce\xb2\xce\xb3\abar"
-       mistty-work-buffer)
-      (mistty--needs-refresh)
-      (mistty--refresh)
-      (should (equal "$ foobar" (mistty-test-content)))
+      (set-process-filter proc accum)
+      (mistty--add-osc-detection accum)
+
+      (funcall accum proc "foo\e]999;\xce\xb1\xce\xb2\xce\xb3\abar")
+
+      (should (equal "foobar" (mistty-test-proc-buffer-string proc)))
       (should (equal '("αβγ") osc-list)))))
 
 (ert-deftest mistty-test-reset ()

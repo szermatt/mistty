@@ -25,6 +25,7 @@
 (defvar term-height) ; defined in term.el
 (defvar term-home-marker) ; defined in term.el
 
+(require 'pcase)
 (require 'subr-x)
 (eval-when-compile
   (require 'cl-lib))
@@ -666,12 +667,8 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
       ;; encoded. This would be inconvenient and error-prone, so we
       ;; disallow the US-ASCII characters disallowed by ECMA 48 and
       ;; allow all non-US-ASCII chars (usually multibyte UTF-8).
-      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\)[hl]\\|\\]\\(?2:\\(?:\\(?3:[a-zA-Z0-9]+\\);\\)?[^\x00-\x07\x0e-\x1f\x7f]*\\)\\(?4:\e\\\\\\|\a\\|\\'\\)\\)" str start)
+      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\)[hl]\\)" str start)
         (let ((ext (match-string 1 str))
-              (osc (match-string 2 str))
-              (osc-code (match-string 3 str))
-              (osc-terminator (match-string 4 str))
-              (seq-start (match-beginning 0))
               (seq-end (match-end 0)))
           (cond
            ((equal ext "[?2004h") ; enable bracketed paste
@@ -731,24 +728,26 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                  (setf (mistty--prompt-end prompt) scrolline)))
              (setq mistty-bracketed-paste nil)
              (mistty--with-live-buffer work-buffer
-               (setq mistty-bracketed-paste nil))))
-          ((and osc (length= osc-terminator 0))
-           (term-emulate-terminal proc (substring str start seq-start))
-           ;; sequence is not finished; save it for later
-           (setq mistty--undecoded-bytes (substring str seq-start)))
-          (osc
-           (term-emulate-terminal proc (substring str start seq-start))
-           (when-let ((code osc-code)
-                      (handler (cdr (assoc-string code mistty-osc-handlers))))
-             (funcall handler code
-                      (decode-coding-string
-                       (string-remove-prefix (concat code ";") osc)
-                       locale-coding-system t)))))
+               (setq mistty-bracketed-paste nil)))))
         (setq start seq-end)))
     (let ((split (mistty--split-incomplete-chars (substring str start))))
       (when (length> (cdr split) 0)
         (setq mistty--undecoded-bytes (cdr split)))
       (term-emulate-terminal proc (car split))))))
+
+(defun mistty--add-osc-detection (accum)
+  "Handle OSC code in ACCUM.
+
+Known OSC codes are passed down to handlers registered in
+`mistty-osc-handlers'."
+  (mistty--accum-add-processor-lambda accum
+      (ctx '(seq OSC (let code Ps) ?\; (let text Pt) ST))
+   (when-let ((handler (cdr (assoc-string code mistty-osc-handlers))))
+     (mistty--accum-ctx-flush ctx)
+     (let ((inhibit-modification-hooks t)
+           (inhibit-read-only t))
+       (funcall handler code
+                (decode-coding-string text locale-coding-system t))))))
 
 (defun mistty--add-prompt-detection (accum)
   "Register processors to ACCUM for prompt detection.

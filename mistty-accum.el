@@ -98,6 +98,29 @@ processed data to send."
         (mistty--accumulator--processors accum))
   (setf (mistty--accumulator--processors-dirty accum) t))
 
+(cl-defmacro mistty--accum-add-processor-lambda (accum (ctx rx-regexp) &rest body)
+  "Define a processor for processing RX-REGEXP in ACCUM.
+
+BODY defines a lambda that takes as arguments CTX and any pcase-style
+let capture defined in RX-REGEXP. Except for the let capture, RX-REGEXP
+is written in the same language as `mistty--accum-add-processor'.
+
+For example, the following defines a processor for \"\\e[0-9]?J\" that
+makes the number available to the lamba as under the symbol num.
+
+(mistty--accum-add-processor-lambda accum
+    (ctx \\='(seq ESC (let num Pn) ?J))
+  ...)"
+  (declare (indent 2))
+  (unless (and (listp rx-regexp) (eq 'quote (car rx-regexp)))
+    (error "Regexp must be in quoted rx-notation, not: %S" (car rx-regexp)))
+
+  `(mistty--accum-add-processor
+    ,accum
+    (quote ,(mistty--accum-strip-let (cl-copy-list (cadr rx-regexp))))
+    (pcase-lambda (,ctx (rx ,(mistty--accum-expand-shortcuts (cadr rx-regexp))))
+      ,@body)))
+
 (defmacro mistty--accum-add-processor (accum rx-regexp processor &optional no-hold-back)
   "Register PROCESSOR in ACCUM for processing RX-REGEXP.
 
@@ -394,6 +417,15 @@ mistty--accum whose slots can be accessed."
           (flush destination proc)
           (post-process proc post-processors))))))
 
+(defun mistty--accum-strip-let (tree)
+  "In-place removal of (let var rx-tree) from TREE."
+  (pcase tree
+    (`(let ,_ ,arg) arg)
+    (`(,_ . ,args)
+     (mistty--accum-transform-list args #'mistty--accum-strip-let)
+     tree)
+    (_ tree)))
+
 (defun mistty--accum-expand-shortcuts (tree)
   "Expand in-place special shortcuts into base RX-notation.
 
@@ -403,29 +435,31 @@ https://www.xfree86.org/current/ctlseqs.html#Definitions
 The notation is documented in `mistty--accum-add-processor'.
 
 The transformed tree is returned."
-  (cl-labels ((transform-list (list)
-                (let ((cur list))
-                  (while cur
-                    (setcar cur (mistty--accum-expand-shortcuts (car cur)))
-                    (setq cur (cdr cur))))))
-    (pcase tree
-      (`(,_ . ,args)
-       (transform-list args)
-       tree)
-      ('ESC ?\e)
-      ('BEL ?\a)
-      ('CSI '(seq ?\e ?\[))
-      ('OSC '(seq ?\e ?\]))
-      ('DCS '(seq ?\e ?P))
-      ('Ps '(* (char "0-9")))
-      ('Pm '(* (char "0-9;")))
-      ('Pt '(* (not (char "\x00-\x07\x0e-\x1f\x7f"))))
-      ('ST '(or ?\a (seq ?\e ?\\)))
-      ('SP ?\ )
-      ('TAB ?\t)
-      ('CR ?\r)
-      ('LF ?\n)
-      (_ tree))))
+  (pcase tree
+    (`(,_ . ,args)
+     (mistty--accum-transform-list args #'mistty--accum-expand-shortcuts)
+     tree)
+    ('ESC ?\e)
+    ('BEL ?\a)
+    ('CSI '(seq ?\e ?\[))
+    ('OSC '(seq ?\e ?\]))
+    ('DCS '(seq ?\e ?P))
+    ('Ps '(* (char "0-9")))
+    ('Pm '(* (char "0-9;")))
+    ('Pt '(* (not (char "\x00-\x07\x0e-\x1f\x7f"))))
+    ('ST '(or ?\a (seq ?\e ?\\)))
+    ('SP ?\ )
+    ('TAB ?\t)
+    ('CR ?\r)
+    ('LF ?\n)
+    (_ tree)))
+
+(defun mistty--accum-transform-list (lst func)
+  "Apply FUNC on all car of LST."
+  (let ((cur lst))
+    (while cur
+      (setcar cur (funcall func (car cur)))
+      (setq cur (cdr cur)))))
 
 (defun mistty--accum-build-hold-back (tree)
   "Build a set of hold-back regexps for TREE.

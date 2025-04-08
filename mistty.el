@@ -1035,6 +1035,7 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--accum-redirect accum #'mistty--process-filter)
         (mistty--accum-clear-processors accum)
         (mistty--add-prompt-detection accum)
+        (mistty--add-osc-detection accum)
         (mistty--accum-add-post-processor
          accum #'mistty--postprocessor)
         (mistty--accum-add-processor

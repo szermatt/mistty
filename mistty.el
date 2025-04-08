@@ -1590,7 +1590,7 @@ the point being visible."
   (unless (string-empty-p str)
     (mistty--with-live-buffer term-buffer
       (let ((old-sync-position (marker-position mistty-sync-marker)))
-        (mistty--emulate-terminal proc str mistty-work-buffer)
+        (mistty--emulate-terminal proc str)
         (goto-char (process-mark proc))
         (when (/= mistty-sync-marker old-sync-position)
           (mistty-log "Detected terminal change above sync mark, at scrolline %s"
@@ -1609,15 +1609,6 @@ the point being visible."
       (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
         (when (= cursor (window-point win))
           (set-window-parameter win 'mistty--cursor-skip-state nil))))))
-
-(defun mistty--fs-process-filter (proc str)
-  "Process filter for MisTTY in fullscreen mode.
-
-This function detects commands to leave the fullscreen mode are
-detected in STR. Failing that, it forwards PROC and STR to be
-update the term buffer normally."
-  (let ((work-buffer (process-get proc 'mistty-work-buffer)))
-    (mistty--emulate-terminal proc str work-buffer)))
 
 (defun mistty-cursor ()
   "Return the position of the terminal cursor in the MisTTY buffer.
@@ -3641,7 +3632,7 @@ Width and height are limited to `mistty-min-terminal-width' and
       (setq mistty-fullscreen t))
 
     (let ((accum (process-filter proc)))
-      (mistty--accum-redirect accum #'mistty--fs-process-filter)
+      (mistty--accum-redirect accum #'mistty--emulate-terminal)
       (mistty--accum-clear-processors accum)
       (mistty--accum-add-processor
        accum

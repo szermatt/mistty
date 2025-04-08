@@ -594,24 +594,14 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
        (or (null (mistty--prompt-end prompt))
            (< scrolline (mistty--prompt-end prompt)))))
 
-(defun mistty--emulate-terminal (proc str work-buffer)
+(defun mistty--emulate-terminal (proc str)
   "Handle process output as a terminal would.
 
-This function accepts output from PROC included into STR and
-forwards them to `term-emulate-terminal'.
-
-Some special sequences are interrupted and pre-processed:
-
-- enabling and disabling bracketed paste, which means that
-bracketed paste strings can be sent to PROC. The state is stored
-into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
-
-- making cursor visible or invisible in WORK-BUFFER
-
-- OSC sequences, either fed to `mistty-osc-handlers' or ignored."
+This function accepts output from PROC included into STR and forwards
+them to `term-emulate-terminal' with some modified functions, to detect
+specific changes."
   (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
             (inhibit-read-only t) ;; allow modifications in char mode
-            (start 0)
             ;; Using term-buffer-vertical-motion causes strange
             ;; issues; avoid it. Additionally, it's not actually
             ;; necessary since term.el adds newlines instead of
@@ -647,57 +637,7 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
              (let ((orig (symbol-function 'move-to-column)))
                (lambda (&rest args)
                  (apply #'mistty--around-move-to-column orig args)))))
-    (mistty--with-live-buffer (process-buffer proc)
-      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\)h\\)" str start)
-        (let ((ext (match-string 1 str))
-              (seq-end (match-end 0)))
-          (cond
-           ((equal ext "[?2004h") ; enable bracketed paste
-            (term-emulate-terminal proc (substring str start seq-end))
-            (unless mistty-bracketed-paste
-              (let* ((prompt (mistty--prompt))
-                     (inhibit-modification-hooks t)
-                     (scrolline (mistty--term-scrolline)))
-                (when (or (null prompt)
-                          (not (mistty--prompt-contains prompt scrolline)))
-                  ;; zsh enables bracketed paste only after having printed
-                  ;; the prompt. Try to find the beginning of the prompt
-                  ;; from prompt_sp or assume a single-line prompt.
-                  (when-let ((real-start
-                              (catch 'mistty-prompt-start
-                                (dolist (i '(0 -1 -2 -3))
-                                  (let ((pos (pos-eol i)))
-                                    (when (and (zerop (mistty--prompt-counter))
-                                               (= pos 1) (> (point) (pos-bol)))
-                                      (mistty-log "extend first prompt [1-%s]" (point))
-                                      (throw 'mistty-prompt-start (point-min)))
-                                    (when (get-text-property pos 'mistty-prompt-sp)
-                                      (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
-                                      (remove-text-properties
-                                       pos (1+ pos) '(term-line-wrap t 'mistty-prompt-sp nil))
-                                      (throw 'mistty-prompt-start (1+ pos)))))))
-                             (eol (pos-eol)))
-                    (when (> eol real-start)
-                      ;; mistty--changed is only called when bracketed
-                      ;; paste is on; mark past sections of the prompt
-                      ;; as changed, including to the eol to cover
-                      ;; right prompts, also written before.
-                      (mistty--changed real-start eol))
-                    (setq scrolline (mistty--term-scrolline-at real-start)))
-                  (setq prompt (mistty--make-prompt 'bracketed-paste scrolline))
-                  (mistty-log "Detected %s prompt #%s [%s-]"
-                              (mistty--prompt-source prompt)
-                              (mistty--prompt-input-id prompt)
-                              (mistty--prompt-start prompt))
-                  (setf (mistty--prompt) prompt))
-                (unless (eq 'osc133 (mistty--prompt-source prompt))
-                  (setf (mistty--prompt-source prompt) 'bracketed-paste)
-                  (setf (mistty--prompt-end prompt) nil)))
-              (setq mistty-bracketed-paste t)
-              (mistty--with-live-buffer work-buffer
-                (setq mistty-bracketed-paste t)))))
-        (setq start seq-end)))
-      (term-emulate-terminal proc (substring str start)))))
+    (term-emulate-terminal proc str)))
 
 (defun mistty--add-osc-detection (accum)
   "Handle OSC code in ACCUM.
@@ -724,6 +664,56 @@ Detected prompts can be found in `mistty-prompt'."
    accum #'mistty--term-postprocess-changed)
   (mistty--accum-add-post-processor
    accum (mistty--regexp-prompt-detector))
+
+  ;; Enable bracketed paste
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?2004h")
+   (lambda (ctx _)
+     (mistty--accum-ctx-flush ctx)
+     (unless mistty-bracketed-paste
+       (let* ((prompt (mistty--prompt))
+              (inhibit-read-only t)
+              (inhibit-modification-hooks t)
+              (scrolline (mistty--term-scrolline)))
+         (when (or (null prompt)
+                   (not (mistty--prompt-contains prompt scrolline)))
+           ;; zsh enables bracketed paste only after having printed
+           ;; the prompt. Try to find the beginning of the prompt
+           ;; from prompt_sp or assume a single-line prompt.
+           (when-let ((real-start
+                       (catch 'mistty-prompt-start
+                         (dolist (i '(0 -1 -2 -3))
+                           (let ((pos (pos-eol i)))
+                             (when (and (zerop (mistty--prompt-counter))
+                                        (= pos 1) (> (point) (pos-bol)))
+                               (mistty-log "extend first prompt [1-%s]" (point))
+                               (throw 'mistty-prompt-start (point-min)))
+                             (when (get-text-property pos 'mistty-prompt-sp)
+                               (mistty-log "prompt_sp %s [%s-%s]" i (1+ pos) (point))
+                               (remove-text-properties
+                                pos (1+ pos) '(term-line-wrap t 'mistty-prompt-sp nil))
+                               (throw 'mistty-prompt-start (1+ pos)))))))
+                      (eol (pos-eol)))
+             (when (> eol real-start)
+               ;; mistty--changed is only called when bracketed
+               ;; paste is on; mark past sections of the prompt
+               ;; as changed, including to the eol to cover
+               ;; right prompts, also written before.
+               (mistty--changed real-start eol))
+             (setq scrolline (mistty--term-scrolline-at real-start)))
+           (setq prompt (mistty--make-prompt 'bracketed-paste scrolline))
+           (mistty-log "Detected %s prompt #%s [%s-]"
+                       (mistty--prompt-source prompt)
+                       (mistty--prompt-input-id prompt)
+                       (mistty--prompt-start prompt))
+           (setf (mistty--prompt) prompt))
+         (unless (eq 'osc133 (mistty--prompt-source prompt))
+           (setf (mistty--prompt-source prompt) 'bracketed-paste)
+           (setf (mistty--prompt-end prompt) nil)))
+       (setq mistty-bracketed-paste t)
+       (mistty--with-live-buffer work-buffer
+         (setq mistty-bracketed-paste t)))))
 
   ;; Disable bracketed paste
   (mistty--accum-add-processor

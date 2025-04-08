@@ -648,7 +648,7 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                (lambda (&rest args)
                  (apply #'mistty--around-move-to-column orig args)))))
     (mistty--with-live-buffer (process-buffer proc)
-      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\)[hl]\\)" str start)
+      (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\)h\\)" str start)
         (let ((ext (match-string 1 str))
               (seq-end (match-end 0)))
           (cond
@@ -695,21 +695,7 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                   (setf (mistty--prompt-end prompt) nil)))
               (setq mistty-bracketed-paste t)
               (mistty--with-live-buffer work-buffer
-                (setq mistty-bracketed-paste t))))
-          ((equal ext "[?2004l") ; disable bracketed paste
-           (term-emulate-terminal proc (substring str start seq-end))
-           (when mistty-bracketed-paste
-             (when-let ((prompt (mistty--prompt))
-                        (scrolline (if (eq ?\n (char-before (point)))
-                                       (mistty--term-scrolline)
-                                     (1+ (mistty--term-scrolline)))))
-               (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
-                          (null (mistty--prompt-end prompt))
-                          (> scrolline (mistty--prompt-start prompt)))
-                 (setf (mistty--prompt-end prompt) scrolline)))
-             (setq mistty-bracketed-paste nil)
-             (mistty--with-live-buffer work-buffer
-               (setq mistty-bracketed-paste nil)))))
+                (setq mistty-bracketed-paste t)))))
         (setq start seq-end)))
       (term-emulate-terminal proc (substring str start)))))
 
@@ -727,14 +713,38 @@ Known OSC codes are passed down to handlers registered in
        (funcall handler code
                 (decode-coding-string text locale-coding-system t))))))
 
-(defun mistty--add-prompt-detection (accum)
+(defun mistty--add-prompt-detection (accum work-buffer)
   "Register processors to ACCUM for prompt detection.
+
+WORK-BUFFER is a buffer within which `mistty-bracketed-paste' should be
+set or unset in addition to the process buffer.
 
 Detected prompts can be found in `mistty-prompt'."
   (mistty--accum-add-post-processor
    accum #'mistty--term-postprocess-changed)
   (mistty--accum-add-post-processor
    accum (mistty--regexp-prompt-detector))
+
+  ;; Disable bracketed paste
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?2004l")
+   (lambda (ctx _)
+     (mistty--accum-ctx-flush ctx)
+     (when mistty-bracketed-paste
+       (when-let ((prompt (mistty--prompt))
+                  (scrolline (if (eq ?\n (char-before (point)))
+                                 (mistty--term-scrolline)
+                               (1+ (mistty--term-scrolline)))))
+         (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
+                    (null (mistty--prompt-end prompt))
+                    (> scrolline (mistty--prompt-start prompt)))
+           (setf (mistty--prompt-end prompt) scrolline)))
+       (setq mistty-bracketed-paste nil)
+       (mistty--with-live-buffer work-buffer
+         (setq mistty-bracketed-paste nil)))))
+
+  ;; Detect prompt-sp
   (mistty--accum-add-processor
    accum
    '(seq "     " CR)

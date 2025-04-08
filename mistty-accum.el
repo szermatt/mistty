@@ -480,14 +480,21 @@ The transformed tree is returned."
     ('CSI '(seq ?\e ?\[))
     ('OSC '(seq ?\e ?\]))
     ('DCS '(seq ?\e ?P))
-    ('Ps '(* (char "0-9")))
-    ('Pm '(* (char "0-9;")))
-    ('Pt '(* (not (char "\x00-\x07\x0e-\x1f\x7f"))))
     ('ST '(or ?\a (seq ?\e ?\\)))
     ('SP ?\ )
     ('TAB ?\t)
     ('CR ?\r)
     ('LF ?\n)
+    ('Ps '(* (char "0-9")))
+    ('Pm '(* (char "0-9;")))
+
+    ;; Note on Pt: ECMA 48 8.3.89 only allows 0x08-0x0d 0x20-7e. That
+    ;; would disallow all non-US-ASCII characters, often used in file
+    ;; names, which would then need to be encoded. This would be
+    ;; inconvenient and error-prone, so we disallow the US-ASCII
+    ;; characters disallowed by ECMA 48 and allow all non-US-ASCII
+    ;; chars (usually multibyte UTF-8).
+    ('Pt '(* (not (char "\x00-\x07\x0e-\x1f\x7f"))))
     (_ tree)))
 
 (defun mistty--accum-transform-list (lst func)

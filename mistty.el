@@ -1058,6 +1058,8 @@ buffer and `mistty-proc' to that buffer's process."
          (lambda (_ _)
            (mistty--with-live-buffer work-buffer
              (mistty--hide-cursor))))
+
+        ;; Switch to fullscreen mode
         (mistty--accum-add-processor
          accum
          '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
@@ -1065,6 +1067,8 @@ buffer and `mistty-proc' to that buffer's process."
            (mistty--accum-ctx-flush ctx)
            (mistty--enter-fullscreen proc)
            (mistty--accum-ctx-push-down ctx str)))
+
+        ;; Handle clear and reset
         (mistty--accum-add-processor
          accum
          '(or (seq ESC ?c)

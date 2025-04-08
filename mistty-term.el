@@ -648,12 +648,6 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                (lambda (&rest args)
                  (apply #'mistty--around-move-to-column orig args)))))
     (mistty--with-live-buffer (process-buffer proc)
-      ;; Note on OSC content: ECMA 48 8.3.89 only allows 0x08-0x0d
-      ;; 0x20-7e. That would disallow all non-US-ASCII characters,
-      ;; often used in file names, which would then need to be
-      ;; encoded. This would be inconvenient and error-prone, so we
-      ;; disallow the US-ASCII characters disallowed by ECMA 48 and
-      ;; allow all non-US-ASCII chars (usually multibyte UTF-8).
       (while (string-match "\e\\(?1:\\[\\?\\(?:2004\\)[hl]\\)" str start)
         (let ((ext (match-string 1 str))
               (seq-end (match-end 0)))

@@ -639,6 +639,15 @@ specific changes."
                  (apply #'mistty--around-move-to-column orig args)))))
     (term-emulate-terminal proc str)))
 
+(defun mistty--add-skip-unsupported (accum)
+  "Skip some unsupported terminal sequences that confuse term.el.
+
+This function adds processors to skip Application Keypad (DECPAM) /
+Normal Keypad (DECPNM) Issued by Fish 4+ but just ecoed by term.el."
+  (mistty--accum-add-processor
+   accum
+   '(seq ESC (char "=>")) #'ignore))
+
 (defun mistty--add-osc-detection (accum)
   "Handle OSC code in ACCUM.
 
@@ -1330,7 +1339,7 @@ Return nil if the row isn't reachable on the terminal."
   mistty--scrolline-base)
 
 (defun mistty-osc133 (_ osc-seq)
-  (when (length> osc-seq 0)
+  (when (and (length> osc-seq 0) (not (term-using-alternate-sub-buffer)))
     (let ((command-char (aref osc-seq 0)))
       (pcase command-char
         (?A ;; start a new command

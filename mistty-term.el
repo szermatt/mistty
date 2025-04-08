@@ -648,10 +648,6 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                (lambda (&rest args)
                  (apply #'mistty--around-move-to-column orig args)))))
     (mistty--with-live-buffer (process-buffer proc)
-      ;; Skip Application Keypad (DECPAM) / Normal Keypad (DECPNM)
-      ;; Issued by Fish 4+ but unsupported by term.el.
-      (setq str (replace-regexp-in-string "\e[=>]" "" str))
-
       ;; Note on OSC content: ECMA 48 8.3.89 only allows 0x08-0x0d
       ;; 0x20-7e. That would disallow all non-US-ASCII characters,
       ;; often used in file names, which would then need to be

@@ -1038,6 +1038,14 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--add-osc-detection accum)
         (mistty--accum-add-post-processor
          accum #'mistty--postprocessor)
+
+        ;; Skip Application Keypad (DECPAM) / Normal Keypad (DECPNM)
+        ;; Issued by Fish 4+ but unsupported by term.el.
+        (mistty--accum-add-processor
+         accum
+         '(seq ESC (char "=>")) #'ignore)
+
+        ;; Handle show/hide cursor
         (mistty--accum-add-processor
          accum
          '(seq CSI "?25h")

@@ -177,3 +177,25 @@
       (should (equal "foo12"
                      (mistty-test-proc-buffer-string proc))))))
 
+(ert-deftest mistty-accum-hold-back ()
+  (mistty-with-test-process (proc)
+    (let* ((capture nil) ;; captured data in reverse order
+           (accum (mistty--make-accumulator
+                   (lambda (proc data)
+                     (push data capture)))))
+      (set-process-filter proc accum)
+
+      (mistty--accum-add-processor-1
+       accum (mistty--accum-make-processor
+              :regexp "\e\\[[0-9;]*J"
+              :hold-back-regexps '("\e" "\e\\[[0-9;]*")
+              :func (lambda (ctx str)
+                      (mistty--accum-ctx-push-down ctx str))))
+      (funcall accum proc "foo\e")
+      (funcall accum proc "[")
+      (funcall accum proc "2")
+      (funcall accum proc "J")
+      (funcall accum proc "-\e[")
+      (funcall accum proc "Jbar")
+      (should (equal '("foo" "\e[2J" "-" "\e[Jbar")
+                     (reverse capture))))))

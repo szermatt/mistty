@@ -91,6 +91,12 @@ after the real process filter, once there are no remaining pending
 processed data to send."
   (push post-processor (mistty--accumulator--post-processors accum)))
 
+(defsubst mistty--accum-add-processor-1 (accum processor)
+  "Register PROCESSOR, a `cl-accum-processor' in ACCUM."
+  (push processor
+        (mistty--accumulator--processors accum))
+  (setf (mistty--accumulator--processors-dirty accum) t))
+
 (defsubst mistty--accum-add-processor (accum regexp processor)
   "Register PROCESSOR in ACCUM for processing REGEXP.
 
@@ -107,9 +113,9 @@ If PROCESSOR needs to check the state of the process buffer, it must
 first make sure that that state has been fully updated to take into
 account everything that was sent before the matching terminal sequence
 by calling `mistty--accum-ctx-flush'."
-  (push (mistty--accum-make-processor :regexp regexp :func processor)
-        (mistty--accumulator--processors accum))
-  (setf (mistty--accumulator--processors-dirty accum) t))
+  (mistty--accum-add-processor-1
+   accum
+   (mistty--accum-make-processor :regexp regexp :func processor)))
 
 (cl-defstruct (mistty--accum-processor
                (:constructor mistty--accum-make-processor)
@@ -119,6 +125,12 @@ by calling `mistty--accum-ctx-flush'."
 Register processors with `mistty--accum-add-processor'."
   ;; Regexps whose matches should be sent.
   regexp
+
+  ;; Set of regexp that match incomplete sequences, without any final
+  ;; $ or \\'. Incomplete sequences are held back until more data is
+  ;; available.
+  hold-back-regexps
+
   ;; Function accepting (ctx str) for all match of regexps.
   func)
 
@@ -169,7 +181,9 @@ The return value of this type is also an oclosure of type
 mistty--accum whose slots can be accessed."
   (let ((unprocessed (mistty--make-fifo))
         (processed (mistty--make-fifo))
+        (incomplete nil)
         (overall-processor-regexp nil)
+        (overall-hold-back-regexp nil)
         (processing-pending-output nil)
         (needs-postprocessing nil))
     (cl-labels
@@ -238,13 +252,26 @@ mistty--accum whose slots can be accessed."
            (when processors
              (let ((index 0))
                (mapconcat
-                (pcase-lambda (p)
+                (lambda (p)
                   (cl-incf index)
                   (format "\\(?%d:%s\\)"
                           index
                           (mistty--accum-processor-regexp p)))
                 processors
                 "\\|"))))
+
+         ;; Build a regexp that detects incomplete terminal sequences
+         ;; that hold be held back.
+         (build-overall-hold-back-regexp (processors)
+           (let ((regexps nil))
+             (dolist (p processors)
+               (dolist (r (mistty--accum-processor-hold-back-regexps p))
+                 (cl-pushnew r regexps :test #'equal)))
+             (when regexps
+               (concat
+                "\\(?:"
+                (mapconcat #'identity regexps "\\|")
+                "\\)\\'"))))
 
          ;; Build a new value for processor-vector.
          ;;
@@ -259,34 +286,40 @@ mistty--accum whose slots can be accessed."
 
          ;; Process any data in unprocessed and move it to processed.
          (process-data (dest proc processors)
-           (let ((data (fifo-to-string unprocessed)))
-             (while (not (string-empty-p data))
-               (if (and overall-processor-regexp
-                        (string-match overall-processor-regexp data))
-                   (let* ((before (substring data 0 (match-beginning 0)))
-                          (matching (substring
-                                     data (match-beginning 0) (match-end 0)))
-                          (processor (cl-loop for i from 1
-                                              for p in processors
-                                              thereis (when (match-beginning i)
-                                                        p))))
-                     (setq data (substring data (match-end 0))) ; next loop
+           (while (not (mistty--fifo-empty-p unprocessed))
+             (let ((data (concat incomplete (fifo-to-string unprocessed))))
+               (setq incomplete nil)
+               (when (and overall-hold-back-regexp
+                          (string-match overall-hold-back-regexp data))
+                 (setq incomplete (match-string 0 data))
+                 (setq data (substring data 0 (match-beginning 0))))
+               (while (not (string-empty-p data))
+                 (if (and overall-processor-regexp
+                          (string-match overall-processor-regexp data))
+                     (let* ((before (substring data 0 (match-beginning 0)))
+                            (matching (substring
+                                       data (match-beginning 0) (match-end 0)))
+                            (processor (cl-loop for i from 1
+                                                for p in processors
+                                                thereis (when (match-beginning i)
+                                                          p))))
+                       (setq data (substring data (match-end 0))) ; next loop
 
-                     (unless (string-empty-p before)
-                       (mistty--fifo-enqueue processed before))
-                     (mistty--with-live-buffer (process-buffer proc)
-                       (catch 'mistty-abort-processor
-                         (funcall
-                          (mistty--accum-processor-func processor)
-                          (mistty--accum-make-ctx
-                           :flush-f (lambda ()
-                                      (flush dest proc)
-                                      (unless (buffer-live-p (process-buffer proc))
-                                        (throw 'mistty-abort-processor nil)))
-                           :push-down-f #'push-down)
-                          matching))))
-                 (mistty--fifo-enqueue processed data)
-                 (setq data ""))))))
+                       (unless (string-empty-p before)
+                         (mistty--fifo-enqueue processed before))
+                       (mistty--with-live-buffer (process-buffer proc)
+                         (catch 'mistty-abort-processor
+                           (funcall
+                            (mistty--accum-processor-func processor)
+                            (mistty--accum-make-ctx
+                             :flush-f (lambda ()
+                                        (flush dest proc)
+                                        (unless (buffer-live-p (process-buffer proc))
+                                          (throw 'mistty-abort-processor nil)))
+                             :push-down-f #'push-down)
+                            matching))))
+                   (mistty--fifo-enqueue processed data)
+                   (setq data "")))))))
 
       ;; Build the accumulator as an open closure.
       (oclosure-lambda (mistty--accumulator (destination dest)
@@ -295,7 +328,10 @@ mistty--accum whose slots can be accessed."
         (mistty--fifo-enqueue unprocessed data)
         (when (toplevel-accumulator-p proc)
           (when processors-dirty
-            (setq overall-processor-regexp (build-overall-processor-regexp processors))
+            (setq overall-processor-regexp
+                  (build-overall-processor-regexp processors))
+            (setq overall-hold-back-regexp
+                  (build-overall-hold-back-regexp processors))
             (setq processors-dirty nil))
           (process-data destination proc processors)
           (flush destination proc)

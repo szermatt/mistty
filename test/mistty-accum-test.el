@@ -277,3 +277,30 @@
   (should (equal "\e][^\0-\7\x0e-\x1f\x7f]*\\(?:\a\\|\e\\\\\\)"
                  (mistty-test-expand-shortcuts '(seq OSC Pt ST)))))
 
+(ert-deftest mistty-accum-test-split-incomplete-chars ()
+  (ert-with-test-buffer ()
+    (should (equal '("foo" . nil)
+                   (mistty--split-incomplete-chars "foo")))
+
+    (should (equal '("foo bar abcde\342\224\200" . nil)
+                   (mistty--split-incomplete-chars
+                    "foo bar abcde\342\224\200")))
+
+    (should (equal '("foo bar abcde\342\224\200" . "\342\224")
+                   (mistty--split-incomplete-chars
+                    "foo bar abcde\342\224\200\342\224")))))
+
+(ert-deftest mistty-accum-test-join-incomplete-chars ()
+  (mistty-with-test-process (proc)
+    (let ((accum (mistty--make-accumulator (process-filter proc))))
+      (set-process-filter proc accum)
+
+      (funcall accum proc "|\342\224\200")
+      (funcall accum proc "\342") (funcall accum proc "\224\200")
+      (funcall accum proc "\342\224") (funcall accum proc "\200")
+      (funcall accum proc "\342\224\200|")
+
+      (should (equal "|────|"
+                     (decode-coding-string
+                      (mistty-test-proc-buffer-string proc)
+                      'utf-8))))))

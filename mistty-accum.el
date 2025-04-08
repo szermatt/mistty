@@ -369,10 +369,12 @@ mistty--accum whose slots can be accessed."
            (while (not (mistty--fifo-empty-p unprocessed))
              (let ((data (concat incomplete (fifo-to-string unprocessed))))
                (setq incomplete nil)
-               (when (and overall-hold-back-regexp
-                          (string-match overall-hold-back-regexp data))
-                 (setq incomplete (match-string 0 data))
-                 (setq data (substring data 0 (match-beginning 0))))
+               (if (and overall-hold-back-regexp
+                        (string-match overall-hold-back-regexp data))
+                   (setq incomplete (match-string 0 data)
+                         data (substring data 0 (match-beginning 0)))
+                 (pcase-setq `(,data . ,incomplete)
+                             (mistty--split-incomplete-chars data)))
                (while (not (string-empty-p data))
                  (if (and overall-processor-regexp
                           (string-match overall-processor-regexp data))
@@ -416,6 +418,40 @@ mistty--accum whose slots can be accessed."
           (process-data destination proc processors)
           (flush destination proc)
           (post-process proc post-processors))))))
+
+(defun mistty--split-incomplete-chars (str)
+  "Extract incomplete multibyte chars at the end of STR.
+
+This function detects multibyte chars that couldn't be decoded at
+the end of STR and splits it into a cons of complete string and
+remaining bytes.
+
+term.el is meant to do that, but it fails, because `char-charset'
+alone doesn't behave the way term.el assumes (anymore?). This is
+hopefully a temporary workaround."
+  (let* ((len (length str))
+         (end (substring str (max 0 (- len 8))))
+         (decoded-end (decode-coding-string end locale-coding-system t))
+         (undecoded-count 0)
+         (i (1- (length decoded-end))))
+    (while (and (>= i 0) (mistty--eight-bit-char-p decoded-end i))
+      (cl-incf undecoded-count)
+      (cl-decf i))
+    (if (zerop undecoded-count)
+        (cons str nil)
+      (cons
+       (substring str 0 (- len undecoded-count))
+       (substring str (- len undecoded-count))))))
+
+(defun mistty--eight-bit-char-p (str index)
+  "Check whether char in STR at INDEX has been decoded."
+  ;; logic taken from Emacs 29 describe-char
+  (let ((c (aref str index)))
+    (eq 'eight-bit
+        (if (and (not enable-multibyte-characters) (>= c 128))
+            'eight-bit
+          (or (get-text-property index 'charset str)
+              (char-charset c))))))
 
 (defun mistty--accum-strip-let (tree)
   "In-place removal of (let var rx-tree) from TREE."

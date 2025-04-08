@@ -489,11 +489,6 @@ text is written to the terminal.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--undecoded-bytes nil
-  "Bytes leftover in the last call to `mistty--emulate-terminal'.
-
-They'll be processed once more data is passed to the next call.")
-
 (defvar-local mistty--original-cursor nil
   "The local value `cursor-type' had before it was hidden.
 
@@ -653,10 +648,6 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
                (lambda (&rest args)
                  (apply #'mistty--around-move-to-column orig args)))))
     (mistty--with-live-buffer (process-buffer proc)
-      (when mistty--undecoded-bytes
-        (setq str (concat mistty--undecoded-bytes str))
-        (setq mistty--undecoded-bytes nil))
-
       ;; Skip Application Keypad (DECPAM) / Normal Keypad (DECPNM)
       ;; Issued by Fish 4+ but unsupported by term.el.
       (setq str (replace-regexp-in-string "\e[=>]" "" str))
@@ -730,10 +721,7 @@ into `mistty-bracketed-paste' in the buffer WORK-BUFFER.
              (mistty--with-live-buffer work-buffer
                (setq mistty-bracketed-paste nil)))))
         (setq start seq-end)))
-    (let ((split (mistty--split-incomplete-chars (substring str start))))
-      (when (length> (cdr split) 0)
-        (setq mistty--undecoded-bytes (cdr split)))
-      (term-emulate-terminal proc (car split))))))
+      (term-emulate-terminal proc (substring str start)))))
 
 (defun mistty--add-osc-detection (accum)
   "Handle OSC code in ACCUM.
@@ -819,40 +807,6 @@ terminal buffer has been updated."
                             (mistty--prompt-start prompt)
                             (mistty--prompt-end prompt)
                             (mistty--prompt-text prompt))))))))))
-
-(defun mistty--split-incomplete-chars (str)
-  "Extract incomplete multibyte chars at the end of STR.
-
-This function detects multibyte chars that couldn't be decoded at
-the end of STR and splits it into a cons of complete string and
-remaining bytes.
-
-term.el is meant to do that, but it fails, because `char-charset'
-alone doesn't behave the way term.el assumes (anymore?). This is
-hopefully a temporary workaround."
-  (let* ((len (length str))
-         (end (substring str (max 0 (- len 8))))
-         (decoded-end (decode-coding-string end locale-coding-system t))
-         (undecoded-count 0)
-         (i (1- (length decoded-end))))
-    (while (and (>= i 0) (mistty--eight-bit-char-p decoded-end i))
-      (cl-incf undecoded-count)
-      (cl-decf i))
-    (if (zerop undecoded-count)
-        (cons str "")
-      (cons
-       (substring str 0 (- len undecoded-count))
-       (substring str (- len undecoded-count))))))
-
-(defun mistty--eight-bit-char-p (str index)
-  "Check whether char in STR at INDEX has been decoded."
-  ;; logic taken from Emacs 29 describe-char
-  (let ((c (aref str index)))
-    (eq 'eight-bit
-        (if (and (not enable-multibyte-characters) (>= c 128))
-            'eight-bit
-          (or (get-text-property index 'charset str)
-              (char-charset c))))))
 
 (defun mistty-register-text-properties (id props)
   "Add PROPS to any text written to the terminal.

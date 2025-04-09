@@ -600,10 +600,14 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
   "Handle process output as a terminal would.
 
 This function accepts output from PROC included into STR and forwards
-them to `term-emulate-terminal' with some modified functions, to detect
-specific changes."
-  (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
-            (inhibit-read-only t) ;; allow modifications in char mode
+them to `term-emulate-terminal' with some modified functions, fix some
+issues.
+
+It also logs everything it receives to mistty-log.
+
+This is meant as a drop-in replacement for `term-emulate-terminal' in
+all situations, even when no work buffer is available."
+  (cl-letf ((inhibit-read-only t) ;; allow modifications in char mode
             ;; Using term-buffer-vertical-motion causes strange
             ;; issues; avoid it. Additionally, it's not actually
             ;; necessary since term.el adds newlines instead of
@@ -624,21 +628,12 @@ specific changes."
                             (not (eq ?\n (char-before (point-max)))))
                    (cl-decf res))
                  res)))
-            ((symbol-function 'term-delete-chars)
-             (lambda (count)
-               (let ((save-point (point)))
-                 (move-to-column (+ (term-current-column) count) t)
-                 (delete-region save-point (point)))))
             ((symbol-function 'term--handle-colors-list)
              (let ((real-handle-colors-list (symbol-function 'term--handle-colors-list)))
                (lambda (parameters)
                  (funcall real-handle-colors-list parameters)
                  (setq term-current-face
-                       (mistty--clear-term-face-value term-current-face)))))
-            ((symbol-function 'move-to-column)
-             (let ((orig (symbol-function 'move-to-column)))
-               (lambda (&rest args)
-                 (apply #'mistty--around-move-to-column orig args)))))
+                       (mistty--clear-term-face-value term-current-face))))))
     (mistty-log "RECV[%s]" str)
     (term-emulate-terminal proc str)))
 
@@ -768,7 +763,23 @@ Detected prompts can be found in `mistty-prompt'."
    ;; We can't just hold back anytime a chunk ends with a space. The
    ;; whole approach of using a processor to detect prompt-sp needs to
    ;; be rethought.
-   'no-hold-back))
+   'no-hold-back)
+
+  ;; Detect and mark moves with mistty-maybe-skip
+  (mistty--accum-add-around-destination
+   accum
+   (lambda (func)
+     (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
+               ((symbol-function 'term-delete-chars)
+                (lambda (count)
+                  (let ((save-point (point)))
+                    (move-to-column (+ (term-current-column) count) t)
+                    (delete-region save-point (point)))))
+               ((symbol-function 'move-to-column)
+                (let ((orig (symbol-function 'move-to-column)))
+                  (lambda (&rest args)
+                    (apply #'mistty--around-move-to-column orig args)))))
+       (funcall func)))))
 
 (defun mistty--regexp-prompt-detector ()
   "Build a post-processor that look for a new prompt at cursor.

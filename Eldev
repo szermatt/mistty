@@ -137,6 +137,8 @@ First install Sphinx with:
               (patch (or (nth 2 release-version) 0)))
           (list major minor (1+ patch) -4))))
 
+(setq eldev-release-commit-message
+      "chore: Release @[formatted-name]@ @[version-string]@")
 (setq eldev-release-post-release-commit-message
-      "Development version, following release @[version-string]@")
+      "chore: Development version, following release @[version-string]@")
 (add-hook 'eldev-release-post-release-preparators #'mistty-release-preparator)

@@ -98,7 +98,14 @@ processed data to send."
 
 FUNC must be a function with the signature (NEXTFUNC), with
 NEXTFUNC the function to call to run the process filter or the next
-wrapper."
+wrapper.
+
+Note that FUNC is *not* called with any specific active buffer, just
+like any process filter. The function should make sure to set the buffer
+it needs and react to it having been killed. Further, the function
+should avoid calling the function it wraps with any buffer active, as
+that buffer might be killed during processing and break process
+filtering."
   (push func (mistty--accumulator--arround-process-filter accum)))
 
 (defsubst mistty--accum-add-processor-1 (accum processor)

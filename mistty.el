@@ -1582,6 +1582,8 @@ TERM-BUFFER should be the terminal buffer."
   (lambda (func)
     (let ((old-sync-position (mistty--with-live-buffer term-buffer
                                (marker-position mistty-sync-marker))))
+      ;; Reminder: call func with no buffer set, to avoid strange
+      ;; breakages when the term buffer is killed.
       (funcall func)
       (mistty--with-live-buffer term-buffer
         (when (/= mistty-sync-marker old-sync-position)

@@ -1034,11 +1034,22 @@ buffer and `mistty-proc' to that buffer's process."
 
     (when proc
       (let ((accum (process-filter proc)))
-        (mistty--accum-redirect accum #'mistty--process-filter)
+        (mistty--accum-redirect accum #'mistty--emulate-terminal)
         (mistty--accum-clear-processors accum)
         (mistty--add-prompt-detection accum work-buffer)
         (mistty--add-osc-detection accum)
         (mistty--add-skip-unsupported accum)
+
+        ;; Sync work and term buffers
+        (mistty--accum-add-around-destination
+         accum
+         (lambda (func)
+           (funcall func)
+           (mistty--with-live-buffer work-buffer
+             (mistty--needs-refresh))))
+        (mistty--accum-add-around-destination
+         accum
+         (mistty--detect-write-before-sync-mark term-buffer))
         (mistty--accum-add-post-processor
          accum #'mistty--postprocessor)
 
@@ -1479,22 +1490,6 @@ special string describing the new process state."
       (mistty--run-after-process-end-hooks work-buffer proc))
      (t (term-sentinel proc msg)))))
 
-(defun mistty--process-filter (proc str)
-  "Process filter for MisTTY shell processes.
-
-PROC is the calling shell process and STR the string it sent."
-  (let ((work-buffer (process-get proc 'mistty-work-buffer))
-        (term-buffer (process-get proc 'mistty-term-buffer)))
-    (cond
-     ;; detached term buffer
-     ((or (not (buffer-live-p work-buffer)) (not (buffer-live-p term-buffer)))
-      (term-emulate-terminal proc str))
-
-     ;; normal processing
-     (t
-      (mistty-log "RECV[%s]" str)
-      (mistty--process-terminal-seq proc work-buffer term-buffer str)))))
-
 (defun mistty--postprocessor ()
   "React to changes on the term buffer.
 
@@ -1582,19 +1577,19 @@ the point being visible."
                      (not (pos-visible-in-window-p end win)))
             (recenter (- lines-after-point))))))))
 
-(defun mistty--process-terminal-seq (proc work-buffer term-buffer str)
-  "Process STR, sent to PROC, then update MisTTY internal state."
-  (unless (string-empty-p str)
-    (mistty--with-live-buffer term-buffer
-      (let ((old-sync-position (marker-position mistty-sync-marker)))
-        (mistty--emulate-terminal proc str)
-        (goto-char (process-mark proc))
+(defun mistty--detect-write-before-sync-mark (term-buffer)
+  "Return a function for realigning work and term buffers as necessary.
+
+TERM-BUFFER should be the terminal buffer."
+  (lambda (func)
+    (let ((old-sync-position (mistty--with-live-buffer term-buffer
+                               (marker-position mistty-sync-marker))))
+      (funcall func)
+      (mistty--with-live-buffer term-buffer
         (when (/= mistty-sync-marker old-sync-position)
           (mistty-log "Detected terminal change above sync mark, at scrolline %s"
                       mistty--sync-marker-scrolline)
-          (mistty--realign-buffers))))
-    (mistty--with-live-buffer work-buffer
-      (mistty--needs-refresh))))
+          (mistty--realign-buffers))))))
 
 (defun mistty-goto-cursor ()
   "Move the point to the terminal's cursor."

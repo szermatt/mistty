@@ -639,6 +639,7 @@ specific changes."
              (let ((orig (symbol-function 'move-to-column)))
                (lambda (&rest args)
                  (apply #'mistty--around-move-to-column orig args)))))
+    (mistty-log "RECV[%s]" str)
     (term-emulate-terminal proc str)))
 
 (defun mistty--add-skip-unsupported (accum)

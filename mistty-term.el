@@ -766,7 +766,7 @@ Detected prompts can be found in `mistty-prompt'."
    'no-hold-back)
 
   ;; Detect and mark moves with mistty-maybe-skip
-  (mistty--accum-add-around-destination
+  (mistty--accum-add-arround-process-filter
    accum
    (lambda (func)
      (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term

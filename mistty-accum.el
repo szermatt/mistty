@@ -73,14 +73,14 @@ Usage example:
   (post-processors :mutable t)
   ;; Set of functions that wrap a process filter to apply to all
   ;; calls to the real process filter.
-  (around-destination :mutable t))
+  (arround-process-filter :mutable t))
 
 (defsubst mistty--accum-reset (accum)
   "Reset ACCUM to its post-creation state.
 
 All processors, post-processors, around destination registered to the
 accumulator are cleared by this call."
-  (setf (mistty--accumulator--around-destination accum) nil)
+  (setf (mistty--accumulator--arround-process-filter accum) nil)
   (setf (mistty--accumulator--processors accum) nil)
   (setf (mistty--accumulator--processors-dirty accum) t)
   (setf (mistty--accumulator--post-processors accum) nil))
@@ -93,13 +93,13 @@ after the real process filter, once there are no remaining pending
 processed data to send."
   (push post-processor (mistty--accumulator--post-processors accum)))
 
-(defsubst mistty--accum-add-around-destination (accum func)
+(defsubst mistty--accum-add-arround-process-filter (accum func)
   "Have FUNC wrap all ACCUM calls to the process filter.
 
 FUNC must be a function with the signature (NEXTFUNC), with
 NEXTFUNC the function to call to run the process filter or the next
 wrapper."
-  (push func (mistty--accumulator--around-destination accum)))
+  (push func (mistty--accumulator--arround-process-filter accum)))
 
 (defsubst mistty--accum-add-processor-1 (accum processor)
   "Register PROCESSOR, a `cl-accum-processor' in ACCUM.
@@ -338,8 +338,8 @@ mistty--accum whose slots can be accessed."
             (setq overall-hold-back-regexp
                   (build-overall-hold-back-regexp processors))
             (setq processors-dirty nil))
-          (process-data proc processors around-destination)
-          (flush proc around-destination)
+          (process-data proc processors arround-process-filter)
+          (flush proc arround-process-filter)
           (post-process proc post-processors))))))
 
 (defun mistty--split-incomplete-chars (str)

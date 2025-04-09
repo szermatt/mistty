@@ -710,7 +710,7 @@ This variable is available in both the work buffer and the term
 buffer.")
 
 (defvar-local mistty--sync-marker-scrolline 0
-  "Scrolline at `mistty-sync-marker.'
+  "Define the scrolline assigned to `mistty-sync-marker'.
 
 This is updated at the same time as the marker, on both buffers.")
 
@@ -1456,8 +1456,9 @@ a special string describing the new process state."
 (defun mistty--run-after-process-end-hooks (buf proc)
   "Run hooks on `mistty-after-process-end-hook'.
 
-The hooks are called from inside BUF. Since these hooks tend to kill
-their buffer, make sure that running stops once the buffer is killed."
+The hooks are called from inside BUF after PROC has died. Since these
+hooks tend to kill their buffer, make sure that running stops once the
+buffer is killed."
   (run-hook-wrapped
    'mistty-after-process-end-hook
    (lambda (fun)
@@ -1489,7 +1490,7 @@ special string describing the new process state."
      (t (term-sentinel proc msg)))))
 
 (defun mistty--postprocessor ()
-  "React to changes on the term buffer.
+  "React to modifications on the term buffer.
 
 This is meant to be added to the accumulator as post-processor."
   (mistty--with-live-buffer mistty-work-buffer
@@ -1884,7 +1885,7 @@ cursor to be considered."
       match)))
 
 (defun mistty--can-move-vertically-p ()
-  "Check whether vertical moves are allowed, return either nil or t.
+  "Check whether vertical movements are allowed, return either nil or t.
 
 Does not update `mistty--can-move-vertically'."
   (save-excursion
@@ -2070,7 +2071,9 @@ SCROLLINE is a scrolline that's currently visible on the terminal."
       (setq mistty--sync-marker-scrolline scrolline))))
 
 (defun mistty--process-archived-prompts (limit-pos)
-  "Remove archived prompts above END and mark their regions.
+  "Remove any archived prompt above END and mark their regions.
+
+Only look up to LIMIT-POS.
 
 This function cleans up `mistty--prompt-archive', removing prompts above END.
 
@@ -2175,7 +2178,7 @@ paste mode, as most recent version of shells do.
 If N is a positive integer that many newlines."
   (interactive "p")
   (unless mistty-bracketed-paste
-    (error "Newlines not supported in this context."))
+    (error "Newlines not supported in this context"))
   (let* ((nls (make-string (or n 1) ?\n))
          (nl-seq (concat "\e[200~" nls "\e[201~")))
     (cond
@@ -3153,7 +3156,7 @@ This function fails if there is no current or previous output."
 If a prompt if found around POS, return (list prompt-start output-start
 output-end), otherwise return nil.
 
-active-prompt-range must be the output of
+ACTIVE-PROMPT-RANGES must be the output of
 `mistty--active-or-potential-prompt-ranges'."
   (catch 'mistty-return
     (when (and active-prompt-ranges (>= pos (nth 0 active-prompt-ranges)))
@@ -3173,7 +3176,7 @@ active-prompt-range must be the output of
 If a prompt if found that starts at START, return (list START
 output-start output-end), otherwise return nil.
 
-active-prompt-range must be the output of
+ACTIVE-PROMPT-RANGES must be the output of
 `mistty--active-or-potential-prompt-ranges'."
   (let ((limit (or (nth 0 active-prompt-ranges) (point-max))))
     (if (and (< start limit) (get-text-property start 'mistty-input-id))
@@ -3868,7 +3871,7 @@ prompts."
              (string= content (mistty--safe-bufstring start end)))))))
 
 (defun mistty--prompt-contains-pos (prompt pos)
-  "Return non-nil if POS is inside `mistty--prompt'."
+  "Return non-nil if POS is inside PROMPT."
   (when-let* ((scrolline (mistty--prompt-start prompt))
               (start (mistty--scrolline-pos scrolline))
               (length (if-let ((text (mistty--prompt-text prompt)))
@@ -4420,7 +4423,7 @@ This is meant to be set as `end-of-defun-function' in MisTTY buffers."
         (goto-char (nth 2 ranges))))))
 
 (defun mistty-imenu-create-index ()
-  "Create an imenu index of prompts and commands.
+  "Create an imenu index of command-lines and outputs.
 
 This is meant to be bound to `imenu-create-index-function'."
   (let ((active-prompt (mistty--active-or-potential-prompt-ranges))

@@ -6861,3 +6861,17 @@ precmd_functions+=(prompt_header)
 
         (should-not (process-live-p first-proc))
         (should-not (buffer-live-p first-term-buffer))))))
+
+(ert-deftest mistty-set-stty-erase-C-h ()
+  (let ((mistty-del "\C-h"))
+    (mistty-with-test-buffer ()
+      (mistty-send-text "stty -a")
+      (let ((stty (mistty-send-and-capture-command-output)))
+        (should (string-match "erase = ^H" stty))))))
+
+(ert-deftest mistty-set-stty-erase-DEL ()
+  (let ((mistty-del "\d"))
+    (mistty-with-test-buffer ()
+      (mistty-send-text "stty -a")
+      (let ((stty (mistty-send-and-capture-command-output)))
+        (should (string-match "erase = ^?" stty))))))

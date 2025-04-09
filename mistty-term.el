@@ -894,49 +894,61 @@ Must be called from the term buffer."
                    process-environment)
            process-environment)))
 
-    (if (not (file-remote-p default-directory))
-        (term-exec buffer name program nil args)
+    (cl-letf*
+        ;; On MacOS, the length of the termcap entry, heavily
+        ;; escaped by TRAMP, plus the other env variables is enough
+        ;; to hit the 1024 byte limit of the tty cache used in
+        ;; canonical mode (on Linux, it is 4095, so there's no
+        ;; problem.) Adding a newline to the termcap entry avoids
+        ;; hitting that limit while remaining valid. An alternative
+        ;; would be to have TRAMP disable canonical mode with stty
+        ;; -icanon before sending out the command.
+        ((term-termcap-format (concat term-termcap-format "\n"))
 
-      (cl-letf*
-          ;; On MacOS, the length of the termcap entry, heavily
-          ;; escaped by TRAMP, plus the other env variables is enough
-          ;; to hit the 1024 byte limit of the tty cache used in
-          ;; canonical mode (on Linux, it is 4095, so there's no
-          ;; problem.) Adding a newline to the termcap entry avoids
-          ;; hitting that limit while remaining valid. An alternative
-          ;; would be to have TRAMP disable canonical mode with stty
-          ;; -icanon before sending out the command.
-          ((term-termcap-format (concat term-termcap-format "\n"))
+         ;; term.el calls start-process, which doesn't support starting
+         ;; processes with TRAMP. The following intercepts replace
+         ;; start-process with start-file process, which does support
+         ;; TRAMP.
+         (real-start-process (symbol-function 'start-process))
+         (called nil)
+         ((symbol-function 'start-process)
+          (lambda (name buffer program &rest program-args)
+            (if called
+                (apply real-start-process name buffer program program-args)
+              (setq called t)
+              ;; Set erase to ^H or ^? to stty so the terminal is
+              ;; expecting the right delete value. Issue #12
+              (when-let ((stty-command (nth 1 program-args))
+                         (erase-char (pcase mistty-del
+                                       ("\C-h" "^H")
+                                       ("\d" "^?"))))
+                (setq program-args (cl-copy-list program-args))
+                (when (string-match "stty.*?sane" stty-command)
+                  (setf (nth 1 program-args)
+                        (concat (match-string 0 stty-command)
+                                " erase "
+                                erase-char
+                                (substring stty-command (match-end 0))))))
+              (let* ((process-environment
+                      ;; TERMINFO references a local file. This is
+                      ;; not useful on a remote host, so let's
+                      ;; remove it. A description of the terminal is
+                      ;; available in TERMCAP.
+                      (if (file-remote-p default-directory)
+                          (delq nil
+                                (mapcar (lambda (var)
+                                          (if (string-prefix-p "TERMINFO=" var)
+                                              nil
+                                            var))
+                                        process-environment))
+                        process-environment))
+                     (proc (apply #'start-file-process name buffer program program-args)))
 
-           ;; term.el calls start-process, which doesn't support starting
-           ;; processes with TRAMP. The following intercepts replace
-           ;; start-process with start-file process, which does support
-           ;; TRAMP.
-           (real-start-process (symbol-function 'start-process))
-           (called nil)
-           ((symbol-function 'start-process)
-            (lambda (name buffer program &rest program-args)
-              (if called
-                  (apply real-start-process name buffer program program-args)
-                (setq called t)
-                (let* ((process-environment
-                        ;; TERMINFO references a local file. This is
-                        ;; not useful on a remote host, so let's
-                        ;; remove it. A description of the terminal is
-                        ;; available in TERMCAP.
-                        (delq nil
-                              (mapcar (lambda (var)
-                                        (if (string-prefix-p "TERMINFO=" var)
-                                            nil
-                                          var))
-                                      process-environment)))
-                       (proc (apply #'start-file-process name buffer program program-args)))
-
-                  ;; start-file-process doesn't always respect
-                  ;; coding-system-for-read set by term.el. Force it.
-                  (set-process-coding-system proc 'binary (cdr (process-coding-system proc)))
-                  proc)))))
-        (term-exec buffer name program nil args)))))
+                ;; start-file-process doesn't always respect
+                ;; coding-system-for-read set by term.el. Force it.
+                (set-process-coding-system proc 'binary (cdr (process-coding-system proc)))
+                proc)))))
+      (term-exec buffer name program nil args))))
 
 (defun mistty--after-change-on-term (beg end _old-length)
   "Function registered to `after-change-functions' by `mistty--create-term'.

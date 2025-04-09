@@ -94,7 +94,7 @@ processed data to send."
   (push post-processor (mistty--accumulator--post-processors accum)))
 
 (defsubst mistty--accum-add-arround-process-filter (accum func)
-  "Have FUNC wrap all ACCUM calls to the process filter.
+  "Have FUNC wrap the process filter function called by ACCUM.
 
 FUNC must be a function with the signature (NEXTFUNC), with
 NEXTFUNC the function to call to run the process filter or the next
@@ -150,7 +150,7 @@ Register processors with `mistty--accum-add-processor'."
   look-back-f)
 
 (defsubst mistty--accum-ctx-look-back (ctx)
-  "Return a small buffer of data just processed.
+  "Return a small buffer of data just processed from CTX.
 
 This returns up to 8 bytes of processed data as it has been or will be
 sent to the process filter.

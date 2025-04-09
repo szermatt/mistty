@@ -24,6 +24,8 @@
 ;; (require 'mistty-accum)
 ;; (eval-when-compile (require 'mistty-accum-macros))
 
+;;; Code:
+
 (require 'rx)
 (require 'cl-lib)
 (require 'mistty-accum)
@@ -38,7 +40,7 @@ is written in the same language as `mistty--accum-add-processor'.
 For example, the following defines a processor for \"\\e[0-9]?J\" that
 makes the number available to the lamba as under the symbol num.
 
-(mistty--accum-add-processor-lambda accum
+\(mistty--accum-add-processor-lambda accum
     (ctx \\='(seq ESC (let num Pn) ?J))
   ...)"
   (declare (indent 2))

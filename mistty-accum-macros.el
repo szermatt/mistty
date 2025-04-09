@@ -42,16 +42,14 @@ makes the number available to the lamba as under the symbol num.
     (ctx \\='(seq ESC (let num Pn) ?J))
   ...)"
   (declare (indent 2))
-  (unless (and (listp rx-regexp) (eq 'quote (car rx-regexp)))
-    (error "Regexp must be in quoted rx-notation, not: %S" (car rx-regexp)))
+  (let ((rx-regexp (mistty--accum-unquote-rx-regexp rx-regexp)))
+    `(mistty--accum-add-processor
+      ,accum
+      (quote ,(mistty--accum-strip-let (cl-copy-list rx-regexp)))
+      (pcase-lambda (,ctx (rx ,(mistty--accum-expand-shortcuts rx-regexp)))
+        ,@body))))
 
-  `(mistty--accum-add-processor
-    ,accum
-    (quote ,(mistty--accum-strip-let (cl-copy-list (cadr rx-regexp))))
-    (pcase-lambda (,ctx (rx ,(mistty--accum-expand-shortcuts (cadr rx-regexp))))
-      ,@body)))
-
-(defmacro mistty--accum-add-processor (accum rx-regexp processor &optional no-hold-back)
+(defmacro mistty--accum-add-processor (accum rx-regexp processor)
   "Register PROCESSOR in ACCUM for processing RX-REGEXP.
 
 RX-REGEXP is a regexp in a restricted subset of the RX notation,
@@ -96,16 +94,11 @@ simply swallowed. To forward or modify it, PROCESSOR must call
 If PROCESSOR needs to check the state of the process buffer, it must
 first make sure that that state has been fully updated to take into
 account everything that was sent before the matching terminal sequence
-by calling `mistty--accum-ctx-flush'.
-
-If NO-HOLD-BACK is non-nil, don't generate hold-back regexps, which
-means that the pattern won't match if it's split between several chunks.
-Using is always a bug."
-  (unless (and (listp rx-regexp) (eq 'quote (car rx-regexp)))
-    (error "Regexp must be in quoted rx-notation, not: %S" rx-regexp))
-  (let* ((rx-regexp (mistty--accum-expand-shortcuts (cadr rx-regexp)))
+by calling `mistty--accum-ctx-flush'."
+  (let* ((rx-regexp (mistty--accum-expand-shortcuts
+                     (mistty--accum-unquote-rx-regexp rx-regexp)))
          (regexp (rx-to-string rx-regexp 'no-group))
-         (hold-back (unless no-hold-back (mistty--accum-build-hold-back rx-regexp))))
+         (hold-back (mistty--accum-build-hold-back rx-regexp)))
     ;; canary: check the regexps at macro expansion time, so any error
     ;; is thrown early with extra information.
     (condition-case err
@@ -127,6 +120,16 @@ Using is always a bug."
        :hold-back-regexps (list ,@hold-back)
        :func ,processor))))
 
+(defun mistty--accum-unquote-rx-regexp (arg)
+  "Check the type of ARG and return it unquoted.
+
+The returned type is something that can be passed to
+`mistty--accum-expand-shorts' then `mistty--accum-build-hold-back'."
+  (pcase arg
+    (`(quote ,elt) elt)
+    ((or (pred stringp) (pred characterp)) arg)
+    (_ (error "Macro expected quoted RX notation regexp, not %s"
+              arg))))
 
 (defun mistty--accum-strip-let (tree)
   "In-place removal of (let var rx-tree) from TREE."

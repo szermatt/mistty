@@ -741,29 +741,31 @@ Detected prompts can be found in `mistty-prompt'."
        (mistty--with-live-buffer work-buffer
          (setq mistty-bracketed-paste nil)))))
 
-  ;; Detect prompt-sp
+  ;; Detect prompt-sp as many spaces followed by CR at the end of a
+  ;; line.
+  ;;
+  ;; Not using " \r" as regexp for the processor as it would mean
+  ;; waiting after a space in case a \r eventually comes. This isn't
+  ;; an escape sequence.
   (mistty--accum-add-processor
    accum
-   '(seq "     " CR)
-   (lambda (ctx str)
-     ;; Look at the terminal state before the \r
-     (mistty--accum-ctx-push-down ctx (substring str 0 -1))
-     (mistty--accum-ctx-flush ctx)
-     (when (or (and (= (1- term-width) (term-current-column))
-                    (eq ?\  (char-before (point))))
-               (and (get-text-property (pos-eol 0) 'term-line-wrap)
-                    (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
-       (let ((inhibit-modification-hooks t)
-             (inhibit-read-only t)
-             (pos (pos-eol 0)))
-         (put-text-property pos (1+ pos) 'mistty-prompt-sp t)))
+   'CR
+   (lambda (ctx _)
+     ;; If we received at least 8 spaces before the \r (enough to fill
+     ;; the look-back buffer) flush and look at the state of the
+     ;; buffer just before the \r is taken into account.
+     (when (string= "        " (mistty--accum-ctx-look-back ctx))
+       (mistty--accum-ctx-flush ctx)
+       (when (or (and (= (1- term-width) (term-current-column))
+                      (eq ?\  (char-before (point))))
+                 (and (get-text-property (pos-eol 0) 'term-line-wrap)
+                      (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
+         (let ((inhibit-modification-hooks t)
+               (inhibit-read-only t)
+               (pos (pos-eol 0)))
+           (put-text-property pos (1+ pos) 'mistty-prompt-sp t))))
 
-     (mistty--accum-ctx-push-down ctx "\r"))
-
-   ;; We can't just hold back anytime a chunk ends with a space. The
-   ;; whole approach of using a processor to detect prompt-sp needs to
-   ;; be rethought.
-   'no-hold-back)
+     (mistty--accum-ctx-push-down ctx "\r")))
 
   ;; Detect and mark moves with mistty-maybe-skip
   (mistty--accum-add-arround-process-filter

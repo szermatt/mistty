@@ -25,7 +25,7 @@
 (require 'pcase)
 (require 'oclosure)
 (require 'cl-lib)
-(require 'rx)
+(require 'ring)
 
 (require 'mistty-util)
 (require 'mistty-log)
@@ -144,7 +144,21 @@ Register processors with `mistty--accum-add-processor'."
   flush-f
   ;; Send processed string to destination (single-arg function)
   ;; Call it through mistty--accum-ctx-push-down.
-  push-down-f)
+  push-down-f
+  ;; Return a small buffer of data processed before. Call it through
+  ;; mistty--accum-ctx-look-back.
+  look-back-f)
+
+(defsubst mistty--accum-ctx-look-back (ctx)
+  "Return a small buffer of data just processed.
+
+This returns up to 8 bytes of processed data as it has been or will be
+sent to the process filter.
+
+When a processor is just called, that includes only data processed
+before it. If the processor calls `mistty--accum-ctx-push-down', that
+includes the data just pushed down as well."
+  (funcall (mistty--accum-ctx-look-back-f ctx)))
 
 (defsubst mistty--accum-ctx-flush (ctx)
   "Flush accumulator from a processor.
@@ -182,6 +196,7 @@ The return value of this type is also an oclosure of type
 mistty--accum whose slots can be accessed."
   (let ((unprocessed (mistty--make-fifo))
         (processed (mistty--make-fifo))
+        (look-back-ring (make-ring 8))
         (incomplete nil)
         (overall-processor-regexp nil)
         (overall-hold-back-regexp nil)
@@ -293,7 +308,23 @@ mistty--accum whose slots can be accessed."
 
          ;; Add STR as processed string
          (push-down (str)
+           (let ((len (length str)))
+             (cl-loop for i
+                      from (max 0 (- len (ring-size look-back-ring)))
+                      below len
+                    do (ring-insert look-back-ring (aref str i))))
+
            (mistty--fifo-enqueue processed str))
+
+         ;; Return up to 8 bytes of raw data in a string from older to
+         ;; newer.
+         (look-back ()
+           (let* ((len (ring-length look-back-ring))
+                  (str (make-string len ?\0)))
+             (cl-loop for i from 0 below len
+                      do (setf (aref str i)
+                               (ring-ref look-back-ring (- len i 1))))
+             str))
 
          ;; Process any data in unprocessed and move it to processed.
          (process-data (proc processors around)
@@ -319,7 +350,7 @@ mistty--accum whose slots can be accessed."
                        (setq data (substring data (match-end 0))) ; next loop
 
                        (unless (string-empty-p before)
-                         (mistty--fifo-enqueue processed before))
+                         (push-down before))
                        (mistty--with-live-buffer (process-buffer proc)
                          (catch 'mistty-abort-processor
                            (funcall
@@ -329,9 +360,10 @@ mistty--accum whose slots can be accessed."
                                         (flush proc around)
                                         (unless (buffer-live-p (process-buffer proc))
                                           (throw 'mistty-abort-processor nil)))
-                             :push-down-f #'push-down)
+                             :push-down-f #'push-down
+                             :look-back-f #'look-back)
                             matching))))
-                   (mistty--fifo-enqueue processed data)
+                   (push-down data)
                    (setq data "")))))))
 
       ;; Build the accumulator as an open closure.

@@ -370,3 +370,37 @@
                      (decode-coding-string
                       (mistty-test-proc-buffer-string proc)
                       'utf-8))))))
+
+(ert-deftest mistty-accum-processor-look-back ()
+  (mistty-with-test-process (proc)
+    (let ((accum (mistty--make-accumulator (process-filter proc)))
+          (lookbacks nil))
+      (set-process-filter proc accum)
+
+      ;; Change each aa with oo and remember what the lookback buffer
+      ;; looked before and after adding the oo.
+      (mistty--accum-add-processor
+       accum '(seq ?a ?a)
+       (lambda (ctx _)
+         (push (mistty--accum-ctx-look-back ctx) lookbacks)
+         (mistty--accum-ctx-push-down ctx "oo")
+         (push (mistty--accum-ctx-look-back ctx) lookbacks)))
+
+      ;; Force a flush at every comma. This should have no impact.
+      (mistty--accum-add-processor
+       accum ?,
+       (lambda (ctx _)
+         (mistty--accum-ctx-push-down ctx ",")
+         (mistty--accum-ctx-flush ctx)))
+
+      (funcall accum proc ">")
+      (funcall accum proc "baa, baa, baa!")
+
+      (should (equal '(">b"        ; first baa
+                       ">boo"      ; first baa, oo was pushed
+                       ">boo, b"   ; second baa
+                       "boo, boo"  ; second baa, oo was pushed,
+                       ", boo, b"  ; third baa
+                       "boo, boo"  ; third baa, oo was pushed
+                       )
+                     (nreverse lookbacks))))))

@@ -156,9 +156,9 @@ Add an ellipsis if STR is truncated."
     (point)))
 
 (defun mistty--has-text-properties (pos props)
-  "Return non-nil if properties at POS include PROP.
+  "Return non-nil if properties at POS include PROPS.
 
-Return nil if PROP is nil."
+Return nil if PROPS is nil."
   (when props
     (let ((actual (text-properties-at pos))
           (current props)
@@ -274,7 +274,10 @@ to, normally 0."
 (defun mistty--current-scrolline-text (&optional no-properties)
   "Return the text of the scrolline at point as a string.
 
-Any fake newlines are stripped."
+Any fake newlines are stripped.
+
+If NO-PROPERTIES is non-nil, strip text properties from the returned
+string."
   (mistty--text-without-fake-lines (mistty--beginning-of-scrolline-pos)
                                    (mistty--end-of-scrolline-pos)
                                    no-properties))
@@ -282,7 +285,10 @@ Any fake newlines are stripped."
 (defun mistty--scrolline-text-before-point (&optional no-properties)
   "Return text from the beginning of the scrolline to the current point.
 
-Any fake newlines are stripped."
+Any fake newlines are stripped.
+
+If NO-PROPERTIES is non-nil, strip text properties from the returned
+string."
   (mistty--text-without-fake-lines (mistty--beginning-of-scrolline-pos)
                                    (point)
                                    no-properties))
@@ -343,7 +349,7 @@ Return nil if there are no entry."
       item)))
 
 (defun mistty--fifo-to-list (fifo)
-  "Destructively converts FIFO into a list."
+  "Destructively convert FIFO into a list."
   (let ((list (mistty--fifo-oldest fifo)))
     (mistty--fifo-clear fifo)
 

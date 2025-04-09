@@ -142,7 +142,7 @@ definition, because it doesn't allow editing what's above."
 (defconst mistty-del "\C-h"
   "Sequence to send to the process when backspace is pressed.
 
-Both BS (\\C-h) and DEL (\\d) have been used to map to backspace, though
+Both BS (^H) and DEL (^?) have been used to map to backspace, though
 inconsistently across terminals. Mistty 1.3 and earlier sent DEL, but
 that was switched to BS when Fish 4 started interpreting that as the
 delete key instead of the backspace key.
@@ -591,7 +591,7 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
   `(setf (mistty--prompt-cell-archive mistty--prompt-cell) ,val))
 
 (defun mistty--prompt-contains (prompt scrolline)
-  "Return non-nil if PROMPT contains SCROLLINE."
+  "Return non-nil if SCROLLINE is inside of PROMPT."
   (and (>= scrolline (mistty--prompt-start prompt))
        (or (null (mistty--prompt-end prompt))
            (< scrolline (mistty--prompt-end prompt)))))
@@ -640,8 +640,9 @@ all situations, even when no work buffer is available."
 (defun mistty--add-skip-unsupported (accum)
   "Skip some unsupported terminal sequences that confuse term.el.
 
-This function adds processors to skip Application Keypad (DECPAM) /
-Normal Keypad (DECPNM) Issued by Fish 4+ but just ecoed by term.el."
+This function adds processors to ACCUM to skip Application
+Keypad (DECPAM) / Normal Keypad (DECPNM) Issued by Fish 4+ but just
+ecoed by term.el."
   (mistty--accum-add-processor
    accum
    '(seq ESC (char "=>")) #'ignore))
@@ -997,7 +998,7 @@ BEG and END define the region that was modified."
       (mistty--changed beg end))))
 
 (defun mistty--changed (beg end)
-  "Mark text between BEG and AND as changed, forcing postprocess."
+  "Mark text between BEG and END as changed, forcing postprocess."
   (setq mistty--term-changed (if mistty--term-changed
                                  (min mistty--term-changed beg)
                                beg))
@@ -1034,7 +1035,7 @@ lines that have changed, as detected by `mistty--term-changed'."
   (setq mistty--term-changed nil))
 
 (defun mistty--term-postprocess (region-start window-width)
-  "Sets mistty-skip and yank handlers after REGION-START.
+  "Set mistty-skip and yank handlers after REGION-START.
 
 WINDOW-WIDTH is used to detect right prompts.
 
@@ -1066,7 +1067,8 @@ detecting regions looking at a complete line."
 (defun mistty--detect-right-prompt (bol eol window-width)
   "Detect right prompt and return its left position or nil.
 
-BOL and EOL define the region to look in."
+BOL and EOL define the region to look in. WINDOW-WIDTH must be the width
+of the terminal, usually `term-width'."
   (let ((pos (1- eol)))
     (when (and (>= 3 (- window-width (mistty--line-width)))
                (not (get-text-property pos 'mistty-maybe-skip)))
@@ -1355,6 +1357,19 @@ Return nil if the row isn't reachable on the terminal."
   mistty--scrolline-base)
 
 (defun mistty-osc133 (_ osc-seq)
+  "Handle OSC 133 codes.
+
+OSC-SEQ contains the subcode followed optionally by a semi-colon and
+arguments (ignored).
+
+MisTTY supports code A-D:
+
+ - A marks the start of a new command.
+ - B marks the end of the prompt and the start of user input.
+ - C marks the start of command output.
+ - D marks the end of the command.
+
+Everything else is ignored."
   (when (and (length> osc-seq 0) (not (term-using-alternate-sub-buffer)))
     (let ((command-char (aref osc-seq 0)))
       (pcase command-char

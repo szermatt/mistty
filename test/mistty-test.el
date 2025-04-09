@@ -1960,6 +1960,15 @@
     (should (equal "$ echo one\none\n$ printf '\\e[2J\\e[H'\n$ echo two\ntwo"
                    (mistty-test-content :strip-last-prompt t)))))
 
+(ert-deftest mistty-test-split-csi-sequence ()
+  (mistty-with-test-buffer ()
+    (mistty-send-text "printf 'o\\e[?' ; sleep 0.1 ; printf '25lk\\n'")
+    (should (equal "ok" (mistty-send-and-capture-command-output)))
+    (should (eq nil cursor-type))
+    (mistty-send-text "printf 'o\\e[' ; sleep 0.1 ; printf '?25hk\\n'")
+    (should (equal "ok" (mistty-send-and-capture-command-output)))
+    (should (eq t cursor-type))))
+
 (ert-deftest mistty-test-hide-cursor ()
   (mistty-with-test-buffer ()
     (mistty-send-text "printf 'o\\e[?25lk\\n'")

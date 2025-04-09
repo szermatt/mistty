@@ -72,7 +72,10 @@ Usage example:
   ;; Set to non-nil after changing processors.
   (processors-dirty :mutable t)
   ;; Set of no-arg functions to call after calling process-filter.
-  (post-processors :mutable t))
+  (post-processors :mutable t)
+  ;; Set of functions that wrap a process filter to apply to all
+  ;; calls to the real process filter.
+  (around-destination :mutable t))
 
 (defun mistty--accum-redirect (accum new-destination)
   "Change the process filter the accumulator sends output to."
@@ -80,6 +83,7 @@ Usage example:
 
 (defsubst mistty--accum-clear-processors (accum)
   "Remove all (post-)processors registered for ACCUM."
+  (setf (mistty--accumulator--around-destination accum) nil)
   (setf (mistty--accumulator--processors accum) nil)
   (setf (mistty--accumulator--processors-dirty accum) t)
   (setf (mistty--accumulator--post-processors accum) nil))
@@ -91,6 +95,14 @@ POST-PROCESSOR must be a function that takes no argument. It is called
 after the real process filter, once there are no remaining pending
 processed data to send."
   (push post-processor (mistty--accumulator--post-processors accum)))
+
+(defsubst mistty--accum-add-around-destination (accum func)
+  "Have FUNC wrap all ACCUM calls to the process filter.
+
+FUNC must be a function with the signature (NEXTFUNC), with
+NEXTFUNC the function to call to run the process filter or the next
+wrapper."
+  (push func (mistty--accumulator--around-destination accum)))
 
 (defsubst mistty--accum-add-processor-1 (accum processor)
   "Register PROCESSOR, a `cl-accum-processor' in ACCUM.
@@ -186,11 +198,21 @@ mistty--accum whose slots can be accessed."
                (_ (mapconcat #'identity lst)))))
 
          ;; Send all processed data to DEST.
-         (flush (dest proc)
+         (flush (dest proc wrappers)
            (let ((data (fifo-to-string processed)))
-             (unless (string-empty-p data)
-               (funcall dest proc data)
-               (setq needs-postprocessing t))))
+             (run-wrapped wrappers
+                          (lambda ()
+                            (unless (string-empty-p data)
+                              (funcall dest proc data)
+                              (setq needs-postprocessing t))))))
+
+         ;; Run WRAPPERS around FUNC.
+         (run-wrapped (wrappers func)
+           (dolist (wrapper (reverse wrappers))
+             (setq func (let ((f func))
+                          (lambda ()
+                            (funcall wrapper f)))))
+           (funcall func))
 
          ;; Call post-processors after everything has been processed.
          (post-process (proc post-processors)
@@ -270,7 +292,7 @@ mistty--accum whose slots can be accessed."
            (mistty--fifo-enqueue processed str))
 
          ;; Process any data in unprocessed and move it to processed.
-         (process-data (dest proc processors)
+         (process-data (dest proc processors around)
            (while (not (mistty--fifo-empty-p unprocessed))
              (let ((data (concat incomplete (fifo-to-string unprocessed))))
                (setq incomplete nil)
@@ -300,7 +322,7 @@ mistty--accum whose slots can be accessed."
                             (mistty--accum-processor-func processor)
                             (mistty--accum-make-ctx
                              :flush-f (lambda ()
-                                        (flush dest proc)
+                                        (flush dest proc around)
                                         (unless (buffer-live-p (process-buffer proc))
                                           (throw 'mistty-abort-processor nil)))
                              :push-down-f #'push-down)
@@ -320,8 +342,8 @@ mistty--accum whose slots can be accessed."
             (setq overall-hold-back-regexp
                   (build-overall-hold-back-regexp processors))
             (setq processors-dirty nil))
-          (process-data destination proc processors)
-          (flush destination proc)
+          (process-data destination proc processors around-destination)
+          (flush destination proc around-destination)
           (post-process proc post-processors))))))
 
 (defun mistty--split-incomplete-chars (str)

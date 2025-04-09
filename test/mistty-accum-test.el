@@ -15,6 +15,7 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'mistty-accum)
+(require 'mistty-accum-macros)
 (require 'ert)
 (require 'ert-x)
 
@@ -176,6 +177,71 @@
       (funcall accum proc "foo")
 
       (should (equal "foo12"
+                     (mistty-test-proc-buffer-string proc))))))
+
+(ert-deftest mistty-accum-around ()
+  (mistty-with-test-process (proc)
+    (let* ((calls nil)
+           (real-process-filter (process-filter proc))
+           (accum (mistty--make-accumulator (lambda (proc data)
+                                              (push 'process-filter calls)
+                                              (funcall real-process-filter proc data)))))
+      (set-process-filter proc accum)
+
+      (funcall accum proc "baa")
+      (should (equal '(process-filter) (reverse calls)))
+      (setq calls nil)
+
+      (mistty--accum-add-around-destination
+       accum
+       (lambda (func)
+         (push 'around-1 calls)
+         (funcall func)))
+
+      (funcall accum proc "baa")
+      (should (equal '(around-1 process-filter) (reverse calls)))
+      (setq calls nil)
+
+      (mistty--accum-add-around-destination
+       accum
+       (lambda (func)
+         (push 'around-2 calls)
+         (funcall func)))
+
+      (funcall accum proc "baa")
+      (should (equal '(around-2 around-1 process-filter)
+                     (reverse calls)))
+      (setq calls nil))))
+
+(ert-deftest mistty-accum-around-and-processors ()
+  (mistty-with-test-process (proc)
+    (let* ((calls nil)
+           (accum (mistty--make-accumulator (process-filter proc))))
+      (set-process-filter proc accum)
+
+      (mistty--accum-add-around-destination
+       accum
+       (lambda (func)
+         (push 'around calls)
+         (funcall func)))
+
+      (mistty--accum-add-processor
+       accum '(seq "aa")
+       (lambda (ctx str)
+         (mistty--accum-ctx-push-down ctx "oo")
+
+         ;; around should be called from flush
+         (let ((call-count (length calls)))
+           (mistty--accum-ctx-flush ctx)
+           (should (equal (1+ call-count) (length calls))))))
+
+      (funcall accum proc "baa, baa, black sheep")
+
+      ;; Around should be called once for each "aa" and once at the
+      ;; end.
+      (should (equal 3 (length calls)))
+
+      (should (equal "boo, boo, black sheep"
                      (mistty-test-proc-buffer-string proc))))))
 
 (ert-deftest mistty-accum-hold-back ()

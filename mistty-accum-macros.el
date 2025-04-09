@@ -45,7 +45,7 @@ makes the number available to the lamba as under the symbol num.
   (let ((rx-regexp (mistty--accum-unquote-rx-regexp rx-regexp)))
     `(mistty--accum-add-processor
       ,accum
-      (quote ,(mistty--accum-strip-let (cl-copy-list rx-regexp)))
+      (quote ,(mistty--accum-strip-let rx-regexp))
       (pcase-lambda (,ctx (rx ,(mistty--accum-expand-shortcuts rx-regexp)))
         ,@body))))
 
@@ -134,25 +134,26 @@ The returned type is something that can be passed to
 (defun mistty--accum-strip-let (tree)
   "In-place removal of (let var rx-tree) from TREE."
   (pcase tree
-    (`(let ,_ ,arg) arg)
-    (`(,_ . ,args)
-     (mistty--accum-transform-list args #'mistty--accum-strip-let)
-     tree)
+    (`(let ,_ ,arg)
+     (mistty--accum-strip-let arg))
+    (`(,op . ,args)
+     (cons
+      op (mapcar #'mistty--accum-strip-let args)))
     (_ tree)))
 
 (defun mistty--accum-expand-shortcuts (tree)
-  "Expand in-place special shortcuts into base RX-notation.
+  "Expand special shortcuts into base RX-notation.
 
 TREE might include notations inspired from
 https://www.xfree86.org/current/ctlseqs.html#Definitions
 
 The notation is documented in `mistty--accum-add-processor'.
 
-The transformed tree is returned."
+A transformed version of TREE is returned."
   (pcase tree
-    (`(,_ . ,args)
-     (mistty--accum-transform-list args #'mistty--accum-expand-shortcuts)
-     tree)
+    (`(,op . ,args)
+     (cons
+      op (mapcar #'mistty--accum-expand-shortcuts args)))
     ('ESC ?\e)
     ('BEL ?\a)
     ('CSI '(seq ?\e ?\[))
@@ -174,14 +175,6 @@ The transformed tree is returned."
     ;; chars (usually multibyte UTF-8).
     ('Pt '(* (not (char "\x00-\x07\x0e-\x1f\x7f"))))
     (_ tree)))
-
-(defun mistty--accum-transform-list (lst func)
-  "Apply FUNC on all car of LST."
-  (let ((cur lst))
-    (while cur
-      (setcar cur (funcall func (car cur)))
-      (setq cur (cdr cur)))))
-
 
 (defun mistty--accum-build-hold-back (tree)
   "Build a set of hold-back regexps for TREE.

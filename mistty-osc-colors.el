@@ -25,6 +25,13 @@
 ;;; Code:
 
 (defun mistty-osc-query-color (code seq)
+  "Handle OSC 10 and 11 to query terminal colors.
+
+CODE should be either 10 or 11 and SEQ must be ?. Any other value or
+combination is ignored.
+
+This function returns the foreground and background color configured for
+the face \\='term."
   (when (string= seq "?")
     (let* ((color (cond
                    ((string= "10" code)

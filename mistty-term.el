@@ -33,6 +33,8 @@
 (require 'mistty-util)
 (require 'mistty-log)
 (require 'mistty-accum)
+(eval-when-compile
+  (require 'mistty-accum-macros))
 
 ;;; Code:
 

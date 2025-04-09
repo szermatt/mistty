@@ -46,6 +46,8 @@
 
 (require 'mistty-changeset)
 (require 'mistty-accum)
+(eval-when-compile
+  (require 'mistty-accum-macros))
 (require 'mistty-term)
 (require 'mistty-util)
 (require 'mistty-log)

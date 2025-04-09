@@ -65,8 +65,6 @@ Usage example:
   ;; The following slots are meant to be accessed only by
   ;; mistty-make-accumulator and its helper functions.
 
-  ;; The real process filter; a function with arguments (proc data)
-  (destination :mutable t)
   ;; Alist of (cons regexp (lambda (ctx str)))
   (processors :mutable t)
   ;; Set to non-nil after changing processors.
@@ -77,12 +75,11 @@ Usage example:
   ;; calls to the real process filter.
   (around-destination :mutable t))
 
-(defun mistty--accum-redirect (accum new-destination)
-  "Change the process filter the accumulator sends output to."
-  (setf (mistty--accumulator--destination accum) new-destination))
+(defsubst mistty--accum-reset (accum)
+  "Reset ACCUM to its post-creation state.
 
-(defsubst mistty--accum-clear-processors (accum)
-  "Remove all (post-)processors registered for ACCUM."
+All processors, post-processors, around destination registered to the
+accumulator are cleared by this call."
   (setf (mistty--accumulator--around-destination accum) nil)
   (setf (mistty--accumulator--processors accum) nil)
   (setf (mistty--accumulator--processors-dirty accum) t)
@@ -171,8 +168,8 @@ An accumulator is a function with the signature (PROC DATA) that is
 meant to be used as process filter. It intercepts, buffers and
 transforms process data before sending it to DEST.
 
-DEST is the destination process filter function, with the same
-signature (PROC DATA).
+DEST is the process filter function, with the same signature (PROC DATA)
+that'll be eventually called.
 
 The return value of this type is also an oclosure of type
 mistty--accum whose slots can be accessed."
@@ -197,8 +194,8 @@ mistty--accum whose slots can be accessed."
                (1 (car lst))
                (_ (mapconcat #'identity lst)))))
 
-         ;; Send all processed data to DEST.
-         (flush (dest proc wrappers)
+         ;; Send all processed data to the process filter.
+         (flush (proc wrappers)
            (let ((data (fifo-to-string processed)))
              (run-wrapped wrappers
                           (lambda ()
@@ -292,7 +289,7 @@ mistty--accum whose slots can be accessed."
            (mistty--fifo-enqueue processed str))
 
          ;; Process any data in unprocessed and move it to processed.
-         (process-data (dest proc processors around)
+         (process-data (proc processors around)
            (while (not (mistty--fifo-empty-p unprocessed))
              (let ((data (concat incomplete (fifo-to-string unprocessed))))
                (setq incomplete nil)
@@ -322,7 +319,7 @@ mistty--accum whose slots can be accessed."
                             (mistty--accum-processor-func processor)
                             (mistty--accum-make-ctx
                              :flush-f (lambda ()
-                                        (flush dest proc around)
+                                        (flush proc around)
                                         (unless (buffer-live-p (process-buffer proc))
                                           (throw 'mistty-abort-processor nil)))
                              :push-down-f #'push-down)
@@ -331,8 +328,7 @@ mistty--accum whose slots can be accessed."
                    (setq data "")))))))
 
       ;; Build the accumulator as an open closure.
-      (oclosure-lambda (mistty--accumulator (destination dest)
-                                            (processors-dirty t))
+      (oclosure-lambda (mistty--accumulator (processors-dirty t))
           (proc data)
         (mistty--fifo-enqueue unprocessed data)
         (when (toplevel-accumulator-p proc)
@@ -342,8 +338,8 @@ mistty--accum whose slots can be accessed."
             (setq overall-hold-back-regexp
                   (build-overall-hold-back-regexp processors))
             (setq processors-dirty nil))
-          (process-data destination proc processors around-destination)
-          (flush destination proc around-destination)
+          (process-data proc processors around-destination)
+          (flush proc around-destination)
           (post-process proc post-processors))))))
 
 (defun mistty--split-incomplete-chars (str)

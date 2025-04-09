@@ -885,7 +885,7 @@ This function returns the newly-created buffer."
         (process-put proc 'adjust-window-size-function nil)
         (set-process-window-size proc height width)
         (set-process-filter proc (mistty--make-accumulator
-                                  (process-filter proc))))
+                                  #'mistty--emulate-terminal)))
       (setq-local term-raw-map local-map)
       (term-char-mode)
       (add-hook 'after-change-functions #'mistty--after-change-on-term nil t))

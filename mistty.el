@@ -1034,8 +1034,7 @@ buffer and `mistty-proc' to that buffer's process."
 
     (when proc
       (let ((accum (process-filter proc)))
-        (mistty--accum-redirect accum #'mistty--emulate-terminal)
-        (mistty--accum-clear-processors accum)
+        (mistty--accum-reset accum)
         (mistty--add-prompt-detection accum work-buffer)
         (mistty--add-osc-detection accum)
         (mistty--add-skip-unsupported accum)
@@ -1123,8 +1122,7 @@ Returns M or a new marker."
     (setq mistty--queue nil))
   (when mistty-proc
     (let ((accum (process-filter mistty-proc)))
-      (mistty--accum-redirect accum #'term-emulate-terminal)
-      (mistty--accum-clear-processors accum))
+      (mistty--accum-reset accum))
     (set-process-sentinel mistty-proc #'term-sentinel)
     (setq mistty-proc nil)))
 
@@ -3624,8 +3622,7 @@ Width and height are limited to `mistty-min-terminal-width' and
       (setq mistty-fullscreen t))
 
     (let ((accum (process-filter proc)))
-      (mistty--accum-redirect accum #'mistty--emulate-terminal)
-      (mistty--accum-clear-processors accum)
+      (mistty--accum-reset accum)
       (mistty--add-osc-detection accum)
       (mistty--add-skip-unsupported accum)
       (mistty--accum-add-processor

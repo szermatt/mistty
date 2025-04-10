@@ -1038,6 +1038,7 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--add-prompt-detection accum work-buffer)
         (mistty--add-osc-detection accum)
         (mistty--add-skip-unsupported accum)
+        (mistty--add-toggle-cursor accum work-buffer)
 
         ;; Sync work and term buffers
         (mistty--accum-add-around-process-filter
@@ -1051,20 +1052,6 @@ buffer and `mistty-proc' to that buffer's process."
          (mistty--detect-write-before-sync-mark term-buffer))
         (mistty--accum-add-post-processor
          accum #'mistty--postprocessor)
-
-        ;; Handle show/hide cursor
-        (mistty--accum-add-processor
-         accum
-         '(seq CSI "?25h")
-         (lambda (_ _)
-           (mistty--with-live-buffer work-buffer
-             (mistty--show-cursor))))
-        (mistty--accum-add-processor
-         accum
-         '(seq CSI "?25l")
-         (lambda (_ _)
-           (mistty--with-live-buffer work-buffer
-             (mistty--hide-cursor))))
 
         ;; Switch to fullscreen mode
         (mistty--accum-add-processor
@@ -1096,6 +1083,25 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--set-process-window-size (car size) (cdr size))
       (mistty--set-process-window-size-from-windows)
       (add-hook 'window-size-change-functions #'mistty--window-size-change nil t))))
+
+(defun mistty--add-toggle-cursor (accum buf)
+  "Configure ACCUM to show/hide cursor in BUF."
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?25h")
+   (lambda (_ _)
+     (mistty-log "Show cursor")
+     (mistty--with-live-buffer buf
+       (mistty-log "Show Cursor in %s" major-mode)
+       (mistty--show-cursor))))
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?25l")
+   (lambda (_ _)
+     (mistty-log "Hide cursor")
+     (mistty--with-live-buffer buf
+       (mistty-log "Hide cursor in %s" major-mode)
+       (mistty--hide-cursor)))))
 
 (defun mistty--create-or-reuse-marker (m initial-pos)
   "Create the marker M set to INITIAL-POS or move it to that position.
@@ -3630,6 +3636,7 @@ Width and height are limited to `mistty-min-terminal-width' and
       (mistty--accum-reset accum)
       (mistty--add-osc-detection accum)
       (mistty--add-skip-unsupported accum)
+      (mistty--add-toggle-cursor accum mistty-term-buffer)
       (mistty--accum-add-processor
        accum
        '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)

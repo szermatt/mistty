@@ -1969,14 +1969,26 @@
     (should (equal "ok" (mistty-send-and-capture-command-output)))
     (should (eq t cursor-type))))
 
-(ert-deftest mistty-test-hide-cursor ()
+(ert-deftest mistty-test-hide-cursor-fullscreen ()
   (mistty-with-test-buffer ()
-    (mistty-send-text "printf 'o\\e[?25lk\\n'")
-    (should (equal "ok" (mistty-send-and-capture-command-output)))
-    (should (eq nil cursor-type))
-    (mistty-send-text "printf 'o\\e[?25hk\\n'")
-    (should (equal "ok" (mistty-send-and-capture-command-output)))
-    (should (eq t cursor-type))))
+    (let ((term-buffer mistty-term-buffer)
+          (proc mistty-proc))
+      (mistty--send-string
+       proc
+       "printf '\\e[?47h\\e[?25l\\n'; read -p 'Press ENTER(1)'; ")
+      (mistty--send-string
+       proc
+       "printf '\\e[?25h\\n'; read -p 'Press ENTER(2)'; printf '\\e[?47lDONE\\n'")
+      (mistty-send-command)
+      (mistty--with-live-buffer term-buffer
+        (mistty-wait-for-output :regexp "^Press ENTER(1)")
+        (should-not cursor-type)
+        (process-send-string proc "\n")
+        (mistty-wait-for-output :regexp "^Press ENTER(2)")
+        (should cursor-type)
+        (process-send-string proc "\n"))
+      (mistty-wait-for-output :regexp "^DONE")
+      (should cursor-type))))
 
 (ert-deftest mistty-test-restore-local-cursor ()
   (let ((cursor-type 'box))

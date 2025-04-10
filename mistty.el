@@ -1039,19 +1039,7 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--add-osc-detection accum)
         (mistty--add-skip-unsupported accum)
         (mistty--add-toggle-cursor accum work-buffer)
-
-        ;; Sync work and term buffers
-        (mistty--accum-add-around-process-filter
-         accum
-         (lambda (func)
-           (funcall func)
-           (mistty--with-live-buffer work-buffer
-             (mistty--needs-refresh))))
-        (mistty--accum-add-around-process-filter
-         accum
-         (mistty--detect-write-before-sync-mark term-buffer))
-        (mistty--accum-add-post-processor
-         accum #'mistty--postprocessor)
+        (mistty--add-sync-buffers accum work-buffer term-buffer)
 
         ;; Switch to fullscreen mode
         (mistty--accum-add-processor
@@ -1060,17 +1048,6 @@ buffer and `mistty-proc' to that buffer's process."
          (lambda (ctx str)
            (mistty--accum-ctx-flush ctx)
            (mistty--enter-fullscreen proc)
-           (mistty--accum-ctx-push-down ctx str)))
-
-        ;; Handle clear and reset
-        (mistty--accum-add-processor
-         accum
-         '(or (seq ESC ?c)
-              (seq CSI ?H CSI (? ?0) ?J)
-              (seq CSI ?2 ?J))
-         (lambda (ctx str)
-           (mistty--accum-ctx-flush ctx)
-           (mistty--reset)
            (mistty--accum-ctx-push-down ctx str))))
       (set-process-sentinel proc #'mistty--process-sentinel))
 
@@ -1495,16 +1472,52 @@ special string describing the new process state."
       (mistty--run-after-process-end-hooks work-buffer proc))
      (t (term-sentinel proc msg)))))
 
-(defun mistty--postprocessor ()
-  "React to modifications on the term buffer.
+(defun mistty--add-sync-buffers (accum work-buffer term-buffer)
+  "Sync the terminal region of WORK-BUFFER with TERM-BUFFER.
 
-This is meant to be added to the accumulator as post-processor."
-  (mistty--with-live-buffer mistty-work-buffer
-    (mistty--cancel-timeout mistty--queue)
-    (mistty--refresh)
-    (mistty--maybe-truncate-when-idle)
-    (mistty--dequeue mistty--queue 'intermediate)
-    (mistty--dequeue-with-timer mistty--queue 'stable)))
+This function updates the state of ACCUM as necessary to keep the
+terminal region of WORK-BUFFER in sync with TERM-BUFFER."
+
+  ;; Mark the terminal region as needing refresh as soon as the
+  ;; processor filter is called. This might be in the middle of a
+  ;; processor.
+  (mistty--accum-add-around-process-filter
+   accum
+   (lambda (func)
+     (funcall func)
+     (mistty--with-live-buffer work-buffer
+       (mistty--needs-refresh))))
+
+  ;; Detect changes made to the terminal which might invalidate the
+  ;; sync mark.
+  (mistty--accum-add-around-process-filter
+   accum
+   (lambda (func)
+     (mistty--detect-write-before-sync-mark
+      func term-buffer)))
+
+  ;; Refresh the terminal region of the work buffer after data has
+  ;; been processed.
+  (mistty--accum-add-post-processor
+   accum
+   (lambda ()
+     (mistty--with-live-buffer work-buffer
+       (mistty--cancel-timeout mistty--queue)
+       (mistty--refresh)
+       (mistty--maybe-truncate-when-idle)
+       (mistty--dequeue mistty--queue 'intermediate)
+       (mistty--dequeue-with-timer mistty--queue 'stable))))
+
+  ;; Realign buffers after a clear or reset
+  (mistty--accum-add-processor
+   accum
+   '(or (seq ESC ?c)
+        (seq CSI ?H CSI (? ?0) ?J)
+        (seq CSI ?2 ?J))
+   (lambda (ctx str)
+     (mistty--accum-ctx-flush ctx)
+     (mistty--reset)
+     (mistty--accum-ctx-push-down ctx str))))
 
 (defun mistty--reset ()
   "Reset the link between work and term buffer.
@@ -1582,21 +1595,21 @@ the point being visible."
                      (not (pos-visible-in-window-p end win)))
             (recenter (- lines-after-point))))))))
 
-(defun mistty--detect-write-before-sync-mark (term-buffer)
-  "Return a function for realigning work and term buffers as necessary.
+(defun mistty--detect-write-before-sync-mark (func term-buffer)
+  "Realigning work and term buffers as necessary.
 
-TERM-BUFFER should be the terminal buffer."
-  (lambda (func)
-    (let ((old-sync-position (mistty--with-live-buffer term-buffer
-                               (marker-position mistty-sync-marker))))
-      ;; Reminder: call func with no buffer set, to avoid strange
-      ;; breakages when the term buffer is killed.
-      (funcall func)
-      (mistty--with-live-buffer term-buffer
-        (when (/= mistty-sync-marker old-sync-position)
-          (mistty-log "Detected terminal change above sync mark, at scrolline %s"
-                      mistty--sync-marker-scrolline)
-          (mistty--realign-buffers))))))
+This function detects FUNC moving the sync mark in TERM-BUFFER and
+triggers realignment with the work buffer when that happens."
+  (let ((old-sync-position (mistty--with-live-buffer term-buffer
+                             (marker-position mistty-sync-marker))))
+    ;; Reminder: call func with no buffer set, to avoid strange
+    ;; breakages when the term buffer is killed.
+    (funcall func)
+    (mistty--with-live-buffer term-buffer
+      (when (/= mistty-sync-marker old-sync-position)
+        (mistty-log "Detected terminal change above sync mark, at scrolline %s"
+                    mistty--sync-marker-scrolline)
+        (mistty--realign-buffers)))))
 
 (defun mistty-goto-cursor ()
   "Move the point to the terminal's cursor."

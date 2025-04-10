@@ -1040,13 +1040,13 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--add-skip-unsupported accum)
 
         ;; Sync work and term buffers
-        (mistty--accum-add-arround-process-filter
+        (mistty--accum-add-around-process-filter
          accum
          (lambda (func)
            (funcall func)
            (mistty--with-live-buffer work-buffer
              (mistty--needs-refresh))))
-        (mistty--accum-add-arround-process-filter
+        (mistty--accum-add-around-process-filter
          accum
          (mistty--detect-write-before-sync-mark term-buffer))
         (mistty--accum-add-post-processor

@@ -769,7 +769,7 @@ Detected prompts can be found in `mistty-prompt'."
      (mistty--accum-ctx-push-down ctx "\r")))
 
   ;; Detect and mark moves with mistty-maybe-skip
-  (mistty--accum-add-arround-process-filter
+  (mistty--accum-add-around-process-filter
    accum
    (lambda (func)
      (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term

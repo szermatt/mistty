@@ -192,7 +192,7 @@
       (should (equal '(process-filter) (reverse calls)))
       (setq calls nil)
 
-      (mistty--accum-add-arround-process-filter
+      (mistty--accum-add-around-process-filter
        accum
        (lambda (func)
          (push 'around-1 calls)
@@ -202,7 +202,7 @@
       (should (equal '(around-1 process-filter) (reverse calls)))
       (setq calls nil)
 
-      (mistty--accum-add-arround-process-filter
+      (mistty--accum-add-around-process-filter
        accum
        (lambda (func)
          (push 'around-2 calls)
@@ -219,7 +219,7 @@
            (accum (mistty--make-accumulator (process-filter proc))))
       (set-process-filter proc accum)
 
-      (mistty--accum-add-arround-process-filter
+      (mistty--accum-add-around-process-filter
        accum
        (lambda (func)
          (push 'around calls)

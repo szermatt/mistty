@@ -65,25 +65,21 @@ Usage example:
   ;; The following slots are meant to be accessed only by
   ;; mistty-make-accumulator and its helper functions.
 
-  ;; Alist of (cons regexp (lambda (ctx str)))
-  (processors :mutable t)
-  ;; Set to non-nil after changing processors.
-  (processors-dirty :mutable t)
-  ;; Set of no-arg functions to call after calling process-filter.
-  (post-processors :mutable t)
-  ;; Set of functions that wrap a process filter to apply to all
-  ;; calls to the real process filter.
-  (arround-process-filter :mutable t))
+  ;; mistty--accum-reset
+  reset-f
+  ;; mistty--accum-add-processor-1
+  add-processor-f
+  ;; mistty--accum-add-post-processor
+  add-post-processor-f
+  ;; mistty--accum-add-around-process-filter
+  add-around-f)
 
 (defsubst mistty--accum-reset (accum)
   "Reset ACCUM to its post-creation state.
 
 All processors, post-processors, around destination registered to the
 accumulator are cleared by this call."
-  (setf (mistty--accumulator--arround-process-filter accum) nil)
-  (setf (mistty--accumulator--processors accum) nil)
-  (setf (mistty--accumulator--processors-dirty accum) t)
-  (setf (mistty--accumulator--post-processors accum) nil))
+  (funcall (mistty--accumulator--reset-f accum)))
 
 (defsubst mistty--accum-add-post-processor (accum post-processor)
   "Add POST-PROCESSOR to ACCUM.
@@ -91,9 +87,10 @@ accumulator are cleared by this call."
 POST-PROCESSOR must be a function that takes no argument. It is called
 after the real process filter, once there are no remaining pending
 processed data to send."
-  (push post-processor (mistty--accumulator--post-processors accum)))
+  (funcall (mistty--accumulator--add-post-processor-f accum)
+           post-processor))
 
-(defsubst mistty--accum-add-arround-process-filter (accum func)
+(defsubst mistty--accum-add-around-process-filter (accum func)
   "Have FUNC wrap the process filter function called by ACCUM.
 
 FUNC must be a function with the signature (NEXTFUNC), with
@@ -106,7 +103,7 @@ it needs and react to it having been killed. Further, the function
 should avoid calling the function it wraps with any buffer active, as
 that buffer might be killed during processing and break process
 filtering."
-  (push func (mistty--accumulator--arround-process-filter accum)))
+  (funcall (mistty--accumulator--add-around-f accum) func))
 
 (defsubst mistty--accum-add-processor-1 (accum processor)
   "Register PROCESSOR, a `cl-accum-processor' in ACCUM.
@@ -114,9 +111,8 @@ filtering."
 This function is meant to be called by the macro
 `mistty--accum-add-processor' and `mistty--accum-add-processor-lambda',
 which see."
-  (push processor
-        (mistty--accumulator--processors accum))
-  (setf (mistty--accumulator--processors-dirty accum) t))
+  (funcall (mistty--accumulator--add-processor-f accum)
+           processor))
 
 (cl-defstruct (mistty--accum-processor
                (:constructor mistty--accum-make-processor)
@@ -194,7 +190,11 @@ that'll be eventually called.
 
 The return value of this type is also an oclosure of type
 mistty--accum whose slots can be accessed."
-  (let ((unprocessed (mistty--make-fifo))
+  (let ((post-processors nil)
+        (around-process-filter nil)
+        (processors nil)
+        (processors-dirty nil)
+        (unprocessed (mistty--make-fifo))
         (processed (mistty--make-fifo))
         (look-back-ring (make-ring 8))
         (incomplete nil)
@@ -203,13 +203,35 @@ mistty--accum whose slots can be accessed."
         (processing-pending-output nil)
         (needs-postprocessing nil))
     (cl-labels
+        ;; Implement mistty--accum-reset.
+        ((reset ()
+           (setq post-processors nil)
+           (setq processors nil)
+           (setq around-process-filter nil)
+           (setq processors-dirty t))
+
+         ;; Add POST-PROCESSOR, a no-argument function to call after
+         ;; processing data.
+         (add-post-processor (post-processor)
+           (push post-processor post-processors))
+
+         ;; Add PROCESSOR, a mistty--accum-processor instance.
+         (add-processor (processor)
+           (push processor processors)
+           (setq processors-dirty t))
+
+         ;; Add FUNC, a wrapper function around the process filter
+         ;; with signature (NEXT-FUNC).
+         (add-around (func)
+           (push func around-process-filter))
+
         ;; Collect all pending strings from FIFO into one
         ;; single string.
         ;;
         ;; The fifo is cleared.
         ;;
         ;; Return a single, possibly empty, string.
-        ((fifo-to-string (fifo)
+        (fifo-to-string (fifo)
            (let ((lst (mistty--fifo-to-list fifo)))
              (pcase (length lst)
                (0 "")
@@ -217,9 +239,9 @@ mistty--accum whose slots can be accessed."
                (_ (mapconcat #'identity lst)))))
 
          ;; Send all processed data to the process filter.
-         (flush (proc wrappers)
+         (flush (proc)
            (let ((data (fifo-to-string processed)))
-             (run-wrapped wrappers
+             (run-wrapped around-process-filter
                           (lambda ()
                             (unless (string-empty-p data)
                               (funcall dest proc data)
@@ -234,7 +256,7 @@ mistty--accum whose slots can be accessed."
            (funcall func))
 
          ;; Call post-processors after everything has been processed.
-         (post-process (proc post-processors)
+         (post-process (proc)
            (when needs-postprocessing
              (setq needs-postprocessing nil)
              (dolist (p (reverse post-processors))
@@ -267,6 +289,17 @@ mistty--accum whose slots can be accessed."
                        (accept-process-output proc 0 nil 'just-this-one)))
                  (setq processing-pending-output nil)))))
 
+         ;; Update overall process regexps, if necessary.
+         ;;
+         ;; Call this before using either overall-processor-regexp or
+         ;; overall-hold-back-regexp, in case processors has been
+         ;; modified.
+         (update-processor-regexps ()
+           (when processors-dirty
+             (setq overall-processor-regexp (build-overall-processor-regexp))
+             (setq overall-hold-back-regexp (build-overall-hold-back-regexp))
+             (setq processors-dirty nil)))
+
          ;; Build a new value for overall-processor-regexp.
          ;;
          ;; This is a big concatenation of all regexps in
@@ -274,7 +307,7 @@ mistty--accum whose slots can be accessed."
          ;;
          ;; WARNING: regexps must not define groups. TODO: enforce
          ;; this.
-         (build-overall-processor-regexp (processors)
+         (build-overall-processor-regexp ()
            (when processors
              (let ((index 0))
                (mapconcat
@@ -288,7 +321,7 @@ mistty--accum whose slots can be accessed."
 
          ;; Build a regexp that detects incomplete terminal sequences
          ;; that hold be held back.
-         (build-overall-hold-back-regexp (processors)
+         (build-overall-hold-back-regexp ()
            (let ((regexps nil))
              (dolist (p processors)
                (dolist (r (mistty--accum-processor-hold-back-regexps p))
@@ -327,17 +360,12 @@ mistty--accum whose slots can be accessed."
              str))
 
          ;; Process any data in unprocessed and move it to processed.
-         (process-data (proc processors around)
+         (process-data (proc)
            (while (not (mistty--fifo-empty-p unprocessed))
              (let ((data (concat incomplete (fifo-to-string unprocessed))))
                (setq incomplete nil)
-               (if (and overall-hold-back-regexp
-                        (string-match overall-hold-back-regexp data))
-                   (setq incomplete (match-string 0 data)
-                         data (substring data 0 (match-beginning 0)))
-                 (pcase-setq `(,data . ,incomplete)
-                             (mistty--split-incomplete-chars data)))
                (while (not (string-empty-p data))
+                 (update-processor-regexps)
                  (if (and overall-processor-regexp
                           (string-match overall-processor-regexp data))
                      (let* ((before (substring data 0 (match-beginning 0)))
@@ -357,29 +385,33 @@ mistty--accum whose slots can be accessed."
                             (mistty--accum-processor-func processor)
                             (mistty--accum-make-ctx
                              :flush-f (lambda ()
-                                        (flush proc around)
+                                        (flush proc)
                                         (unless (buffer-live-p (process-buffer proc))
                                           (throw 'mistty-abort-processor nil)))
                              :push-down-f #'push-down
                              :look-back-f #'look-back)
                             matching))))
+
+                   (if (and overall-hold-back-regexp
+                            (string-match overall-hold-back-regexp data))
+                       (setq incomplete (match-string 0 data)
+                             data (substring data 0 (match-beginning 0)))
+                     (pcase-setq `(,data . ,incomplete)
+                                 (mistty--split-incomplete-chars data)))
                    (push-down data)
                    (setq data "")))))))
 
       ;; Build the accumulator as an open closure.
-      (oclosure-lambda (mistty--accumulator (processors-dirty t))
+      (oclosure-lambda (mistty--accumulator (reset-f #'reset)
+                                            (add-post-processor-f #'add-post-processor)
+                                            (add-processor-f #'add-processor)
+                                            (add-around-f #'add-around))
           (proc data)
         (mistty--fifo-enqueue unprocessed data)
         (when (toplevel-accumulator-p proc)
-          (when processors-dirty
-            (setq overall-processor-regexp
-                  (build-overall-processor-regexp processors))
-            (setq overall-hold-back-regexp
-                  (build-overall-hold-back-regexp processors))
-            (setq processors-dirty nil))
-          (process-data proc processors arround-process-filter)
-          (flush proc arround-process-filter)
-          (post-process proc post-processors))))))
+          (process-data proc)
+          (flush proc)
+          (post-process proc))))))
 
 (defun mistty--split-incomplete-chars (str)
   "Extract incomplete multibyte chars at the end of STR.

@@ -32,14 +32,21 @@
 
 ;;; Code:
 
-(defconst mistty--max-delay-processing-pending-output 0.1
-  "Limits how long to spend processing pending output.
+(defconst mistty--max-accumulate-delay 0.1
+  "Limits how long to spend processing immediately pending output.
 
 When MisTTY calls `accept-process-output', Emacs will read data from the
-process as long as there is some. If the process keeps sending data, the
-whole Emacs process would freeze for that long. This limit must be kept
-low or Emacs might become unresponsive when the process outputs data
-continuously.")
+process as long as there is some already available. If the process keeps
+sending data, the whole Emacs process would freeze for that long. This
+limit must be kept low or Emacs might become unresponsive when the
+process outputs data continuously.")
+
+(defconst mistty--max-accumulate-bytes (* 32 1024)
+  "Limit how much immediately pending output to accumulate.
+
+This limit is applied in addition to
+`mistty--max-accumulate-delay' in case data comes in
+quickly.")
 
 (oclosure-define (mistty--accumulator
                   (:predicate mistty--accum-p))
@@ -195,6 +202,7 @@ mistty--accum whose slots can be accessed."
         (processors nil)
         (processors-dirty nil)
         (unprocessed (mistty--make-fifo))
+        (unprocessed-bytes 0)
         (processed (mistty--make-fifo))
         (look-back-ring (make-ring 8))
         (incomplete nil)
@@ -274,11 +282,14 @@ mistty--accum whose slots can be accessed."
          (toplevel-accumulator-p (proc)
            (if processing-pending-output
                (prog1 nil ; don't flush
-                 (when (>= (time-to-seconds (time-subtract
-                                             (current-time)
-                                             processing-pending-output))
-                           mistty--max-delay-processing-pending-output)
-                   (throw 'mistty-stop-accumlating nil)))
+                 (let ((duration (time-to-seconds (time-subtract
+                                                   (current-time)
+                                                   processing-pending-output))))
+                   (when (or (>= duration
+                                 mistty--max-accumulate-delay)
+                             (>= unprocessed-bytes
+                                 mistty--max-accumulate-bytes))
+                     (throw 'mistty-stop-accumlating nil))))
              (prog1 t ; flush
                (unwind-protect
                    (progn
@@ -363,6 +374,7 @@ mistty--accum whose slots can be accessed."
          (process-data (proc)
            (while (not (mistty--fifo-empty-p unprocessed))
              (let ((data (concat incomplete (fifo-to-string unprocessed))))
+               (setq unprocessed-bytes 0)
                (setq incomplete nil)
                (while (not (string-empty-p data))
                  (update-processor-regexps)
@@ -408,6 +420,8 @@ mistty--accum whose slots can be accessed."
                                             (add-around-f #'add-around))
           (proc data)
         (mistty--fifo-enqueue unprocessed data)
+        (cl-incf unprocessed-bytes (length data))
+
         (when (toplevel-accumulator-p proc)
           (process-data proc)
           (flush proc)

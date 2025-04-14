@@ -1593,7 +1593,8 @@ the point being visible."
         (dolist (win (get-buffer-window-list))
           (when (and (equal pos (window-point win))
                      (not (pos-visible-in-window-p end win)))
-            (recenter (- lines-after-point))))))))
+            (with-selected-window win
+              (recenter (- lines-after-point)))))))))
 
 (defun mistty--detect-write-before-sync-mark (func term-buffer)
   "Realigning work and term buffers as necessary.

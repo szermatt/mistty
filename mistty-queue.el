@@ -211,8 +211,8 @@ Does nothing is STR is nil or empty."
        (mistty--interact-send interact str)
        (if fire-and-forget
            (mistty--interact-done)
-         (mistty--interact-return-then
-          interact #'mistty--interact-done))))))
+         (mistty--interact-wait-for-output
+          interact :then #'mistty--interact-done))))))
 
 (defun mistty--enqueue (queue interact &optional prepend)
   "Add INTERACT to QUEUE.
@@ -438,7 +438,7 @@ It returns non-nil once interaction should continue:
   "Send STR to the process associated with INTERACT."
   (mistty--send-string (mistty--interact-proc interact) str))
 
-(cl-defun mistty--interact-return-then (interact then &key pred on-timeout)
+(cl-defun mistty--interact-wait-for-output (interact &key then pred on-timeout)
   "Return from current function and wait for process.
 
 This function waits for output from the INTERACT's process.

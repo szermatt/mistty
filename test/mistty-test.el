@@ -2557,21 +2557,21 @@
            (setq enter-f
                  (lambda ()
                    (mistty--interact-send interact "\C-m")
-                   (mistty--interact-return-then
-                    interact bar-f
+                   (mistty--interact-wait-for-output
+                    interact :then bar-f
                     :pred (lambda ()
                             (mistty-test-find-p "reset done" start)))))
 
            (setq bar-f
                  (lambda ()
                    (mistty--interact-send interact "bar")
-                   (mistty--interact-return-then
-                    interact #'mistty--interact-done)))
+                   (mistty--interact-wait-for-output
+                    interact :then #'mistty--interact-done)))
 
            ;; start test interaction
            (mistty--interact-send interact "hello")
-           (mistty--interact-return-then
-            interact enter-f
+           (mistty--interact-wait-for-output
+            interact :then enter-f
             :pred (lambda ()
                     (mistty-test-find-p "hello" start))))))
       (mistty-wait-for-output :str "$ " :start start)
@@ -2597,11 +2597,11 @@
        (mistty--interact test (interact)
          (mistty-log "foo-f")
          (mistty--interact-send interact "foo")
-         (mistty--interact-return-then
+         (mistty--interact-wait-for-output
           interact
-          (lambda (val)
-            (mistty-log "error-f %s" val)
-            (error "fake")))))
+          :then (lambda (val)
+                  (mistty-log "error-f %s" val)
+                  (error "fake")))))
     ;; mistty-queue.el should discard the failed interaction and move
     ;; on to the next one.
     (mistty--enqueue-str mistty--queue "bar")

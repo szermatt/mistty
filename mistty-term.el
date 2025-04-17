@@ -560,7 +560,11 @@ end of a prompt with no commands.")
   end
 
   ;; Text of the prompt, used when source=regexp.
-  text)
+  text
+
+  ;; Position of the start of the user input, if known.
+  ;; This is a (cons scrolline column).
+  user-input-start)
 
 (defun mistty--prompt ()
   "Get the value of the current `mistty--prompt' struct or nil."
@@ -1075,13 +1079,8 @@ of the terminal, usually `term-width'."
             (cl-decf pos))
           (cl-incf pos)
           (add-text-properties
-           pos eol '(mistty-skip
-                     right-prompt
-                     yank-handler
-                     (nil "" nil nil)
-                     field right-prompt
-                     inhibit-line-move-field-capture t
-                     rear-nonsticky t))
+           pos eol '(mistty-skip right-prompt
+                     yank-handler (nil "" nil nil)))
 
           pos)))))
 
@@ -1377,12 +1376,10 @@ Everything else is ignored."
                        (mistty--prompt-start prompt))))
 
         (?B ;; end of prompt/start of user input
-         (when (> (point) (pos-bol))
-           (add-text-properties (pos-bol) (point)
-                                '(field prompt
-                                  inhibit-line-move-field-capture t
-                                  front-sticky (field inhibit-line-move-field-capture)
-                                  rear-nonsticky t))))
+         (when-let ((prompt (mistty--prompt)))
+           (setf (mistty--prompt-user-input-start prompt)
+                 (cons (mistty--term-scrolline)
+                       (term-current-column)))))
 
         (?C ;; start of command output
          (when-let ((prompt (mistty--prompt)))

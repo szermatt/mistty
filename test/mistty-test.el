@@ -3364,7 +3364,9 @@
                             (mistty-test-content :show (point)))))))
 
 (ert-deftest mistty-test-zsh-right-prompt-set-field ()
-  (mistty-with-test-buffer (:shell zsh :init mistty-test-zsh-right-prompt)
+  (mistty-with-test-buffer (:shell zsh :init (concat
+                                              mistty-test-zsh-osc133-b
+                                              mistty-test-zsh-right-prompt))
     (mistty-send-text "echo foo")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo bar")
@@ -6499,10 +6501,13 @@ precmd_functions+=(prompt_header)
                     (line-beginning-position)
                     (line-end-position))))))
 
+(defconst mistty-test-zsh-osc133-b
+  "function osc133_prompt { PS1='prompt \033]133;B\007'; }")
+
 (ert-deftest mistty-osc133-command-for-output ()
   (mistty-with-test-buffer (:shell zsh :init (concat
                                               mistty-test-zsh-osc133
-                                              "function osc133_prompt { PS1='prompt \033]133;B\007'; }"))
+                                              mistty-test-zsh-osc133-b))
     (mistty-send-text "osc133_prompt")
     (setq mistty-test-prompt-re "^prompt ")
     (mistty-send-and-wait-for-prompt)

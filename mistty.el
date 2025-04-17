@@ -1755,9 +1755,9 @@ Also updates prompt and point."
                              end-scrolline
                              scrolline)))))
 
-         ;; detect prompt from bracketed-past region and use that to
-         ;; restrict the sync region.
          (when-let ((prompt (mistty--prompt)))
+           ;; If a new prompt was detected, restrict sync region to
+           ;; the beginning of that prompt.
            (when (and (not (mistty--prompt-realized prompt))
                       (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
                       (null (mistty--prompt-end prompt)))
@@ -1778,7 +1778,9 @@ Also updates prompt and point."
                              prompt-beg)
                  (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
                  (setf (mistty--prompt-realized prompt) t)
-                 (setq mistty--active-prompt prompt)))))
+                 (setq mistty--active-prompt prompt))))
+
+           (mistty--mark-prompt-fields prompt))
 
          (let ((v (and on-prompt (mistty--can-move-vertically-p))))
            (unless (eq v mistty--can-move-vertically)
@@ -1830,6 +1832,30 @@ Also updates prompt and point."
         (mistty--maybe-scroll-window-down)))
 
     (mistty--report-self-inserted-text)))
+
+(defun mistty--mark-prompt-fields (prompt)
+  "If user input start is known in PROMPT, mark fields.
+
+Fields allow the like of `beginning-of-line' and `end-of-line' to ignore
+prompt and right prompts."
+  (when-let ((start (mistty--prompt-user-input-start prompt))
+             (bol (mistty--scrolline-pos (car start)))
+             (eol (mistty--eol bol)))
+    (when (> (cdr start) 0)
+      (add-text-properties
+       bol (+ bol (cdr start))
+       '(field prompt
+               inhibit-line-move-field-capture t
+               front-sticky (field inhibit-line-move-field-capture)
+               rear-nonsticky t)))
+    (when-let ((right-prompt-start (text-property-any bol eol 'mistty-skip 'right-prompt)))
+      (when (> eol right-prompt-start)
+        (add-text-properties
+         right-prompt-start eol
+         '(field right-prompt
+                 inhibit-line-move-field-capture t
+                 front-sticky (field inhibit-line-move-field-capture)
+                 rear-nonsticky t))))))
 
 (defun mistty--report-self-inserted-text ()
   "Report self-inserted text that was just echoed back.
@@ -2123,6 +2149,7 @@ It also marks the prompt region with the text property
                         (mistty--prompt-end prompt)
                         prompt-beg
                         prompt-end)
+            (mistty--mark-prompt-fields prompt)
             (put-text-property
              prompt-beg prompt-end
              'mistty-input-id (mistty--prompt-input-id prompt))))))

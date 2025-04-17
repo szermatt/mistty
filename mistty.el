@@ -1974,9 +1974,9 @@ Does nothing if SOURCE-BUFFER is dead."
 
 Copies values from SOURCE-BUFFER to the current buffer."
   (dolist (var variables)
-    (when-let (val (buffer-local-value var source-buffer))
+    (when (buffer-local-boundp var source-buffer)
       (make-local-variable var)
-      (set var val))))
+      (set var (buffer-local-value var source-buffer)))))
 
 (defun mistty--maybe-truncate-when-idle ()
   "Schedule a buffer truncation on an idle timer."

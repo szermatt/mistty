@@ -661,11 +661,8 @@ Known OSC codes are passed down to handlers registered in
        (funcall handler code
                 (decode-coding-string text locale-coding-system t))))))
 
-(defun mistty--add-prompt-detection (accum work-buffer)
+(defun mistty--add-prompt-detection (accum)
   "Register processors to ACCUM for prompt detection.
-
-WORK-BUFFER is a buffer within which `mistty-bracketed-paste' should be
-set or unset in addition to the process buffer.
 
 Detected prompts can be found in `mistty-prompt'."
   (mistty--accum-add-post-processor
@@ -719,9 +716,7 @@ Detected prompts can be found in `mistty-prompt'."
          (unless (eq 'osc133 (mistty--prompt-source prompt))
            (setf (mistty--prompt-source prompt) 'bracketed-paste)
            (setf (mistty--prompt-end prompt) nil)))
-       (setq mistty-bracketed-paste t)
-       (mistty--with-live-buffer work-buffer
-         (setq mistty-bracketed-paste t)))))
+       (setq mistty-bracketed-paste t))))
 
   ;; Disable bracketed paste
   (mistty--accum-add-processor
@@ -738,9 +733,7 @@ Detected prompts can be found in `mistty-prompt'."
                     (null (mistty--prompt-end prompt))
                     (> scrolline (mistty--prompt-start prompt)))
            (setf (mistty--prompt-end prompt) scrolline)))
-       (setq mistty-bracketed-paste nil)
-       (mistty--with-live-buffer work-buffer
-         (setq mistty-bracketed-paste nil)))))
+       (setq mistty-bracketed-paste nil))))
 
   ;; Detect prompt-sp as many spaces followed by CR at the end of a
   ;; line.

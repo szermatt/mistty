@@ -1035,7 +1035,7 @@ buffer and `mistty-proc' to that buffer's process."
     (when proc
       (let ((accum (process-filter proc)))
         (mistty--accum-reset accum)
-        (mistty--add-prompt-detection accum work-buffer)
+        (mistty--add-prompt-detection accum)
         (mistty--add-osc-detection accum)
         (mistty--add-skip-unsupported accum)
         (mistty--add-toggle-cursor accum work-buffer)
@@ -1703,7 +1703,8 @@ Also updates prompt and point."
                                    (= (point) mistty--cursor-after-last-refresh)))
           on-prompt)
       (mistty--copy-buffer-local-variables
-       mistty-variables-to-copy mistty-term-buffer)
+       (cons 'mistty-bracketed-paste mistty-variables-to-copy)
+       mistty-term-buffer)
       (mistty--inhibit-undo
        (save-restriction
          (widen)

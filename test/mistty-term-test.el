@@ -125,6 +125,33 @@
     (should (string-match "^ left > \\[ + < right \\]$"
                           (mistty-test-content :show-property '(mistty-skip right-prompt))))))
 
+(ert-deftest mistty-test-postprocess-point-in-right-prompt ()
+  (ert-with-test-buffer ()
+    (select-window (display-buffer (current-buffer)))
+    (delete-other-windows)
+
+    (let* ((w 80)
+           (left-prompt " left > ")
+           (right-prompt " < right ")
+           (spaces (- w (length left-prompt) (length right-prompt))))
+      (insert left-prompt)
+      (insert (propertize (make-string spaces ?\ ) 'mistty-maybe-skip t))
+      (insert right-prompt)
+      (should (= (current-column) w))
+      (insert "\n")
+      (goto-char (point-min))
+      (search-forward "left > ")
+      (forward-char 10)
+
+      (mistty--term-postprocess (point-min) w))
+
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'indent))
+    (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
+    (should (string-match "^ left >           <>\\[ + < right \\]$"
+                          (mistty-test-content
+                           :show (point)
+                           :show-property '(mistty-skip right-prompt))))))
+
 (ert-deftest mistty-test-postprocess-right-prompt-with-tolerance ()
   (ert-with-test-buffer ()
     (select-window (display-buffer (current-buffer)))

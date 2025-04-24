@@ -1038,38 +1038,34 @@ WINDOW-WIDTH is used to detect right prompts.
 
 This sets properties from the mistty-maybe-skip properties,
 detecting regions looking at a complete line."
-  (let ((cursor-pos (point)))
-    (save-excursion
-      (goto-char region-start)
-      (goto-char (pos-bol))
-      (let ((inhibit-read-only t)
-            (inhibit-modification-hooks t))
-        (remove-text-properties
-         region-start (point-max)
-         '(mistty-skip nil yank-handler nil mistty-changed nil))
-        (while
-            (progn
-              (let ((bol (pos-bol))
-                    (eol (pos-eol)))
-                (when (> eol bol)
-                  (unless (mistty--detect-right-prompt bol eol cursor-pos window-width)
-                    (let ((end (or (mistty--detect-continue-prompt bol)
-                                   (mistty--detect-indent bol eol))))
-                      (mistty--detect-trailing-spaces end eol)))))
+  (save-excursion
+    (goto-char region-start)
+    (goto-char (pos-bol))
+    (let ((inhibit-read-only t)
+          (inhibit-modification-hooks t))
+      (remove-text-properties
+       region-start (point-max)
+       '(mistty-skip nil yank-handler nil mistty-changed nil))
+      (while
+          (progn
+            (let ((bol (pos-bol))
+                  (eol (pos-eol)))
+              (when (> eol bol)
+                (unless (mistty--detect-right-prompt bol eol window-width)
+                  (let ((end (or (mistty--detect-continue-prompt bol)
+                                 (mistty--detect-indent bol eol))))
+                    (mistty--detect-trailing-spaces end eol)))))
 
-              ;; process next line?
-              (forward-line 1)
-              (not (eobp))))
-        (setq mistty--term-changed nil)))))
+            ;; process next line?
+            (forward-line 1)
+            (not (eobp))))
+      (setq mistty--term-changed nil))))
 
-(defun mistty--detect-right-prompt (bol eol cursor-pos window-width)
+(defun mistty--detect-right-prompt (bol eol window-width)
   "Detect right prompt and return its left position or nil.
 
 BOL and EOL define the region to look in. WINDOW-WIDTH must be the width
-of the terminal, usually `term-width'.
-
-CURSOR-POS is used as a hint; This function avoids detecting right
-prompt containing the cursor."
+of the terminal, usually `term-width'."
   (let ((pos (1- eol)))
     (when (and (>= 3 (- window-width (mistty--line-width)))
                (not (get-text-property pos 'mistty-maybe-skip)))
@@ -1081,15 +1077,6 @@ prompt containing the cursor."
                       (eq (char-after pos) ?\ )
                       (get-text-property pos 'mistty-maybe-skip))
             (cl-decf pos))
-
-          ;; A right prompt cannot start before the cursor. This
-          ;; security is necessary, as we don't always know which
-          ;; whitespaces are real and which were just added for the
-          ;; right prompt.
-          (when (and (>= cursor-pos pos)
-                     (< cursor-pos eol))
-            (setq pos (1+ cursor-pos)))
-
           (cl-incf pos)
           (add-text-properties
            pos eol '(mistty-skip right-prompt

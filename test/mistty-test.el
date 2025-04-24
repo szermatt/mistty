@@ -6535,6 +6535,19 @@ precmd_functions+=(prompt_header)
     (should (equal "echo one" (mistty--command-for-output
                                (mistty--prompt-ranges-for-current-or-previous-output 3))))))
 
+(ert-deftest mistty-osc133-fish-right-prompt-field ()
+  (skip-unless (string-match "version 4"
+                             (shell-command-to-string (format "%s --version" mistty-test-fish-exe))))
+  (mistty-with-test-buffer (:shell fish :init (concat
+                                               "function fish_prompt; printf '$ \e]133;B\007'; end\n"
+                                               mistty-test-fish-right-prompt))
+    (mistty-send-text "echo foo bar")
+    (backward-word)
+    (should (equal "echo foo <>bar"
+                   (mistty-test-content :show (point)
+                                        :start (line-beginning-position)
+                                        :end (line-end-position))))))
+
 (ert-deftest mistty-prev-next-prompts-as-defuns ()
   (mistty-with-test-buffer ()
     (dolist (text '("one" "two" "three" "four" "five"))

@@ -1849,6 +1849,10 @@ prompt and right prompts."
                front-sticky (field inhibit-line-move-field-capture)
                rear-nonsticky t)))
     (when-let ((right-prompt-start (text-property-any bol eol 'mistty-skip 'right-prompt)))
+      ;; Give room for the point to go one column past the beginning
+      ;; of the right prompt to not confuse field-aware commands
+      ;; such as backward-word.
+      (cl-incf right-prompt-start)
       (when (> eol right-prompt-start)
         (add-text-properties
          right-prompt-start eol

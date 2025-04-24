@@ -1048,7 +1048,7 @@ buffer and `mistty-proc' to that buffer's process."
          (lambda (ctx str)
            (mistty--accum-ctx-flush ctx)
            (mistty--enter-fullscreen proc)
-           (mistty--accum-ctx-push-down ctx str))))
+           (mistty--accum-ctx-push-down ctx "\e[47h"))))
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
@@ -3687,13 +3687,14 @@ Width and height are limited to `mistty-min-terminal-width' and
        accum
        '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
        (lambda (ctx str)
-         (mistty--accum-ctx-push-down ctx str)
+         (mistty--accum-ctx-push-down ctx "\e[47l")
          (mistty--accum-ctx-flush ctx)
          (mistty--leave-fullscreen proc))))
     (set-process-sentinel proc #'mistty--fs-process-sentinel)
     (mistty--update-mode-lines proc)
     (mistty--set-process-window-size-from-windows)
-    (run-hooks 'mistty-entered-fullscreen-hook)))
+    (run-hooks 'mistty-entered-fullscreen-hook)
+    (mistty-log "Entered fullscreen mode")))
 
 (defun mistty--fullscreen-message ()
   "Build a user message when entering fullscreen mode.
@@ -3746,7 +3747,8 @@ This function looks into the maps to find the key bindings for
         (jit-lock-mode nil))
 
       (mistty--update-mode-lines proc)
-      (run-hooks 'mistty-left-fullscreen-hook))))
+      (run-hooks 'mistty-left-fullscreen-hook)
+      (mistty-log "Left fullscreen mode"))))
 
 (defun mistty--update-mode-lines (&optional proc)
   "Update the mode lines of the work and term buffers of PROC.

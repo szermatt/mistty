@@ -1587,9 +1587,18 @@
      :test
      (lambda ()
        (not (buffer-local-value 'mistty-fullscreen work-buffer))))
-    (should (eq mistty-work-buffer (window-buffer (selected-window))))))
+    (should (eq mistty-work-buffer (window-buffer (selected-window))))
+    (should (equal (concat
+                    (format "$ printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'\n"
+                            on-seq off-seq)
+                    "fullscreen off$ <>")
+                   (mistty-test-content :show (mistty-cursor))))))
 
-(ert-deftest mistty-test-enter-fullscreen-alternative-code ()
+(ert-deftest mistty-test-enter-fullscreen-47 ()
+  (mistty-with-test-buffer (:selected t)
+    (mistty-test-enter-fullscreen "[47h" "[47l")))
+
+(ert-deftest mistty-test-enter-fullscreen-47-alternative-code ()
   (mistty-with-test-buffer (:selected t)
     (mistty-test-enter-fullscreen "[?47h" "[?47l")))
 

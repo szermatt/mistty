@@ -28,9 +28,9 @@ jobs:
 
     - name: Install Test dependencies
       run: |
-        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#zsh
-        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#fish
-        nix profile install nixpkgs/b833ff01a0d694b910daca6e2ff4a3f26dee478c#vim
+        nix profile install nixpkgs/8a2f738d9d1f1d986b5a4cd2fd2061a7127237d7#zsh
+        nix profile install nixpkgs/8a2f738d9d1f1d986b5a4cd2fd2061a7127237d7#fish
+        nix profile install nixpkgs/8a2f738d9d1f1d986b5a4cd2fd2061a7127237d7#vim
         nix profile install nixpkgs/566e53c2ad750c84f6d31f9ccb9d00f823165550#python311Packages.ipython
 
     - name: Install Eldev

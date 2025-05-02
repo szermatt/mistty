@@ -175,10 +175,6 @@ exit already."
                (mistty--log-header event-time calling-buffer)
                (mistty--log-format format-str args))))))
 
-(defvar print-quoted)
-(defvar print-escape-newlines)
-(defvar print-escape-control-characters)
-(defvar print-escape-nonascii)
 (defun mistty--log-format (format-str args)
   ;; Configure how %S behaves. This is used to include terminal
   ;; data.

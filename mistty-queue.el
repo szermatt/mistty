@@ -197,7 +197,7 @@ The last interact often is the one that's currently running."
   "Send STR to PROC, if it is still live."
   (when (and (mistty--nonempty-str-p str)
              (process-live-p proc))
-    (mistty-log "SEND[%s]" str)
+    (mistty-log "SEND %S" str)
     (process-send-string proc str)))
 
 (defun mistty--enqueue-str (queue str &optional fire-and-forget)

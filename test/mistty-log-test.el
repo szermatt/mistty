@@ -125,3 +125,26 @@
               (should (not (search-forward "log entry [0-6]" nil 'noerror)))))
         (let ((kill-buffer-query-functions nil))
           (kill-buffer log-buffer))))))
+
+(ert-deftest mistty-log-test-log-quoted-nonascii ()
+  (ert-with-test-buffer ()
+    (let ((mistty-log-to-messages nil)
+          (mistty-log nil)
+          (mistty-backlog-size 0)
+          log-buffer)
+      (setq log-buffer (save-excursion (mistty-start-log)))
+      (unwind-protect
+          (progn
+            (mistty-log "DATA1: %S" "\eOC\eOA")
+            (mistty-log "DATA2: %S" "text\r\n")
+            (mistty-stop-log)
+            (with-current-buffer log-buffer
+              (goto-char (point-min))
+              (search-forward "DATA1:")
+              (should (equal " \"\\33OC\\33OA\""
+                             (buffer-substring (point) (pos-eol))))
+              (search-forward "DATA2:")
+              (should (equal " \"text\\15\\n\""
+                             (buffer-substring (point) (pos-eol))))))
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer log-buffer))))))

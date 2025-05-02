@@ -638,7 +638,7 @@ all situations, even when no work buffer is available."
                  (funcall real-handle-colors-list parameters)
                  (setq term-current-face
                        (mistty--clear-term-face-value term-current-face))))))
-    (mistty-log "RECV[%s]" str)
+    (mistty-log "RECV %S" str)
     (term-emulate-terminal proc str)))
 
 (defun mistty--add-skip-unsupported (accum)

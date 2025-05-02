@@ -164,7 +164,7 @@ exit already."
         (insert-before-markers
          (propertize
           (if args
-              (apply #'format format-str (mapcar #'mistty--format-log-arg args))
+              (mistty--log-format format-str args)
             format-str)
           'face 'mistty-log-message-face))
         (insert-before-markers "\n")))
@@ -173,7 +173,22 @@ exit already."
      ((and mistty-log mistty-log-to-messages)
       (message "%s %s"
                (mistty--log-header event-time calling-buffer)
-               (apply #'format format-str (mapcar #'mistty--format-log-arg args)))))))
+               (mistty--log-format format-str args))))))
+
+(defvar print-quoted)
+(defvar print-escape-newlines)
+(defvar print-escape-control-characters)
+(defvar print-escape-nonascii)
+(defun mistty--log-format (format-str args)
+  ;; Configure how %S behaves. This is used to include terminal
+  ;; data.
+  (let ((print-quoted t)
+        (print-escape-newlines t)
+        (print-escape-control-characters t)
+        (print-escape-nonascii t)
+        (print-escape-multibyte nil)
+        (print-length nil))
+    (apply #'format format-str args)))
 
 (defun mistty--log-header (event-time buf)
   "Format a header for the macro `mistty-log'.
@@ -184,22 +199,6 @@ The header include EVENT-TIME and the name of BUF."
           (- event-time
              (or mistty--log-start-time
                  (setq mistty--log-start-time event-time)))))
-
-(defun mistty--format-log-arg (arg)
-  "Escape special characters in ARG if it is a string.
-
-Return ARG unmodified if it's not a string."
-  (if (stringp arg)
-      (progn
-        (setq arg (decode-coding-string arg locale-coding-system t))
-        (seq-mapcat
-         (lambda (elt)
-           (if (and (characterp elt) (< elt 128))
-               (text-char-description elt)
-             (make-string 1 elt)))
-         arg
-         'string))
-    arg))
 
 (provide 'mistty-log)
 

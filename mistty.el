@@ -1269,7 +1269,7 @@ If OTHER-WINDOW is non-nil, put the buffer into another window."
                            existing)))
     (if existing-tail
         (mistty--pop-to-buffer (car existing-tail) other-window)
-      (error "No next mistty buffer"))))
+      (user-error "No next mistty buffer"))))
 
 (defun mistty--pop-to-buffer (buf other-window)
   "Display BUF.
@@ -2230,7 +2230,7 @@ paste mode, as most recent version of shells do.
 If N is a positive integer that many newlines."
   (interactive "p")
   (unless mistty-bracketed-paste
-    (error "Newlines not supported in this context"))
+    (user-error "Newlines not supported in this context"))
   (let* ((nls (make-string (or n 1) ?\n))
          (nl-seq (concat "\e[200~" nls "\e[201~")))
     (cond
@@ -2381,7 +2381,7 @@ This command is available in fullscreen mode."
      ((process-live-p mistty-proc)
       (mistty--send-string mistty-proc translated-key))
 
-     (t (error "No live process")))))
+     (t (user-error "No live process")))))
 
 (defun mistty-send-C-r (n)
   "Send Control r to the terminal, usually backward history search.
@@ -2992,7 +2992,7 @@ up (negative)."
 
                  (>= accepted-count n))))))
       (goto-char (mistty--user-input-start prompt))
-    (error "No next input")))
+    (user-error "No next input")))
 
 (defun mistty-previous-input (n)
   "Move the point to the Nth previous input in the buffer."
@@ -3007,7 +3007,7 @@ up (negative)."
 
                  (>= accepted-count n))))))
       (goto-char (mistty--user-input-start prompt))
-    (error "No previous input")))
+    (user-error "No previous input")))
 
 (defun mistty-next-output (n)
   "Move the point to the beginning of the Nth next output in the buffer.
@@ -3028,7 +3028,7 @@ output."
                  (>= accepted-count n))))))
       (prog1 (cons (nth 1 prompt) (nth 2 prompt))
         (goto-char (nth 1 prompt)))
-    (error "No next output")))
+    (user-error "No next output")))
 
 (defun mistty-previous-output (n)
   "Move the point to the beginning of the Nth previous output in the buffer.
@@ -3048,7 +3048,7 @@ output."
                  (>= accepted-count n))))))
       (prog1 (cons (nth 1 prompt) (nth 2 prompt))
         (goto-char (nth 1 prompt)))
-    (error "No previous output")))
+    (user-error "No previous output")))
 
 (defun mistty-current-output-range ()
   "Return the range of the current output, if point is on an output.
@@ -3200,7 +3200,7 @@ This function fails if there is no current or previous output."
 
                    (>= accepted-count n))))))
         prompt
-      (error "No current or previous output"))))
+      (user-error "No current or previous output"))))
 
 (defun mistty--prompt-ranges-around (pos active-prompt-ranges)
   "Return ranges of prompt around POS.
@@ -3594,11 +3594,11 @@ This function reverts to the default behavior."
 (defun mistty--check-terminal-size (width height)
   "Make sure that WIDTH and HEIGHT are acceptable term sizes."
   (unless (and width height)
-    (error "Specify both width and height"))
+    (user-error "Specify both width and height"))
   (unless (>= width mistty-min-terminal-width)
-    (error "Terminal width must be at least %s" mistty-min-terminal-width))
+    (user-error "Terminal width must be at least %s" mistty-min-terminal-width))
   (unless (>= height mistty-min-terminal-height)
-    (error "Terminal height must be at least %s" mistty-min-terminal-height)))
+    (user-error "Terminal height must be at least %s" mistty-min-terminal-height)))
 
 (defun mistty-set-terminal-size (width height)
   "Set size of the terminal to WIDTH x HEIGHT outside of fullscreen.
@@ -3840,13 +3840,13 @@ This function keeps prev-buffers list unmodified."
   "Toggle between the fullscreen buffer and the scrollback buffer."
   (interactive)
   (unless mistty-fullscreen
-    (error "Not in fullscreen mode"))
+    (user-error "Not in fullscreen mode"))
   (let* ((from-buf (current-buffer))
          (to-buf (cond
                   ((eq from-buf mistty-work-buffer) mistty-term-buffer)
                   ((eq from-buf mistty-term-buffer) mistty-work-buffer))))
     (unless (buffer-live-p to-buf)
-      (error "Buffer not available"))
+      (user-error "Buffer not available"))
     (switch-to-buffer to-buf)))
 
 (defun mistty-sudo ()

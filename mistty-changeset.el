@@ -87,7 +87,8 @@ Returns the changeset."
 This function also cleans up any change information left in the
  work buffer."
   (when (and (mistty--changeset-beg changeset)
-             (not (mistty--changeset-collected changeset)))
+             (not (mistty--changeset-collected changeset))
+             (< (mistty--changeset-beg changeset) (point-max)))
     (remove-text-properties (mistty--changeset-beg changeset)
                             (point-max) '(mistty-change t)))
   (setq mistty--changesets (delq changeset mistty--changesets)))
@@ -154,10 +155,10 @@ Otherwise return nil."
 
 The second time this is called, this just returns
 `mistty--changeset-intervals'."
-  (unless (mistty--changeset-intervals changeset)
+  (when (not (mistty--changeset-intervals changeset))
     (save-excursion
       (save-restriction
-        (narrow-to-region (mistty--changeset-beg changeset) (point-max))
+        (narrow-to-region (min (point-max) (mistty--changeset-beg changeset)) (point-max))
         (let ((last-point (point-min))
               intervals last-at-point )
           (goto-char last-point)

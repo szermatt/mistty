@@ -81,6 +81,14 @@
     (should (equal (concat fake-nl "abcdefgh" fake-nl "i\n" fake-nl)
                    (buffer-string)))))
 
+(ert-deftest mistty-util-test-leave-misplaced-fake-nl ()
+  (let ((fake-nl (propertize "\n" 'term-line-wrap t)))
+    (insert "abc" fake-nl "def" fake-nl "gh" fake-nl "i" fake-nl)
+
+    ;; Only fake-nl at column 3 are removed.
+    (mistty--remove-fake-newlines (point-min) (point-max) 3)
+    (should (equal "abcdefgh\ni\n" (buffer-string)))))
+
 (ert-deftest mistty-util-test-remove-skipped-spaces ()
   (insert (propertize "   " 'mistty-skip t) "abc "
           (propertize "   " 'mistty-skip t) "def"

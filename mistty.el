@@ -1703,7 +1703,7 @@ Also updates prompt and point."
                                    (= (point) mistty--cursor-after-last-refresh)))
           on-prompt)
       (mistty--copy-buffer-local-variables
-       (cons 'mistty-bracketed-paste mistty-variables-to-copy)
+       (cons 'mistty-bracketed-paste (cons 'term-width mistty-variables-to-copy))
        mistty-term-buffer)
       (mistty--inhibit-undo
        (save-restriction
@@ -1726,9 +1726,13 @@ Also updates prompt and point."
            (goto-char mistty-sync-marker)
            (while-let ((prop-match
                         (text-property-search-forward 'term-line-wrap t t)))
-             (add-text-properties (prop-match-beginning prop-match)
-                                  (prop-match-end prop-match)
-                                  '(invisible term-line-wrap yank-handler (nil "" nil nil)))))
+             (when (save-excursion
+                     (goto-char (prop-match-beginning prop-match))
+                     (zerop (% (current-column) term-width)))
+               (add-text-properties
+                (prop-match-beginning prop-match)
+                (prop-match-end prop-match)
+                '(invisible term-line-wrap yank-handler (nil "" nil nil))))))
 
          ;; Mark empty lines at EOB with mistty-skip.
          (let ((pos (point-max)))
@@ -2174,7 +2178,7 @@ just tend to cause issues."
         (inhibit-read-only t))
     (mistty--mark-scrollines beg scrolline end)
     (when (not mistty--inhibit-fake-nl-cleanup)
-      (mistty--remove-fake-newlines beg end))))
+      (mistty--remove-fake-newlines beg end term-width))))
 
 (defun mistty--mark-scrollines (beg scrolline end)
   "Add text property \\='mistty-scrolline to scrollines from BEG to END.

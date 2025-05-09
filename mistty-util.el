@@ -123,12 +123,19 @@ If PRED is unspecified, remove any PROP with a non-nil value."
             (delete-region pos next-pos)
           (setq pos next-pos))))))
 
-(defun mistty--remove-fake-newlines (start end)
-  "Remove newlines marked \\='term-line-wrap between START and END."
+(defun mistty--remove-fake-newlines (start end &optional column-width)
+  "Remove newlines marked \\='term-line-wrap between START and END.
+
+COLUMN-WIDTH is the number of columns of the terminal. This is used to double
+check that a newline is indeed a line-wrap."
   (save-excursion
     (goto-char start)
     (while (search-forward "\n" end 'noerror)
-      (when (get-text-property (1- (point)) 'term-line-wrap)
+      (when (save-excursion
+              (goto-char (1- (point)))
+              (and (get-text-property (point) 'term-line-wrap)
+                   (or (null column-width)
+                       (zerop (% (current-column) column-width)))))
         (setq end (1- end))
         (replace-match "" nil t)))))
 

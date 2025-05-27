@@ -2566,21 +2566,21 @@
            (setq enter-f
                  (lambda ()
                    (mistty--interact-send interact "\C-m")
-                   (mistty--interact-wait-for-output
-                    interact :then bar-f
+                   (mistty--interact-wait-for-output-then
+                    bar-f
                     :pred (lambda ()
                             (mistty-test-find-p "reset done" start)))))
 
            (setq bar-f
                  (lambda ()
                    (mistty--interact-send interact "bar")
-                   (mistty--interact-wait-for-output
-                    interact :then #'mistty--interact-done)))
+                   (mistty--interact-wait-for-output-then
+                    #'mistty--interact-done)))
 
            ;; start test interaction
            (mistty--interact-send interact "hello")
-           (mistty--interact-wait-for-output
-            interact :then enter-f
+           (mistty--interact-wait-for-output-then
+            enter-f
             :pred (lambda ()
                     (mistty-test-find-p "hello" start))))))
       (mistty-wait-for-output :str "$ " :start start)
@@ -2606,11 +2606,10 @@
        (mistty--interact test (interact)
          (mistty-log "foo-f")
          (mistty--interact-send interact "foo")
-         (mistty--interact-wait-for-output
-          interact
-          :then (lambda (val)
-                  (mistty-log "error-f %s" val)
-                  (error "fake")))))
+         (mistty--interact-wait-for-output-then
+          (lambda (val)
+            (mistty-log "error-f %s" val)
+            (error "fake")))))
     ;; mistty-queue.el should discard the failed interaction and move
     ;; on to the next one.
     (mistty--enqueue-str mistty--queue "bar")
@@ -3829,9 +3828,10 @@
        (mistty--interact test (interact)
          (setf (mistty--interact-cleanup interact)
                (lambda () (setq killed t)))
-         (mistty--interact-send interact ".")
-         ;; Loops: wait for output and call this function again.
-         (throw 'mistty--interact-return 'wait-for-output)))
+         (cl-labels ((loop (&optional _)
+                       (mistty--interact-send interact ".")
+                       (throw 'mistty--interact-return #'loop)))
+           (loop))))
 
       (should (not (mistty--queue-empty-p mistty--queue)))
 

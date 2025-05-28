@@ -176,8 +176,9 @@ exit already."
                (mistty--log-format format-str args))))))
 
 (defun mistty--log-format (format-str args)
-  ;; Configure how %S behaves. This is used to include terminal
-  ;; data.
+  "Configure how %S behaves then format FORMAT-STR with ARGS.
+
+This is used to include terminal data."
   (let ((print-quoted t)
         (print-escape-newlines t)
         (print-escape-control-characters t)

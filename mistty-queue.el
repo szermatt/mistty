@@ -178,7 +178,7 @@ one, or \\='done, to end the interaction."
     (setf (mistty--interact-cb interact)
           (let ((type (mistty--interact-type interact)))
             (lambda (&optional _)
-              (error "interact-cb of %s was consumed" type))))))
+              (error "Already consumed interact-cb of %s" type))))))
 
 (defsubst mistty--interact-callable-p (interact)
   "Return non-nil if INTERACT is callable."

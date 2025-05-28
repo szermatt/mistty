@@ -783,9 +783,10 @@ Detected prompts can be found in `mistty-prompt'."
        (funcall func)))))
 
 (defun mistty--term-remove-prompt_sp (prompt)
-  "Clear the mistty-prompt-sp property in newly detected prompt.
+  "Clear the mistty-prompt-sp property in PROMPT.
 
-This is to avoid confusing future prompts."
+This should be called for all newly-detected prompt to avoid confusing
+future prompts."
   (when-let ((start (mistty--term-scrolline-pos
                      (mistty--prompt-start prompt))))
     (when (< start (point-max))

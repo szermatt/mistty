@@ -23,7 +23,9 @@
 (eldev-use-vc-repository
  'yasnippet :github "joaotavora/yasnippet" :commit "0.14.0"
  :setup (setq eldev-build-treat-warnings-as-errors nil
-              eldev-build-suppress-warnings t))
+              eldev-build-suppress-warnings t)
+ :teardown (setq eldev-build-treat-warnings-as-errors t
+                 eldev-build-suppress-warnings nil))
 
 ;; Exclude work and build files so Eldev doctor ignores them.
 (setf eldev-standard-excludes

@@ -54,6 +54,8 @@
 (require 'mistty-queue)
 (require 'mistty-undo)
 
+(defvar term-width) ; defined in term.el
+
 ;;; Code:
 
 ;; Customization:
@@ -1045,7 +1047,7 @@ buffer and `mistty-proc' to that buffer's process."
         (mistty--accum-add-processor
          accum
          '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
-         (lambda (ctx str)
+         (lambda (ctx _str)
            (mistty--accum-ctx-flush ctx)
            (mistty--enter-fullscreen proc)
            (mistty--accum-ctx-push-down ctx "\e[47h"))))
@@ -3683,7 +3685,7 @@ Width and height are limited to `mistty-min-terminal-width' and
       (mistty--accum-add-processor
        accum
        '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
-       (lambda (ctx str)
+       (lambda (ctx _str)
          (mistty--accum-ctx-push-down ctx "\e[47l")
          (mistty--accum-ctx-flush ctx)
          (mistty--leave-fullscreen proc))))

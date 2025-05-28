@@ -6922,3 +6922,22 @@ precmd_functions+=(prompt_header)
       (mistty-send-text "stty -a")
       (let ((stty (mistty-send-and-capture-command-output)))
         (should (string-match "erase = ^?" stty))))))
+
+(ert-deftest mistty-test-zsh-from-fish ()
+  (ert-with-temp-directory zdotdir
+    (with-temp-file (concat zdotdir ".zshrc")
+      (insert "setopt no_prompt_cr no_prompt_sp\n")
+      (insert "PROMPT='%~\n$ '\n"))
+    (mistty-with-test-buffer (:shell fish)
+      (mistty-send-text "echo foo")
+      (mistty-send-and-wait-for-prompt)
+      (mistty-send-text "echo bar")
+      (mistty-send-and-wait-for-prompt)
+      ;; By default, fish a prompt_sp separator. In this test, zsh
+      ;; doesn't send any prompt_sp separator. Fish's prompt_sp should
+      ;; not confuse prompt detection into thinking zsh prompt is a
+      ;; multiline prompt.
+      (mistty--send-string
+       mistty-proc (format "ZDOTDIR=%s %s -i" zdotdir mistty-test-zsh-exe))
+      (mistty-send-and-wait-for-prompt)
+      (should (mistty-on-prompt-p (point))))))

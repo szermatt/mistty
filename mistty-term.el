@@ -712,6 +712,7 @@ Detected prompts can be found in `mistty-prompt'."
                (mistty--changed real-start eol))
              (setq scrolline (mistty--term-scrolline-at real-start)))
            (setq prompt (mistty--make-prompt 'bracketed-paste scrolline))
+           (mistty--term-remove-prompt_sp prompt)
            (mistty-log "Detected %s prompt #%s [%s-]"
                        (mistty--prompt-source prompt)
                        (mistty--prompt-input-id prompt)
@@ -780,6 +781,17 @@ Detected prompts can be found in `mistty-prompt'."
                   (lambda (&rest args)
                     (apply #'mistty--around-move-to-column orig args)))))
        (funcall func)))))
+
+(defun mistty--term-remove-prompt_sp (prompt)
+  "Clear the mistty-prompt-sp property in newly detected prompt.
+
+This is to avoid confusing future prompts."
+  (when-let ((start (mistty--term-scrolline-pos
+                     (mistty--prompt-start prompt))))
+    (when (< start (point-max))
+      (remove-text-properties (max (point-min) (1- start))
+                              (point-max) '
+                              (mistty-prompt-sp nil)))))
 
 (defun mistty--regexp-prompt-detector ()
   "Build a post-processor that look for a new prompt at cursor.
@@ -1370,6 +1382,7 @@ Everything else is ignored."
          ;; Overwrite any other prompt source.
          (let ((prompt (mistty--make-prompt 'osc133 (mistty--term-scrolline))))
            (setf (mistty--prompt) prompt)
+           (mistty--term-remove-prompt_sp prompt)
            (mistty-log "Detected %s prompt #%s [%s-]"
                        (mistty--prompt-source prompt)
                        (mistty--prompt-input-id prompt)

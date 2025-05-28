@@ -93,10 +93,6 @@ possible problem:
   ;; Symbol that identifies the type of interaction.
   type
 
-  ;; Process to interact with. This is set when the interaction is
-  ;; enqueued.
-  proc
-
   ;; Callback function that will handle the next call to
   ;; mistty--interact-next. It takes a single argument.
   ;;
@@ -144,7 +140,17 @@ possible problem:
 
   ;; The buffer that was current when `mistty--make-interact' was
   ;; called. It is set before calling CLEANUP.
-  initial-buf)
+  initial-buf
+
+  ;; List of strings that should be sent to the process.
+  ;;
+  ;; As new strings are just pushed to this list, the strings are to
+  ;; be sent in reverse order.
+  ;;
+  ;; New strings are added by `mistty--interact-send' and consumed
+  ;; after CB returned and the decoder is in a state where calling
+  ;; `process-send-string' is ok. See #57 for details.
+  pending-output)
 
 (cl-defmacro mistty--interact (type (var) &rest body)
   "Create and return an interaction.
@@ -241,8 +247,6 @@ right away.
 Does nothing if INTERACT is nil."
   (cl-assert (mistty--queue-p queue))
   (when interact
-    (setf (mistty--interact-proc interact)
-          (mistty--queue-proc queue))
     (cond
      ;; This is the first mistty-interact; kick things off.
      ((mistty--queue-empty-p queue)
@@ -264,44 +268,59 @@ Does nothing if INTERACT is nil."
 If VALUE is set, send that value to the first call to
 `mistty--interact-next'."
   (cl-assert (mistty--queue-p queue))
-  (mistty--dequeue-1 queue value)
-  (unless (mistty--queue-empty-p queue)
-    (setf (mistty--queue-timeout queue)
-          (run-with-timer
-           mistty-timeout-s nil #'mistty--timeout-handler
-           (current-buffer) queue))))
+  (let ((pending-outputs (mistty--dequeue-1 queue value)))
+    (unless (mistty--queue-empty-p queue)
+      (setf (mistty--queue-timeout queue)
+            (run-with-timer
+             mistty-timeout-s nil #'mistty--timeout-handler
+             (current-buffer) queue)))
+
+    ;; Send pending output to the process now. This is done at the end
+    ;; once the queue and its interacts have been fully updated, in
+    ;; case process-send-string calls the output filter - and this
+    ;; code - again recursively. See issue #57
+    (let ((proc (mistty--queue-proc queue)))
+      (dolist (p (nreverse pending-outputs))
+        (dolist (str (nreverse p))
+          (process-send-string proc str))))))
 
 (cl-defun mistty--dequeue-1 (queue value)
   "Internal helper for `mistty--dequeue'.
 
 This function does all the work of `mistty-dequeue'. See its
-description for the meaning of QUEUE and VALUE."
-  (let ((proc (mistty--queue-proc queue)))
-    (mistty--cancel-timeout queue)
-    (while (mistty--queue-interact queue)
-      (pcase (condition-case-unless-debug err
-                 (mistty--interact-next (mistty--queue-interact queue) value)
-               (error
-                (mistty-log "Interaction failed; giving up: %s" err)
-                (message "mistty: Interaction failed; giving up: %s" err)
-                'done))
+description for the meaning of QUEUE and VALUE.
 
+It returns pending outputs, in the form of a list of list of strings to
+send, in reverse order."
+  (mistty--cancel-timeout queue)
+  (let ((pending-outputs nil))
+    (while-let ((interact (mistty--queue-interact queue)))
+      (pcase-exhaustive
+          (unwind-protect
+              (condition-case-unless-debug err
+                  (prog1 (mistty--interact-next interact value)
+                    (when-let ((p (mistty--interact-pending-output interact)))
+                      (push p pending-outputs)))
+                (error
+                 (mistty-log "Interaction failed; giving up: %s" err)
+                 (message "mistty: Interaction failed; giving up: %s" err)
+                 'done))
+            (setf (mistty--interact-pending-output interact) nil))
+        ;; Move on to the next interact
         ('done
          (setq value nil)
-         (mistty--interact-close (mistty--queue-interact queue))
-         (setf (mistty--queue-interact queue)
-               (pop (mistty--queue-more-interacts queue)))
-         (when (mistty--queue-interact queue)
-           (mistty-log "NEXT %s" (mistty--queue-interact-type queue))))
+         (mistty--interact-close interact)
+         (let ((next-interact (pop (mistty--queue-more-interacts queue))))
+           (setf (mistty--queue-interact queue) next-interact)
+           (when next-interact
+             (mistty-log "NEXT %s" (mistty--interact-type next-interact)))))
 
-        ;; Keep waiting
+        ;; Keep waiting; exits the loop
         ((and (pred functionp) cb)
-         (setf (mistty--interact-cb (mistty--queue-interact queue))
-               cb)
-         (cl-return-from mistty--dequeue-1))
+         (setf (mistty--interact-cb interact) cb)
+         (cl-return-from mistty--dequeue-1 pending-outputs))))
 
-        (invalid (error "Yielded invalid value: '%s'"
-                        invalid))))))
+    pending-outputs))
 
 (defun mistty--dequeue-with-timer (queue &optional value)
   "Call `mistty--dequeue' on QUEUE with VALUE on a timer.
@@ -402,8 +421,10 @@ After this call, `mistty--interact-next' fails and
       (funcall func))))
 
 (defun mistty--interact-send (interact str)
-  "Send STR to the process associated with INTERACT."
-  (mistty--send-string (mistty--interact-proc interact) str))
+  "Send STR to the process associated with INTERACT.
+
+The output is only sent at the end of `mistty-dequeue'."
+  (push str (mistty--interact-pending-output interact)))
 
 (cl-defun mistty--interact-wait-for-output-then (then &key pred on-timeout)
   "Return from current function and wait for process.

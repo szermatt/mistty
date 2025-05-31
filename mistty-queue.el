@@ -439,14 +439,21 @@ THEN is the function that's called once output has been received and, if
 PRED is set, the condition has been met.
 
 If ON-TIMEOUT is set, and the interact times out waiting for PRED to
-succeed, call ON-TIMEOUT instead of THEN. ON-TIMEOUT is ignored if PRED is
-unset.
+succeed, call ON-TIMEOUT instead of THEN.
+
 
 This call gives back control to the queue."
   (unless (functionp then)
     (error "not callable: %S" then))
   (if (null pred)
-      (throw 'mistty--interact-return then)
+      (throw 'mistty--interact-return
+             (lambda (res)
+               (if (eq res 'timeout)
+                   (progn
+                     (when mistty--report-issue-function
+                       (funcall mistty--report-issue-function 'hard-timeout))
+                     (funcall (or on-timeout then)))
+                 (funcall then))))
 
     ;; Wait for PRED to become true or for a timeout.
     (when (and mistty--report-issue-function (funcall pred))

@@ -627,8 +627,9 @@
 (ert-deftest mistty-test-eol-empty-prompt ()
   (mistty-with-test-buffer ()
     (goto-char (point-min))
-    (mistty-run-command
-     (mistty-end-of-line-or-goto-cursor))
+    (let ((mistty-expected-issues '(hard-timeout)))
+      (mistty-run-command
+       (mistty-end-of-line-or-goto-cursor)))
 
     (should
      (equal "$ <>"
@@ -6941,3 +6942,21 @@ precmd_functions+=(prompt_header)
        mistty-proc (format "ZDOTDIR=%s %s -i" zdotdir mistty-test-zsh-exe))
       (mistty-send-and-wait-for-prompt)
       (should (mistty-on-prompt-p (point))))))
+
+(ert-deftest mistty-test-forbid-edit-fire-and-forget ()
+  (let ((mistty-forbid-edit-regexps '(".*\nbck-i-search:")))
+    (mistty-with-test-buffer (:shell zsh)
+      (mistty--send-string mistty-proc "\C-r")
+      (mistty-wait-for-output
+       :test (lambda () mistty--forbid-edit))
+      (should mistty--forbid-edit)
+
+      ;; Sending <ESC> has no effect in this situation. There should
+      ;; not be a timeout, however; Since we're in forbid-edit mode
+      ;; send-key sends everything fire-and-forget.
+      (mistty-send-key 1 (kbd "\e"))
+      (mistty-wait-for-output
+       :test (lambda ()
+               (mistty--queue-empty-p mistty--queue)))
+      (should (equal "$ <>\nbck-i-search: _"
+                     (mistty-test-content :show (point)))))))

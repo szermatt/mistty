@@ -2355,7 +2355,8 @@ This command is available in fullscreen mode."
   (mistty--require-proc)
   (let* ((key (or key (this-command-keys-vector)))
          (translated-key (mistty-translate-key key n))
-         (fire-and-forget (string-match "^[[:graph:]]+$" translated-key))
+         (fire-and-forget (or mistty--forbid-edit
+                              (string-match "^[[:graph:]]+$" translated-key)))
          (positional (or positional (mistty-positional-p key))))
     (cond
      ((and (buffer-live-p mistty-work-buffer)

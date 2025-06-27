@@ -4443,18 +4443,19 @@ believed to correspond to SCROLLINE.
 Return a (CONS new-pos new-scrolline), possibly modified values for POS
 and SCROLLINE."
   (mistty--with-live-buffer mistty-work-buffer
-    (while
-        (when (equal scrolline (get-text-property pos 'mistty-scrolline))
-          (when-let* ((end-row (next-single-property-change pos 'mistty-scrolline)))
-            (when (string= (string-trim (buffer-substring-no-properties pos end-row)
-                                        "" "\n")
-                           (mistty--with-live-buffer mistty-term-buffer
-                             (save-excursion
-                               (goto-char (mistty--term-scrolline-pos scrolline))
-                               (mistty--current-scrolline-text 'no-properties))))
-              (setq pos end-row))))
-      (goto-char pos)
-      (cl-incf scrolline)))
+    (save-excursion
+      (while
+          (when (equal scrolline (get-text-property pos 'mistty-scrolline))
+            (when-let* ((end-row (next-single-property-change pos 'mistty-scrolline)))
+              (when (string= (string-trim (buffer-substring-no-properties pos end-row)
+                                          "" "\n")
+                             (mistty--with-live-buffer mistty-term-buffer
+                               (save-excursion
+                                 (goto-char (mistty--term-scrolline-pos scrolline))
+                                 (mistty--current-scrolline-text 'no-properties))))
+                (setq pos end-row))))
+        (goto-char pos)
+        (cl-incf scrolline))))
   `(,pos . ,scrolline))
 
 (defun mistty-beginning-of-defun (&optional n)

@@ -74,7 +74,7 @@ A key that's sent directly to the process connected to the
 terminal isn't automatically added to the undo list. This
 function does that, for `self-inserted keys', `delete-char', and
 `backward-delete-char'."
-  (when-let ((c (and (length= key 1) (elt key 0)))
+  (when-let* ((c (and (length= key 1) (elt key 0)))
              (key-type
               (cond
                ((mistty-self-insert-p key)

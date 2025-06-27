@@ -245,7 +245,7 @@
 It overwrites START-END with the *last* element of COLLECTION
 that starts with the text currently between START and END."
   (let ((text (buffer-substring-no-properties start end)))
-    (when-let ((replacement (car
+    (when-let* ((replacement (car
                              (last
                               (delq nil
                                     (mapcar (lambda (completion)

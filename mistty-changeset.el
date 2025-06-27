@@ -114,11 +114,11 @@ recently deleted string."
   (let ((beg (mistty--safe-pos beg))
         (end (mistty--safe-pos end)))
     (setf (mistty--changeset-beg changeset)
-          (if-let ((changeset-beg (mistty--changeset-beg changeset)))
+          (if-let* ((changeset-beg (mistty--changeset-beg changeset)))
               (min (mistty--safe-pos changeset-beg) beg)
             beg))
     (setf (mistty--changeset-end changeset)
-          (if-let ((changeset-end (mistty--changeset-end changeset)))
+          (if-let* ((changeset-end (mistty--changeset-end changeset)))
               (max (mistty--safe-pos changeset-end) end)
             end))
 

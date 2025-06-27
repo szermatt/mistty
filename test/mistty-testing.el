@@ -728,7 +728,7 @@ This simulates what happens in the command loop."
 (defun mistty-test--isolated-buffer-name-prefix ()
   (let* ((prefix (concat
                   "*"
-                  (when-let ((test (ert-running-test)))
+                  (when-let* ((test (ert-running-test)))
                     (concat (symbol-name (ert-test-name test)) "-"))
                   "isolated"))
          full-prefix)

@@ -568,17 +568,17 @@ end of a prompt with no commands.")
 
 (defun mistty--prompt ()
   "Get the value of the current `mistty--prompt' struct or nil."
-  (when-let ((cell mistty--prompt-cell))
+  (when-let* ((cell mistty--prompt-cell))
     (mistty--prompt-cell-current cell)))
 
 (defun mistty--prompt-archive ()
   "Get the list of archived `mistty--prompt' structs."
-  (when-let ((cell mistty--prompt-cell))
+  (when-let* ((cell mistty--prompt-cell))
     (mistty--prompt-cell-archive cell)))
 
 (defun mistty--prompt-counter ()
   "Get the number of prompt instances created in this buffer."
-  (when-let ((cell mistty--prompt-cell))
+  (when-let* ((cell mistty--prompt-cell))
     (mistty--prompt-cell-counter cell)))
 
 (gv-define-setter mistty--prompt (val)
@@ -586,7 +586,7 @@ end of a prompt with no commands.")
 
 The old value, if any, is pushed into `mistty--prompt-archive'."
   `(progn
-     (when-let ((old (mistty--prompt-cell-current mistty--prompt-cell)))
+     (when-let* ((old (mistty--prompt-cell-current mistty--prompt-cell)))
        (push old (mistty--prompt-cell-archive mistty--prompt-cell)))
      (setf (mistty--prompt-cell-current mistty--prompt-cell) ,val)))
 
@@ -658,7 +658,7 @@ Known OSC codes are passed down to handlers registered in
 `mistty-osc-handlers'."
   (mistty--accum-add-processor-lambda accum
       (ctx '(seq OSC (let code Ps) ?\; (let text Pt) ST))
-   (when-let ((handler (cdr (assoc-string code mistty-osc-handlers))))
+   (when-let* ((handler (cdr (assoc-string code mistty-osc-handlers))))
      (mistty--accum-ctx-flush ctx)
      (let ((inhibit-modification-hooks t)
            (inhibit-read-only t))
@@ -690,7 +690,7 @@ Detected prompts can be found in `mistty-prompt'."
            ;; zsh enables bracketed paste only after having printed
            ;; the prompt. Try to find the beginning of the prompt
            ;; from prompt_sp or assume a single-line prompt.
-           (when-let ((real-start
+           (when-let* ((real-start
                        (catch 'mistty-prompt-start
                          (dolist (i '(0 -1 -2 -3))
                            (let ((pos (pos-eol i)))
@@ -730,7 +730,7 @@ Detected prompts can be found in `mistty-prompt'."
    (lambda (ctx _)
      (mistty--accum-ctx-flush ctx)
      (when mistty-bracketed-paste
-       (when-let ((prompt (mistty--prompt))
+       (when-let* ((prompt (mistty--prompt))
                   (scrolline (if (eq ?\n (char-before (point)))
                                  (mistty--term-scrolline)
                                (1+ (mistty--term-scrolline)))))
@@ -787,7 +787,7 @@ Detected prompts can be found in `mistty-prompt'."
 
 This should be called for all newly-detected prompt to avoid confusing
 future prompts."
-  (when-let ((start (mistty--term-scrolline-pos
+  (when-let* ((start (mistty--term-scrolline-pos
                      (mistty--prompt-start prompt))))
     (when (< start (point-max))
       (remove-text-properties (max (point-min) (1- start))
@@ -843,14 +843,14 @@ that off.
 If this function is called more than once with the same ID, only
 the last set of properties to be registered is applied."
   (unless (eq 'term-mode major-mode) (error "Requires a term-mode buffer"))
-  (if-let ((cell (assq id mistty--term-properties-to-add-alist)))
+  (if-let* ((cell (assq id mistty--term-properties-to-add-alist)))
       (setcdr cell props)
     (push (cons id props) mistty--term-properties-to-add-alist)))
 
 (defun mistty-unregister-text-properties (id)
   "Stop applying properties previously registered with ID."
   (unless (eq 'term-mode major-mode) (error "Requires a term-mode buffer"))
-  (when-let ((cell (assq id mistty--term-properties-to-add-alist)))
+  (when-let* ((cell (assq id mistty--term-properties-to-add-alist)))
     (setq mistty--term-properties-to-add-alist
           (delq cell
                 mistty--term-properties-to-add-alist))))
@@ -950,7 +950,7 @@ Must be called from the term buffer."
               (setq called t)
               ;; Set erase to ^H or ^? to stty so the terminal is
               ;; expecting the right delete value. Issue #12
-              (when-let ((stty-command (nth 1 program-args))
+              (when-let* ((stty-command (nth 1 program-args))
                          (erase-char (pcase mistty-del
                                        ("\C-h" "^H")
                                        ("\d" "^?"))))
@@ -988,7 +988,7 @@ Must be called from the term buffer."
 BEG and END define the region that was modified."
   (let ((inhibit-modification-hooks t))
     (when (and mistty--term-properties-to-add-alist (> end beg))
-      (when-let ((props (apply #'append
+      (when-let* ((props (apply #'append
                                (mapcar #'cdr mistty--term-properties-to-add-alist))))
         ;; Merge sections with same properties separated by
         ;; whitespaces. The problem with setting text properties based
@@ -1037,7 +1037,7 @@ lines that have changed, as detected by `mistty--term-changed'."
     (setq mistty--term-changed (point-min)))
   (when (and mistty--term-changed (>= mistty--term-changed (point-max)))
     (setq mistty--term-changed nil))
-  (when-let ((change-start
+  (when-let* ((change-start
               (when mistty--term-changed
                 (text-property-any
                  mistty--term-changed (point-max) 'mistty-changed t))))
@@ -1082,7 +1082,7 @@ of the terminal, usually `term-width'."
   (let ((pos (1- eol)))
     (when (and (>= 3 (- window-width (mistty--line-width)))
                (not (get-text-property pos 'mistty-maybe-skip)))
-      (when-let ((first-maybe-skip (previous-single-property-change eol 'mistty-maybe-skip nil bol)))
+      (when-let* ((first-maybe-skip (previous-single-property-change eol 'mistty-maybe-skip nil bol)))
         (when (and (eq (char-before first-maybe-skip) ?\ )
                    (> first-maybe-skip bol))
           (setq pos (1- first-maybe-skip))
@@ -1226,7 +1226,7 @@ with every prompt if the env variable INSIDE_EMACS is set."
   (if (= (aref string 0) ?/)
       (let ((path (substring string 1)))
         (unless (file-remote-p path)
-          (when-let ((prefix (file-remote-p default-directory)))
+          (when-let* ((prefix (file-remote-p default-directory)))
             (setq path (concat prefix path))))
         ;; Not using cd here, to avoid a remote connection being made to
         ;; check the path.
@@ -1390,13 +1390,13 @@ Everything else is ignored."
                        (mistty--prompt-start prompt))))
 
         (?B ;; end of prompt/start of user input
-         (when-let ((prompt (mistty--prompt)))
+         (when-let* ((prompt (mistty--prompt)))
            (setf (mistty--prompt-user-input-start prompt)
                  (cons (mistty--term-scrolline)
                        (term-current-column)))))
 
         (?C ;; start of command output
-         (when-let ((prompt (mistty--prompt)))
+         (when-let* ((prompt (mistty--prompt)))
            (when (eq 'osc133 (mistty--prompt-source prompt))
              (mistty-log "Closed %s prompt #%s [%s-]"
                          (mistty--prompt-source prompt)
@@ -1405,7 +1405,7 @@ Everything else is ignored."
              (setf (mistty--prompt-end prompt) (mistty--term-scrolline)))))
 
         (?D ;; end of command (possible anytime after ?A)
-         (when-let ((prompt (mistty--prompt)))
+         (when-let* ((prompt (mistty--prompt)))
            (when (and (eq 'osc133 (mistty--prompt-source prompt))
                       (null (mistty--prompt-end prompt)))
              (mistty-log "Aborted %s prompt #%s [%s-]"

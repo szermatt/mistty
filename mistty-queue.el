@@ -197,14 +197,14 @@ be pass to a :then argument in `mistty--interact-return'."
 
 (defun mistty--queue-interact-type (queue)
   "Return the type of the QUEUE current interact or nil."
-  (when-let ((interact (mistty--queue-interact queue)))
+  (when-let* ((interact (mistty--queue-interact queue)))
     (mistty--interact-type interact)))
 
 (defun mistty--queue-last-interact (queue)
   "Return the last interact of QUEUE or nil.
 
 The last interact often is the one that's currently running."
-  (if-let ((more (mistty--queue-more-interacts queue)))
+  (if-let* ((more (mistty--queue-more-interacts queue)))
       (car (last more))
     (mistty--queue-interact queue)))
 
@@ -299,7 +299,7 @@ send, in reverse order."
           (unwind-protect
               (condition-case-unless-debug err
                   (prog1 (mistty--interact-next interact value)
-                    (when-let ((p (mistty--interact-pending-output interact)))
+                    (when-let* ((p (mistty--interact-pending-output interact)))
                       (push p pending-outputs)))
                 (error
                  (mistty-log "Interaction failed; giving up: %s" err)
@@ -415,7 +415,7 @@ After this call, `mistty--interact-next' fails and
   (setf (mistty--interact-cb interact)
         (lambda (&optional _)
           (error "Interaction was closed")))
-  (when-let ((func (mistty--interact-cleanup interact)))
+  (when-let* ((func (mistty--interact-cleanup interact)))
     (setf (mistty--interact-cleanup interact) nil)
     (with-current-buffer (mistty--interact-initial-buf interact)
       (funcall func))))

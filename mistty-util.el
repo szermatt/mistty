@@ -345,7 +345,7 @@ removes and returns the oldest item in the fifo."
   "Remove the oldest entry from FIFO and return it.
 
 Return nil if there are no entry."
-  (when-let ((oldest (mistty--fifo-oldest fifo)))
+  (when-let* ((oldest (mistty--fifo-oldest fifo)))
     (let ((item (caar oldest))
           (newer (cdr oldest)))
       (setf (mistty--fifo-oldest fifo) newer)

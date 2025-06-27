@@ -1058,7 +1058,7 @@ buffer and `mistty-proc' to that buffer's process."
     (add-hook 'pre-command-hook #'mistty--pre-command nil t)
     (add-hook 'post-command-hook #'mistty--post-command nil t)
 
-    (if-let ((size mistty--terminal-size))
+    (if-let* ((size mistty--terminal-size))
         (mistty--set-process-window-size (car size) (cdr size))
       (mistty--set-process-window-size-from-windows)
       (add-hook 'window-size-change-functions #'mistty--window-size-change nil t))))
@@ -1118,7 +1118,7 @@ Returns M or a new marker."
       (mistty--detach))
     (mistty--update-mode-lines)
     (when (buffer-live-p term-buffer)
-      (when-let ((proc (get-buffer-process term-buffer)))
+      (when-let* ((proc (get-buffer-process term-buffer)))
         (when (process-live-p proc)
           (delete-process proc)))
       (let ((kill-buffer-query-functions nil))
@@ -1551,7 +1551,7 @@ This should be called just before reseting the terminal."
       ;; not visible anymore. This way, it looks like the buffer
       ;; was cleared even though history is kept.
       (mistty--with-live-buffer mistty-work-buffer
-        (when-let (win (get-buffer-window mistty-work-buffer))
+        (when-let* ((win (get-buffer-window mistty-work-buffer)))
           (with-selected-window win
             (set-window-start win (mistty--bol home-pos) 'noforce)))))))
 
@@ -1761,13 +1761,13 @@ Also updates prompt and point."
                              end-scrolline
                              scrolline)))))
 
-         (when-let ((prompt (mistty--prompt)))
+         (when-let* ((prompt (mistty--prompt)))
            ;; If a new prompt was detected, restrict sync region to
            ;; the beginning of that prompt.
            (when (and (not (mistty--prompt-realized prompt))
                       (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
                       (null (mistty--prompt-end prompt)))
-             (when-let ((prompt-beg (mistty--scrolline-pos (mistty--prompt-start prompt)))
+             (when-let* ((prompt-beg (mistty--scrolline-pos (mistty--prompt-start prompt)))
                         (cursor (when (process-live-p mistty-proc)
                                   (mistty-cursor))))
                (when (and (> cursor prompt-beg)
@@ -1844,7 +1844,7 @@ Also updates prompt and point."
 
 Fields allow the like of `beginning-of-line' and `end-of-line' to ignore
 prompt and right prompts."
-  (when-let ((start (mistty--prompt-user-input-start prompt))
+  (when-let* ((start (mistty--prompt-user-input-start prompt))
              (bol (mistty--scrolline-pos (car start)))
              (eol (mistty--eol bol)))
     (when (> (cdr start) 0)
@@ -1854,7 +1854,7 @@ prompt and right prompts."
                inhibit-line-move-field-capture t
                front-sticky (field inhibit-line-move-field-capture)
                rear-nonsticky t)))
-    (when-let ((right-prompt-start (text-property-any bol eol 'mistty-skip 'right-prompt)))
+    (when-let* ((right-prompt-start (text-property-any bol eol 'mistty-skip 'right-prompt)))
       ;; Give room for the point to go one column past the beginning
       ;; of the right prompt to not confuse field-aware commands
       ;; such as backward-word.
@@ -2078,7 +2078,7 @@ If it is, it sets the sync marker at that position and call
 `mistty--set-sync-mark'.
 
 Return nil if SCROLLINE is not accessible on the work buffer."
-  (when-let ((pos (mistty--scrolline-pos scrolline)))
+  (when-let* ((pos (mistty--scrolline-pos scrolline)))
     (mistty--set-sync-mark pos scrolline)
 
     t))
@@ -2140,13 +2140,13 @@ It also marks the prompt region with the text property
   (let ((limit (mistty--scrolline limit-pos))
         (inhibit-modification-hooks t)
         (inhibit-read-only t))
-    (when-let ((prompt (mistty--prompt)))
+    (when-let* ((prompt (mistty--prompt)))
       (when (and (mistty--prompt-end prompt)
                  (<= (mistty--prompt-end prompt) limit))
         (setf (mistty--prompt) nil)))
     (dolist (prompt (mistty--prompt-archive))
       (when (mistty--prompt-realized prompt)
-        (when-let ((prompt-beg (mistty--scrolline-pos
+        (when-let* ((prompt-beg (mistty--scrolline-pos
                                 (mistty--prompt-start prompt)))
                    (prompt-end (when (mistty--prompt-end prompt)
                                  (mistty--scrolline-pos
@@ -2572,7 +2572,7 @@ returns nil."
       ;; trouble in some cases, especially when the inserted string is
       ;; too short or contains only spaces.
       (setq point-after-last-insert
-            (when-let ((m (car (last modifications))))
+            (when-let* ((m (car (last modifications))))
               (when (length> (nth 1 m) 0)
                 (equal (point) (+ (nth 0 m) (length (nth 1 m)))))))
 
@@ -2839,11 +2839,11 @@ returns nil."
              ;; Move right prompt just like the shell would, to avoid it
              ;; confusing the sync happening after applying all
              ;; modifications.
-             (when-let ((content-nl (string-match "\n" content)))
+             (when-let* ((content-nl (string-match "\n" content)))
                (with-current-buffer calling-buffer
                  (let* ((content-end (+ orig-beg (length content)))
                         (eol (mistty--eol content-end)))
-                   (when-let ((right-prompt
+                   (when-let* ((right-prompt
                                (text-property-any content-end eol
                                                   'mistty-skip 'right-prompt)))
                      (save-excursion
@@ -2889,7 +2889,7 @@ returns nil."
            ;; and returns non-nil. Otherwise, this function returns
            ;; nil and the caller retains ownership of OTHER-CS.
            (handle-call-interact (other-cs)
-             (when-let ((text-to-insert (mistty--changeset-single-insert other-cs)))
+             (when-let* ((text-to-insert (mistty--changeset-single-insert other-cs)))
                (when (and
                       (eql (mistty--changeset-beg other-cs)
                            (mistty--changeset-end cs))
@@ -2984,7 +2984,7 @@ up (negative)."
 (defun mistty-next-input (n)
   "Move the point to the Nth next input in the buffer."
   (interactive "p")
-  (if-let ((prompt
+  (if-let* ((prompt
             (mistty--forward-prompt-ranges
              (let ((accepted-count 0))
                (lambda (prompt)
@@ -2998,7 +2998,7 @@ up (negative)."
 (defun mistty-previous-input (n)
   "Move the point to the Nth previous input in the buffer."
   (interactive "p")
-  (if-let ((prompt
+  (if-let* ((prompt
             (mistty--backward-prompt-ranges
              (let ((accepted-count 0))
                (lambda (prompt)
@@ -3017,7 +3017,7 @@ In addition to moving the point, this function also returns a
 cons, (START . END) containing the start and end position of the
 output."
   (interactive "p")
-  (if-let ((prompt
+  (if-let* ((prompt
             (mistty--forward-prompt-ranges
              (let ((accepted-count 0))
                (lambda (prompt)
@@ -3038,7 +3038,7 @@ In addition to moving the point, this function also returns a
 cons, (START . END) containing the start and end position of the
 output."
   (interactive "p")
-  (if-let ((prompt
+  (if-let* ((prompt
             (mistty--backward-prompt-ranges
              (let ((accepted-count 0))
                (lambda (prompt)
@@ -3092,7 +3092,7 @@ a buffer with that output."
            (mistty--truncate-string
             (or
              (condition-case nil
-                 (when-let ((prompt (mistty--prompt-ranges-for-current-or-previous-output
+                 (when-let* ((prompt (mistty--prompt-ranges-for-current-or-previous-output
                                      current-prefix-arg)))
                    (mistty--command-for-output prompt))
                (error nil))
@@ -3187,7 +3187,7 @@ return either the current or te previous output
 This function fails if there is no current or previous output."
   (let ((must-be-above-point (numberp n))
         (n (if (numberp n) n 1)))
-    (if-let ((prompt
+    (if-let* ((prompt
               (mistty--backward-prompt-ranges
                (let ((accepted-count 0))
                  (lambda (prompt)
@@ -3249,7 +3249,7 @@ ACTIVE-PROMPT-RANGES must be the output of
 Also accepts inactive (potential) prompts."
   (when-let* ((prompt (or mistty--active-prompt (mistty--prompt)))
               (start-pos (mistty--scrolline-pos (mistty--prompt-start prompt)))
-              (end-pos (or (when-let ((end (mistty--prompt-end prompt)))
+              (end-pos (or (when-let* ((end (mistty--prompt-end prompt)))
                              (mistty--scrolline-pos end))
                            (point-max))))
     (list start-pos end-pos end-pos)))
@@ -3263,7 +3263,7 @@ Return the prompt range that was accepted or nil."
     (catch 'mistty--accepted
       (unless prompt
         ;; If there's no prompt at point, look for a prompt after point.
-        (when-let ((pos (next-single-property-change (point) 'mistty-input-id)))
+        (when-let* ((pos (next-single-property-change (point) 'mistty-input-id)))
             (setq prompt (mistty--prompt-ranges-around pos active-prompt-ranges))))
       (when (and prompt (funcall accept prompt))
         (throw 'mistty--accepted prompt))
@@ -3624,7 +3624,7 @@ To go back to tracking window size, call
 
 (defun mistty--window-size-change (win)
   "Update the process terminal size, reacting to WIN changing size."
-  (when-let ((buffer (window-buffer win)))
+  (when-let* ((buffer (window-buffer win)))
     (with-current-buffer buffer
       (when (derived-mode-p 'mistty-mode)
         (mistty--set-process-window-size-from-windows)))))
@@ -3929,7 +3929,7 @@ prompts."
   "Return non-nil if POS is inside PROMPT."
   (when-let* ((scrolline (mistty--prompt-start prompt))
               (start (mistty--scrolline-pos scrolline))
-              (length (if-let ((text (mistty--prompt-text prompt)))
+              (length (if-let* ((text (mistty--prompt-text prompt)))
                           (length text)
                         0))
               (user-input-start (+ start length)))
@@ -3988,7 +3988,7 @@ This is meant to be added to `pre-redisplay-functions'"
                (or (null mistty-proc)
                    (not (equal (point) (mistty-cursor))))
                (mistty-on-prompt-p (setq pos (window-point win))))
-      (when-let ((last-state (window-parameter win 'mistty--cursor-skip-state)))
+      (when-let* ((last-state (window-parameter win 'mistty--cursor-skip-state)))
         (when (eq (car last-state) (current-buffer))
           (setq last-pos (cdr last-state))))
       (unless (equal pos last-pos)
@@ -4372,7 +4372,7 @@ set by `mistty-create' in the environment the function is called."
 
 This function is meant to be used in the configuration option
 `mistty-buffer-name'."
-  (when-let ((remote-user (file-remote-p default-directory 'user)))
+  (when-let* ((remote-user (file-remote-p default-directory 'user)))
     (unless (string= (getenv "USER") remote-user)
       (concat "-" remote-user))))
 
@@ -4381,7 +4381,7 @@ This function is meant to be used in the configuration option
 
 This function is meant to be used in the configuration option
 `mistty-buffer-name'."
-  (when-let ((remote-host (file-remote-p default-directory 'host)))
+  (when-let* ((remote-host (file-remote-p default-directory 'host)))
     (unless (string= remote-host (system-name))
       (concat "@" remote-host))))
 
@@ -4432,7 +4432,7 @@ and SCROLLINE."
   (mistty--with-live-buffer mistty-work-buffer
     (while
         (when (equal scrolline (get-text-property pos 'mistty-scrolline))
-          (when-let ((end-row (next-single-property-change pos 'mistty-scrolline)))
+          (when-let* ((end-row (next-single-property-change pos 'mistty-scrolline)))
             (when (string= (string-trim (buffer-substring-no-properties pos end-row)
                                         "" "\n")
                            (mistty--with-live-buffer mistty-term-buffer
@@ -4458,10 +4458,10 @@ buffers."
                         (cl-incf accepted-count))
                       (>= accepted-count abs-n)))))
       (if (>= n 0)
-          (when-let ((prompt (mistty--backward-prompt-ranges accept)))
+          (when-let* ((prompt (mistty--backward-prompt-ranges accept)))
             (prog1 t
               (goto-char (nth 0 prompt))))
-        (when-let ((prompt (mistty--forward-prompt-ranges accept)))
+        (when-let* ((prompt (mistty--forward-prompt-ranges accept)))
           (prog1 t
             (goto-char (nth 2 prompt))))))))
 
@@ -4473,7 +4473,7 @@ by `mistty-beginning-of-defun'.
 
 This is meant to be set as `end-of-defun-function' in MisTTY buffers."
   (let ((active-prompt-ranges (mistty--active-or-potential-prompt-ranges)))
-    (when-let ((ranges (mistty--prompt-ranges-at (point) active-prompt-ranges)))
+    (when-let* ((ranges (mistty--prompt-ranges-at (point) active-prompt-ranges)))
       (prog1 t
         (goto-char (nth 2 ranges))))))
 
@@ -4500,7 +4500,7 @@ This is meant to be bound to `imenu-create-index-function'."
                      prompt-alist)
 
              ;; Previous prompts
-             (when-let ((command (mistty--command-for-output prompt)))
+             (when-let* ((command (mistty--command-for-output prompt)))
                (when (> (nth 2 prompt) (nth 1 prompt))
                  (push (cons command
                              (funcall maybe-marker (nth 1 prompt)))

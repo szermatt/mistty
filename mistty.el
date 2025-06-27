@@ -860,6 +860,9 @@ to decide whether it's OK to kill the buffer.")
 When non-nil, tracking window size change is disabled outside of
 fullscreen mode.")
 
+(defvar-local mistty--point-marker nil
+  "Marker (re)used by mistty--sync-buffer on Emacs 31 and later.")
+
 (eval-when-compile
   ;; defined in term.el
   (defvar term-home-marker))
@@ -1996,7 +1999,17 @@ Does nothing if SOURCE-BUFFER is dead."
             (with-current-buffer dest-buffer
               (save-restriction
                 (narrow-to-region mistty-sync-marker (point-max))
-                (replace-buffer-contents source-buffer 0.2)
+                (if (eval-when-compile (>= emacs-major-version 31))
+                     (let ((point-marker (or mistty--point-marker
+                                             (setq mistty--point-marker (make-marker)))))
+                       (set-marker point-marker (point))
+                       (set-marker-insertion-type point-marker nil)
+                       (replace-region-contents (point-min) (point-max) source-buffer 0.2)
+                       (goto-char point-marker)
+                       (move-marker point-marker nil))
+                   ;; Before Emacs 31, replace-region-contents could
+                   ;; not take a buffer as source.
+                   (replace-buffer-contents source-buffer 0.2))
                 (mistty--restore-properties properties (point-min)))
 
               ;; If the point was outside the sync region, restore it,

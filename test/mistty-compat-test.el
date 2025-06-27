@@ -7,7 +7,7 @@
 (require 'cua-base)
 
 (require 'yasnippet)
-(require 'tempel)
+(require 'tempel nil 'noerror)
 
 (ert-deftest mistty-test-detect-foreign-overlay-cua-rectangle ()
   (let ((mistty-detect-foreign-overlays t)
@@ -257,6 +257,7 @@ that starts with the text currently between START and END."
       (insert replacement))))
 
 (ert-deftest mistty-compat-test-tempel-smoke ()
+  (skip-unless (featurep 'tempel))
   ;; This makes sure that the tempel integration works at all
   (ert-with-test-buffer ()
     (let* ((mistty-test-tempel-templates '((test "THIS IS A TEST")))
@@ -265,6 +266,7 @@ that starts with the text currently between START and END."
       (should (equal "THIS IS A TEST" (mistty-test-content))))))
 
 (ert-deftest mistty-compat-test-tempel-detect-overlays ()
+  (skip-unless (featurep 'tempel))
   (mistty-with-test-buffer (:selected t)
     (let* ((mistty-test-tempel-templates '((test "for " p " in " p "; do " p "; done")))
            (tempel-template-sources (list (lambda () mistty-test-tempel-templates))))

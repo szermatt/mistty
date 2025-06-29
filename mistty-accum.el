@@ -79,7 +79,9 @@ Usage example:
   ;; mistty--accum-add-post-processor
   add-post-processor-f
   ;; mistty--accum-add-around-process-filter
-  add-around-f)
+  add-around-f
+  ;; mistty--accum-add-pre-process-filter
+  add-pre-process-f)
 
 (defsubst mistty--accum-reset (accum)
   "Reset ACCUM to its post-creation state.
@@ -111,6 +113,26 @@ should avoid calling the function it wraps with any buffer active, as
 that buffer might be killed during processing and break process
 filtering."
   (funcall (mistty--accumulator--add-around-f accum) func))
+
+(defsubst mistty--accum-add-pre-process-filter (accum func)
+  "Have FUNC filter the raw bytes delivered to the accumulator.
+
+FUNC must be a function with the signature (NEXTFUNC DATA), with
+NEXTFUNC the function to call to accept unprocessed bytes into the
+accumualtor or the next pre-processor filter. DATA is unprocessed bytes
+from either Emacs or the previous pre-process filter. NEXTFUNC expects
+one parameter, the pre-processed unprocessed bytes. The filter may call
+NEXTFUNC zero or more times for any one call to itself.
+The pre-processing filter need not be reentrant: mistty takes care of
+reentrancy on its own.
+
+Note that FUNC is *not* called with any specific active buffer, just
+like any process filter. The function should make sure to set the buffer
+it needs and react to it having been killed. Further, the function
+should avoid calling the function it wraps with any buffer active, as
+that buffer might be killed during processing and break process
+filtering."
+  (funcall (mistty--accumulator--add-pre-process-f accum) func))
 
 (defsubst mistty--accum-add-processor-1 (accum processor)
   "Register PROCESSOR, a `cl-accum-processor' in ACCUM.
@@ -199,10 +221,13 @@ The return value of this type is also an oclosure of type
 mistty--accum whose slots can be accessed."
   (let ((post-processors nil)
         (around-process-filter nil)
+        (pre-processors nil)
         (processors nil)
         (processors-dirty nil)
         (unprocessed (mistty--make-fifo))
         (unprocessed-bytes 0)
+        (pre-processed (mistty--make-fifo))
+        (pre-processed-bytes 0)
         (processed (mistty--make-fifo))
         (look-back-ring (make-ring 8))
         (incomplete nil)
@@ -215,6 +240,7 @@ mistty--accum whose slots can be accessed."
         ((reset ()
            (setq post-processors nil)
            (setq processors nil)
+           (setq pre-processors nil)
            (setq around-process-filter nil)
            (setq processors-dirty t))
 
@@ -232,6 +258,9 @@ mistty--accum whose slots can be accessed."
          ;; with signature (NEXT-FUNC).
          (add-around (func)
            (push func around-process-filter))
+
+         (add-pre-processor (func)
+           (push func pre-processors))
 
         ;; Collect all pending strings from FIFO into one
         ;; single string.
@@ -287,7 +316,7 @@ mistty--accum whose slots can be accessed."
                                                    processing-pending-output))))
                    (when (or (>= duration
                                  mistty--max-accumulate-delay)
-                             (>= unprocessed-bytes
+                             (>= (+ unprocessed-bytes pre-processed-bytes)
                                  mistty--max-accumulate-bytes))
                      (throw 'mistty-stop-accumlating nil))))
              (prog1 t ; flush
@@ -370,11 +399,30 @@ mistty--accum whose slots can be accessed."
                                (ring-ref look-back-ring (- len i 1))))
              str))
 
-         ;; Process any data in unprocessed and move it to processed.
-         (process-data (proc)
+         (pre-process (data pre-processors base)
+
+           (if (null pre-processors)
+               (funcall base data)
+             (funcall (car pre-processors)
+                      (lambda (next-data)
+                        (pre-process next-data (cdr pre-processors) base))
+                      data)))
+
+         ;; Run pre-processors on unprocessed data and move to pre-processed.
+         (run-pre-processors ()
            (while (not (mistty--fifo-empty-p unprocessed))
-             (let ((data (concat incomplete (fifo-to-string unprocessed))))
+             (let ((data (fifo-to-string unprocessed)))
                (setq unprocessed-bytes 0)
+               (pre-process data pre-processors
+                            (lambda (processed-data)
+                              (mistty--fifo-enqueue pre-processed processed-data)
+                              (cl-incf pre-processed-bytes (length processed-data)))))))
+
+         ;; Process any data in pre-processed and move it to processed.
+         (process-data (proc)
+           (while (not (mistty--fifo-empty-p pre-processed))
+             (let ((data (concat incomplete (fifo-to-string pre-processed))))
+               (setq pre-processed-bytes 0)
                (setq incomplete nil)
                (while (not (string-empty-p data))
                  (update-processor-regexps)
@@ -417,13 +465,16 @@ mistty--accum whose slots can be accessed."
       (oclosure-lambda (mistty--accumulator (reset-f #'reset)
                                             (add-post-processor-f #'add-post-processor)
                                             (add-processor-f #'add-processor)
-                                            (add-around-f #'add-around))
+                                            (add-around-f #'add-around)
+                                            (add-pre-process-f #'add-pre-processor))
           (proc data)
         (mistty--fifo-enqueue unprocessed data)
         (cl-incf unprocessed-bytes (length data))
 
         (when (toplevel-accumulator-p proc)
-          (process-data proc)
+          (while (not (mistty--fifo-empty-p unprocessed))
+            (run-pre-processors)
+            (process-data proc))
           (flush proc)
           (post-process proc))))))
 

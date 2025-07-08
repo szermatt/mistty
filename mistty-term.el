@@ -150,6 +150,33 @@ delete key instead of the backspace key.
 If you change this key, remember to change the mapping in
 `mistty-term-key-map' as well")
 
+(defcustom mistty-term-mode-hook (list #'mistty-call-term-mode-hook)
+  "Hook run in in term-mode buffers created by MisTTY.
+
+This hook overrides `term-mode-hook' for term buffers started by MisTTY
+to allow configuring MisTTY's term buffers differently from normal term
+buffers.
+
+The default includes `mistty-call-term-mode-hook', which calls the
+original `term-mode-hook'.
+
+If you'd like to have completely different configuration for normal term-mode
+buffers and term-mode buffers started by Mistty, call:
+
+  (remove-hook \\='mistty-term-mode-hook \\='mistty-call-term-mode-hook)
+
+You might want to execute the above command as well if you have reasons
+to think that some term-mode customization are interfering with MisTTY's
+operations."
+  :group 'mistty
+  :type 'hook)
+
+(defvar mistty-shadowed-term-mode-hook nil
+  "Special variable under which hooks found it `term-mode-hook' are stored.
+
+This is allows running `term-mode-hook' or not, from
+`mistty-term-mode-hook'.")
+
 (defvar mistty-term-key-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "<tab>") "\t")
@@ -868,7 +895,9 @@ reported to the remote process.
 This function returns the newly-created buffer."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
-      (term-mode)
+      (let* ((mistty-shadowed-term-mode-hook term-mode-hook)
+             (term-mode-hook mistty-term-mode-hook))
+        (term-mode))
       (font-lock-mode -1)
       (jit-lock-mode nil)
       (setq-local term-char-mode-buffer-read-only t)
@@ -1413,6 +1442,15 @@ Everything else is ignored."
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
              (setf (mistty--prompt-end prompt) (mistty--term-scrolline)))))))))
+
+(defun mistty-call-term-mode-hook ()
+  "Call the functions registered to `term-mode-hook'.
+
+Remove this hook from `mistty-term-mode-hook' to allow the terminal
+modes started by MisTTY to have a completely separate setup from normal
+terminal modes. See the documentation of `mistty-term-mode-hook' for
+details."
+  (run-hooks 'mistty-shadowed-term-mode-hook))
 
 (provide 'mistty-term)
 

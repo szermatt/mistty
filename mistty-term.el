@@ -666,7 +666,13 @@ all situations, even when no work buffer is available."
                  (setq term-current-face
                        (mistty--clear-term-face-value term-current-face))))))
     (mistty-log "RECV %S" str)
-    (term-emulate-terminal proc str)))
+    (term-emulate-terminal proc str)
+
+    ;; MisTTY always wants the point at process mark, no matter what.
+    ;; term-mode is not so categorical and might sometimes lose sync
+    ;; during resizes.
+    (mistty--with-live-buffer (process-buffer proc)
+        (goto-char (process-mark proc)))))
 
 (defun mistty--add-skip-unsupported (accum)
   "Skip some unsupported terminal sequences that confuse term.el.

@@ -71,7 +71,7 @@ To do that, you might add the following to :file:`~/.bashrc`:
 .. code-block:: bash
 
     if [ "$TERM" = "eterm-color" ]; then
-      PS1='\e]7;file://$HOSTNAME$PWD\e\\\\'$PS1
+      PS1='\[\e]7;file://$HOSTNAME$PWD\e\\\\\]'$PS1
     fi
 
 Such sequence are either ignored or understood by most terminals, so
@@ -135,7 +135,16 @@ may arise.
 
 If you suspect that your shell prompt may be causing problems, try
 configuring your shell to send out :ref:`OSC 133 <osc133>` codes to
-help MisTTY correctly identify your prompt.
+help MisTTY correctly identify your prompt. Assuming you have a
+working PS1 already, OSC 133 support can be added with:
+
+.. code-block:: bash
+
+    PS1='\[\e]133;A\007\]'$PS1'\[\e]133;B\007\]'
+
+If you forget to put the OSC sequences in PS1 within ``\[...\]``, Bash
+might be confused by the OSC sequences and you might have strange
+issues when exiting reverse-i-search.
 
 .. _fish:
 

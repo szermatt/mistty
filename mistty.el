@@ -53,6 +53,7 @@
 (require 'mistty-log)
 (require 'mistty-queue)
 (require 'mistty-undo)
+(require 'mistty-atomic)
 
 (defvar term-width) ; defined in term.el
 
@@ -719,6 +720,12 @@ This is updated at the same time as the marker, on both buffers.")
 (defvar-local mistty--active-prompt nil
   "A `mistty--prompt' struct of the active prompt.")
 
+(defvar-local mistty--atomic-preprocessor nil
+  "The atomic update preprocessor.")
+
+(defvar-local mistty--atomic-preprocessor-flush-f nil
+  "Function to call to exit atomic mode early")
+
 (defvar-local mistty--sync-ov nil
   "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
 
@@ -1040,6 +1047,12 @@ buffer and `mistty-proc' to that buffer's process."
     (when proc
       (let ((accum (process-filter proc)))
         (mistty--accum-reset accum)
+        (unless mistty--atomic-preprocessor
+          (pcase-setq `(,mistty--atomic-preprocessor .
+                        ,mistty--atomic-preprocessor-flush-f)
+                      (mistty--make-atomic-preprocessor proc)))
+        (mistty--accum-add-pre-process-filter
+         accum mistty--atomic-preprocessor)
         (mistty--add-prompt-detection accum)
         (mistty--add-osc-detection accum)
         (mistty--add-skip-unsupported accum)
@@ -1110,7 +1123,9 @@ Returns M or a new marker."
     (setq mistty--queue nil))
   (when mistty-proc
     (let ((accum (process-filter mistty-proc)))
-      (mistty--accum-reset accum))
+      (mistty--accum-reset accum)
+      (setq mistty--atomic-preprocessor nil
+            mistty--atomic-preprocessor-flush-f nil))
     (set-process-sentinel mistty-proc #'term-sentinel)
     (setq mistty-proc nil)))
 
@@ -2371,6 +2386,9 @@ This command is available in fullscreen mode."
          (fire-and-forget (or mistty--forbid-edit
                               (string-match "^[[:graph:]]+$" translated-key)))
          (positional (or positional (mistty-positional-p key))))
+    (mistty--with-live-buffer mistty-work-buffer
+      (when mistty--atomic-preprocessor-flush-f
+        (funcall mistty--atomic-preprocessor-flush-f)))
     (cond
      ((and (buffer-live-p mistty-work-buffer)
            (not (buffer-local-value
@@ -3667,7 +3685,10 @@ Width and height are limited to `mistty-min-terminal-width' and
           (height (max height mistty-min-terminal-height)))
       (mistty--with-live-buffer mistty-term-buffer
         (set-process-window-size mistty-proc height width)
-        (term-reset-size height width)))))
+        (term-reset-size height width))
+      (mistty--with-live-buffer mistty-work-buffer
+        (when mistty--atomic-preprocessor-flush-f
+          (funcall mistty--atomic-preprocessor-flush-f))))))
 
 (defun mistty--enter-fullscreen (proc)
   "Enter fullscreen mode for PROC."
@@ -3693,6 +3714,8 @@ Width and height are limited to `mistty-min-terminal-width' and
 
     (let ((accum (process-filter proc)))
       (mistty--accum-reset accum)
+      (when mistty--atomic-preprocessor
+        (mistty--accum-add-pre-process-filter accum mistty--atomic-preprocessor))
       (mistty--add-osc-detection accum)
       (mistty--add-skip-unsupported accum)
       (mistty--add-toggle-cursor accum mistty-term-buffer)

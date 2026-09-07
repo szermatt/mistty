@@ -48,12 +48,9 @@
 
 (defmacro mistty--inhibit-undo (&rest body)
   "Execute BODY with undo disabled."
-  (let ((saved (make-symbol "saved-buffer-undo-list")))
-    `(let ((,saved buffer-undo-list))
-       (setq buffer-undo-list t)
-       (unwind-protect
-           (progn ,@body)
-         (setq buffer-undo-list ,saved)))))
+  `(let ((buffer-undo-list (cons t 0))
+         (pending-undo-list (cons t 0)))
+     ,@body))
 
 (defun mistty--pre-command-for-undo ()
   "Prepare undo data before a command.

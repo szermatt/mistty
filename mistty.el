@@ -222,9 +222,6 @@ the beginning of the terminal zone."
   :group 'mistty
   :type '(list regexp))
 
-(defvar mistty--can-move-vertically nil
-  "If non-nil, vertical moves are allowed.")
-
 (defcustom mistty-forbid-edit-regexps
   '( ;; fish:
     "^search: "
@@ -851,6 +848,9 @@ to decide whether it's OK to kill the buffer.")
 
 When non-nil, tracking window size change is disabled outside of
 fullscreen mode.")
+
+(defvar-local mistty--can-move-vertically nil
+  "If non-nil, vertical moves are allowed.")
 
 (defvar-local mistty--point-marker nil
   "Marker (re)used by mistty--sync-buffer on Emacs 31 and later.")
@@ -3975,7 +3975,9 @@ over to the backstage buffer: `mistty-log',
       (setq-local mistty-sync-marker (point-min))
       (setq-local mistty-proc proc)
       (mistty--copy-buffer-local-variables
-       '(mistty-bracketed-paste) calling-buffer)
+       '(mistty-bracketed-paste
+         mistty--can-move-vertically)
+       calling-buffer)
       (mistty--update-backstage))
     backstage))
 

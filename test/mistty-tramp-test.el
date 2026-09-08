@@ -128,7 +128,7 @@
     (mistty-with-test-buffer (:selected t :cd (concat tramp-prefix home) :type alacritty)
       (mistty-tramp-test-window-size))))
 
-(turtles-ert-deftest mistty-tramp-test-window-size/eterm ()
+(ert-deftest mistty-tramp-test-window-size/eterm ()
   (let* ((tramp-methods (mistty-test-tramp-methods))
          (tramp-prefix (mistty-test-tramp-prefix))
          (home (file-name-directory "/")))

@@ -1400,31 +1400,30 @@
                            "$")
                    (mistty-test-content)))))
 
-(turtles-ert-deftest mistty-test-display-long-prompt ( :instance 'mistty)
-  (mistty-with-test-buffer (:selected t)
-    (delete-other-windows)
+(mistty-deftest mistty-test-display-long-prompt (:turtles t :selected t :type all)
+  (delete-other-windows)
 
-    (dolist (word '("echo" "one" "two" "three" "four" "five" "six" "seven"
-                    "eight" "nine" "ten" "eleven" "twelve" "thirteen"
-                    "fourteen" "fifteen" "sixteen" "seventeen" "eighteen"
-                    "nineteen"))
-      (mistty--send-string mistty-proc (concat word " ")))
-    (mistty-send-text "twenty")
-    (mistty-send-and-wait-for-prompt)
+  (dolist (word '("echo" "one" "two" "three" "four" "five" "six" "seven"
+                  "eight" "nine" "ten" "eleven" "twelve" "thirteen"
+                  "fourteen" "fifteen" "sixteen" "seventeen" "eighteen"
+                  "nineteen"))
+    (mistty--send-string mistty-proc (concat word " ")))
+  (mistty-send-text "twenty")
+  (mistty-send-and-wait-for-prompt)
 
-    ;; Term adds fake newlines, but mistty makes them invisible and
-    ;; relies on window continuation. The effect of the above setup is
-    ;; visible below as Emacs adds "\" at the end of some lines.
-    (turtles-with-grab-buffer ()
-      (should
-       (equal
-        (concat
-         "$ echo one two three four five six seven eight nine ten eleven twelve thirteen \\\n"
-         "fourteen fifteen sixteen seventeen eighteen nineteen twenty\n"
-         "one two three four five six seven eight nine ten eleven twelve thirteen fourtee\\\n"
-         "n fifteen sixteen seventeen eighteen nineteen twenty\n"
-         "$")
-        (buffer-string))))))
+  ;; Term adds fake newlines, but mistty makes them invisible and
+  ;; relies on window continuation. The effect of the above setup is
+  ;; visible below as Emacs adds "\" at the end of some lines.
+  (turtles-with-grab-buffer ()
+    (should
+     (equal
+      (concat
+       "$ echo one two three four five six seven eight nine ten eleven twelve thirteen \\\n"
+       "fourteen fifteen sixteen seventeen eighteen nineteen twenty\n"
+       "one two three four five six seven eight nine ten eleven twelve thirteen fourtee\\\n"
+       "n fifteen sixteen seventeen eighteen nineteen twenty\n"
+       "$")
+      (buffer-string)))))
 
 (mistty-deftest mistty-test-enter-fullscreen (:selected t :type all)
   (let ((bufname (buffer-name))
@@ -7056,70 +7055,3 @@ precmd_functions+=(prompt_header)
       (mistty-send-command)
       (mistty-wait-for-output :str "YmFyZm9v"))))
 
-(ert-deftest test-mistty-hide-line-wraps ()
-  (ert-with-test-buffer ()
-    (let (line1 line2 line3 line4 line5 line6 (mistty-log t))
-      (insert "abcdef" fakenl)
-      (setq line1 (1- (point)))
-      (insert "ghijkl\n") ;; not fake
-      (setq line2 (1- (point)))
-      (insert "mnopqr" fakenl)
-      (setq line3 (1- (point)))
-      (insert "stuvwx" fakenl)
-      (setq line4 (1- (point)))
-      (insert "yz...." fakenl)
-      (setq line5 (1- (point)))
-      (insert "the" fakenl)  ;; not at right column
-      (setq line6 (1- (point)))
-      (insert "end.\n")
-
-      (mistty-log "lines: %s %s %s %s %s %s" line1 line2 line3 line4 line5 line6)
-
-      (mistty--hide-line-wraps 1 1 6) ;; do nothing, but doesn't fail
-      (mistty--hide-line-wraps 16 10 6) ;; do nothing, but doesn't fail
-      (should (eq nil (get-text-property line1 'invisible)))
-      (should (eq nil (get-text-property line2 'invisible)))
-      (should (eq nil (get-text-property line3 'invisible)))
-      (should (eq nil (get-text-property line4 'invisible)))
-      (should (eq nil (get-text-property line5 'invisible)))
-      (should (eq nil (get-text-property line6 'invisible)))
-
-      ;; limit change to line3
-      (mistty--hide-line-wraps
-       (save-excursion (goto-char (point-min)) (search-forward "ghi"))
-       (save-excursion (goto-char (point-min)) (search-forward "stu"))
-       6)
-      (should
-       (equal
-        (concat "abcdef\n"
-                "ghijkl\n"
-                "mnopqr[\n]"
-                "stuvwx\n"
-                "yz....\n"
-                "the\n"
-                "end.")
-        (mistty-test-content :show-property '(invisible term-line-wrap))))
-      (should (eq nil (get-text-property line6 'invisible)))
-
-      ;; apply changes to the whole buffer
-      (mistty--hide-line-wraps (point-min) (point-max) 6)
-      
-      (should
-       (equal
-        (concat "abcdef[\n]"
-                "ghijkl\n"
-                "mnopqr[\n]"
-                "stuvwx[\n]"
-                "yz....[\n]"
-                "the\n""end.")
-        (mistty-test-content :show-property '(invisible term-line-wrap))))
-
-      (should (eq 'term-line-wrap (get-text-property line1 'invisible)))
-      (should (eq nil (get-text-property line2 'invisible)))
-      (should (eq 'term-line-wrap (get-text-property line3 'invisible)))
-      (should (eq 'term-line-wrap (get-text-property line4 'invisible)))
-      (should (eq 'term-line-wrap (get-text-property line5 'invisible)))
-      (should (eq nil (get-text-property line6 'invisible)))
-
-      (should (equal '(nil "" nil nil)
-                     (get-text-property line1 'yank-handler))))))

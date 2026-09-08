@@ -160,6 +160,16 @@
 
 (cl-defmethod mistty--term-changed ((_term mistty--term-alacritty) _beg _end))
 
+(cl-defmethod mistty--term-after-refresh ((_term mistty--term-alacritty) beg)
+
+  ;; When rendering, alacritty always render a final newline. Mark it.
+  (let ((last-newline (1- (point-max))))
+    (when (and (> last-newline beg)
+               (eq ?\n (char-after last-newline)))
+      (add-text-properties
+       last-newline (point-max)
+       '(mistty-skip empty-lines-at-eob yank-handler (nil "" nil nil))))))
+
 (defun mistty--term-alacritty-add-osc-detection (accum term)
   "Register handlers for OSC sequences in ACCUM for TERM."
 

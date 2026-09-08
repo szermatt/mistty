@@ -367,6 +367,10 @@ to call `mistty--term-postprocess'.")
 (cl-defmethod mistty--term-changed ((_term mistty--term-eterm) beg end)
   (mistty--changed beg end))
 
+(cl-defmethod mistty--term-after-refresh ((term mistty--term-eterm) beg)
+  (mistty--hide-line-wraps beg (point-max) (mistty--term-columns term))
+  (mistty--mark-empty-line-at-eob beg))
+
 (defun mistty--term-postprocess-changed (accum term)
   "Set \=='mistty-skip on the regions changed since last call.
 
@@ -800,6 +804,44 @@ the previous line."
            (cl-incf pos))
          (- pos bol))))
    0))
+
+(defun mistty--hide-line-wraps (beg end column-count)
+  "Make fake newlines invisible between BEG and END.
+
+They're not really visible. to begin with, since they're at the end of
+the window, but marking them invisible allows kill-line to go through
+them, as it should.
+
+Only the newlines at COLUMN-COUNT are actually modified."
+  (save-excursion
+    (goto-char beg)
+    (while (and (< (point) end)
+                (search-forward "\n" end 'noerror))
+      (when (and
+             (get-text-property (match-beginning 0) 'term-line-wrap)
+             (zerop (% (save-excursion
+                         (goto-char (match-beginning 0))
+                         (current-column))
+                       column-count)))
+        (add-text-properties
+         (1- (point)) (point)
+         '(invisible term-line-wrap yank-handler (nil "" nil nil)))))))
+
+(defun mistty--mark-empty-line-at-eob (beg)
+  "Mark empty lines at EOB with mistty-skip empty-line-at-eob.
+
+When using eterm, this must be done on the work buffer after refreshing
+and not on the term buffer, because newlines tend to stick around in the
+term buffer and could end up having a confusing text property.
+
+Start searching after BEG."
+  (let ((pos (point-max)))
+    (while (and (> pos beg)
+                (eq ?\n (char-before pos)))
+      (cl-decf pos))
+    (when (< pos (point-max))
+      (add-text-properties pos (point-max)
+                           '(mistty-skip empty-lines-at-eob yank-handler (nil "" nil nil))))))
 
 (provide 'mistty-term-eterm)
 

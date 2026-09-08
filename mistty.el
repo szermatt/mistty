@@ -1752,10 +1752,7 @@ Also updates prompt and point."
                      (if on-prompt "complete" "quick")
                      mistty--scrolline-home-num)
          (mistty--sync-buffer mistty-term-buffer (not on-prompt))
-         (mistty--hide-line-wraps
-          mistty-sync-marker (point-max)
-          (mistty--term-columns mistty--term))
-         (mistty--mark-empty-line-at-eob)
+         (mistty--term-after-refresh mistty--term mistty-sync-marker)
 
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.
@@ -2253,42 +2250,6 @@ SCROLLINE is the scrolline at BEG."
      (cl-incf scrolline))
    beg end))
 
-
-(defun mistty--hide-line-wraps (beg end column-count)
-  "Make fake newlines invisible between BEG and END.
-
-They're not really visible. to begin with, since they're at the end of
-the window, but marking them invisible allows kill-line to go through
-them, as it should.
-
-Only the newlines at COLUMN-COUNT are actually modified."
-  (save-excursion
-    (goto-char beg)
-    (while (and (< (point) end)
-                (search-forward "\n" end 'noerror))
-      (when (and
-             (get-text-property (match-beginning 0) 'term-line-wrap)
-             (zerop (% (save-excursion
-                         (goto-char (match-beginning 0))
-                         (current-column))
-                       column-count)))
-        (add-text-properties
-         (1- (point)) (point)
-         '(invisible term-line-wrap yank-handler (nil "" nil nil)))))))
-
-(defun mistty--mark-empty-line-at-eob ()
-  "Mark empty lines at EOB with mistty-skip empty-line-at-eob.
-
-When using eterm, this must be done on the work buffer after refreshing
-and not on the term buffer, because newlines tend to stick around in the
-term buffer and could end up having a confusing text property."
-  (let ((pos (point-max)))
-    (while (and (> pos mistty-sync-marker)
-                (eq ?\n (char-before pos)))
-      (cl-decf pos))
-    (when (< pos (point-max))
-      (add-text-properties pos (point-max)
-                           '(mistty-skip empty-lines-at-eob yank-handler (nil "" nil nil))))))
 
 (defun mistty-send-string (str)
   "Send STR to the process."

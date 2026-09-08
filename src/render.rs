@@ -59,6 +59,8 @@ emacs::use_symbols! {
     bold_sym => "bold"
     put_text_property
     term_line_wrap
+    yank_handler
+    invisible_sym => "invisible"
     mistty_clear
     mistty_skip
     indent_sym => "indent"
@@ -726,6 +728,19 @@ impl PropertyTracker {
                 }
                 RenderProperty::Toggle(ToggleProperty::Wrapline) => {
                     env.call(put_text_property, (start, end, term_line_wrap, true))?;
+                    env.call(
+                        put_text_property,
+                        (
+                            start,
+                            end,
+                            yank_handler,
+                            env.list((false, "", false, false))?,
+                        ),
+                    )?;
+                    env.call(
+                        put_text_property,
+                        (start, end, invisible_sym, term_line_wrap),
+                    )?;
                 }
                 RenderProperty::Toggle(ToggleProperty::Clear) => {
                     env.call(put_text_property, (start, end, mistty_clear, true))?;

@@ -134,6 +134,12 @@ sequence.")
 (cl-defgeneric mistty--term-changed (term beg end)
   "Mark the region between BEG AND end as requiring post-processing.")
 
+(cl-defgeneric mistty--term-after-refresh (term beg)
+  "Post-process the work buffer after a refresh.
+
+At the time this is called, the current buffer contains a fresh copy of
+the term buffer from BEG to the end of the buffer.")
+
 (provide 'mistty-term-base)
 
 ;;; mistty-term-base.el ends here

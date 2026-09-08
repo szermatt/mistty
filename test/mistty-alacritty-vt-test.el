@@ -563,6 +563,45 @@
 
         ))))
 
+(ert-deftest mistty-alacritty-vt-wrapped-lines ()
+  (let ((term (mistty-alacritty-vt-make-vterm 10 20))
+        (cursor (make-marker)))
+
+    ;; The first line cannot fit into 10 columns, it'll be split by
+    ;; the terminal.
+    (mistty-alacritty-vt-process-bytes
+     term (vconcat "\rBaa, baa, black sheep have you any wool?"))
+    (mistty-alacritty-vt-process-bytes term (vconcat " Yes sir, yes, sir three bags full!"))
+    (mistty-alacritty-vt-process-bytes term (vconcat "\r\nOne for the Master"))
+    (mistty-alacritty-vt-process-bytes term (vconcat "\r\nand one for the Dame"))
+
+    (ert-with-test-buffer ()
+      (mistty-alacritty-vt-render term cursor)
+      (should (equal
+       (concat
+        "Baa, baa, [\n]black shee[\n]p have you[\n] any wool?[\n] Yes sir, [\n]yes, sir t[\n]hree bags [\n]full!\n"
+        "One for th[\n]e Master\n"
+        "and one fo[\n]r the Dame")
+       (mistty-test-content :show-property '(term-line-wrap t))))
+      (should (equal
+       (concat
+        "Baa, baa, [\n]black shee[\n]p have you[\n] any wool?[\n] Yes sir, [\n]yes, sir t[\n]hree bags [\n]full!\n"
+        "One for th[\n]e Master\n"
+        "and one fo[\n]r the Dame")
+       (mistty-test-content :show-property '(invisible term-line-wrap))))
+
+      ;; an empty yank handler should be set for fake newlines but not
+      ;; for real ones.
+      (goto-char (point-min))
+      (should (equal '(nil "" nil nil)
+                     (get-text-property
+                      (search-forward "shee") 'yank-handler)))
+      (should (equal '(nil "" nil nil)
+                     (get-text-property
+                      (search-forward "have you") 'yank-handler)))
+      (should (eq nil (get-text-property
+                       (search-forward "full!") 'yank-handler))))))
+
 (ert-deftest mistty-alacritty-vt-scrollback-not-wrapped ()
   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
     (mistty-alacritty-vt-enable-scrollback term)
@@ -582,12 +621,12 @@
     (ert-with-test-buffer ()
       (goto-char (point-min))
       (should (equal 3 (mistty-alacritty-vt-write-scrollback term)))
-      (equal
-       (concat
-        "Baa, baa, black sheep have you any wool? Yes sir, yes sir, three bags full!\n"
-        "One for the Master\n"
-        "and one for the Dame")
-       (mistty-test-content)))))
+      (should (equal
+               (concat
+                "Baa, baa, black sheep have you any wool? Yes sir, yes, sir three bags full!\n"
+                "One for the Master\n"
+                "and one for the Dame")
+               (mistty-test-content))))))
 
 (ert-deftest mistty-alacritty-vt-clear-scrollback ()
   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))

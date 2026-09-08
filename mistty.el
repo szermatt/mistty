@@ -1752,24 +1752,9 @@ Also updates prompt and point."
                      (if on-prompt "complete" "quick")
                      mistty--scrolline-home-num)
          (mistty--sync-buffer mistty-term-buffer (not on-prompt))
-
-         ;; Make fake newlines invisible. They're not really "visible"
-         ;; to begin with, since they're at the end of the window, but
-         ;; marking them invisible allows kill-line to go "through"
-         ;; them, as it should.
-         ;; TODO: ignore those that are not at the end of the window
-         ;; using (window-max-chars-per-line)
-         (save-excursion
-           (goto-char mistty-sync-marker)
-           (while-let ((prop-match
-                        (text-property-search-forward 'term-line-wrap t t)))
-             (when (save-excursion
-                     (goto-char (prop-match-beginning prop-match))
-                     (zerop (% (current-column) (mistty--term-columns mistty--term))))
-               (add-text-properties
-                (prop-match-beginning prop-match)
-                (prop-match-end prop-match)
-                '(invisible term-line-wrap yank-handler (nil "" nil nil))))))
+         (mistty--hide-line-wraps
+          mistty-sync-marker (point-max)
+          (mistty--term-columns mistty--term))
 
          ;; Mark empty lines at EOB with mistty-skip.
          (let ((pos (point-max)))
@@ -2275,6 +2260,29 @@ SCROLLINE is the scrolline at BEG."
      (put-text-property bol eol 'mistty-scrolline scrolline)
      (cl-incf scrolline))
    beg end))
+
+
+(defun mistty--hide-line-wraps (beg end column-count)
+  "Make fake newlines invisible between BEG and END.
+
+They're not really visible. to begin with, since they're at the end of
+the window, but marking them invisible allows kill-line to go through
+them, as it should.
+
+Only the newlines at COLUMN-COUNT are actually modified."
+  (save-excursion
+    (goto-char beg)
+    (while (and (< (point) end)
+                (search-forward "\n" end 'noerror))
+      (when (and
+             (get-text-property (match-beginning 0) 'term-line-wrap)
+             (zerop (% (save-excursion
+                         (goto-char (match-beginning 0))
+                         (current-column))
+                       column-count)))
+        (add-text-properties
+         (1- (point)) (point)
+         '(invisible term-line-wrap yank-handler (nil "" nil nil)))))))
 
 (defun mistty-send-string (str)
   "Send STR to the process."

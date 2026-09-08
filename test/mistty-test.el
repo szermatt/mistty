@@ -3655,8 +3655,7 @@
 
     ;; C-g
     (let ((this-command 'keyboard-quit))
-      (mistty--pre-command)
-      (mistty--post-command))
+      (run-hooks 'pre-command-hook 'post-command-hook))
 
     (should (mistty--queue-empty-p mistty--queue))
     (should killed)))
@@ -3695,8 +3694,7 @@
 
     ;; C-g
     (let ((this-command 'keyboard-quit))
-      (mistty--pre-command)
-      (mistty--post-command))
+      (run-hooks 'pre-command-hook 'post-command-hook))
 
     (mistty-wait-for-output
      :test (lambda ()
@@ -4754,8 +4752,7 @@
 
       ;; Simulate C-g
       (let ((this-command 'keyboard-quit))
-        (mistty--pre-command)
-        (mistty--post-command))
+        (run-hooks 'pre-command-hook 'post-command-hook))
 
       ;; We're back to normal.
       (mistty-wait-for-output :test (lambda ()

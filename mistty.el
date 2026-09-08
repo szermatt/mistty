@@ -1068,7 +1068,10 @@ window."
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
     (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
     (add-hook 'pre-command-hook #'mistty--pre-command nil t)
-    (add-hook 'post-command-hook #'mistty--post-command nil t)
+    (add-hook 'post-command-hook #'mistty--post-command-undo nil t)
+    (add-hook 'post-command-hook #'mistty--post-command-cursor nil t)
+    (add-hook 'post-command-hook #'mistty--post-command-quit nil t)
+    (add-hook 'post-command-hook #'mistty--post-command-schedule 10 t)
 
     (if-let* ((size mistty--terminal-size))
         (mistty--set-process-window-size (car size) (cdr size))
@@ -1113,7 +1116,10 @@ Returns M or a new marker."
   (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
   (remove-hook 'after-change-functions #'mistty--after-change-on-work t)
   (remove-hook 'pre-command-hook #'mistty--pre-command t)
-  (remove-hook 'post-command-hook #'mistty--post-command t)
+  (remove-hook 'post-command-hook #'mistty--post-command-undo t)
+  (remove-hook 'post-command-hook #'mistty--post-command-quit t)
+  (remove-hook 'post-command-hook #'mistty--post-command-cursor t)
+  (remove-hook 'post-command-hook #'mistty--post-command-schedule t)
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
 
   (when mistty--queue
@@ -1926,12 +1932,9 @@ to figure out a good time to call
   "Run FUNC with ARGS ignoring any errors.
 
 Errors are reported to `message' and ignored."
-  (condition-case-unless-debug err
-      (funcall func)
-    (error
-     (message "MisTTY: hook failed with %s. hook: %s" err func)))
-  ;; call the next hooks
-  nil)
+  (prog1 nil ; call the next hook
+    (with-demoted-errors "[mistty] hook failed: %s"
+      (funcall func))))
 
 (defun mistty-simulate-self-insert-command ()
   "Simulate the execution of `self-insert-command'.
@@ -1952,10 +1955,9 @@ value (by default, it is nil)."
   "Run a pre or post command FUNC.
 
 For `mistty-simulate-self-insert'."
-  (unless (memq func (list #'mistty--pre-command #'mistty--post-command))
-    (mistty--run-hook-ignoring-errors func))
-  ;; call the next hooks
-  nil)
+  (prog1 nil ; call the next hook
+    (unless (and (symbolp func) (string-prefix-p "mistty-" (symbol-name func)))
+      (mistty--run-hook-ignoring-errors func))))
 
 (defun mistty--match-forbid-edit-regexp-p ()
   "Return t if `mistty-forbid-edit-regexp' matches, nil otherwise.
@@ -3294,31 +3296,39 @@ Return the prompt range that was accepted or nil."
       (setq mistty--self-insert-line nil))
     (setq mistty--old-point (point))))
 
-(defun mistty--post-command ()
-  "Function called from the `post-command-hook' in `mistty-mode' buffers."
-  (mistty-with-errors-logged "post-command"
-    (mistty--post-command-for-undo)
+(defun mistty--post-command-undo ()
+  "Reset undo data."
+  (mistty-with-errors-logged "post-command-undo"
+    (mistty--post-command-for-undo)))
 
-    (ignore-errors
-      (when (and (or (eq this-command 'keyboard-quit)
-                     (eq this-original-command 'keyboard-quit)))
-        (when (not (mistty--queue-empty-p mistty--queue))
-          (mistty-log "CANCEL")
-          (message "MisTTY: Canceling replay")
-          (mistty--cancel-queue mistty--queue))
-        (mistty--ignore-foreign-overlays)
-        (mistty--inhibit-clear 'noschedule)
-        (when mistty--forbid-edit
-          (mistty-send-key 1 "\C-g"))))
+(defun mistty--post-command-cursor ()
+  "Show cursor again if point moved."
+  (mistty-with-errors-logged "post-command-cursor"
+    (when (and mistty--old-point (/= (point) mistty--old-point))
+      (mistty--show-cursor))))
 
-    (let ((point-moved (and mistty--old-point (/= (point) mistty--old-point))))
-      ;; Show cursor again if the command moved the point.
-      (when point-moved
-        (mistty--show-cursor))
+(defun mistty--post-command-quit ()
+  "Cancel replay on `keyboard-quit'."
+  (mistty-with-errors-logged "post-command-quit"
+    (when (and (or (eq this-command 'keyboard-quit)
+                   (eq this-original-command 'keyboard-quit)))
+      (when (not (mistty--queue-empty-p mistty--queue))
+        (mistty-log "CANCEL")
+        (message "MisTTY: Canceling replay")
+        (mistty--cancel-queue mistty--queue))
+      (mistty--ignore-foreign-overlays)
+      (mistty--inhibit-clear 'noschedule)
+      (when mistty--forbid-edit
+        (mistty-send-key 1 "\C-g")))))
 
-      (run-with-idle-timer
-       0 nil #'mistty--post-command-1
-       mistty-work-buffer point-moved))))
+(defun mistty--post-command-schedule ()
+  "Schedule replay on an idle timer."
+  (mistty-with-errors-logged "post-command-schedule"
+    (run-with-idle-timer
+     0 nil #'mistty--post-command-1
+     mistty-work-buffer
+     (and mistty--old-point
+          (/= (point) mistty--old-point)))))
 
 (defun mistty--inhibit-add (sym)
   "Add a source of inhibition with SYM as id.

@@ -396,12 +396,12 @@ default, the default directory is a temp directory created for the test."
   (setq mistty-test-prompt-re (concat "^" (regexp-quote prompt))))
 
 (defun mistty-test-pre-command ()
-  (mistty--pre-command)
+  (run-hooks 'pre-command-hook)
   (when (and (listp buffer-undo-list) (car buffer-undo-list))
     (push nil buffer-undo-list)))
 
 (defun mistty-test-after-command (&optional noempty-queue)
-  (mistty--post-command)
+  (run-hooks 'post-command-hook)
   (ert-run-idle-timers)
   (unless noempty-queue
     (mistty-wait-for-output

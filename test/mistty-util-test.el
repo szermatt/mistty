@@ -108,6 +108,18 @@
               "ignore after end    \n")
       (buffer-substring-no-properties (point-min) (point-max))))))
 
+(ert-deftest mistty-util-test-cleanup-deletes-within-bounds ()
+  (ert-with-test-buffer ()
+    (insert "before")
+    (insert (propertize "    " 'mistty-skip 'trailing) "\n")
+    (insert (propertize "    " 'mistty-skip 'trailing) "\n")
+    (insert (propertize "\n" 'term-line-wrap t)
+            (propertize "    " 'mistty-skip 'trailing) "\n")
+    (insert "after")
+    (mistty--cleanup-scrollback (mistty-test-pos-after "before")
+                                (mistty-test-pos "after"))
+    (should (equal "before\n\n\nafter" (buffer-string)))))
+
 (ert-deftest mistty-util-test-remove-skipped-spaces ()
   (insert (propertize "   " 'mistty-skip t) "abc "
           (propertize "   " 'mistty-skip t) "def"

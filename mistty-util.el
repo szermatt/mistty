@@ -130,25 +130,29 @@ Cleanup means:
  - remove newlines marked \\='term-line-wrap between START and END.
  - remove trailing spaces, marked with \\='mistty-skip set to \\='trailing"
   (when (> end start)
-    (save-excursion
-      (goto-char start)
-      (while (search-forward "\n" end 'noerror)
-        (let ((nl (match-beginning 0)))
-          (if (get-text-property nl 'term-line-wrap)
-              ;; If it's a line wrap delete it and don't worry about
-              ;; spaces; they're not trailing spaces.
-              (progn
-                (replace-match "" nil t)
-                (cl-decf end))
-            ;; If it's a real newline, look for trailing spaces and
-            ;; delete them.
-            (let ((pos nl))
-              (while (and (eq ?  (char-before pos))
-                          (eq 'trailing (get-text-property (1- pos) 'mistty-skip)))
-                (cl-decf pos))
-              (when (> nl pos)
-                (delete-region pos nl)
-                (cl-decf end (- nl pos))))))))))
+    (let ((end (copy-marker end)))
+      (unwind-protect
+          (save-excursion
+            (goto-char start)
+            (while (and (> end (point))
+                        (search-forward "\n" end 'noerror))
+              (let ((nl (match-beginning 0)))
+                (if (get-text-property nl 'term-line-wrap)
+                    ;; If it's a line wrap delete it and don't worry about
+                    ;; spaces; they're not trailing spaces.
+                    (replace-match "" nil t)
+                  ;; If it's a real newline, look for trailing spaces and
+                  ;; delete them.
+                  (let ((pos nl))
+                    (while (and (eq ?  (char-before pos))
+                                (eq 'trailing (get-text-property (1- pos) 'mistty-skip))
+                                (> pos start))
+                      (cl-decf pos))
+                    (when (> nl pos)
+                      (delete-region pos nl)))))))
+
+        ;; help the garbage collector get rid of the marker
+        (set-marker end nil)))))
 
 (defun mistty-self-insert-p (key)
   "Return non-nil if KEY is a key that is normally just inserted."

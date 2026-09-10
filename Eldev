@@ -235,7 +235,8 @@ First install Sphinx with:
                (eldev-verbosity-level (if failed
                                           'trace
                                         eldev-verbosity-level)))
-        (message "HACK enabled for :failed")
-        (eldev-test-ert-load-results)
-        (when (and failed (null eldev--test-ert-results))
-          (error "No previous tests available")))))
+          (when failed
+            (message "HACK enabled for :failed"))
+          (eldev-test-ert-load-results)
+          (when (and failed (null eldev--test-ert-results))
+            (error "No previous tests available")))))

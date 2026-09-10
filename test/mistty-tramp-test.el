@@ -121,6 +121,7 @@
           (kill-buffer buf))))))
 
 (turtles-ert-deftest mistty-tramp-test-window-size/alacritty ()
+  :tags '(:slow)
   (let* ((tramp-methods (mistty-test-tramp-methods))
          (tramp-prefix (mistty-test-tramp-prefix))
          (home (file-name-directory "/")))

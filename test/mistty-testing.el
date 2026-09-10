@@ -97,7 +97,7 @@ Defaults to (point-min).")
 This is handled by `mistty-test-report-issue' and must contain
 the symbol of the expected issues, in order.")
 
-(cl-defmacro mistty-deftest (name (&key shell type selected term-size turtles) &body body)
+(cl-defmacro mistty-deftest (name (&key shell type selected term-size turtles slow) &body body)
   "Declare multi-shell, multi-terminal emulator tests with a mistty buffer.
 
 To select multiple shells, pass a list to the :shell argument containing
@@ -117,6 +117,8 @@ For example: :type (eterm alacritty)
 
 If :turtles is non-nil, run a turtles test with the mistty instance.
 
+If :slow is non nil, tag the test as slow
+
 This is a wrapper around `ert-deftest' and `mistty-with-test-buffer'
 that will generate one identical test per shell."
   (declare (indent 2))
@@ -129,6 +131,7 @@ that will generate one identical test per shell."
                           ((eq type 'all) '(alacritty eterm))
                           ((listp type) type)
                           (t (list type))))
+              (tags (if slow (quote '(:slow)) nil))
               (multitype (length> type 1)))
          (mapcar
           (lambda (arg)
@@ -140,6 +143,8 @@ that will generate one identical test per shell."
                 ,(mistty--testing-test-name
                   name (when multishell shell-name) (when multitype type))
                 ,(if turtles '(:instance 'mistty) ())
+                :tags
+                ,tags
                  (mistty-with-test-buffer
                      (:shell ,shell-name :type ,type
                              :init ,(if (length> shell-init 1)

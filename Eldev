@@ -78,6 +78,22 @@
 ;; Additionally, --test-log can be used to get more verbose test
 ;; output.
 
+(defvar mistty-quick-tests nil)
+(eldev-defoption mistty-test-quick (&optional path)
+  "Skip tests tagged :slow."
+  :options        (--quick)
+  :for-command    test
+  (setq mistty-quick-tests t))
+
+(advice-add #'eldev-build-ert-selector :around #'mistty-quick-selectors)
+(defun mistty-quick-selectors (func selectors)
+  (let ((selectors (funcall func selectors)))
+    (when mistty-quick-tests
+      (setq selectors (if (and selectors (not (eq selectors t)))
+                          `(and ,selectors (not (tag :slow)))
+                        '(not (tag :slow)))))
+    selectors))
+
 (eldev-defoption mistty-test-bash-exe (&optional path)
   "Tests look for Bash at PATH."
   :options        (--bash)

@@ -587,7 +587,7 @@
    :test (lambda ()
            (equal (point) (mistty-test-goto-after "echo foo")))))
 
-(mistty-deftest mistty-test-eol-empty-prompt (:type all)
+(mistty-deftest mistty-test-eol-empty-prompt (:type all :slow t)
   (goto-char (point-min))
   (let ((mistty-expected-issues '(hard-timeout)))
     (mistty-run-command
@@ -1522,31 +1522,37 @@
                    (mistty-test-content :show (mistty-cursor))))))
 
 (ert-deftest mistty-test-enter-fullscreen-47/alacritty ()
+  :tags '(:slow)
   (mistty-with-test-buffer (:selected t :type alacritty)
     (mistty-test-enter-fullscreen "[47h" "[47l")))
 
 (ert-deftest mistty-test-enter-fullscreen-47/eterm ()
+  :tags '(:slow)
   ;; 47h/47l clear the screen on eterm but not on alacritty
   (mistty-with-test-buffer (:selected t :type eterm)
     (mistty-test-enter-fullscreen "[47h" "[47l" 'clear-screen)))
 
 (ert-deftest mistty-test-enter-fullscreen-47-alternative-code/alacritty ()
+  :tags '(:slow)
   (mistty-with-test-buffer (:selected t :type alacritty)
     (mistty-test-enter-fullscreen "[?47h" "[?47l")))
 
 (ert-deftest mistty-test-enter-fullscreen-47-alternative-code/eterm ()
+  :tags '(:slow)
   (mistty-with-test-buffer (:selected t :type eterm)
     (mistty-test-enter-fullscreen "[?47h" "[?47l" 'clear-screen)))
 
 (ert-deftest mistty-test-enter-fullscreen-1047/alacritty ()
+  :tags '(:slow)
   (mistty-with-test-buffer (:selected t :type alacritty)
     (mistty-test-enter-fullscreen "[?1047h" "[?1047l")))
 
 (ert-deftest mistty-test-enter-fullscreen-1047/eterm ()
+  :tags '(:slow)
   (mistty-with-test-buffer (:selected t :type eterm)
     (mistty-test-enter-fullscreen "[?1047h" "[?1047l" 'clear-screen)))
 
-(mistty-deftest mistty-test-enter-fullscreen-1049 (:selected t :type all)
+(mistty-deftest mistty-test-enter-fullscreen-1049 (:selected t :type all :slow t)
   (mistty-test-enter-fullscreen "[?1049h" "[?1049l" 'clear-screen))
 
 (mistty-deftest mistty-test-call-fullscreen-hooks (:selected t :type all)
@@ -1746,7 +1752,7 @@
   (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo\n$"
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-reset-bracketed-paste-state ( :type all)
+(mistty-deftest mistty-test-reset-bracketed-paste-state ( :type all :slow t)
   (mistty--send-string
    mistty-proc
    "p=':'; printf '\\e[?2004hbefore'$p; read; reset; printf 'after'$p; read")
@@ -1808,7 +1814,7 @@
                    (mistty-test-content)))))
 
 (mistty-deftest mistty-test-scrolls-window-after-clear
-    (:shell zsh :selected t :turtles t :type all)
+    (:shell zsh :selected t :turtles t :type all :slow t)
   (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-text "clear")
@@ -1821,7 +1827,7 @@
     (should (equal "$ echo two\ntwo\n$ <>" (buffer-string)))))
 
 (mistty-deftest mistty-test-scrolls-window-after-reset
-    (:shell zsh :selected t :turtles t :type all)
+    (:shell zsh :selected t :turtles t :type all :slow t)
   (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-text "reset -Q")
@@ -2344,7 +2350,7 @@
       (should (equal "$ toto<>\ntoto0  toto1  toto2"
                      (mistty-test-content :start start :show (point)))))))
 
-(mistty-deftest mistty-test-revert-replace-after-prompt (:shell zsh :type all)
+(mistty-deftest mistty-test-revert-replace-after-prompt (:shell zsh :type all :slow t)
   (dotimes (i 10)
     (mistty-send-text (format "function toto%d { echo %d; };" i i))
     (mistty-send-and-wait-for-prompt))
@@ -2363,7 +2369,7 @@
              "$ toto\ntoto0  toto1  toto2  toto3  toto4  toto5  toto6  toto7  toto8  toto9"
              (mistty-test-content :start start)))))
 
-(mistty-deftest mistty-test-insert-at-prompt (:shell zsh :type all)
+(mistty-deftest mistty-test-insert-at-prompt (:shell zsh :type all :slow t)
   (mistty-send-text "world")
   (let ((mistty-expected-issues '(hard-timeout)))
     (mistty-run-command
@@ -2372,7 +2378,7 @@
   (should (equal "$ echo hello world"
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-revert-replace-at-prompt (:shell zsh :type all)
+(mistty-deftest mistty-test-revert-replace-at-prompt (:shell zsh :type all :slow t)
   (mistty-send-text "echo ok")
   (let ((mistty-expected-issues '(hard-timeout)))
     (mistty-run-command
@@ -2383,7 +2389,7 @@
   (should (equal "$ echo ok"
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-revert-delete-at-prompt (:shell zsh :type all)
+(mistty-deftest mistty-test-revert-delete-at-prompt (:shell zsh :type all :slow t)
   (mistty-send-text "echo ok")
   (let ((mistty-expected-issues '(hard-timeout)))
     (mistty-run-command
@@ -2393,7 +2399,7 @@
   (should (equal "$ echo ok"
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-replace-prompt (:shell zsh :type all)
+(mistty-deftest mistty-test-replace-prompt (:shell zsh :type all :slow t)
   (mistty-send-text "echo ok")
   (let ((mistty-expected-issues '(hard-timeout)))
     (mistty-run-command
@@ -2406,7 +2412,7 @@
                    (mistty-test-content)))))
 
 (mistty-deftest mistty-test-multiple-replace-at-prompt
-    (:shell ((bash "PS1='cmd-cmd-cmd$ '\n")) :type all)
+    (:shell ((bash "PS1='cmd-cmd-cmd$ '\n")) :type all :slow t)
   (mistty-test-set-prompt-re "cmd-cmd-cmd$ ")
 
   (mistty-send-text "echo cmd")
@@ -5471,11 +5477,11 @@ function prompt {
                            "$")
                    (buffer-string)))))
 
-(mistty-deftest mistty-test-ipython (:shell ipython :type all)
+(mistty-deftest mistty-test-ipython (:shell ipython :type all :slow t)
   (mistty-send-text "print('hello')")
   (should (equal "hello" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-ipython-detect-continue-prompt (:shell ipython :type all)
+(mistty-deftest mistty-test-ipython-detect-continue-prompt (:shell ipython :type all :slow t)
   (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
   (mistty-wait-for-output :test (lambda () (save-excursion
                                              (goto-char (point-min))
@@ -5492,7 +5498,7 @@ function prompt {
                            (match-beginning 0))
                   :show-property '(mistty-skip continue-prompt)))))
 
-(mistty-deftest mistty-test-ipython-skip-continue-prompt (:shell ipython :selected t :type all)
+(mistty-deftest mistty-test-ipython-skip-continue-prompt (:shell ipython :selected t :type all :slow t)
   (let ((win (selected-window))
         (mistty-skip-empty-spaces t))
     (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
@@ -5567,7 +5573,7 @@ function prompt {
                          "   ...:     total += i")
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-ipython-move-cursor (:shell ipython :type all)
+(mistty-deftest mistty-test-ipython-move-cursor (:shell ipython :type all :slow t)
   (mistty--send-string mistty-proc "for i in (1, 2, 3):\nif i > 2:\nprint(i)")
   (mistty-wait-for-output :test (lambda () (save-excursion
                                              (goto-char (point-min))
@@ -6038,7 +6044,7 @@ function prompt {
                              "c=1\n"
                              "PROMPT='$c-\\$ '\n"
                              "TRAPALRM() { c=$(($c+1)); zle reset-prompt; }\n"
-                             "TMOUT=1")))
+                             "TMOUT=1")) :slow t)
   ;; Anything above 1 is good. Usually, it's 2, but we don't want to
   ;; be too strict in case an update is missed.
   (mistty-wait-for-output :regexp "[2-9]-")

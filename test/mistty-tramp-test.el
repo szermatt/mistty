@@ -120,7 +120,7 @@
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buf))))))
 
-(turtles-ert-deftest mistty-tramp-test-window-size/alacritty ()
+(turtles-ert-deftest mistty-tramp-test-window-size/alacritty (:instance 'mistty)
   :tags '(:slow)
   (let* ((tramp-methods (mistty-test-tramp-methods))
          (tramp-prefix (mistty-test-tramp-prefix))

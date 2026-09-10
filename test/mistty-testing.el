@@ -225,7 +225,7 @@ default, the default directory is a temp directory created for the test."
                (mistty-terminal-type (quote ,type))
                (mistty-alacritty-term-name "xterm-256color")
                (mistty-log mistty-test-log))
-           (message "RUNNING: %s" (ert-test-name (ert-running-test)))
+           (mistty-test-running)
            (ert-with-temp-directory mistty-tmpdir
              (let ((default-directory ,(if cd cd 'mistty-tmpdir)))
                (unwind-protect
@@ -240,6 +240,10 @@ default, the default directory is a temp directory created for the test."
                      (should-not mistty-test-had-issues)
                      (setq mistty-test-ok 'ok))
                  (unless mistty-test-ok (mistty-start-log))))))))))
+
+(defun mistty-test-running ()
+  "Output a message reporting the current test name."
+  (message "RUNNING: %s" (ert-test-name (ert-running-test))))
 
 (cl-defmacro mistty-simulate-scrollback-buffer (&body body)
   "Run BODY in a simulated scrollback buffer."

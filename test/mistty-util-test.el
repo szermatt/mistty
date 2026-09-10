@@ -252,3 +252,22 @@
     (mistty--fifo-enqueue fifo 3)
     (should (equal '(1 2 3) (mistty--fifo-to-list fifo)))
     (should (mistty--fifo-empty-p fifo))))
+
+(ert-deftest mistty-test-blank-end-start ()
+  (ert-with-test-buffer ()
+    (insert "foo\n"
+            "bar " (propertize "   " 'mistty-skip 'trailing-whitespace)
+            "\n\n\n")
+
+    (goto-char (point-min))
+    (should (equal (search-forward "bar ")
+                   (mistty--blank-end-start)))))
+
+(ert-deftest mistty-test-blank-end-start-empty ()
+  (ert-with-test-buffer ()
+    (should (equal (point-min) (mistty--blank-end-start)))
+
+    (insert (propertize "   " 'mistty-skip 'trailing-whitespace)
+            "\n\n\n")
+
+    (should (equal (point-min) (mistty--blank-end-start)))))

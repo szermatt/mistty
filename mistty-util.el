@@ -184,9 +184,10 @@ This skips empty newlines at end, the final newline and trailing spaces
 on the last line."
   (save-excursion
     (goto-char (point-max))
-    (when (eq (char-before) ?\n)
+    (while (eq (char-before) ?\n)
       (goto-char (1- (point))))
-    (while (get-text-property (1- (point)) 'mistty-skip)
+    (while (and (not (bobp))
+                (get-text-property (1- (point)) 'mistty-skip))
       (goto-char (1- (point))))
     (point)))
 

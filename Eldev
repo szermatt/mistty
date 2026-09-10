@@ -61,6 +61,10 @@
  :teardown (setq eldev-build-treat-warnings-as-errors t
                  eldev-build-suppress-warnings nil))
 
+;; Turtles is a test utility used by some tests that want to simulate
+;; downloading and installing the module.
+(eldev-add-extra-dependencies '(test emacs) 'web-server)
+
 ;; Integration with yasnippet is tested in mistty-compat-test.el
 ;;
 ;; This setup avoid compilation warnings in yasnippet to block

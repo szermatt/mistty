@@ -224,3 +224,18 @@ First install Sphinx with:
 (setq eldev-release-post-release-commit-message
       "chore: Development version, following release @[version-string]@")
 (add-hook 'eldev-release-post-release-preparators #'mistty-release-preparator)
+
+;; This is a temporary hack to allow debugging situations where eldev
+;; test :failed fails to load the previous results and just succeeds,
+;; which isn't what we want when we run:
+;;  eldev test || eldev test :failed
+(setf (alist-get 'prepare (alist-get 'ert eldev-test-known-frameworks))
+      (lambda (selectors)
+        (let* ((failed (alist-get :failed selectors))
+               (eldev-verbosity-level (if failed
+                                          'trace
+                                        eldev-verbosity-level)))
+        (message "HACK enabled for :failed")
+        (eldev-test-ert-load-results)
+        (when (and failed (null eldev--test-ert-results))
+          (error "No previous tests available")))))

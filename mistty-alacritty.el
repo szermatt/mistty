@@ -33,17 +33,57 @@
 ;; loaded and compiled. Availability check should be done dynamically
 ;; dynamically using (mistty-alacritty-available-p)
 
-(defvar mistty-alacritty-modulename "mistty-alacritty-vt-dev"
-  "Name of the module the provides mistty-alacritty-vt")
+(defvar mistty-alacritty-version "dev"
+  "Mistty version name or \"dev\" for local development version.
+
+This is used to download and load the correct version of the module.")
+
+(defvar mistty-alacritty-release nil
+  "Mistty release name.
+
+Defaults to `mistty-alacritty-version'. It is available in case the
+release and version differ.")
+
+(defvar mistty-alacritty-arch
+  (car (string-split system-configuration "-"))
+  "Processor architecture.
+
+This is used to download and load the correct version of the module.")
+
+(defun mistty-alacritty-modulename ()
+  "Name of the module that should be loaded.
+
+The module version should match the version of the elisp code and should
+provide the feature `mistty-alacritty-vt'."
+  (format "mistty-alacritty-vt-%s-%s%s"
+          mistty-alacritty-version
+          mistty-alacritty-arch
+          module-file-suffix))
+
 ;; TODO: load versioned module instead of just 'dev' module once the
 ;; module is part of the release. For now, the module should be
 ;; considered experimental and always compiled from the same checkout
 ;; as the lisp files.
 
-(unless (featurep 'mistty-alacritty-vt)
-  (when (and (load mistty-alacritty-modulename 'noerror 'nomessage)
-             (not (featurep 'mistty-alacritty-vt)))
-    (error "module doesn't define feature mistty-alacritty-vt")))
+(defun mistty-alacritty-load ()
+  "Attempt to load the module.
+
+Return non-nil if the module is found and could be loaded, this function
+returns. Return nil if the module is not found.
+
+This function might fail if the module is found, but cannot be loaded
+for some reason."
+  (cond
+   ((featurep 'mistty-alacritty-vt) t)
+   ((load (mistty-alacritty-modulename) 'noerror 'nomessage)
+    (unless (featurep 'mistty-alacritty-vt)
+      (error "module doesn't define feature mistty-alacritty-vt"))
+
+    t)
+   ;; not found
+   (t nil)))
+
+(mistty-alacritty-load)
 
 ;; These declarations allow compiling without loading the module.
 (eval-when-compile
@@ -198,7 +238,7 @@ current buffer. The created process is set as the current buffer's
 process."
   (unless (mistty-alacritty-available-p)
     (error "Alacritty terminal is unavailable; module '%s' not found"
-           mistty-alacritty-modulename))
+           (mistty-alacritty-modulename)))
   (unless (eq major-mode 'mistty-alacritty-mode)
     (error "Must be called from a mistty-alacritty-mode buffer."))
   (when (get-buffer-process (current-buffer))

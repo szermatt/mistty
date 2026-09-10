@@ -28,7 +28,10 @@
   :message        source-and-target
   :type           many-to-one
   :source-files   ("Cargo.toml" "src/**/*.rs")
-  :targets        (lambda (_sources) (concat "mistty-alacritty-vt-dev" module-file-suffix))
+  :targets        (lambda (_sources)
+                    (concat "mistty-alacritty-vt-dev-"
+                            (car (string-split system-configuration "-"))
+                            module-file-suffix))
   :collect        ":compile"
   :define-cleaner (mistty-cleaner-module "Delete generated module" :default t)
   (eldev-call-process "cargo" '("build") :forward-output t :die-on-error t)

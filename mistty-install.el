@@ -106,11 +106,14 @@ be called interactively."
                                     options)
                             `((annotation-function
                                . ,(lambda (title)
-                                    (concat "  "
-                                            (alist-get
-                                             'doc (alist-get
-                                                   (gethash title titlemap)
-                                                   option-alist)))))
+                                    (let ((entry (alist-get (gethash title titlemap)
+                                                            option-alist)))
+                                      (concat (if (alist-get 'recommended entry)
+                                                  (concat "  "
+                                                          (propertize "RECOMMENDED" 'face 'highlight))
+                                                "")
+                                              "  "
+                                              (alist-get 'doc entry)))))
                               (display-sort-function
                                . ,(lambda (collection) collection))))
                            nil 'require-match))
@@ -128,8 +131,10 @@ module on the current system.
 It is mean to be called interactively."
   (interactive)
   (pcase-let ((`(,options . ,option-alist) (mistty--install-setup)))
-    (funcall (alist-get 'handler
-                        (alist-get (car options) option-alist)))))
+    (dolist (option options)
+      (let ((entry (alist-get option option-alist)))
+        (when (alist-get 'recommended entry)
+          (funcall (alist-get 'handler entry)))))))
 
 (defun mistty--install-setup ()
   "Build the set of options available for `mistty-install'.
@@ -167,7 +172,8 @@ The return value is a CONS containing:
              . ((title . "Install Alacritty terminfo")
                 (doc . "to use TERM=alacritty, which enables full 24bit colors.")
                 (handler . ,(lambda () (mistty--run-with-output-buffer
-                                        #'mistty--install-terminfo)))))))
+                                        #'mistty--install-terminfo)))
+                (recommended . t)))))
          (download-issue (mistty--download-module-issues))
          (download-source-issue (mistty--download-source-issues))
          (compile-issue (mistty--compile-module-issues mistty-install-src-dir))
@@ -175,9 +181,6 @@ The return value is a CONS containing:
          (options (list)))
 
     ;; Define the set of visible options in order.
-    ;;
-    ;; The option most likely to be useful must appear first for
-    ;; mistty-install-dwim.
     (unless (eq 'development-version download-issue)
       (push 'download options))
     (when (eq 'cargo-not-installed compile-issue)
@@ -188,6 +191,12 @@ The return value is a CONS containing:
     (unless (eq 'already-installed terminfo-issue)
       (push 'terminfo options))
     (setq options (nreverse options))
+
+    ;; The first option is always the recommended one, for
+    ;; mistty-install-dwim.
+    (setf (alist-get 'recommended
+                     (alist-get (car options) option-alist))
+          t)
 
     ;; Report issues in the relevant option's doc
     (when (eq 'unsupported-system download-issue)
@@ -240,7 +249,9 @@ succeeds, the buffer is deleted."
 (defun mistty--setup-output-buffer (buf)
   "Prepare a newly-created or reused output BUF."
   (with-current-buffer buf
-    (delete-region (point-min) (point-max))))
+    (unless (equal (point-min) (point-max))
+      (insert "…\n\n"))
+    (goto-char (point-max))))
 
 (defun mistty--run-with-temp-dir (name func)
   "Pass a temporary dir NAME to FUNC, then delete it."
@@ -482,6 +493,7 @@ return nil."
   (with-current-buffer output-buffer
     (let ((local-file (expand-file-name
                        "extras/alacritty.info" mistty-install-dir)))
+      (mistty--install-message 'progress "Installing terminfo definitions...")
       (if (file-exists-p local-file)
           (mistty--install-execute (concat "tic -x -o \"$HOME/.terminfo\" "
                                            (shell-quote-argument local-file)))
@@ -489,7 +501,10 @@ return nil."
          (concat
           "curl --no-progress-meter --fail-with-body "
           "https://raw.githubusercontent.com/alacritty/alacritty/refs/heads/master/extra/alacritty.info"
-          " | tic -x -o \"$HOME/.terminfo\" -"))))))
+          " | tic -x -o \"$HOME/.terminfo\" -")))
+
+      (mistty--install-message
+       'success "Terminfo alacritty and alacritty-direct successfully installed in $HOME"))))
 
 (defun mistty--install-url-spec ()
   "Return a spec to use for `format-spec' for formatting URLs."

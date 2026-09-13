@@ -12,8 +12,8 @@ top of the built-in Emacs terminal emulator, `eterm`.
 > [!NOTE]
 >
 > Experimental support for using [alacritty](https://alacritty.org) instead of `eterm` as
-> underlying terminal emulator is now available. For installation
-> instructions, head over to
+> underlying terminal emulator is now available. To install it, run `M-x mistty-install`
+> or head over to
 > https://mistty.readthedocs.io/en/latest/usage.html#experimental-module-with-alacritty
 
 

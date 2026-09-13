@@ -40,9 +40,10 @@ While it takes some efforts to get `alacritty` work, doing so
 addresses some limitations of `eterm`, such as lack of support for
 modern terminal features, and limited unicode support.
 
-The module must be compiled locally, for now, as alacritty support is
-an experimental feature and not yet included into the releases. Make sure
-to always use .el files that match the module file.
+To install the module from Emacs, run `M-x mistty-install`.
+
+To compile the module locally from a git checkout without using
+`mistty-install` follow these steps:
 
 1. checkout mistty
 

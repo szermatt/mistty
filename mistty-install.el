@@ -162,10 +162,16 @@ The return value is a CONS containing:
                 (doc . ,(format "Install Rust from %s"
                                 (url-host (url-generic-parse-url
                                            mistty-download-rust-url))))
-                (handler . ,#'mistty--interactive-rust)))))
+                (handler . ,#'mistty--interactive-rust)))
+            (terminfo
+             . ((title . "Install Alacritty terminfo")
+                (doc . "to use TERM=alacritty, which enables full 24bit colors.")
+                (handler . ,(lambda () (mistty--run-with-output-buffer
+                                        #'mistty--install-terminfo)))))))
          (download-issue (mistty--download-module-issues))
          (download-source-issue (mistty--download-source-issues))
          (compile-issue (mistty--compile-module-issues mistty-install-src-dir))
+         (terminfo-issue (mistty--terminfo-issues))
          (options (list)))
 
     ;; Define the set of visible options in order.
@@ -179,6 +185,8 @@ The return value is a CONS containing:
     (unless (eq 'development-version download-source-issue)
       (push 'download-source options))
     (push 'compile options)
+    (unless (eq 'already-installed terminfo-issue)
+      (push 'terminfo options))
     (setq options (nreverse options))
 
     ;; Report issues in the relevant option's doc
@@ -194,6 +202,9 @@ The return value is a CONS containing:
       (dolist (e 'download-source 'compile)
         (setf (alist-get 'doc (alist-get e option-alist))
               "cargo must be on the $PATH; Install Rust first")))
+    (when (eq 'curl-not-installed terminfo-issue)
+      (setf (alist-get 'doc (alist-get 'terminfo option-alist))
+            "curl must be on the $PATH"))
 
     (cons options option-alist)))
 
@@ -454,6 +465,31 @@ return nil."
         (mistty--install-message
          'error "compilation failed")
         nil))))
+
+(defun mistty--terminfo-issues ()
+  "List issues with calling `mistty--install-terminfo'."
+  (cond
+   ((equal "OK\n" (shell-command-to-string "infocmp alacritty >/dev/null && echo OK"))
+    'already-installed)
+   ((file-exists-p (expand-file-name "extras/alacritty.info" mistty-install-dir))
+    nil)
+   ((null (executable-find "curl"))
+    'curl-not-installed)
+   (t nil)))
+
+(defun mistty--install-terminfo (output-buffer)
+  "Install terminfo to $HOME, download it if necessary."
+  (with-current-buffer output-buffer
+    (let ((local-file (expand-file-name
+                       "extras/alacritty.info" mistty-install-dir)))
+      (if (file-exists-p local-file)
+          (mistty--install-execute (concat "tic -x -o \"$HOME/.terminfo\" "
+                                           (shell-quote-argument local-file)))
+        (mistty--install-execute
+         (concat
+          "curl --no-progress-meter --fail-with-body "
+          "https://raw.githubusercontent.com/alacritty/alacritty/refs/heads/master/extra/alacritty.info"
+          " | tic -x -o \"$HOME/.terminfo\" -"))))))
 
 (defun mistty--install-url-spec ()
   "Return a spec to use for `format-spec' for formatting URLs."

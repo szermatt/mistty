@@ -41,6 +41,19 @@ is writable, otherwise `user-emacs-directory'."
   :group 'mistty
   :type 'directory)
 
+(defcustom mistty-install-keep-output nil
+  "Keep around the *mistty-install* output buffer.
+
+When this option is nil, which is the default, the buffer that displays
+installation details and progress created by `mistty-install' and
+`mistty-install-dwim' is displayed only after a delay and killed at the
+end of a successful command.
+
+With this option set, the buffer is displayed right away and kept around
+for the user to kill."
+  :group 'mistty
+  :type 'boolean)
+
 (defvar mistty-install-url
   "https://github.com/szermatt/mistty/releases/download/%r/mistty-alacritty-vt-%v-%a%e"
   "URL to download the module from.
@@ -128,25 +141,34 @@ is writable, otherwise `user-emacs-directory'."
 
 The buffer is shown if enough time passes or if FUNC fails. Once FUNC
 succeeds, the buffer is deleted."
-  (let* ((buf (get-buffer-create "*mistty-install*"))
-         (buffer-revealed nil)
-         (reveal-buffer (lambda ()
-                          (when (and (buffer-live-p buf)
-                                     (not buffer-revealed))
-                            (pop-to-buffer buf)
-                            (setq buffer-revealed t))))
-         (timer (run-with-timer 0.75 nil reveal-buffer)))
-    (unwind-protect
+  (let* ((buf (get-buffer-create "*mistty-install*")))
+    (if mistty-install-keep-output
         (progn
-          (with-current-buffer buf
-            (delete-region (point-min) (point-max)))
-          (funcall func buf)
-          (cancel-timer timer)
-          (let ((kill-buffer-query-functions nil))
-            (kill-buffer buf)))
-      (when (buffer-live-p buf)
-        (cancel-timer timer)
-        (funcall reveal-buffer)))))
+          (mistty--setup-output-buffer buf)
+          (pop-to-buffer buf)
+          (funcall func buf))
+      (let* ((buffer-revealed nil)
+             (reveal-buffer (lambda ()
+                              (when (and (buffer-live-p buf)
+                                         (not buffer-revealed))
+                                (pop-to-buffer buf)
+                                (setq buffer-revealed t))))
+             (timer (run-with-timer 0.75 nil reveal-buffer)))
+        (unwind-protect
+            (progn
+              (mistty--setup-output-buffer buf)
+              (funcall func buf)
+              (cancel-timer timer)
+              (let ((kill-buffer-query-functions nil))
+                (kill-buffer buf)))
+          (when (buffer-live-p buf)
+            (cancel-timer timer)
+            (funcall reveal-buffer)))))))
+
+(defun mistty--setup-output-buffer (buf)
+  "Prepare a newly-created or reused output BUF."
+  (with-current-buffer buf
+    (delete-region (point-min) (point-max))))
 
 (defun mistty--run-with-temp-dir (name func)
   (let ((dir (make-temp-file (concat "mistty-" name) 'dir)))
@@ -259,7 +281,7 @@ If download succeeded, return the module path, otherwise return nil."
        'progress "Downloading module version " mistty-alacritty-version "...")
       (if (and (zerop (mistty--install-execute cmd)) (file-exists-p dest))
           (expand-file-name dest install-dir)
-        (mistty--install-message 'error "downloading failed")
+        (mistty--install-message 'error "download failed")
         nil))))
 
 (defun mistty--download-source-issues ()
@@ -370,10 +392,9 @@ The PARTS are concatenated together before displaying."
   (let ((msg (apply #'concat parts)))
     (message msg)
     (goto-char (point-max))
-    (insert (pcase type
-              ('error "ERROR:")
-              ('success "OK ")
-              (_ ""))
+    (insert (if (eq 'error type)
+                "ERROR: "
+              "")
             msg
             "\n")))
 

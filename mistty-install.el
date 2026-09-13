@@ -119,6 +119,18 @@ be called interactively."
                   (handler (alist-get 'handler option-def)))
         (funcall handler)))))
 
+(defun mistty-install-dwim ()
+  "Install Mistty Alacritty module, asking as few questions as possible.
+
+This command does its best at choosing the best way of installing the
+module on the current system.
+
+It is mean to be called interactively."
+  (interactive)
+  (pcase-let ((`(,options . ,option-alist) (mistty--install-setup)))
+    (funcall (alist-get 'handler
+                        (alist-get (car options) option-alist)))))
+
 (defun mistty--install-setup ()
   "Build the set of options available for `mistty-install'.
 

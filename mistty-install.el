@@ -82,9 +82,51 @@ for the user to kill."
 (defconst mistty-download-rust-url "https://rust-lang.org/tools/install/")
 
 (defun mistty-install ()
+  "Let user choose a way of installing the Mistty Alacritty module.
+
+This command lets the user know what possibly ways there are to install
+the module and highlight issues and choose what to do. It is meant to
+be called interactively."
   (interactive)
-  (let* ((options '(download rust download-source compile))
-         (option-alist
+  (pcase-let ((`(,options . ,option-alist) (mistty--install-setup)))
+    (if (length= options 1)
+        (funcall (alist-get 'handler
+                            (alist-get (car options) option-alist)))
+      (when-let* ((titlemap (let ((table (make-hash-table :test #'equal)))
+                              (dolist (e option-alist)
+                                (puthash (alist-get 'title (cdr e))
+                                         (car e)
+                                         table))
+                              table))
+                  (choice (completing-read
+                           "Choose a way to install the MisTTY Alacritty module. "
+                           (completion-table-with-metadata
+                            (mapcar (lambda (id)
+                                      (alist-get 'title (alist-get id option-alist)))
+                                    options)
+                            `((annotation-function
+                               . ,(lambda (title)
+                                    (concat "  "
+                                            (alist-get
+                                             'doc (alist-get
+                                                   (gethash title titlemap)
+                                                   option-alist)))))
+                              (display-sort-function
+                               . ,(lambda (collection) collection))))
+                           nil 'require-match))
+                  (id (gethash choice titlemap))
+                  (option-def (alist-get id option-alist))
+                  (handler (alist-get 'handler option-def)))
+        (funcall handler)))))
+
+(defun mistty--install-setup ()
+  "Build the set of options available for `mistty-install'.
+
+The return value is a CONS containing:
+- the ID of the enabled options in the alist
+- the option alist, defining the title, doc string and handler for the
+  option."
+  (let* ((option-alist
           `((download
              . ((title . "Download")
                 (doc . ,(format
@@ -109,32 +151,39 @@ for the user to kill."
                                 (url-host (url-generic-parse-url
                                            mistty-download-rust-url))))
                 (handler . ,#'mistty--interactive-rust)))))
-         (titlemap (let ((table (make-hash-table :test #'equal)))
-                     (dolist (e option-alist)
-                       (puthash (alist-get 'title (cdr e))
-                                (car e)
-                                table))
-                     table))
-         (choice (completing-read
-                  "Choose a way to install the MisTTY Alacritty module. "
-                  (completion-table-with-metadata
-                   (mapcar (lambda (id)
-                             (alist-get 'title (alist-get id option-alist)))
-                           options)
-                   `((annotation-function
-                      . ,(lambda (title)
-                           (concat "  "
-                                   (alist-get
-                                    'doc (alist-get
-                                          (gethash title titlemap)
-                                          option-alist)))))
-                     (display-sort-function
-                      . ,(lambda (collection) collection))))
-                   nil 'require-match)))
-    (when-let* ((id (gethash choice titlemap))
-                (option-def (alist-get id option-alist))
-                (handler (alist-get 'handler option-def)))
-      (funcall handler))))
+         (download-issue (mistty--download-module-issues))
+         (download-source-issue (mistty--download-source-issues))
+         (compile-issue (mistty--compile-module-issues mistty-install-src-dir))
+         (options (list)))
+
+    ;; Define the set of visible options in order.
+    ;;
+    ;; The option most likely to be useful must appear first for
+    ;; mistty-install-dwim.
+    (unless (eq 'development-version download-issue)
+      (push 'download options))
+    (when (eq 'cargo-not-installed compile-issue)
+      (push 'rust options))
+    (unless (eq 'development-version download-source-issue)
+      (push 'download-source options))
+    (push 'compile options)
+    (setq options (nreverse options))
+
+    ;; Report issues in the relevant option's doc
+    (when (eq 'unsupported-system download-issue)
+      (dolist (e 'download 'download-source)
+        (setf (alist-get 'doc (alist-get e option-alist))
+              "System or architecture not supported")))
+    (when (eq 'curl-not-installed download-issue)
+      (dolist (e 'download 'download-source)
+        (setf (alist-get 'doc (alist-get e option-alist))
+              "curl must be on the $PATH")))
+    (when (eq 'cargo-not-installed compile-issue)
+      (dolist (e 'download-source 'compile)
+        (setf (alist-get 'doc (alist-get e option-alist))
+              "cargo must be on the $PATH; Install Rust first")))
+
+    (cons options option-alist)))
 
 (defun mistty--run-with-output-buffer (func)
   "Setup an output buffer and run FUNC.
@@ -171,12 +220,14 @@ succeeds, the buffer is deleted."
     (delete-region (point-min) (point-max))))
 
 (defun mistty--run-with-temp-dir (name func)
+  "Pass a temporary dir NAME to FUNC, then delete it."
   (let ((dir (make-temp-file (concat "mistty-" name) 'dir)))
     (unwind-protect
         (funcall func dir)
       (delete-directory dir t nil))))
 
 (defun mistty--interactive-download ()
+  "Download the module (interactive version)."
   (mistty--run-with-output-buffer
    (lambda (output-buffer)
      (unless
@@ -187,6 +238,7 @@ succeeds, the buffer is deleted."
       output-buffer))))
 
 (defun mistty--interactive-download-source ()
+  "Download the module source (interactive version)."
   (mistty--run-with-output-buffer
    (lambda (output-buffer)
      (mistty--run-with-temp-dir
@@ -201,21 +253,34 @@ succeeds, the buffer is deleted."
          output-buffer))))))
 
 (defun mistty--interactive-compile ()
+  "Compile the module source (interactive version)."
   (mistty--run-with-output-buffer
    (lambda (output-buffer)
-     (mistty--run-with-temp-dir
-      "target"
-      (lambda (target-dir)
-        (unless (mistty--compile-module
-                 mistty-install-src-dir
-                 target-dir
-                 mistty-install-dir
-                 output-buffer)
-          (error "Module compilation failed"))
-        (mistty--interactive-check-installed
-         output-buffer))))))
+     (if (eq 'no-source (mistty--compile-module-issues
+                         mistty-install-dir))
+         ;; No source in mistty-install-dir
+         (when-let* ((src-dir (read-directory-name "Source dir ")))
+           (unless (mistty--compile-module
+                    src-dir "target" mistty-install-dir output-buffer)
+             (error "Module compilation failed"))
+           (mistty--interactive-check-installed
+            output-buffer))
+
+       ;; Rust source found in mistty-install-dir
+       (mistty--run-with-temp-dir
+        "target"
+        (lambda (target-dir)
+          (unless (mistty--compile-module
+                   mistty-install-src-dir
+                   target-dir
+                   mistty-install-dir
+                   output-buffer)
+            (error "Module compilation failed"))
+          (mistty--interactive-check-installed
+           output-buffer)))))))
 
 (defun mistty--interactive-rust ()
+  "Direct the user to rust's install instructions."
   (message "Follow the instructions on %s to install Rust."
            mistty-download-rust-url)
   (browse-url mistty-download-rust-url))

@@ -81,6 +81,9 @@ for the user to kill."
 
 (defconst mistty-download-rust-url "https://rust-lang.org/tools/install/")
 
+(defvar mistty-install-buffer nil
+  "Buffer *mistty-install* used to display command output.")
+
 (defun mistty-install ()
   "Let user choose a way of installing the Mistty Alacritty module.
 
@@ -171,8 +174,7 @@ The return value is a CONS containing:
             (terminfo
              . ((title . "Install Alacritty terminfo")
                 (doc . "to use TERM=alacritty, which enables full 24bit colors.")
-                (handler . ,(lambda () (mistty--run-with-output-buffer
-                                        #'mistty--install-terminfo)))
+                (handler . ,#'mistty--install-terminfo)
                 (recommended . t)))))
          (download-issue (mistty--download-module-issues))
          (download-source-issue (mistty--download-source-issues))
@@ -217,41 +219,44 @@ The return value is a CONS containing:
 
     (cons options option-alist)))
 
+(defun mistty--setup-install-buffer ()
+  "Setup `mistty-install-buffer', if necessary."
+  (with-current-buffer (setq mistty-install-buffer
+                             (get-buffer-create "*mistty-install*"))
+    (unless (equal (point-min) (point-max))
+      (insert "…\n\n"))
+    (goto-char (point-max))))
+
 (defun mistty--run-with-output-buffer (func)
   "Setup an output buffer and run FUNC.
 
 The buffer is shown if enough time passes or if FUNC fails. Once FUNC
 succeeds, the buffer is deleted."
-  (let* ((buf (get-buffer-create "*mistty-install*")))
-    (if mistty-install-keep-output
-        (progn
-          (mistty--setup-output-buffer buf)
-          (pop-to-buffer buf)
-          (funcall func buf))
-      (let* ((buffer-revealed nil)
-             (reveal-buffer (lambda ()
-                              (when (and (buffer-live-p buf)
-                                         (not buffer-revealed))
-                                (pop-to-buffer buf)
-                                (setq buffer-revealed t))))
-             (timer (run-with-timer 0.75 nil reveal-buffer)))
-        (unwind-protect
-            (progn
-              (mistty--setup-output-buffer buf)
-              (funcall func buf)
-              (cancel-timer timer)
-              (let ((kill-buffer-query-functions nil))
-                (kill-buffer buf)))
-          (when (buffer-live-p buf)
-            (cancel-timer timer)
-            (funcall reveal-buffer)))))))
+  (mistty--setup-install-buffer)
+  (if mistty-install-keep-output
+      ;; Display buffer immediately and keep it open.
+      (progn
+        (pop-to-buffer mistty-install-buffer)
+        (funcall func))
 
-(defun mistty--setup-output-buffer (buf)
-  "Prepare a newly-created or reused output BUF."
-  (with-current-buffer buf
-    (unless (equal (point-min) (point-max))
-      (insert "…\n\n"))
-    (goto-char (point-max))))
+    ;; Display a buffer after a delay, kill it after a successful run.
+    (let* ((buffer-revealed nil)
+           (reveal-buffer
+            (lambda ()
+              (when (and (buffer-live-p mistty-install-buffer)
+                         (not buffer-revealed))
+                (pop-to-buffer mistty-install-buffer)
+                (setq buffer-revealed t))))
+           (timer (run-with-timer 0.75 nil reveal-buffer)))
+      (unwind-protect
+          (progn
+            (funcall func)
+            (cancel-timer timer)
+            (let ((kill-buffer-query-functions nil))
+              (kill-buffer mistty-install-buffer)))
+        (when (buffer-live-p mistty-install-buffer)
+          (cancel-timer timer)
+          (funcall reveal-buffer))))))
 
 (defun mistty--run-with-temp-dir (name func)
   "Pass a temporary dir NAME to FUNC, then delete it."
@@ -263,42 +268,38 @@ succeeds, the buffer is deleted."
 (defun mistty--interactive-download ()
   "Download the module (interactive version)."
   (mistty--run-with-output-buffer
-   (lambda (output-buffer)
+   (lambda ()
      (unless
-         (mistty--download-module
-          mistty-install-dir output-buffer)
+         (mistty--download-module mistty-install-dir)
        (error "Module download failed."))
-     (mistty--interactive-check-installed
-      output-buffer))))
+     (mistty--interactive-check-installed))))
 
 (defun mistty--interactive-download-source ()
   "Download the module source (interactive version)."
   (mistty--run-with-output-buffer
-   (lambda (output-buffer)
+   (lambda ()
      (mistty--run-with-temp-dir
       "src"
       (lambda (src-dir)
-        (unless (mistty--download-source src-dir output-buffer)
+        (unless (mistty--download-source src-dir)
           (error "Source download failed"))
         (unless (mistty--compile-module
-                 src-dir "target" mistty-install-dir output-buffer)
+                 src-dir "target" mistty-install-dir)
           (error "Module compilation failed"))
-        (mistty--interactive-check-installed
-         output-buffer))))))
+        (mistty--interactive-check-installed))))))
 
 (defun mistty--interactive-compile ()
   "Compile the module source (interactive version)."
   (mistty--run-with-output-buffer
-   (lambda (output-buffer)
+   (lambda ()
      (if (eq 'no-source (mistty--compile-module-issues
                          mistty-install-dir))
          ;; No source in mistty-install-dir
          (when-let* ((src-dir (read-directory-name "Source dir ")))
            (unless (mistty--compile-module
-                    src-dir "target" mistty-install-dir output-buffer)
+                    src-dir "target" mistty-install-dir)
              (error "Module compilation failed"))
-           (mistty--interactive-check-installed
-            output-buffer))
+           (mistty--interactive-check-installed))
 
        ;; Rust source found in mistty-install-dir
        (mistty--run-with-temp-dir
@@ -307,11 +308,9 @@ succeeds, the buffer is deleted."
           (unless (mistty--compile-module
                    mistty-install-src-dir
                    target-dir
-                   mistty-install-dir
-                   output-buffer)
+                   mistty-install-dir)
             (error "Module compilation failed"))
-          (mistty--interactive-check-installed
-           output-buffer)))))))
+          (mistty--interactive-check-installed)))))))
 
 (defun mistty--interactive-rust ()
   "Direct the user to rust's install instructions."
@@ -319,25 +318,24 @@ succeeds, the buffer is deleted."
            mistty-download-rust-url)
   (browse-url mistty-download-rust-url))
 
-(defun mistty--interactive-check-installed (output-buffer)
+(defun mistty--interactive-check-installed ()
   "Report a successful install and try to load the module.
 
 Signals an error if loading fails."
-  (with-current-buffer output-buffer
+  (mistty--install-message
+   'success "Module installed into " mistty-install-dir)
+  (cond
+   ((mistty-alacritty-available-p)
     (mistty--install-message
-     'success "Module installed into " mistty-install-dir)
-    (cond
-     ((mistty-alacritty-available-p)
-      (mistty--install-message
-       'success "Module installed. Restart Emacs to reload module"))
-     ((progn
-        (mistty-alacritty-load)
-        (mistty-alacritty-available-p))
-      (mistty--install-message
-       'success "Module installed and loaded successfully"))
-     (t
-      (error "Installed module could not be loaded. Is %s on the load-path ? "
-             mistty-install-dir)))))
+     'success "Module installed. Restart Emacs to reload module"))
+   ((progn
+      (mistty-alacritty-load)
+      (mistty-alacritty-available-p))
+    (mistty--install-message
+     'success "Module installed and loaded successfully"))
+   (t
+    (error "Installed module could not be loaded. Is %s on the load-path ? "
+           mistty-install-dir))))
 
 (defun mistty--download-module-issues ()
   "Check whether it's worth trying to download the module.
@@ -358,19 +356,14 @@ Return either:
     'development-version)
    (t nil)))
 
-(defun mistty--download-module (install-dir output-buffer)
+(defun mistty--download-module (install-dir)
   "Download the correct version of the module and store it into INSTALL-DIR.
 
 This download the module from `mistty-install-url' using curl and puts
 the result into `mistty-install-dir'.
 
-OUTPUT-BUFFER should be a buffer where the actions and shell output are
-to be directed.
-
 If download succeeded, return the module path, otherwise return nil."
-  (with-current-buffer output-buffer
-    (let* ((default-directory install-dir)
-           (dest (mistty-alacritty-modulename))
+    (let* ((dest (mistty-alacritty-modulename))
            (url (format-spec mistty-install-url (mistty--install-url-spec)))
            (cmd (format-spec
                  "curl --no-progress-meter --fail-with-body -o %d.part %u && mv %d.part %d"
@@ -378,10 +371,11 @@ If download succeeded, return the module path, otherwise return nil."
                    (?d . ,(shell-quote-argument dest))))))
       (mistty--install-message
        'progress "Downloading module version " mistty-alacritty-version "...")
-      (if (and (zerop (mistty--install-execute cmd)) (file-exists-p dest))
+      (if (and (zerop (mistty--install-execute cmd install-dir))
+               (file-exists-p (expand-file-name dest install-dir)))
           (expand-file-name dest install-dir)
         (mistty--install-message 'error "download failed")
-        nil))))
+        nil)))
 
 (defun mistty--download-source-issues ()
   "Check whether it's worth trying to download the source.
@@ -398,29 +392,24 @@ Return either:
     'development-version)
    (t nil)))
 
-(defun mistty--download-source (src-dir output-buffer)
+(defun mistty--download-source (src-dir)
   "Download the correct version of the module and store it into SRC-DIR.
 
 This download the module from `mistty-install-url' using curl and puts
 the result into `mistty-src-dir'.
 
-OUTPUT-BUFFER should be a buffer where the actions and shell output are
-to be directed.
-
 Return non-nil if the download succeeded."
-  (with-current-buffer output-buffer
-    (let* ((url (format-spec mistty-source-url (mistty--install-url-spec)))
-           (cmd (format
-                 "curl --no-progress-meter --fail-with-body %s | tar xzf - "
-                 (shell-quote-argument url)))
-           (default-directory src-dir))
-      (mistty--install-message
-       'progress  "Downloading source version " mistty-alacritty-version "...")
-      (if (and (zerop (mistty--install-execute cmd))
-               (file-exists-p "Cargo.toml"))
-          t
-        (mistty--install-message 'error "downloading failed")
-        nil))))
+  (let* ((url (format-spec mistty-source-url (mistty--install-url-spec)))
+         (cmd (format
+               "curl --no-progress-meter --fail-with-body %s | tar xzf - "
+               (shell-quote-argument url))))
+    (mistty--install-message
+     'progress  "Downloading source version " mistty-alacritty-version "...")
+    (if (and (zerop (mistty--install-execute cmd src-dir))
+             (file-exists-p "Cargo.toml"))
+        t
+      (mistty--install-message 'error "downloading failed")
+      nil)))
 
 (defun mistty--compile-module-issues (src-dir)
   "Check whether it's worth trying to compile the module in SRC-DIR.
@@ -437,7 +426,7 @@ Return either:
     'no-sources)
    (t nil)))
 
-(cl-defun mistty--compile-module (src-dir target-dir install-dir output-buffer)
+(defun mistty--compile-module (src-dir target-dir install-dir)
   "Compile the module in SRC-DIR.
 
 TARGET-DIR is used as the target directory. It can be relative to
@@ -447,35 +436,31 @@ directory is read-only.
 
 The module is installed into INSTALL-DIR.
 
-OUTPUT-BUFFER should be a buffer where the actions and shell output are
-to be directed.
-
 If compile succeeded, return the path to the module that was built, otherwise
 return nil."
-  (with-current-buffer output-buffer
-    (let* ((cmd (format "cargo build --release --target-dir %s"
-                        (shell-quote-argument target-dir)))
-           (dest (expand-file-name
-                  (mistty-alacritty-modulename) install-dir))
-           (default-directory src-dir)
-           (build-target (expand-file-name
-                          (concat (unless (eq 'windows-nt system-type) "lib")
-                                  "mistty_alacritty_vt"
-                                  module-file-suffix)
-                          (expand-file-name "release/" target-dir))))
-      (mistty--install-message 'progress "Compiling module...")
-      (if (zerop (mistty--install-execute cmd))
-          (if (condition-case _err
-                  (prog1 t
-                    (rename-file build-target dest 'ok-if-already-exists))
-                (error nil))
-              dest
-            (mistty--install-message
-             'error "failed to copy module to " install-dir " from " build-target)
-            nil)
-        (mistty--install-message
-         'error "compilation failed")
-        nil))))
+  (let* ((default-directory src-dir)
+         (cmd (format "cargo build --release --target-dir %s"
+                      (shell-quote-argument target-dir)))
+         (dest (expand-file-name
+                (mistty-alacritty-modulename) install-dir))
+         (build-target (expand-file-name
+                        (concat (unless (eq 'windows-nt system-type) "lib")
+                                "mistty_alacritty_vt"
+                                module-file-suffix)
+                        (expand-file-name "release/" target-dir))))
+    (mistty--install-message 'progress "Compiling module...")
+    (if (zerop (mistty--install-execute cmd src-dir))
+        (if (condition-case _err
+                (prog1 t
+                  (rename-file build-target dest 'ok-if-already-exists))
+              (error nil))
+            dest
+          (mistty--install-message
+           'error "failed to copy module to " install-dir " from " build-target)
+          nil)
+      (mistty--install-message
+       'error "compilation failed")
+      nil)))
 
 (defun mistty--terminfo-issues ()
   "List issues with calling `mistty--install-terminfo'."
@@ -488,23 +473,24 @@ return nil."
     'curl-not-installed)
    (t nil)))
 
-(defun mistty--install-terminfo (output-buffer)
+(defun mistty--install-terminfo ()
   "Install terminfo to $HOME, download it if necessary."
-  (with-current-buffer output-buffer
-    (let ((local-file (expand-file-name
-                       "extras/alacritty.info" mistty-install-dir)))
-      (mistty--install-message 'progress "Installing terminfo definitions...")
-      (if (file-exists-p local-file)
-          (mistty--install-execute (concat "tic -x -o \"$HOME/.terminfo\" "
-                                           (shell-quote-argument local-file)))
+  (let ((local-file (expand-file-name
+                     "extras/alacritty.info" mistty-install-dir)))
+    (mistty--install-message 'progress "Installing terminfo definitions...")
+    (if (file-exists-p local-file)
         (mistty--install-execute
-         (concat
-          "curl --no-progress-meter --fail-with-body "
-          "https://raw.githubusercontent.com/alacritty/alacritty/refs/heads/master/extra/alacritty.info"
-          " | tic -x -o \"$HOME/.terminfo\" -")))
-
-      (mistty--install-message
-       'success "Terminfo alacritty and alacritty-direct successfully installed in $HOME"))))
+         (concat "tic -x -o .terminfo"
+                 (shell-quote-argument local-file))
+         (getenv "HOME"))
+      (mistty--install-execute
+       (concat
+        "curl --no-progress-meter --fail-with-body "
+        "https://raw.githubusercontent.com/alacritty/alacritty/refs/heads/master/extra/alacritty.info"
+        " | tic -x -o .terminfo -")
+       (getenv "HOME"))
+    (mistty--install-message
+     'success "Terminfo alacritty and alacritty-direct successfully installed in $HOME"))))
 
 (defun mistty--install-url-spec ()
   "Return a spec to use for `format-spec' for formatting URLs."
@@ -519,32 +505,36 @@ return nil."
 The PARTS are concatenated together before displaying."
   (let ((msg (apply #'concat parts)))
     (message msg)
-    (goto-char (point-max))
-    (insert (if (eq 'error type)
-                "ERROR: "
-              "")
-            msg
-            "\n")))
+    (when (buffer-live-p mistty-install-buffer)
+      (with-current-buffer mistty-install-buffer
+        (goto-char (point-max))
+        (insert (if (eq 'error type)
+                    "ERROR: "
+                  "")
+                msg "\n")))))
 
-(defun mistty--install-execute (shell-cmd)
-  "Execute SHELL-CMD and return its status.
+  (defun mistty--install-execute (shell-cmd dir)
+    "Execute SHELL-CMD and return its status.
 
 The command and its output are appended to the current buffer."
-  (goto-char (point-max))
-  (insert "> " shell-cmd "\n\n")
-  (let* ((proc (make-process
-                :name "*mistty-install*"
-                :buffer (current-buffer)
-                :command (list "/bin/sh" "-c" shell-cmd)
-                :sentinel (lambda (proc _msg)
-                            (unless (process-live-p proc)
-                              (exit-recursive-edit))))))
-    (save-excursion
-      (while (process-live-p proc)
-        (recursive-edit)))
-    (message "COMPILATION DONE current-buffer: %s" (current-buffer))
-    (goto-char (point-max))
-    (insert "\n")
-    (process-exit-status proc)))
+    (with-current-buffer mistty-install-buffer
+      (goto-char (point-max))
+      (insert "> " shell-cmd "\n\n")
+      (let* ((proc (let ((default-directory dir))
+                     (make-process
+                      :name "*mistty-install*"
+                      :buffer (current-buffer)
+                      :command (list "/bin/sh" "-c" shell-cmd)
+                      :sentinel (lambda (proc _msg)
+                                  (unless (process-live-p proc)
+                                    (exit-recursive-edit)))))))
+        (save-excursion
+          (while (process-live-p proc)
+            (recursive-edit)))
+        (when (eq (current-buffer) mistty-install-buffer)
+          ;; the buffer might have been killed
+          (goto-char (point-max))
+          (insert "\n"))
+        (process-exit-status proc))))
 
 (provide 'mistty-install)

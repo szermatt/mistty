@@ -64,41 +64,46 @@
   :tags '(:slow)
   (skip-unless (executable-find "cargo"))
   (mistty-test-running)
-  (let ((mistty-alacritty-version "2.0.0")
-        (src-dir mistty-install-src-dir))
-    (ert-with-temp-directory tempdir
-      (let ((install-dir (expand-file-name "install" tempdir))
-            (target-dir (expand-file-name "target" tempdir)))
-        (make-directory install-dir)
-        (ert-with-test-buffer ()
-          (let ((dest (expand-file-name (mistty-alacritty-modulename) install-dir))
-                result output)
-            (setq result (mistty--compile-module
-                            src-dir target-dir install-dir (current-buffer)))
-            (setq output (mistty-test-content))
-            (when (null result)
-              (message "OUT<<EOF\n%sEOF" (mistty-test-content)))
+  (ert-with-temp-directory tempdir
+    (let ((mistty-alacritty-version "2.0.0")
+          (mistty-install-keep-output t)
+          (src-dir mistty-install-src-dir)
+          (mistty-install-dir tempdir))
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
+      (condition-case err
+          (mistty--interactive-compile)
+        (error (message "OUT<<EOF\n%sEOF"
+                        (with-current-buffer mistty-install-buffer
+                          (mistty-test-content)))
+               (signal err)))
+      (setq output (with-current-buffer mistty-install-buffer
+                     (mistty-test-content)))
+      (should (file-exists-p
+               (expand-file-name (mistty-alacritty-modulename)
+                                 mistty-install-dir)))
+      (should (string-match-p "Compiling module\.\.\.$" output))
+      (should (string-match-p "Finished" output)))))
 
-            (should (equal dest result))
-            (should (file-exists-p dest))
-
-            (should (string-match-p "Compiling module\.\.\.$" output))
-            (should (string-match-p "Finished" output))))))))
-
-(ert-deftest mistty-install-compile-module-failed ()
+(ert-deftest mistty-install-compile-module-no-source ()
+  :tags '(:slow)
   (skip-unless (executable-find "cargo"))
   (mistty-test-running)
-  (let ((mistty-alacritty-version "2.0.0")
-        (src-dir mistty-install-src-dir))
-    (ert-with-temp-directory install-dir
-      (let ((target-dir null-device))
-        (ert-with-test-buffer ()
-          (let ((dest (expand-file-name (mistty-alacritty-modulename) install-dir))
-                result output)
-            (setq result (mistty--compile-module
-                            src-dir target-dir install-dir (current-buffer)))
-            (setq output (mistty-test-content))
-            (should (null result))))))))
+  (ert-with-temp-directory tempdir
+    (let ((mistty-alacritty-version "2.0.0")
+          (mistty-install-dir (expand-file-name "install" tempdir))
+          (mistty-install-src-dir (expand-file-name "src" tempdir)))
+      (make-directory mistty-install-dir)
+      (make-directory mistty-install-src-dir)
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
+      (should-error (mistty--interactive-compile))
+      (setq output (with-current-buffer mistty-install-buffer
+                     (mistty-test-content)))
+      (should (string-match-p "compilation failed" output))
+      (should-not (file-exists-p
+                   (expand-file-name (mistty-alacritty-modulename)
+                                     mistty-install-dir))))))
 
 (defun mistty-run-test-server (handler-func test-func)
   "Run a test web server for the duration of the test.
@@ -114,12 +119,16 @@ once that function returns."
 (ert-deftest mistty-install-download-module ()
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
-  (let ((mistty-alacritty-version "2.0.0")
-        (mistty-alacritty-release "v2.0.0")
-        (system-type 'darwin)
-        (mistty-alacritty-arch "aarch64")
-        requested-url)
-    (ert-with-temp-directory install-dir
+  (ert-with-temp-directory install-dir
+    (let ((mistty-alacritty-version "2.0.0")
+          (mistty-alacritty-release "v2.0.0")
+          (mistty-install-keep-output t)
+          (system-type 'darwin)
+          (mistty-alacritty-arch "aarch64")
+          (mistty-install-dir install-dir)
+          requested-url)
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
       (mistty-run-test-server
        (lambda (request)
          (with-slots (process headers) request
@@ -129,57 +138,67 @@ once that function returns."
            (process-send-string process "dummy-module-binary-content")))
        (lambda (address)
          (let* ((mistty-install-url (concat "http://" address "/download/%r/mistty-alacritty-vt-%v-%a%e"))
-                (dest (expand-file-name (mistty-alacritty-modulename) install-dir))
-                (expected-path (format "/download/v2.0.0/mistty-alacritty-vt-2.0.0-aarch64.dylib")))
-           (ert-with-test-buffer ()
-             (let ((result (mistty--download-module install-dir (current-buffer)))
-                   (output (mistty-test-content)))
-               (unless result
-                 (message "OUT<<EOF\n%sEOF" (mistty-test-content)))
+                (dest (expand-file-name (mistty-alacritty-modulename) install-dir)))
+           (condition-case err
+               (mistty--interactive-download)
+             (error (message "OUT<<EOF\n%sEOF"
+                             (with-current-buffer mistty-install-buffer
+                               (mistty-test-content)))
+                    (signal err)))
+           (let ((output (with-current-buffer mistty-install-buffer
+                           (mistty-test-content))))
+             (should (file-exists-p dest))
+             (should (equal "dummy-module-binary-content"
+                            (with-temp-buffer
+                              (insert-file-contents-literally dest)
+                              (buffer-string))))
+             (should (equal "/download/v2.0.0/mistty-alacritty-vt-2.0.0-aarch64.dylib" requested-url))
+             (should (string-match-p "Downloading module version 2\.0\.0\.\.\." output))
+             (should-not (string-match-p "ERROR" output)))))))))
 
-               (should (equal dest result))
-               (should (file-exists-p dest))
-               (should (equal "dummy-module-binary-content"
-                              (with-temp-buffer
-                                (insert-file-contents-literally dest)
-                                (buffer-string))))
-               (should (equal expected-path requested-url))
-               (should (string-match-p "Downloading module version 2\.0\.0\.\.\." output))
-               (should-not (string-match-p "ERROR:" output))))))))))
-
-(ert-deftest mistty-install-download-module-server-error ()
+(ert-deftest mistty-install-download-module-fail ()
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
-  (let ((mistty-alacritty-version "2.0.0")
-        (system-type 'darwin)
-        (mistty-alacritty-arch "aarch64"))
-    (ert-with-temp-directory install-dir
+  (ert-with-temp-directory install-dir
+    (let ((mistty-alacritty-version "2.0.0")
+          (mistty-alacritty-release "v2.0.0")
+          (system-type 'darwin)
+          (mistty-alacritty-arch "aarch64")
+          (mistty-install-dir install-dir)
+          requested-url)
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
       (mistty-run-test-server
        (lambda (request)
          (with-slots (process headers) request
            (ws-send-404 process "Not Found")))
        (lambda (address)
-         (let* ((mistty-install-url (concat "http://" address "/mistty-alacritty-vt-%v-%a%e")))
-           (ert-with-test-buffer ()
-             (let ((result (mistty--download-module install-dir (current-buffer)))
-                   (output (mistty-test-content)))
-               (unless (null result)
-                 (message "OUT<<EOF\n%sEOF" (mistty-test-content)))
-
-               (should (null result))
-               (should (string-match-p "ERROR:" output))))))))))
+         (let* ((mistty-install-url (concat "http://" address "/download/%r/mistty-alacritty-vt-%v-%a%e"))
+                (dest (expand-file-name (mistty-alacritty-modulename) install-dir)))
+           (should-error (mistty--interactive-download))
+           (let ((output (with-current-buffer mistty-install-buffer
+                           (mistty-test-content))))
+             (should-not (file-exists-p dest))
+             (should (string-match-p "Downloading module version 2\.0\.0\.\.\." output))
+             (should (string-match-p "ERROR" output)))))))))
 
 (ert-deftest mistty-install-download-source ()
+  :tags '(:slow)
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
-  (let ((mistty-alacritty-version "2.0.0")
-        (mistty-alacritty-release "v2.0.0")
-        (system-type 'darwin)
-        (mistty-alacritty-arch "aarch64")
-        (data (let ((default-directory mistty-install-src-dir))
-                (shell-command-to-string "tar czf - Cargo.toml src/lib.rs")))
-        requested-url)
-    (ert-with-temp-directory dest-dir
+  (ert-with-temp-directory dest-dir
+    (message "install dir")
+    (let ((mistty-alacritty-version "2.0.0")
+          (mistty-alacritty-release "v2.0.0")
+          (mistty-install-dir dest-dir)
+          (mistty-install-keep-output t)
+          (system-type 'darwin)
+          (mistty-alacritty-arch "aarch64")
+          (data (let ((default-directory mistty-install-src-dir))
+                  (shell-command-to-string "tar czf - Cargo.* src/*.rs")))
+          requested-url)
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
       (mistty-run-test-server
        (lambda (request)
          (with-slots (process headers) request
@@ -188,26 +207,42 @@ once that function returns."
                                '("Content-Type" . "application/octet-stream"))
            (process-send-string process data)))
        (lambda (address)
-         (let* ((mistty-source-url (concat "http://" address "/archive/refs/tags/%v.tar.gz")))
-           (ert-with-test-buffer ()
-             (let ((result (mistty--download-source dest-dir (current-buffer)))
-                   (output (mistty-test-content)))
-               (unless result
-                 (message "OUT<<EOF\n%sEOF" (mistty-test-content)))
-               (should (file-exists-p (expand-file-name "Cargo.toml" dest-dir)))
-               (should (file-exists-p (expand-file-name "src/lib.rs" dest-dir)))
-               (should (equal nil (mistty--compile-module-issues dest-dir)))))))))))
+         (let ((mistty-source-url (concat "http://" address "/archive/refs/tags/%v.tar.gz"))
+               (dest (expand-file-name (mistty-alacritty-modulename)
+                                       mistty-install-dir)))
+           (condition-case err
+               (mistty--interactive-download-source)
+             (error (message "OUT<<EOF\n%sEOF"
+                             (with-current-buffer mistty-install-buffer
+                               (mistty-test-content)))
+                    (signal err)))
+           (should (file-exists-p dest))
+           (let ((output (with-current-buffer mistty-install-buffer
+                           (mistty-test-content))))
+             (should (string-match-p "Compiling module\.\.\.$" output))
+             (should (string-match-p "Finished" output)))))))))
 
 (ert-deftest mistty-install-download-source-failed ()
+  :tags '(:slow)
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
-  (let ((mistty-alacritty-version "2.0.0"))
-    (ert-with-temp-directory dest-dir
+  (ert-with-temp-directory dest-dir
+    (message "install dir")
+    (let ((mistty-alacritty-version "2.0.0")
+          (mistty-alacritty-release "v2.0.0")
+          (mistty-install-dir dest-dir)
+          (mistty-install-keep-output t)
+          (system-type 'darwin)
+          (mistty-alacritty-arch "aarch64"))
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
       (mistty-run-test-server
        (lambda (request)
          (with-slots (process headers) request
            (ws-send-404 process "Not Found")))
        (lambda (address)
-         (let* ((mistty-source-url (concat "http://" address "/archive/refs/tags/%v.tar.gz")))
-           (ert-with-test-buffer ()
-             (should-not (mistty--download-source dest-dir (current-buffer))))))))))
+         (let ((mistty-source-url (concat "http://" address "/archive/refs/tags/%v.tar.gz"))
+               (dest (expand-file-name (mistty-alacritty-modulename)
+                                       mistty-install-dir)))
+           (should-error (mistty--interactive-download-source))
+           (should-not (file-exists-p dest))))))))

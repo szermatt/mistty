@@ -72,6 +72,10 @@ for the user to kill."
 %a is the machine architecture `mistty-alacritty-arch'
 %e is `module-file-suffix'")
 
+(defvar mistty-install-terminfo-url
+  "https://raw.githubusercontent.com/alacritty/alacritty/refs/heads/master/extra/alacritty.info"
+  "URL to download alacritty terminfo from.")
+
 (defvar mistty-install-available
   '((gnu/linux . "x86_64")
     (darwin . "x86_64")
@@ -269,9 +273,19 @@ succeeds, the buffer is deleted."
   "Download the module (interactive version)."
   (mistty--run-with-output-buffer
    (lambda ()
-     (unless
-         (mistty--download-module mistty-install-dir)
-       (error "Module download failed."))
+     (let* ((install-dir mistty-install-dir)
+            (dest (mistty-alacritty-modulename))
+            (url (format-spec mistty-install-url (mistty--install-url-spec)))
+            (cmd (format-spec
+                  "curl --no-progress-meter --fail-with-body -o %d.part %u && mv %d.part %d"
+                  `((?u . ,(shell-quote-argument url))
+                    (?d . ,(shell-quote-argument dest))))))
+       (mistty--install-message
+        'progress "Downloading module version " mistty-alacritty-version "...")
+       (unless (and (zerop (mistty--install-execute cmd install-dir))
+                    (file-exists-p (expand-file-name dest install-dir)))
+         (mistty--install-message 'error "download failed")
+         (error "Module download failed")))
      (mistty--interactive-check-installed))))
 
 (defun mistty--interactive-download-source ()
@@ -281,12 +295,18 @@ succeeds, the buffer is deleted."
      (mistty--run-with-temp-dir
       "src"
       (lambda (src-dir)
-        (unless (mistty--download-source src-dir)
-          (error "Source download failed"))
-        (unless (mistty--compile-module
-                 src-dir "target" mistty-install-dir)
-          (error "Module compilation failed"))
-        (mistty--interactive-check-installed))))))
+        (let* ((url (format-spec mistty-source-url (mistty--install-url-spec)))
+               (cmd (format
+                     "curl --no-progress-meter --fail-with-body %s | tar xzf - "
+                     (shell-quote-argument url))))
+          (mistty--install-message
+           'progress  "Downloading source version " mistty-alacritty-version "...")
+          (unless (and (zerop (mistty--install-execute cmd src-dir))
+                       (file-exists-p "Cargo.toml"))
+            (mistty--install-message 'error "Source download failed")
+            (error "Source download failed"))
+          (mistty--compile-module src-dir "target" mistty-install-dir)
+          (mistty--interactive-check-installed)))))))
 
 (defun mistty--interactive-compile ()
   "Compile the module source (interactive version)."
@@ -296,20 +316,15 @@ succeeds, the buffer is deleted."
                          mistty-install-dir))
          ;; No source in mistty-install-dir
          (when-let* ((src-dir (read-directory-name "Source dir ")))
-           (unless (mistty--compile-module
-                    src-dir "target" mistty-install-dir)
-             (error "Module compilation failed"))
+           (mistty--compile-module src-dir "target" mistty-install-dir)
            (mistty--interactive-check-installed))
 
        ;; Rust source found in mistty-install-dir
        (mistty--run-with-temp-dir
         "target"
         (lambda (target-dir)
-          (unless (mistty--compile-module
-                   mistty-install-src-dir
-                   target-dir
-                   mistty-install-dir)
-            (error "Module compilation failed"))
+          (mistty--compile-module
+           mistty-install-src-dir target-dir mistty-install-dir)
           (mistty--interactive-check-installed)))))))
 
 (defun mistty--interactive-rust ()
@@ -356,27 +371,6 @@ Return either:
     'development-version)
    (t nil)))
 
-(defun mistty--download-module (install-dir)
-  "Download the correct version of the module and store it into INSTALL-DIR.
-
-This download the module from `mistty-install-url' using curl and puts
-the result into `mistty-install-dir'.
-
-If download succeeded, return the module path, otherwise return nil."
-    (let* ((dest (mistty-alacritty-modulename))
-           (url (format-spec mistty-install-url (mistty--install-url-spec)))
-           (cmd (format-spec
-                 "curl --no-progress-meter --fail-with-body -o %d.part %u && mv %d.part %d"
-                 `((?u . ,(shell-quote-argument url))
-                   (?d . ,(shell-quote-argument dest))))))
-      (mistty--install-message
-       'progress "Downloading module version " mistty-alacritty-version "...")
-      (if (and (zerop (mistty--install-execute cmd install-dir))
-               (file-exists-p (expand-file-name dest install-dir)))
-          (expand-file-name dest install-dir)
-        (mistty--install-message 'error "download failed")
-        nil)))
-
 (defun mistty--download-source-issues ()
   "Check whether it's worth trying to download the source.
 
@@ -391,25 +385,6 @@ Return either:
         (equal "dev" mistty-alacritty-version))
     'development-version)
    (t nil)))
-
-(defun mistty--download-source (src-dir)
-  "Download the correct version of the module and store it into SRC-DIR.
-
-This download the module from `mistty-install-url' using curl and puts
-the result into `mistty-src-dir'.
-
-Return non-nil if the download succeeded."
-  (let* ((url (format-spec mistty-source-url (mistty--install-url-spec)))
-         (cmd (format
-               "curl --no-progress-meter --fail-with-body %s | tar xzf - "
-               (shell-quote-argument url))))
-    (mistty--install-message
-     'progress  "Downloading source version " mistty-alacritty-version "...")
-    (if (and (zerop (mistty--install-execute cmd src-dir))
-             (file-exists-p "Cargo.toml"))
-        t
-      (mistty--install-message 'error "downloading failed")
-      nil)))
 
 (defun mistty--compile-module-issues (src-dir)
   "Check whether it's worth trying to compile the module in SRC-DIR.
@@ -436,8 +411,7 @@ directory is read-only.
 
 The module is installed into INSTALL-DIR.
 
-If compile succeeded, return the path to the module that was built, otherwise
-return nil."
+Signals an error if compilation fails."
   (let* ((default-directory src-dir)
          (cmd (format "cargo build --release --target-dir %s"
                       (shell-quote-argument target-dir)))
@@ -449,18 +423,17 @@ return nil."
                                 module-file-suffix)
                         (expand-file-name "release/" target-dir))))
     (mistty--install-message 'progress "Compiling module...")
-    (if (zerop (mistty--install-execute cmd src-dir))
-        (if (condition-case _err
-                (prog1 t
-                  (rename-file build-target dest 'ok-if-already-exists))
-              (error nil))
-            dest
-          (mistty--install-message
-           'error "failed to copy module to " install-dir " from " build-target)
-          nil)
+    (unless (zerop (mistty--install-execute cmd src-dir))
+      (mistty--install-message 'error "Compilation failed")
+      (error "Compilation failed"))
+    (unless (condition-case _err
+              (prog1 t
+                (rename-file build-target dest 'ok-if-already-exists))
+            (error nil))
       (mistty--install-message
-       'error "compilation failed")
-      nil)))
+       'error "failed to copy module to " install-dir " from " build-target)
+      (error "Failed to install compiled module"))
+    (mistty--install-message 'success "Module compiled successfully")))
 
 (defun mistty--terminfo-issues ()
   "List issues with calling `mistty--install-terminfo'."
@@ -475,22 +448,26 @@ return nil."
 
 (defun mistty--install-terminfo ()
   "Install terminfo to $HOME, download it if necessary."
-  (let ((local-file (expand-file-name
-                     "extras/alacritty.info" mistty-install-dir)))
-    (mistty--install-message 'progress "Installing terminfo definitions...")
-    (if (file-exists-p local-file)
-        (mistty--install-execute
-         (concat "tic -x -o .terminfo"
-                 (shell-quote-argument local-file))
-         (getenv "HOME"))
-      (mistty--install-execute
-       (concat
-        "curl --no-progress-meter --fail-with-body "
-        "https://raw.githubusercontent.com/alacritty/alacritty/refs/heads/master/extra/alacritty.info"
-        " | tic -x -o .terminfo -")
-       (getenv "HOME"))
-    (mistty--install-message
-     'success "Terminfo alacritty and alacritty-direct successfully installed in $HOME"))))
+  (mistty--run-with-output-buffer
+   (lambda ()
+     (let ((local-file (expand-file-name
+                        "extras/alacritty.info"
+                        mistty-install-src-dir)))
+       (mistty--install-message 'progress "Installing terminfo definitions...")
+       (unless
+           (zerop
+            (mistty--install-execute
+             (if (file-exists-p local-file)
+                 (concat "tic -x -o .terminfo " (shell-quote-argument local-file))
+               (concat
+                "curl --no-progress-meter --fail-with-body "
+                mistty-install-terminfo-url
+                " | tic -x -o .terminfo -"))
+             (getenv "HOME")))
+         (mistty--install-message 'error "Failed to add terminfo to $HOME/.terminfo failed")
+         (error "Failed to install alacritty terminfo"))
+       (mistty--install-message
+        'success "Terminfo alacritty and alacritty-direct successfully installed")))))
 
 (defun mistty--install-url-spec ()
   "Return a spec to use for `format-spec' for formatting URLs."

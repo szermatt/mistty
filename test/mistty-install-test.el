@@ -82,8 +82,8 @@
       (should (file-exists-p
                (expand-file-name (mistty-alacritty-modulename)
                                  mistty-install-dir)))
-      (should (string-match-p "Compiling module\.\.\.$" output))
-      (should (string-match-p "Finished" output)))))
+      (should (string-match "Compiling module\.\.\.$" output))
+      (should (string-match "Finished" output)))))
 
 (ert-deftest mistty-install-compile-module-no-source ()
   :tags '(:slow)
@@ -100,7 +100,7 @@
       (should-error (mistty--interactive-compile))
       (setq output (with-current-buffer mistty-install-buffer
                      (mistty-test-content)))
-      (should (string-match-p "compilation failed" output))
+      (should (string-match "compilation failed" output))
       (should-not (file-exists-p
                    (expand-file-name (mistty-alacritty-modulename)
                                      mistty-install-dir))))))
@@ -153,8 +153,8 @@ once that function returns."
                               (insert-file-contents-literally dest)
                               (buffer-string))))
              (should (equal "/download/v2.0.0/mistty-alacritty-vt-2.0.0-aarch64.dylib" requested-url))
-             (should (string-match-p "Downloading module version 2\.0\.0\.\.\." output))
-             (should-not (string-match-p "ERROR" output)))))))))
+             (should (string-match "Downloading module version 2\.0\.0\.\.\." output))
+             (should-not (string-match "ERROR" output)))))))))
 
 (ert-deftest mistty-install-download-module-fail ()
   (skip-unless (executable-find "curl"))
@@ -179,8 +179,8 @@ once that function returns."
            (let ((output (with-current-buffer mistty-install-buffer
                            (mistty-test-content))))
              (should-not (file-exists-p dest))
-             (should (string-match-p "Downloading module version 2\.0\.0\.\.\." output))
-             (should (string-match-p "ERROR" output)))))))))
+             (should (string-match "Downloading module version 2\.0\.0\.\.\." output))
+             (should (string-match "ERROR" output)))))))))
 
 (ert-deftest mistty-install-download-source ()
   :tags '(:slow)
@@ -219,8 +219,8 @@ once that function returns."
            (should (file-exists-p dest))
            (let ((output (with-current-buffer mistty-install-buffer
                            (mistty-test-content))))
-             (should (string-match-p "Compiling module\.\.\.$" output))
-             (should (string-match-p "Finished" output)))))))))
+             (should (string-match "Compiling module\.\.\.$" output))
+             (should (string-match "Finished" output)))))))))
 
 (ert-deftest mistty-install-download-source-failed ()
   :tags '(:slow)
@@ -246,3 +246,59 @@ once that function returns."
                                        mistty-install-dir)))
            (should-error (mistty--interactive-download-source))
            (should-not (file-exists-p dest))))))))
+
+(ert-deftest mistty-install-terminfo-from-local-file ()
+  (mistty-test-running)
+  (ert-with-temp-directory tempdir
+    (let ((mistty-install-keep-output t)
+          (process-environment (cons (concat "HOME=" tempdir) process-environment)))
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
+      (condition-case err
+          (mistty--install-terminfo)
+        (error (message "OUT<<EOF\n%sEOF"
+                        (with-current-buffer mistty-install-buffer
+                          (mistty-test-content)))
+               (signal err)))
+      (let ((default-directory tempdir))
+        (should (file-exists-p ".terminfo/61/alacritty"))
+        (should (file-exists-p ".terminfo/61/alacritty-direct"))))))
+
+(ert-deftest mistty-install-terminfo-from-remote-file ()
+  (mistty-test-running)
+  (ert-with-temp-directory tempdir
+    (let ((mistty-install-keep-output t)
+          (process-environment (cons (concat "HOME=" tempdir) process-environment))
+          (data (with-temp-buffer
+                  (insert-file-contents (expand-file-name
+                                         "extras/alacritty.info"
+                                         mistty-install-src-dir))
+                  (buffer-string))))
+      (ignore-error error
+        (kill-buffer mistty-install-buffer))
+      (mistty-run-test-server
+       (lambda (request)
+         (with-slots (process headers) request
+           (setq requested-url (cdr (assoc :GET headers)))
+           (if (string= "/alacritty.info" requested-url)
+               (progn
+                 (ws-response-header process 200
+                                     '("Content-Type" . "application/octet-stream"))
+                 (process-send-string process data))
+             (ws-send-404 process "Not Found"))))
+       (lambda (address)
+         (let ((mistty-install-terminfo-url (concat "http://" address "/alacritty.info"))
+               (mistty-install-src-dir "/notfound"))
+           (condition-case err
+               (mistty--install-terminfo)
+             (error (message "OUT<<EOF\n%sEOF"
+                             (with-current-buffer mistty-install-buffer
+                               (mistty-test-content)))
+                    (signal err)))
+      (let ((default-directory tempdir)
+            (output (with-current-buffer mistty-install-buffer
+                      (mistty-test-content))))
+        (should (file-exists-p ".terminfo/61/alacritty"))
+        (should (file-exists-p ".terminfo/61/alacritty-direct"))
+        (should (string-match "curl" output))
+        (should (string-match "tic -x" output)))))))))

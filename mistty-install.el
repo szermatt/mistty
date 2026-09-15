@@ -28,6 +28,7 @@
 
 This is the directory where the .el or .elc files are installed.")
 
+;;;###autoload
 (defcustom mistty-install-dir (if (file-writable-p mistty-install-src-dir)
                                   mistty-install-src-dir
                                 user-emacs-directory)
@@ -41,6 +42,7 @@ is writable, otherwise `user-emacs-directory'."
   :group 'mistty
   :type 'directory)
 
+;;;###autoload
 (defcustom mistty-install-keep-output nil
   "Keep around the *mistty-install* output buffer.
 
@@ -88,6 +90,7 @@ for the user to kill."
 (defvar mistty-install-buffer nil
   "Buffer *mistty-install* used to display command output.")
 
+;;;###autoload
 (defun mistty-install ()
   "Let user choose a way of installing the Mistty Alacritty module.
 
@@ -131,6 +134,7 @@ be called interactively."
                   (handler (alist-get 'handler option-def)))
         (funcall handler)))))
 
+;;;###autoload
 (defun mistty-install-dwim ()
   "Install Mistty Alacritty module, asking as few questions as possible.
 

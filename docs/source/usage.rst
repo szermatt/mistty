@@ -27,8 +27,8 @@ for your shell (:ref:`dirtrack`), but read on for more details.
 
 .. _installmod:
 
-Experimental Module with Alacritty
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Module with Alacritty
+^^^^^^^^^^^^^^^^^^^^^
 
   .. index::
      pair: variable; mistty-terminal-type

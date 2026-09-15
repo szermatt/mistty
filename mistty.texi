@@ -197,13 +197,13 @@ and, unless you’re using @code{Bash}, configure directory tracking
 for your shell (@ref{b,,Directory Tracking}), but read on for more details.
 
 @menu
-* Experimental Module with Alacritty:: 
+* Module with Alacritty:: 
 
 @end menu
 
-@node Experimental Module with Alacritty,,,Installation
-@anchor{usage experimental-module-with-alacritty}@anchor{c}@anchor{usage installmod}@anchor{d}
-@subsubsection Experimental Module with Alacritty
+@node Module with Alacritty,,,Installation
+@anchor{usage installmod}@anchor{c}@anchor{usage module-with-alacritty}@anchor{d}
+@subsubsection Module with Alacritty
 
 
 @quotation

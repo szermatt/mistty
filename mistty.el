@@ -1,6 +1,6 @@
 ;;; mistty.el --- Shell/Comint alternative based on term.el -*- lexical-binding: t -*-
 
-;; Copyright (C) 2023-2025 Stephane Zermatten
+;; Copyright (C) 2023-2026 Stephane Zermatten
 
 ;; Author: Stephane Zermatten <szermatt@gmx.net>
 ;; Version: 1.5.1snapshot

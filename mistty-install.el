@@ -29,9 +29,7 @@
 This is the directory where the .el or .elc files are installed.")
 
 ;;;###autoload
-(defcustom mistty-install-dir (if (file-writable-p mistty-install-src-dir)
-                                  mistty-install-src-dir
-                                user-emacs-directory)
+(defcustom mistty-install-dir nil
   "Directory where the module should be installed.
 
 `mistty-install' will attempt to store the module into this directory.
@@ -283,11 +281,21 @@ succeeds, the buffer is deleted."
         (funcall func dir)
       (delete-directory dir t nil))))
 
+(defun mistty--choose-install-dir ()
+  "Choose where to install the module.
+
+If `mistty-install-dir' is configured, use that and fallback to either
+mistty-installe.el source directory or `user-emacs-directory'."
+  (or mistty-install-dir
+      (if (file-writable-p mistty-install-src-dir)
+          mistty-install-src-dir
+        user-emacs-directory)))
+
 (defun mistty--interactive-download ()
   "Download the module (interactive version)."
   (mistty--run-with-output-buffer
    (lambda ()
-     (let* ((install-dir mistty-install-dir)
+     (let* ((install-dir (mistty--choose-install-dir))
             (dest (mistty-alacritty-modulename))
             (url (format-spec mistty-install-url (mistty--install-url-spec)))
             (cmd (format-spec
@@ -299,8 +307,8 @@ succeeds, the buffer is deleted."
        (unless (and (zerop (mistty--install-execute cmd install-dir))
                     (file-exists-p (expand-file-name dest install-dir)))
          (mistty--install-message 'error "download failed")
-         (error "Module download failed")))
-     (mistty--interactive-check-installed))))
+         (error "Module download failed"))
+       (mistty--interactive-check-installed install-dir)))))
 
 (defun mistty--interactive-download-source ()
   "Download the module source (interactive version)."
@@ -319,27 +327,28 @@ succeeds, the buffer is deleted."
                        (file-exists-p "Cargo.toml"))
             (mistty--install-message 'error "Source download failed")
             (error "Source download failed"))
-          (mistty--compile-module src-dir "target" mistty-install-dir)
-          (mistty--interactive-check-installed)))))))
+          (let ((install-dir (mistty--choose-install-dir)))
+            (mistty--compile-module src-dir "target" install-dir)
+            (mistty--interactive-check-installed install-dir))))))))
 
 (defun mistty--interactive-compile ()
   "Compile the module source (interactive version)."
   (mistty--run-with-output-buffer
    (lambda ()
-     (if (eq 'no-source (mistty--compile-module-issues
-                         mistty-install-dir))
-         ;; No source in mistty-install-dir
-         (when-let* ((src-dir (read-directory-name "Source dir ")))
-           (mistty--compile-module src-dir "target" mistty-install-dir)
-           (mistty--interactive-check-installed))
+     (let ((install-dir (mistty--choose-install-dir)))
+       (if (eq 'no-source (mistty--compile-module-issues install-dir))
+           ;; No source in install-dir
+           (when-let* ((src-dir (read-directory-name "Source dir ")))
+             (mistty--compile-module src-dir "target" install-dir)
+             (mistty--interactive-check-installed install-dir))
 
-       ;; Rust source found in mistty-install-dir
-       (mistty--run-with-temp-dir
-        "target"
-        (lambda (target-dir)
-          (mistty--compile-module
-           mistty-install-src-dir target-dir mistty-install-dir)
-          (mistty--interactive-check-installed)))))))
+         ;; Rust source found in install-dir
+         (mistty--run-with-temp-dir
+          "target"
+          (lambda (target-dir)
+            (mistty--compile-module
+             mistty-install-src-dir target-dir install-dir)
+            (mistty--interactive-check-installed install-dir))))))))
 
 (defun mistty--interactive-rust ()
   "Direct the user to rust's install instructions."
@@ -347,12 +356,12 @@ succeeds, the buffer is deleted."
            mistty-download-rust-url)
   (browse-url mistty-download-rust-url))
 
-(defun mistty--interactive-check-installed ()
+(defun mistty--interactive-check-installed (install-dir)
   "Report a successful install and try to load the module.
 
 Signals an error if loading fails."
   (mistty--install-message
-   'success "Module installed into " mistty-install-dir)
+   'success "Module installed into " install-dir)
   (cond
    ((mistty-alacritty-available-p)
     (mistty--install-message
@@ -364,7 +373,7 @@ Signals an error if loading fails."
      'success "Module installed and loaded successfully"))
    (t
     (error "Installed module could not be loaded. Is %s on the load-path ? "
-           mistty-install-dir))))
+           install-dir))))
 
 (defun mistty--download-module-issues ()
   "Check whether it's worth trying to download the module.
@@ -454,7 +463,8 @@ Signals an error if compilation fails."
   (cond
    ((equal "OK\n" (shell-command-to-string "infocmp alacritty >/dev/null && echo OK"))
     'already-installed)
-   ((file-exists-p (expand-file-name "extras/alacritty.info" mistty-install-dir))
+   ((file-exists-p (expand-file-name "extras/alacritty.info"
+                                     mistty-install-src-dir))
     nil)
    ((null (executable-find "curl"))
     'curl-not-installed)
@@ -464,7 +474,7 @@ Signals an error if compilation fails."
   "Install terminfo to $HOME, download it if necessary."
   (mistty--run-with-output-buffer
    (lambda ()
-     (let ((local-file (expand-file-name
+     (let* ((local-file (expand-file-name
                         "extras/alacritty.info"
                         mistty-install-src-dir)))
        (mistty--install-message 'progress "Installing terminfo definitions...")

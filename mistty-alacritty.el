@@ -24,6 +24,8 @@
 (require 'mistty-kbd)
 (require 'mistty-log)
 (require 'mistty-scrolline)
+;;; Code:
+
 (eval-when-compile
   (require 'cl-lib))
 (require 'ansi-osc) ; links use ansi-osc-hyperlink
@@ -77,7 +79,7 @@ for some reason."
    ((featurep 'mistty-alacritty-vt) t)
    ((load (mistty-alacritty-modulename) 'noerror 'nomessage)
     (unless (featurep 'mistty-alacritty-vt)
-      (error "module doesn't define feature mistty-alacritty-vt"))
+      (error "Module doesn't define feature mistty-alacritty-vt"))
 
     t)
    ;; not found
@@ -161,12 +163,14 @@ terminals."
   "Virtual terminal tied to the buffer, from mistty-alacritty-vt.")
 
 (defvar-local mistty-alacritty--cursor nil
-  "Marker that tracks the cursor position, set by the last rendering
-operation.")
+  "Marker that tracks the cursor position.
+
+This marker is set by the last rendering operation.")
 
 (defvar-local mistty-alacritty--home nil
-  "Marker that tracks the position of the top of the screen, following
-scrollback lines.")
+  "Marker that tracks the position of the top of the screen.
+
+This immediately follows the scrollback lines.")
 
 (defvar-local mistty-alacritty-columns nil
   "Width of the terminal, in columns. Set by `mistty-alacritty-resize'.")
@@ -240,9 +244,9 @@ process."
     (error "Alacritty terminal is unavailable; module '%s' not found"
            (mistty-alacritty-modulename)))
   (unless (eq major-mode 'mistty-alacritty-mode)
-    (error "Must be called from a mistty-alacritty-mode buffer."))
+    (error "Must be called from a mistty-alacritty-mode buffer"))
   (when (get-buffer-process (current-buffer))
-    (error "A process is already attached to the buffer."))
+    (error "A process is already attached to the buffer"))
   (mistty-log "LAUNCH %s %s" program args)
   (let ((width (or width 80))
         (height (or height 24))
@@ -338,12 +342,20 @@ given the set of windows."
         (set-process-window-size proc height width))))
 
 (defun mistty-alacritty--alt-screen-p ()
+  "Check whether we're displaying the alt screen buffer.
+
+This function returns non-nil when the alt screen buffer is displayed.
+This mode is called fullscreen in the rest of the code."
   (mistty-alacritty-vt-alt-screen-p mistty-alacritty--vterm))
 
 (defun mistty-alacritty--cursor-linecol ()
+  "Return cursor terminal line and column number.
+
+The return value is a (cons line column)."
   (mistty-alacritty-vt-cursor mistty-alacritty--vterm))
 
 (defun mistty-alacritty--cursor-column ()
+  "Return cursor terminal column number."
   (cdr (mistty-alacritty-vt-cursor mistty-alacritty--vterm)))
 
 (defun mistty-alacritty--cursor-chars ()
@@ -355,9 +367,14 @@ Do not confuse it with `mistty-alacritty--cursor-column'"
                           (pos-bol))))
 
 (defun mistty-alacritty--cursor-line ()
+  "Return cursor terminal line number."
   (car (mistty-alacritty-vt-cursor mistty-alacritty--vterm)))
 
 (defun mistty-alacritty--process-filter (proc str)
+  "Update the terminal state and render the result.
+
+This is meant to be used as process filter so takes the usual argument
+PROC, for the process and STR for the data to send to the terminal."
   (mistty-log "RECV %S" str)
   (mistty--with-live-buffer (process-buffer proc)
     (mistty-alacritty--process-bytes str)
@@ -395,6 +412,10 @@ The current buffer must have a virtual terminal associated."
     (goto-char mistty-alacritty--cursor)))
 
 (defun mistty-alacritty--sentinel (proc msg)
+  "Update buffer when PROC has exited.
+
+MSG is displayed at the end of the buffer, to let the user know the
+process is dead."
   (when (memq (process-status proc) '(signal exit))
     (mistty--with-live-buffer (process-buffer proc)
       (save-excursion
@@ -402,23 +423,6 @@ The current buffer must have a virtual terminal associated."
         (insert "\nProcess %s" msg)))
     (set-process-buffer proc nil)
     (delete-process proc)))
-
-(defun mistty-alacritty-launch ()
-  (interactive)
-  (with-current-buffer (generate-new-buffer "*mistty-alacritty*")
-    (mistty-alacritty-mode)
-     ;; select window right away to get its dimensions
-    (pop-to-buffer (current-buffer))
-    (mistty-alacritty-exec
-     (buffer-name)
-     (with-connection-local-variables
-      (or
-       explicit-shell-file-name
-       shell-file-name
-       (getenv "SHELL")))
-     '("-i")
-     (window-max-chars-per-line)
-     (floor (window-screen-lines)))))
 
 (defun mistty-alacritty--TERM ()
   "Choose a value for the TERM env variable.

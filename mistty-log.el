@@ -72,13 +72,13 @@ Backtraces that are longer than this value are truncated by
 This is also the time the log buffer was created.")
 
 (defface mistty-log-header-face '((t (:italic t)))
-  "Face applied to the headers in `mistty-log' buffer.
+  "Face applied to the headers in the *mistty-log* buffer.
 
 This applies to log entries created by the function `mistty-log'."
   :group 'mistty)
 
 (defface mistty-log-message-face nil
-  "Face applied to the message in `mistty-log' buffer.
+  "Face applied to the message in *mistty-log* buffer.
 
 This applies to log entries created by the function `mistty-log'."
   :group 'mistty)
@@ -90,7 +90,7 @@ String arguments are formatted and decoded to UTF-8, so terminal
 communication can safely be sent out.
 
 This does nothing unless logging is enabled for the current
-buffer. It is usually enabled by calling mistty-start-log."
+buffer. It is usually enabled by calling `mistty-start-log'."
   (when (or mistty-log (> mistty-backlog-size 0))
     (mistty--log str args)))
 
@@ -133,8 +133,8 @@ If logging is already enabled, just show the buffer."
 (defun mistty--log (format-str args &optional event-time)
   "Append FORMAT-STR and ARGS to the log.
 
-This is normally called from `mistty-log', which first checks
-whether logging or the backlog are enabled.
+This is normally called from the function `mistty-log', which first
+checks whether logging or the backlog are enabled.
 
 If logging is disabled, but the backlog is enabled, add a new
 entry to the backlog.
@@ -197,7 +197,7 @@ This is used to include terminal data."
     (apply #'format format-str args)))
 
 (defun mistty--log-header (event-time buf)
-  "Format a header for the macro `mistty-log'.
+  "Format a header for the function `mistty-log'.
 
 The header include EVENT-TIME and the name of BUF."
   (format "[%s] %3.3f "
@@ -218,8 +218,8 @@ such as \"process filter\" or \"timer\". It shouldn't be a function, as
 that function would be evaluated during compilation.
 
 With logging disabled, the error is just reported with `message'. With
-logging enabled, the error is logged using `mistty-log' together with a
-short backtrace."
+logging enabled, the error is logged using the function `mistty-log'
+together with a short backtrace."
   (declare (indent 1))
   (let ((msg (format "[mistty] error in %s: %%s" context)))
     (if (eval-when-compile (< emacs-major-version 30))
@@ -234,6 +234,8 @@ short backtrace."
 
 (defun mistty-log-error (context err)
   "Report a toplevel error in CONTEXT.
+
+ERR is the error to display.
 
 This function logs the error together with a shortened backtrace. It is
 important to call this function from `handler-bind' and not

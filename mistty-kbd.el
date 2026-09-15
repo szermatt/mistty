@@ -19,6 +19,8 @@
 ;; This file collects helpers and map for handling keyboards. This is
 ;; normally accessed through mistty.el.
 
+;;; Code:
+
 (defconst mistty-del "\C-h"
   "Sequence to send to the process when backspace is pressed.
 

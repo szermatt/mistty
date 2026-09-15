@@ -21,10 +21,13 @@
 
 (require 'cl-lib)
 
+;;; Code:
+
 (cl-defgeneric mistty--create-term (type name command &key width height)
   "Create a new term buffer of the given TYPE with name NAME.
 
-The buffer runs PROGRAM with the given ARGS.
+The buffer runs COMMAND, a list containing the program to run and its
+arguments.
 
 LOCAL-MAP specifies a local map to be used as the char-mode map.
 
@@ -35,30 +38,30 @@ This function returns an instance of the generic terminal type, which
 allows getting hold of the buffer and process.")
 
 (cl-defgeneric mistty--term-buf (term)
-  "Return the terminal buffer.")
+  "Return the TERM's terminal or process buffer.")
 
 (cl-defgeneric mistty--term-proc (term)
-  "Return the terminal process.")
+  "Return the TERM's process.")
 
 (cl-defgeneric mistty--term-screen-top-pos (term)
-  "Return the marker for the start of the terminal.
+  "Return the marker for the start of TERM's terminal.
 
 The marker is only valid in the terminal buffer.")
 
 (cl-defgeneric mistty--term-screen-top-scrolline (term)
-  "Return the scrolline for he start of the terminal.")
+  "Return the scrolline for he start of TERM's terminal.")
 
 (cl-defgeneric mistty--term-alt-screen-p (term)
-  "Return non-nil when displaying the alternate screen.")
+  "Return non-nil when TERM is displaying the alternate screen buffer.")
 
 (cl-defgeneric mistty--term-lines (term)
-  "Return the height of the terminal, in lines.")
+  "Return the height of TERM's terminal, in lines.")
 
 (cl-defgeneric mistty--term-columns (term)
-  "Return the width of the terminal, in columns.")
+  "Return the width of TERM's terminal, in columns.")
 
 (cl-defgeneric mistty--term-cursor-linecol (term)
-  "Return the position of the cursor as (LINE . COL).
+  "Return the position of TERM's cursor as (LINE . COL).
 
 The position of the cursor in terms of characters is available as the
 process marker. This is different, especially the column number as in
@@ -66,13 +69,15 @@ general, in unicode, there's no direct link between character count and
 column number.")
 
 (cl-defgeneric mistty--term-sentinel-func (term)
-  "Return the hardcoded sentinel function or the terminal.")
+  "Return the hardcoded sentinel function of TERM's terminal.")
 
 (cl-defgeneric mistty--term-filter-func (term)
-  "Return the hardcoded filter function or the terminal.")
+  "Return the hardcoded filter function of TERM's terminal.")
 
 (defun mistty--term-sentinel (proc msg)
   "Call the hardcoded sentinel function.
+
+PROC and MSG are as passed by a process to a sentinel function.
 
 This might be different from the sentinel set on PROC."
   (funcall (mistty--term-sentinel-func (process-get proc 'mistty-term)) proc msg))
@@ -81,7 +86,9 @@ This might be different from the sentinel set on PROC."
   "Set the terminal size for TERM to WIDTH x HEIGHT.")
 
 (cl-defgeneric mistty--term-autoresize (term enable)
-  "Enable or disable auto-resizing based on the buffer windows.")
+  "Enable or disable auto-resizing of TERM based on the buffer windows.
+
+A non-nil value for ENABLE enables autoresize, a nil value disables it.")
 
 (defun mistty--term-is-term-buffer (buffer)
   "Return non-nil if BUFFER is a term buffer."
@@ -89,7 +96,7 @@ This might be different from the sentinel set on PROC."
     (process-get proc 'mistty-term)))
 
 (cl-defgeneric mistty--term-setup-buffer (term fullscreen)
-  "Prepare the buffer for use.
+  "Prepare TERM's terminal/process buffer for use.
 
 If FULLSCREEN is non-nil, prepare the buffer for fullscreen mode")
 
@@ -111,7 +118,7 @@ enters fullscreen mode.")
   "Mark spaces in TERM from POS to end-of-line as unmodified.")
 
 (cl-defgeneric mistty--term-cleanup-prompt-sp (term pos)
-  "Cleanup after the shell using the prompt-sp hack.
+  "Cleanup after the shell using the prompt-sp hack in TERM at POS.
 
 This command cleans up the terminal after a trick used to detect output
 that doesn't end in a newline is called prompt sp. That trick consists
@@ -132,10 +139,10 @@ POS should be the position where the CR is called in the prompt-sp
 sequence.")
 
 (cl-defgeneric mistty--term-changed (term beg end)
-  "Mark the region between BEG AND end as requiring post-processing.")
+  "Mark the region of TERM between BEG and END as requiring post-processing.")
 
 (cl-defgeneric mistty--term-after-refresh (term beg)
-  "Post-process the work buffer after a refresh.
+  "Post-process TERM's work buffer after a refresh.
 
 At the time this is called, the current buffer contains a fresh copy of
 the term buffer from BEG to the end of the buffer.")

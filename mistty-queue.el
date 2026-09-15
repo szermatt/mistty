@@ -303,8 +303,8 @@ send, in reverse order."
                     (when-let* ((p (mistty--interact-pending-output interact)))
                       (push p pending-outputs)))
                 (error
-                 (mistty-log-error "interaction; giving up" err)
-                 (message "mistty: Interaction failed; giving up: %s" err)
+                 (mistty-log-error "Interaction failed ; giving up" err)
+                 (message "Interaction failed; giving up: %s" err)
                  'done))
             (setf (mistty--interact-pending-output interact) nil))
         ;; Move on to the next interact

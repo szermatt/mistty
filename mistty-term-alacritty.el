@@ -26,6 +26,9 @@
 (require 'mistty-term)
 (require 'mistty-accum)
 (require 'mistty-scrolline)
+
+;;; Code:
+
 (eval-when-compile
   (require 'mistty-accum-macros))
 
@@ -35,6 +38,10 @@
   proc buf)
 
 (cl-defmethod mistty--create-term ((_type (eql 'alacritty)) name command &key width height)
+  "Create an alacritty-type terminal with the given NAME and COMMAND.
+
+If WIDTH and HEIGHT are specified, they'll be used as terminal line and
+column count. The default is 80x24."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks))
         (program (car command))
         (args (cdr command)))
@@ -57,54 +64,78 @@
         term))))
 
 (cl-defmethod mistty--term-buf ((term mistty--term-alacritty))
+  "Return TERM's associated terminal/process buffer."
   (mistty--term-alacritty-buf term))
 
 (cl-defmethod mistty--term-proc ((term mistty--term-alacritty))
+  "Return TERM's associated process."
   (mistty--term-alacritty-proc term))
 
 (cl-defmethod mistty--term-screen-top-pos ((term mistty--term-alacritty))
+  "Return the position of the terminal in TERM's terminal buffer."
   (with-current-buffer (mistty--term-alacritty-buf term)
     mistty-alacritty--home))
 
 (cl-defmethod mistty--term-screen-top-scrolline ((term mistty--term-alacritty))
+  "Return the scrolline number of the first line of TERM's terminal."
   (with-current-buffer (mistty--term-alacritty-buf term)
     mistty--scrolline-home-num))
 
 (cl-defmethod mistty--term-alt-screen-p ((term mistty--term-alacritty))
+  "Return non-nil if TERM is showing the alt buffer."
   (with-current-buffer (mistty--term-alacritty-buf term)
     (mistty-alacritty--alt-screen-p)))
 
 (cl-defmethod mistty--term-lines ((term mistty--term-alacritty))
+  "Return the number of lines in TERM (its height)."
   (with-current-buffer (mistty--term-alacritty-buf term)
     mistty-alacritty-lines))
 
 (cl-defmethod mistty--term-columns ((term mistty--term-alacritty))
+  "Return the number of columns in TERM (its width)."
   (with-current-buffer (mistty--term-alacritty-buf term)
     mistty-alacritty-columns))
 
 (cl-defmethod mistty--term-cursor-linecol ((term mistty--term-alacritty))
+  "Return the terminal line and column of the cursor in TERM."
   (with-current-buffer (mistty--term-alacritty-buf term)
     (mistty-alacritty--cursor-linecol)))
 
 (cl-defmethod mistty--term-sentinel-func ((_term mistty--term-alacritty))
+  "Return the default sentinel of the process.
+
+The actual sentinel may different from this."
   #'mistty-alacritty--sentinel)
 
 (cl-defmethod mistty--term-filter-func ((_term mistty--term-alacritty))
+  "Return the default process filter of the process.
+
+The actual process filter may different from this."
   #'mistty-alacritty--process-filter)
 
 (cl-defmethod mistty--term-resize ((term mistty--term-alacritty) width height)
+  "Resize TERM to WIDTH columns and HEIGHT lines."
   (with-current-buffer (mistty--term-alacritty-buf term)
     (mistty-alacritty-resize width height))
   (set-process-window-size (mistty--term-alacritty-proc term) height width))
 
 (cl-defmethod mistty--term-autoresize ((term mistty--term-alacritty) enable)
+  "Turn on or off TERM dimension tracking its window dimensions.
+
+If ENABLE is non-nil, enable autoresize, otherwise disable it."
   (with-current-buffer (mistty--term-alacritty-buf term)
     (mistty-alacritty-auto-resize enable)))
 
-(cl-defmethod mistty--term-setup-buffer ((_term mistty--term-alacritty) &optional _fullscreen))
+(cl-defmethod mistty--term-setup-buffer ((_term mistty--term-alacritty) &optional _fullscreen)
+  "Does nothing.")
 
 (cl-defmethod mistty--term-setup-accum  ((term mistty--term-alacritty) accum
                                          &key enter-fullscreen active-prompt after-clear-screen)
+  "Setup TERM's ACCUM.
+
+ENTER-FULLSCREEN is to be called when entering fullscreen mode.
+ACTIVE-PROMPT should return the active `mistty--prompt'.
+AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared."
   (mistty--add-prompt-detection accum term)
   (mistty--term-alacritty-add-osc-detection accum term)
   (unless enter-fullscreen (error ":enter-fullscreen required"))
@@ -142,6 +173,9 @@
 
 (cl-defmethod mistty--term-setup-accum-for-fullscreen ((term mistty--term-alacritty) accum
                                                        &key leave-fullscreen)
+  "Setup TERM's ACCUM for fullescreen mode.
+
+LEAVE-FULLSCREEN is to be called when leaving fullscreen mode."
   (mistty--term-alacritty-add-osc-detection accum term)
   (unless leave-fullscreen (error ":leave-fullscreen required"))
   (mistty--accum-add-processor
@@ -153,14 +187,20 @@
      (funcall leave-fullscreen))))
 
 (cl-defmethod mistty--term-clear-to-eol ((_term mistty--term-alacritty) pos)
+  "Mark spaces as cleared from POS to the end of the line."
   (mistty-alacritty--clear-to-eol pos))
 
 (cl-defmethod mistty--term-cleanup-prompt-sp ((_term mistty--term-alacritty) pos)
+  "Cleanup the prompt as POS after a prompt-sp hack."
   (mistty-alacritty--cleanup-prompt-sp pos))
 
-(cl-defmethod mistty--term-changed ((_term mistty--term-alacritty) _beg _end))
+(cl-defmethod mistty--term-changed ((_term mistty--term-alacritty) _beg _end)
+  "Does nothing.")
 
 (cl-defmethod mistty--term-after-refresh ((_term mistty--term-alacritty) beg)
+  "Post-process work buffer from BEG to end after a refresh.
+
+This marks the final newline as \\='empty-lines-at-eob."
 
   ;; When rendering, alacritty always render a final newline. Mark it.
   (let ((last-newline (1- (point-max))))

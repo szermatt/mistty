@@ -82,7 +82,7 @@ If unset, `mistty-create' and `mistty' try to use, in order:
  - the value of the SHELL env variable.
 
 When using TRAMP, it is possible to specify different values for
-this variable for different hosts by setting mistty-shell-command
+this variable for different hosts by setting `mistty-shell-command'
 as a connection-local variable."
   :type '(repeat string)
   :group 'mistty)
@@ -690,7 +690,7 @@ This variable is available in both the work buffer and the term
 buffer.")
 
 (defvar-local mistty--queue nil
-  "A queue of data to send to the process; a mistty--queue struct.
+  "A queue of data to send to the process; a `mistty--queue' struct.
 
 See mistty-queue.el.")
 
@@ -800,7 +800,7 @@ running command at a time.")
 (defvar mistty--inhibit-fake-nl-cleanup nil
   "Inhibit deletion of fake newline when moving the sync marker.
 
-Normally, fake newlines are removed by mistty--set-sync-mark,
+Normally, fake newlines are removed by `mistty--set-sync-mark',
 when the terminal zone is moved, so they don't confuse cursor
 movements.
 
@@ -853,7 +853,7 @@ fullscreen mode.")
   "If non-nil, vertical moves are allowed.")
 
 (defvar-local mistty--point-marker nil
-  "Marker (re)used by mistty--sync-buffer on Emacs 31 and later.")
+  "Marker (re)used by `mistty--sync-buffer' on Emacs 31 and later.")
 
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
@@ -1846,7 +1846,9 @@ Also updates prompt and point."
     (mistty--report-self-inserted-text)))
 
 (defun mistty--mark-continue-prompts (prompt prompt-start)
-  "Detect and mark continue prompts that are part of PROMPT."
+  "Detect and mark continue prompts that are part of PROMPT.
+
+PROMPT starts at PROMPT-START, a position in the current buffer."
   (let* ((scrolline (1+ (mistty--prompt-start prompt)))
          (end-scrolline (mistty--prompt-end prompt))
          (bol (mistty--bol prompt-start 2)))
@@ -1856,6 +1858,7 @@ Also updates prompt and point."
       (setq bol (mistty--bol bol 2)))))
 
 (defun mistty--mark-right-prompt (prompt-beg)
+  "Set text properties on the right prompt from PROMPT-BEG to eol."
   (let* ((line-end (max prompt-beg (mistty--eol prompt-beg)))
          (pos (text-property-any prompt-beg line-end 'mistty-skip 'right-prompt)))
     (when (and pos (> line-end pos))
@@ -1863,6 +1866,9 @@ Also updates prompt and point."
 
 (defun mistty--mark-prompt-fields (prompt prompt-beg)
   "If user input start is known in PROMPT, mark fields.
+
+PROMPT-BEG must be the position in the current buffer of the beginning
+of the prompt.
 
 Fields allow the like of `beginning-of-line' and `end-of-line' to ignore
 prompt and right prompts."
@@ -2383,8 +2389,13 @@ SCROLLINE is the scrolline at BEG."
 (defun mistty--send-for-mistty-mode (translated-key key n positional)
   "Send a key to the terminal.
 
-  This is meant to be bound to `mistty--send-function' for `mistty-mode'
-  buffers."
+TRANSLATED-KEY is the key translated into a terminal sequence.
+
+KEY is the original Emacs key, if any. N is the number of repetition for
+KEY in TRANSLATED-KEY. POSITIONAL is not nil if KEY is positionAL.
+
+This is meant to be bound to `mistty--send-function' for `mistty-mode'
+buffers."
   (mistty--require-proc)
   (let* ((fire-and-forget (or mistty--forbid-edit
                               (string-match "^[[:graph:]]+$" translated-key)))
@@ -3665,7 +3676,10 @@ Width and height are limited to `mistty-min-terminal-width' and
       (mistty--term-resize mistty--term width height))))
 
 (defun mistty--enter-fullscreen (work-buffer proc)
-  "Enter fullscreen mode for PROC."
+  "Enter fullscreen mode.
+
+This splits WORK-BUFFER from PROC as PROC's output is then only
+displayed in the terminal/process buffer."
   (mistty--with-live-buffer work-buffer
     (mistty--detach)
     (let ((bufname (buffer-name)))
@@ -3698,7 +3712,9 @@ Width and height are limited to `mistty-min-terminal-width' and
     (mistty-log "Entered fullscreen mode")))
 
 (defun mistty--report-fullscreen (buf msg)
-  "Display a message about having entered fullscreen.
+  "Display a message about BUF having entered fullscreen.
+
+MSG is the message to display; it is forward as-is to `message'.
 
 The message is displayed in an idle timer and only if the terminal is
 still in fullscreen mode at that time. This avoid confusing users with
@@ -3951,9 +3967,8 @@ A backstage buffer is a partial copy of PROC's buffer that's kept
 up-to-date with `replace-buffer-contents', so markers can be used
 to keep positions stable while the buffer is being modified.
 
-The value of the following buffer-local variables are carried
-over to the backstage buffer: `mistty-log',
-`mistty-bracketed-paste'."
+The value of the buffer-local variables `mistty-log', and
+`mistty-bracketed-paste' are carried over to the backstage buffer."
   (let ((backstage (generate-new-buffer " *mistty-backstage" t))
         (calling-buffer (current-buffer)))
     (with-current-buffer backstage

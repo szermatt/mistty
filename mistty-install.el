@@ -23,6 +23,8 @@
 (require 'cl-lib)
 (require 'url)
 
+;;; Code:
+
 (defvar mistty-install-src-dir (file-name-directory load-file-name)
   "Directory where mistty is installed.
 
@@ -362,6 +364,8 @@ mistty-installe.el source directory or `user-emacs-directory'."
 (defun mistty--interactive-check-installed (install-dir)
   "Report a successful install and try to load the module.
 
+The module is reported as aving been installed in INSTALL-DIR.
+
 Signals an error if loading fails."
   (mistty--install-message
    'success "Module installed into " install-dir)
@@ -550,3 +554,7 @@ The command and its output are appended to the current buffer."
         (process-exit-status proc))))
 
 (provide 'mistty-install)
+
+(provide 'mistty-install)
+
+;;; mistty-install.el ends here

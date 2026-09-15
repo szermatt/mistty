@@ -22,6 +22,8 @@
 
 (require 'cl-lib)
 (require 'term)
+;;; Code:
+
 (defvar term-width) ; defined in term.el
 (defvar term-height) ; defined in term.el
 (defvar term-home-marker) ; defined in term.el
@@ -80,7 +82,7 @@ terminals."
   :type '(alist :key-type string :value-type function))
 
 (defcustom mistty-term-mode-hook (list #'mistty-call-term-mode-hook)
-  "Hook run in in term-mode buffers created by MisTTY.
+  "Hook run in in `term-mode' buffers created by MisTTY.
 
 This hook overrides `term-mode-hook' for term buffers started by MisTTY
 to allow configuring MisTTY's term buffers differently from normal term
@@ -89,13 +91,13 @@ buffers.
 The default includes `mistty-call-term-mode-hook', which calls the
 original `term-mode-hook'.
 
-If you'd like to have completely different configuration for normal term-mode
-buffers and term-mode buffers started by Mistty, call:
+If you'd like to have completely different configuration for normal `term-mode'
+buffers and `term-mode' buffers started by Mistty, call:
 
   (remove-hook \\='mistty-term-mode-hook \\='mistty-call-term-mode-hook)
 
 You might want to execute the above command as well if you have reasons
-to think that some term-mode customization are interfering with MisTTY's
+to think that some `term-mode' customization are interfering with MisTTY's
 operations.
 
 This option only works on eterm terminals. It has no effect on alacritty
@@ -178,6 +180,10 @@ to call `mistty--term-postprocess'.")
   proc buf)
 
 (cl-defmethod mistty--create-term ((_type (eql 'eterm)) name command &key width height)
+  "Create an eterm-based terminal called NAME.
+
+COMMAND is run in the terminal and its size is set to WIDTH x HEIGHT,
+defaulting to 80 x 24."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
       (let* ((mistty-shadowed-term-mode-hook term-mode-hook)
@@ -219,49 +225,66 @@ to call `mistty--term-postprocess'.")
         term))))
 
 (cl-defmethod mistty--term-buf ((term mistty--term-eterm))
+  "Return TERM's `term-mode' buffer."
   (mistty--term-eterm-buf term))
 
 (cl-defmethod mistty--term-proc ((term mistty--term-eterm))
+  "Return TERM's process."
   (mistty--term-eterm-proc term))
 
 (cl-defmethod mistty--term-screen-top-pos ((term mistty--term-eterm))
+  "Return the position of the top of the screen in TERM's process buffer."
   (with-current-buffer (mistty--term-eterm-buf term)
     term-home-marker))
 
 (cl-defmethod mistty--term-screen-top-scrolline ((term mistty--term-eterm))
+  "Return the scrolline displayed in the first line of TERM's terminal."
   (with-current-buffer (mistty--term-eterm-buf term)
     (mistty--scrolline-at term-home-marker)))
 
 (cl-defmethod mistty--term-alt-screen-p ((term mistty--term-eterm))
+  "Return non-nil when the TERM's terminal is showing the alt buffer."
   (with-current-buffer (mistty--term-eterm-buf term)
     (term-using-alternate-sub-buffer)))
 
 (cl-defmethod mistty--term-lines ((term mistty--term-eterm))
+  "Return TERM's height."
   (with-current-buffer (mistty--term-eterm-buf term)
     term-height))
 
 (cl-defmethod mistty--term-columns ((term mistty--term-eterm))
+  "Return TERM's width."
   (with-current-buffer (mistty--term-eterm-buf term)
     term-width))
 
 (cl-defmethod mistty--term-cursor-linecol ((term mistty--term-eterm))
+  "Return TERM's cursor position in the terminal."
   (with-current-buffer (mistty--term-eterm-buf term)
     (cons (term-current-row) (term-current-column))))
 
 (cl-defmethod mistty--term-sentinel-func ((_term mistty--term-eterm))
+  "Return the default sentinel for `term-mode' processes."
   #'term-sentinel)
 
 (cl-defmethod mistty--term-filter-func ((_term mistty--term-eterm))
+  "Return the default filter for `term-mode' processes."
   #'mistty--emulate-terminal)
 
 (cl-defmethod mistty--term-resize ((term mistty--term-eterm) width height)
+  "Resize TERM's terminal to WIDTH x HEIGHT."
   (set-process-window-size (mistty--term-eterm-proc term) height width)
   (with-current-buffer (mistty--term-eterm-buf term)
     (term-reset-size height width)))
 
-(cl-defmethod mistty--term-autoresize ((_term mistty--term-eterm) _enable))
+(cl-defmethod mistty--term-autoresize ((_term mistty--term-eterm) _enable)
+  "Does nothing.
+
+Autoresize is always enabled.")
 
 (cl-defmethod mistty--term-setup-buffer ((_term mistty--term-eterm) &optional fullscreen)
+  "Setup the terminal buffer in normal or fullscreen mode.
+
+FULLSCREEN is non-nil in fullscreen mode."
   (if fullscreen
       (progn
         (jit-lock-mode t)
@@ -271,6 +294,11 @@ to call `mistty--term-postprocess'.")
 
 (cl-defmethod mistty--term-setup-accum  ((term mistty--term-eterm) accum
                                          &key enter-fullscreen active-prompt after-clear-screen)
+  "Setup TERM's ACCUM.
+
+ENTER-FULLSCREEN is to be called when entering fullscreen mode.
+ACTIVE-PROMPT should return the active `mistty--prompt'.
+AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared."
   (mistty--term-postprocess-changed accum term)
   (mistty--accum-add-post-processor
    accum (mistty--regexp-prompt-detector))
@@ -331,6 +359,9 @@ to call `mistty--term-postprocess'.")
 
 (cl-defmethod mistty--term-setup-accum-for-fullscreen ((_term mistty--term-eterm) accum
                                                        &key leave-fullscreen)
+  "Setup TERM's ACCUM for fullescreen mode.
+
+LEAVE-FULLSCREEN is to be called when leaving fullscreen mode."
   (mistty--add-osc-detection accum)
   (mistty--add-da1 accum)
   (mistty--add-skip-unsupported accum)
@@ -356,23 +387,27 @@ to call `mistty--term-postprocess'.")
        (funcall leave-fullscreen)))))
 
 (cl-defmethod mistty--term-clear-to-eol ((_term mistty--term-eterm) _pos)
-  ;; nothing to do; it's enough to clear the text properties.
-  )
+  "Does nothing.
+
+This is not needed as it's enough to clear the text properties for eterm.")
 
 
 (cl-defmethod mistty--term-cleanup-prompt-sp ((_term mistty--term-eterm) _pos)
-  ;; nothing to do; it's enough to clear the text properties.
-  )
+  "Does nothing.
+
+This is not needed as it's enough to clear the text properties for eterm.")
 
 (cl-defmethod mistty--term-changed ((_term mistty--term-eterm) beg end)
+  "Report that the region between BEG and END changed on the terminal buffer."
   (mistty--changed beg end))
 
 (cl-defmethod mistty--term-after-refresh ((term mistty--term-eterm) beg)
+  "Post-process TERM's work buffer from BEG to the end after a refresh."
   (mistty--hide-line-wraps beg (point-max) (mistty--term-columns term))
   (mistty--mark-empty-line-at-eob beg))
 
 (defun mistty--term-postprocess-changed (accum term)
-  "Set \=='mistty-skip on the regions changed since last call.
+  "Set \\='mistty-skip on the regions changed since last call.
 
 This function registers a post processor on ACCUM that works with the
 given TERM."
@@ -405,7 +440,7 @@ ecoed by term.el."
 
 
 (defun mistty--add-da1 (accum)
-  "Handle DA1 Primary Device Detection code.
+  "Configur ACCUM to handle DA1 Primary Device Detection code.
 
 This implementation detects and answers primary device detection
 requests from the application attached to the terminal. This is
@@ -481,7 +516,7 @@ This function accepts output from PROC included into STR and forwards
 them to `term-emulate-terminal' with some modified functions, fix some
 issues.
 
-It also logs everything it receives to mistty-log.
+It also logs everything it receives to the function `mistty-log'.
 
 This is meant as a drop-in replacement for `term-emulate-terminal' in
 all situations, even when no work buffer is available."
@@ -643,7 +678,7 @@ Must be called from the term buffer."
 
 
 (defun mistty--term-command-hook (string)
-  "TRAMP-aware alternative to `term-command-hook'.
+  "TRAMP-aware alternative to the hook variable `term-command-hook'.
 
 This function is meant to be bound to `term-command-function' to
 catch Emacs-specific control sequences \\032...\\n. The STRING
@@ -688,7 +723,7 @@ Known OSC codes are passed down to handlers registered in
 
 WINDOW-WIDTH is used to detect right prompts.
 
-This sets properties from the mistty-clear properties,
+This sets properties from the \\='mistty-clear properties,
 detecting regions looking at a complete line."
   (save-excursion
     (let ((inhibit-read-only t)
@@ -809,7 +844,7 @@ the previous line."
   "Make fake newlines invisible between BEG and END.
 
 They're not really visible. to begin with, since they're at the end of
-the window, but marking them invisible allows kill-line to go through
+the window, but marking them invisible allows `kill-line' to go through
 them, as it should.
 
 Only the newlines at COLUMN-COUNT are actually modified."

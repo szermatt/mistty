@@ -32,6 +32,9 @@ Experimental Module with Alacritty
 
   .. index::
      pair: variable; mistty-terminal-type
+     pair: variable; mistty-install-dir
+     pair: variable; mistty-install-keep-output
+
 
 MisTTY recently got support for an alternative terminal emulator,
 `alacritty`, which replaces `eterm`, built into Emacs.
@@ -40,10 +43,27 @@ While it takes some efforts to get `alacritty` work, doing so
 addresses some limitations of `eterm`, such as lack of support for
 modern terminal features, and limited unicode support.
 
-To install the module from Emacs, run `M-x mistty-install`.
+To install the module from Emacs, run `M-x mistty-install` or `M-x
+mistty-install-dwim`, if you want to let the command choose the best
+option.
 
-To compile the module locally from a git checkout without using
-`mistty-install` follow these steps:
+You'll need `curl` on your PATH to download anything and Rust
+(`cargo`) to compile from source.
+
+By default, the module is installed next to `mistty-install.el`, if
+the directory is writable, or in `user-emacs-directory` (usually
+`~/.emacs.d` or `~/.config/emacs`) :kbd:`M-x customize-option
+mistty-intall-dir`
+
+If you want to keep the command output after a successful
+installation, to see exactly what was done, :kbd:`M-x customize-option
+mistty-install-keep-output`.
+
+If you prefer, you can download the released binary module or the
+released source code from github yourself. They're included in the
+`release assets <https://github.com/szermatt/mistty/releases>`_.
+
+You can also compile the module locally by following these steps:
 
 1. checkout mistty
 

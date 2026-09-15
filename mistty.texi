@@ -209,6 +209,8 @@ for your shell (@ref{b,,Directory Tracking}), but read on for more details.
 @quotation
 
 @geindex variable; mistty-terminal-type
+@geindex variable; mistty-install-dir
+@geindex variable; mistty-install-keep-output
 @end quotation
 
 MisTTY recently got support for an alternative terminal emulator,
@@ -218,10 +220,26 @@ While it takes some efforts to get @cite{alacritty} work, doing so
 addresses some limitations of @cite{eterm}, such as lack of support for
 modern terminal features, and limited unicode support.
 
-To install the module from Emacs, run @cite{M-x mistty-install}.
+To install the module from Emacs, run @cite{M-x mistty-install} or @cite{M-x mistty-install-dwim}, if you want to let the command choose the best
+option.
 
-To compile the module locally from a git checkout without using
-@cite{mistty-install} follow these steps:
+You’ll need @cite{curl} on your PATH to download anything and Rust
+(@cite{cargo}) to compile from source.
+
+By default, the module is installed next to @cite{mistty-install.el}, if
+the directory is writable, or in @cite{user-emacs-directory} (usually
+@cite{~/.emacs.d} or @cite{~/.config/emacs}) @code{M-x customize-option
+mistty-intall-dir}
+
+If you want to keep the command output after a successful
+installation, to see exactly what was done, @code{M-x customize-option
+mistty-install-keep-output}.
+
+If you prefer, you can download the released binary module or the
+released source code from github yourself. They’re included in the
+release assets@footnote{https://github.com/szermatt/mistty/releases}.
+
+You can also compile the module locally by following these steps:
 
 
 @enumerate 

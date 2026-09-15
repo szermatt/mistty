@@ -106,26 +106,29 @@ be called interactively."
                                          (car e)
                                          table))
                               table))
-                  (align (+ 2 (apply #'max (mapcar #'length (hash-table-keys titlemap)))))
+                  (titles (mapcar (lambda (id)
+                                    (alist-get 'title (alist-get id option-alist)))
+                                  options))
+                  (align (+ 2 (apply #'max (mapcar #'length titles))))
                   (choice (completing-read
                            "Choose a way to install the MisTTY Alacritty module. "
-                           (completion-table-with-metadata
-                            (mapcar (lambda (id)
-                                      (alist-get 'title (alist-get id option-alist)))
-                                    options)
-                            `((annotation-function
-                               . ,(lambda (title)
-                                    (let ((entry (alist-get (gethash title titlemap)
-                                                            option-alist)))
-                                      (concat
-                                       (make-string (- align (length title)) ?\ )
-                                       (if (alist-get 'recommended entry)
-                                           (concat (propertize "RECOMMENDED" 'face 'highlight) "  ")
-                                         "")
-                                       (propertize (alist-get 'doc entry)
-                                                   'face 'completions-annotations)))))
-                              (display-sort-function
-                               . ,(lambda (collection) collection))))
+                           (lambda (string pred action)
+                             (if (not (eq action 'metadata))
+                                 (complete-with-action action titles string pred)
+                               `(metadata
+                                 . ((annotation-function
+                                     . ,(lambda (title)
+                                          (let ((entry (alist-get (gethash title titlemap)
+                                                                  option-alist)))
+                                            (concat
+                                             (make-string (- align (length title)) ?\ )
+                                             (if (alist-get 'recommended entry)
+                                                 (concat (propertize "RECOMMENDED" 'face 'highlight) "  ")
+                                               "")
+                                             (propertize (alist-get 'doc entry)
+                                                         'face 'completions-annotations)))))
+                                    (display-sort-function
+                                     . ,(lambda (collection) collection))))))
                            nil 'require-match))
                   (id (gethash choice titlemap))
                   (option-def (alist-get id option-alist))

@@ -222,13 +222,20 @@ First install Sphinx with:
 (eldev-use-plugin 'maintainer)
 (setq eldev-release-test-local t)
 (defun mistty-release-preparator (version &optional post-release-version)
-  (eldev-with-file-buffer "docs/source/conf.py"
-    (dolist (tag '("version" "release"))
-      (goto-char (point-min))
-      (search-forward-regexp (concat tag " = '\\([0-9.]+\\(snapshot\\)?\\)' *$"))
-      (replace-match
-       (format "%s = '%s'" tag (package-version-join
-                                (or post-release-version version))))))
+  (let ((latest (package-version-join
+                 (or post-release-version version)))
+        (stable (package-version-join version)))
+    (eldev-with-file-buffer "docs/source/conf.py"
+      (dolist (tag '("version" "release"))
+        (goto-char (point-min))
+        (search-forward-regexp (concat tag " = '\\([0-9.]+\\(snapshot\\)?\\)' *$"))
+        (replace-match (format "%s = '%s'" tag latest))))
+    (eldev-with-file-buffer "Cargo.toml"
+      (search-forward-regexp "version = \".*?\"")
+      (replace-match (format "version = \"%s\"" stable)))
+    (eldev-with-file-buffer "mistty-alacritty.el"
+      (search-forward-regexp "(defvar mistty-alacritty-version \".*?\"")
+      (replace-match (format "(defvar mistty-alacritty-version \"%s\"" stable))))
   (mistty-eldev-build-texinfo))
 (add-hook 'eldev-release-preparators #'mistty-release-preparator)
 

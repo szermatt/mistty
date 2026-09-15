@@ -105,6 +105,7 @@ be called interactively."
                                          (car e)
                                          table))
                               table))
+                  (align (+ 2 (apply #'max (mapcar #'length (hash-table-keys titlemap)))))
                   (choice (completing-read
                            "Choose a way to install the MisTTY Alacritty module. "
                            (completion-table-with-metadata
@@ -115,12 +116,13 @@ be called interactively."
                                . ,(lambda (title)
                                     (let ((entry (alist-get (gethash title titlemap)
                                                             option-alist)))
-                                      (concat (if (alist-get 'recommended entry)
-                                                  (concat "  "
-                                                          (propertize "RECOMMENDED" 'face 'highlight))
-                                                "")
-                                              "  "
-                                              (alist-get 'doc entry)))))
+                                      (concat
+                                       (make-string (- align (length title)) ?\ )
+                                       (if (alist-get 'recommended entry)
+                                           (concat (propertize "RECOMMENDED" 'face 'highlight) "  ")
+                                         "")
+                                       (propertize (alist-get 'doc entry)
+                                                   'face 'completions-annotations)))))
                               (display-sort-function
                                . ,(lambda (collection) collection))))
                            nil 'require-match))

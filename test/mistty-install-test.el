@@ -249,6 +249,7 @@ once that function returns."
            (should-not (file-exists-p dest))))))))
 
 (ert-deftest mistty-install-terminfo-from-local-file ()
+  (skip-unless (>= emacs-major-version 31))
   (mistty-test-running)
   (ert-with-temp-directory tempdir
     (let ((mistty-install-keep-output t)
@@ -266,6 +267,7 @@ once that function returns."
         (should (file-exists-p ".terminfo/61/alacritty-direct"))))))
 
 (ert-deftest mistty-install-terminfo-from-remote-file ()
+  (skip-unless (>= emacs-major-version 31))
   (mistty-test-running)
   (ert-with-temp-directory tempdir
     (let ((mistty-install-keep-output t)

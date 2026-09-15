@@ -46,4 +46,4 @@ jobs:
       run: 'eldev build mistty-alacritty-vt-dev.so'
 
     - name: Test the project
-      run: 'eldev -p -dtT test --ci || eldev -p -dtT test --ci :failed'
+      run: 'eldev -dtT test --ci || eldev -dtT test --ci :failed'

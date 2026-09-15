@@ -229,8 +229,16 @@ The return value is a CONS containing:
   "Setup `mistty-install-buffer', if necessary."
   (with-current-buffer (setq mistty-install-buffer
                              (get-buffer-create "*mistty-install*"))
-    (unless (equal (point-min) (point-max))
-      (insert "…\n\n"))
+    (read-only-mode 1)
+    (if (equal (point-min) (point-max))
+        (progn
+          (use-local-map
+           (if-let* ((m (current-local-map)))
+               (copy-keymap m)
+             (make-sparse-keymap)))
+          (keymap-local-set "q" #'kill-current-buffer))
+      (let ((inhibit-read-only t))
+        (insert "…\n\n")))
     (goto-char (point-max))))
 
 (defun mistty--run-with-output-buffer (func)
@@ -483,37 +491,45 @@ Signals an error if compilation fails."
 
 The PARTS are concatenated together before displaying."
   (let ((msg (apply #'concat parts)))
-    (message msg)
+    (unless (eq 'output type)
+      (message msg))
     (when (buffer-live-p mistty-install-buffer)
       (with-current-buffer mistty-install-buffer
         (goto-char (point-max))
-        (insert (if (eq 'error type)
-                    "ERROR: "
-                  "")
-                msg "\n")))))
+        (let ((inhibit-read-only t))
+          (insert (pcase type
+                    ('error (concat "ERROR: " msg "\n"))
+                    ('output msg)
+                    (_ (concat msg "\n")))))))))
 
   (defun mistty--install-execute (shell-cmd dir)
     "Execute SHELL-CMD and return its status.
 
 The command and its output are appended to the current buffer."
     (with-current-buffer mistty-install-buffer
-      (goto-char (point-max))
-      (insert "> " shell-cmd "\n\n")
+      (let ((inhibit-read-only t))
+        (goto-char (point-max))
+        (insert "> " shell-cmd "\n\n"))
       (let* ((proc (let ((default-directory dir))
                      (make-process
                       :name "*mistty-install*"
                       :buffer (current-buffer)
                       :command (list "/bin/sh" "-c" shell-cmd)
+                      :filter (lambda (_proc str)
+                                (mistty--install-message 'output str))
                       :sentinel (lambda (proc _msg)
                                   (unless (process-live-p proc)
                                     (exit-recursive-edit)))))))
         (save-excursion
           (while (process-live-p proc)
-            (recursive-edit)))
+            (condition-case nil
+                (recursive-edit)
+              (t nil))))
         (when (eq (current-buffer) mistty-install-buffer)
           ;; the buffer might have been killed
-          (goto-char (point-max))
-          (insert "\n"))
+          (let ((inhibit-read-only t))
+            (goto-char (point-max))
+            (insert "\n")))
         (process-exit-status proc))))
 
 (provide 'mistty-install)

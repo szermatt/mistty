@@ -152,7 +152,8 @@ once that function returns."
                             (with-temp-buffer
                               (insert-file-contents-literally dest)
                               (buffer-string))))
-             (should (equal "/download/v2.0.0/mistty-alacritty-vt-2.0.0-aarch64.dylib" requested-url))
+             (should (equal (concat "/download/v2.0.0/mistty-alacritty-vt-2.0.0-aarch64" module-file-suffix)
+                            requested-url))
              (should (string-match "Downloading module version 2\.0\.0\.\.\." output))
              (should-not (string-match "ERROR" output)))))))))
 

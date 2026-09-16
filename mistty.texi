@@ -20,7 +20,7 @@
 
 @copying
 @quotation
-MisTTY 2.0.1snapshot
+MisTTY 2.0.1
 
 Stephane Zermatten
 
@@ -221,7 +221,8 @@ addresses some limitations of @cite{eterm}, such as lack of support for
 modern terminal features, and limited unicode support.
 
 To install the module from Emacs, run @cite{M-x mistty-install} or @cite{M-x mistty-install-dwim}, if you want to let the command choose the best
-option.
+option. (You might need to run @cite{M-x load-library mistty-install}
+first.)
 
 You’ll need @cite{curl} on your PATH to download anything and Rust
 (@cite{cargo}) to compile from source.

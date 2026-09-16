@@ -304,7 +304,7 @@ mistty-installe.el source directory or `user-emacs-directory'."
             (dest (mistty-alacritty-modulename))
             (url (format-spec mistty-install-url (mistty--install-url-spec)))
             (cmd (format-spec
-                  "curl --no-progress-meter --fail-with-body -o %d.part %u && mv %d.part %d"
+                  "curl -L --no-progress-meter --fail-with-body -o %d.part %u && mv %d.part %d"
                   `((?u . ,(shell-quote-argument url))
                     (?d . ,(shell-quote-argument dest))))))
        (mistty--install-message
@@ -324,7 +324,7 @@ mistty-installe.el source directory or `user-emacs-directory'."
       (lambda (src-dir)
         (let* ((url (format-spec mistty-source-url (mistty--install-url-spec)))
                (cmd (format
-                     "curl --no-progress-meter --fail-with-body %s | tar xzf - "
+                     "curl -L --no-progress-meter --fail-with-body %s | tar xzf - "
                      (shell-quote-argument url))))
           (mistty--install-message
            'progress  "Downloading source version " mistty-alacritty-version "...")
@@ -491,7 +491,7 @@ Signals an error if compilation fails."
              (if (file-exists-p local-file)
                  (concat "tic -x -o .terminfo " (shell-quote-argument local-file))
                (concat
-                "curl --no-progress-meter --fail-with-body "
+                "curl -L --no-progress-meter --fail-with-body "
                 mistty-install-terminfo-url
                 " | tic -x -o .terminfo -"))
              (getenv "HOME")))

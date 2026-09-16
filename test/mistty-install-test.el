@@ -125,17 +125,27 @@ once that function returns."
           (mistty-install-keep-output t)
           (system-type 'darwin)
           (mistty-alacritty-arch "aarch64")
-          (mistty-install-dir install-dir)
-          requested-url)
+          (mistty-install-dir install-dir))
       (ignore-error error
         (kill-buffer mistty-install-buffer))
       (mistty-run-test-server
        (lambda (request)
          (with-slots (process headers) request
-           (setq requested-url (cdr (assoc :GET headers)))
-           (ws-response-header process 200
-                               '("Content-Type" . "application/octet-stream"))
-           (process-send-string process "dummy-module-binary-content")))
+           (let ((requested-url (cdr (assoc :GET headers))))
+           (cond
+            ((string= requested-url
+                      (concat "/download/v2.0.0/mistty-alacritty-vt-2.0.0-aarch64"
+                              module-file-suffix))
+             ;; We use a redirect, like github does, to make sure this
+             ;; works.
+             (ws-response-header process 301 '("Location" . "/module"))
+             (process-send-string process ""))
+            ((string= requested-url "/module")
+             (ws-response-header process 200
+                                 '("Content-Type" . "application/octet-stream"))
+             (process-send-string process "dummy-module-binary-content"))
+            (t
+             (ws-send-404 process "Not Found"))))))
        (lambda (address)
          (let* ((mistty-install-url (concat "http://" address "/download/%r/mistty-alacritty-vt-%v-%a%e"))
                 (dest (expand-file-name (mistty-alacritty-modulename) install-dir)))
@@ -152,8 +162,6 @@ once that function returns."
                             (with-temp-buffer
                               (insert-file-contents-literally dest)
                               (buffer-string))))
-             (should (equal (concat "/download/v2.0.0/mistty-alacritty-vt-2.0.0-aarch64" module-file-suffix)
-                            requested-url))
              (should (string-match "Downloading module version 2\.0\.0\.\.\." output))
              (should-not (string-match "ERROR" output)))))))))
 
@@ -188,7 +196,6 @@ once that function returns."
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
   (ert-with-temp-directory dest-dir
-    (message "install dir")
     (let ((mistty-alacritty-version "2.0.0")
           (mistty-alacritty-release "v2.0.0")
           (mistty-install-dir dest-dir)
@@ -196,17 +203,23 @@ once that function returns."
           (system-type 'darwin)
           (mistty-alacritty-arch "aarch64")
           (data (let ((default-directory mistty-install-src-dir))
-                  (shell-command-to-string "tar czf - Cargo.* src/*.rs")))
-          requested-url)
+                  (shell-command-to-string "tar czf - Cargo.* src/*.rs"))))
       (ignore-error error
         (kill-buffer mistty-install-buffer))
       (mistty-run-test-server
        (lambda (request)
          (with-slots (process headers) request
-           (setq requested-url (cdr (assoc :GET headers)))
-           (ws-response-header process 200
-                               '("Content-Type" . "application/octet-stream"))
-           (process-send-string process data)))
+           (let ((requested-url (cdr (assoc :GET headers))))
+             (cond
+              ((string= requested-url "/archive/refs/tags/2.0.0.tar.gz")
+               (ws-response-header process 301 '("Location" . "/src"))
+               (process-send-string process ""))
+              ((string= requested-url "/src")
+               (ws-response-header process 200
+                                   '("Content-Type" . "application/octet-stream"))
+               (process-send-string process data))
+              (t
+               (ws-send-404 process "Not Found"))))))
        (lambda (address)
          (let ((mistty-source-url (concat "http://" address "/archive/refs/tags/%v.tar.gz"))
                (dest (expand-file-name (mistty-alacritty-modulename)
@@ -228,7 +241,6 @@ once that function returns."
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
   (ert-with-temp-directory dest-dir
-    (message "install dir")
     (let ((mistty-alacritty-version "2.0.0")
           (mistty-alacritty-release "v2.0.0")
           (mistty-install-dir dest-dir)

@@ -45,7 +45,8 @@ modern terminal features, and limited unicode support.
 
 To install the module from Emacs, run `M-x mistty-install` or `M-x
 mistty-install-dwim`, if you want to let the command choose the best
-option.
+option. (You might need to run `M-x load-library mistty-install`
+first.)
 
 You'll need `curl` on your PATH to download anything and Rust
 (`cargo`) to compile from source.

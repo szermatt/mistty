@@ -119,18 +119,21 @@ to the terminal. This is done by binding keys to `mistty-send-key`
 in `mistty-prompt-map`. For example:
 
 ```elisp
-(use-package mistty
+(Use-package mistty
   :bind (("C-c s" . mistty)
-
          ;; bind here the shortcuts you'd like the
          ;; shell to handle instead of Emacs.
          :map mistty-prompt-map
-
          ;; fish: directory history
          ("M-<up>" . mistty-send-key)
          ("M-<down>" . mistty-send-key)
          ("M-<left>" . mistty-send-key)
          ("M-<right>" . mistty-send-key)))
+
+;; This is only needed to build or download the
+;; alacritty module.
+(use-package mistty-install
+  :commands (mistty-install mistty-install-dwim))
 ```
 
 In addition to that, unless you're using Bash, which supports it out

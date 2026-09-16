@@ -40,6 +40,9 @@
                             target)
                        :forward-output t :die-on-error t))
 
+;; Always use the locally compiled 'dev' version when testing.
+(setq mistty-alacritty-version "dev")
+
 ;;; Test dependencies
 
 (eldev-add-loading-roots 'test "test")

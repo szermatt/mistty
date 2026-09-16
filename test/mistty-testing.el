@@ -39,7 +39,8 @@
 (turtles-definstance mistty (:width 80 :height 24 :forward '(mistty-test-bash-exe
                                                              mistty-test-zsh-exe
                                                              mistty-test-fish-exe
-                                                             mistty-test-log))
+                                                             mistty-test-log
+                                                             mistty-alacritty-version))
   "Emacs instance that runs mistty tests."
   (clear-minibuffer-message)
   (setq mistty-log-to-messages t)

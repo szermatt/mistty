@@ -236,6 +236,7 @@ First install Sphinx with:
     (eldev-with-file-buffer "Cargo.toml"
       (search-forward-regexp "version = \".*?\"")
       (replace-match (format "version = \"%s\"" stable)))
+    (eldev-call-process "cargo" '("build") :die-on-error t) ;; updates Cargo.lock
     (eldev-with-file-buffer "mistty-alacritty.el"
       (search-forward-regexp "(defvar mistty-alacritty-version \".*?\"")
       (replace-match (format "(defvar mistty-alacritty-version \"%s\"" stable))))

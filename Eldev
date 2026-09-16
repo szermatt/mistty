@@ -29,7 +29,7 @@
   :type           many-to-one
   :source-files   ("Cargo.toml" "src/**/*.rs")
   :targets        (lambda (_sources)
-                    (concat "mistty-alacritty-vt-2.0.0-"
+                    (concat "mistty-alacritty-vt-dev-"
                             (car (string-split system-configuration "-"))
                             module-file-suffix))
   :collect        ":compile"

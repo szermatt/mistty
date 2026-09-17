@@ -3452,36 +3452,48 @@ post-command hook."
   (mistty-with-errors-logged "post-command-1"
     (mistty--with-live-buffer buf
       (mistty--detect-foreign-overlays 'noschedule)
+      (unless (mistty--pickup-changes)
+        (when (and point-moved
+                   (>= (point) mistty-sync-marker)
+                   (process-live-p mistty-proc)
+                   (not mistty--inhibit)
+                   (not mistty--forbid-edit))
+          (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction))))
+      (mistty--refresh))))
+
+(defun mistty--pickup-changes ()
+  "Pick up changes made to the terminal area to replay them.
+
+Not every change is replayable. This function discards unreplayable
+changes.
+
+Return non-nil if a change was picked up to be replayed."
+  (mistty--require-work-buffer)
+  (when (and (not mistty--inhibit)
+             (process-live-p mistty-proc)
+             (buffer-live-p mistty-term-buffer))
+    (when-let* ((cs (mistty--active-changeset)))
       (mistty--inhibit-undo
        (save-restriction
          (widen)
-         (when (and (not mistty--inhibit)
-                    (process-live-p mistty-proc)
-                    (buffer-live-p mistty-term-buffer))
-           (let ((cs (mistty--active-changeset))
-                 (replay nil))
-             (when cs
-               (mistty-log "PICK UP CHANGESET #%s [%s,%s)"
-                           (mistty--changeset-id cs)
-                           (mistty--changeset-beg cs)
-                           (mistty--changeset-end cs))
-               (if (setq replay (mistty--should-replay cs))
-                   ;; Give changeset over to the interaction to replay.
-                   (let ((last-interaction (mistty--queue-last-interact mistty--queue)))
-                     (unless (and last-interaction
-                                  (eq 'replay (mistty--interact-type last-interaction))
-                                  ;; append to existing interaction
-                                  (mistty--call-interact last-interaction 'replay cs))
-                       (mistty--enqueue mistty--queue (mistty--replay-interaction cs))))
+         (mistty-log "PICK UP CHANGESET #%s [%s,%s)"
+                     (mistty--changeset-id cs)
+                     (mistty--changeset-beg cs)
+                     (mistty--changeset-end cs))
+         (if (mistty--should-replay cs)
+             ;; Give changeset over to the interaction to replay.
+             (prog1 t ; return non-nil
+               (let ((last-interaction (mistty--queue-last-interact mistty--queue)))
+                 (unless (and last-interaction
+                              (eq 'replay (mistty--interact-type last-interaction))
+                              ;; append to existing interaction
+                              (mistty--call-interact last-interaction 'replay cs))
+                   (mistty--enqueue mistty--queue (mistty--replay-interaction cs)))))
 
-                 ;; Abandon changeset
-                 (mistty--release-changeset cs)
-                 (mistty--refresh-after-changeset)))
-
-             (when (and (not replay) (not mistty--forbid-edit) point-moved (>= (point) mistty-sync-marker))
-               (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction)))
-
-             (mistty--refresh))))))))
+           ;; Abandon changeset
+           (prog1 nil ; return nil
+             (mistty--release-changeset cs)
+             (mistty--refresh-after-changeset))))))))
 
 (defun mistty--should-replay (cs)
   "Decide whether CS should be replayed.

@@ -2262,7 +2262,9 @@ SCROLLINE is the scrolline at BEG."
 (defun mistty-send-string (str)
   "Send STR to the process."
   (mistty--require-proc)
-  (mistty--enqueue-str mistty--queue str))
+  (if (mistty--should-fallback-to-emacs)
+      (insert str)
+    (mistty--enqueue-str mistty--queue str)))
 
 (defun mistty-send-command ()
   "Send the current command to the shell.
@@ -2270,22 +2272,24 @@ SCROLLINE is the scrolline at BEG."
   This also deactivates the mark, as it looks strange otherwise to
   have the command prompt and output marked."
   (interactive)
-  (deactivate-mark)
-  (mistty--require-proc)
-  (mistty--enqueue
-   mistty--queue
-   (mistty--interact send-command (interact)
-     (mistty-maybe-realize-possible-prompt)
-     (setq mistty-goto-cursor-next-time t)
-     (when (and mistty-proc
-                (mistty-on-prompt-p (point))
-                (mistty-on-prompt-p (mistty-cursor)))
-       (setq mistty--end-prompt (mistty-cursor)))
-     (mistty--interact-send interact "\C-m")
-     (mistty--interact-wait-for-output-then
-      (lambda (&optional _)
-        (setq mistty--interacted t)
-        (mistty--interact-done))))))
+  (if (mistty--should-fallback-to-emacs)
+      (insert "\n")
+    (deactivate-mark)
+    (mistty--require-proc)
+    (mistty--enqueue
+     mistty--queue
+     (mistty--interact send-command (interact)
+       (mistty-maybe-realize-possible-prompt)
+       (setq mistty-goto-cursor-next-time t)
+       (when (and mistty-proc
+                  (mistty-on-prompt-p (point))
+                  (mistty-on-prompt-p (mistty-cursor)))
+         (setq mistty--end-prompt (mistty-cursor)))
+       (mistty--interact-send interact "\C-m")
+       (mistty--interact-wait-for-output-then
+        (lambda (&optional _)
+          (setq mistty--interacted t)
+          (mistty--interact-done)))))))
 
 (defun mistty-newline (&optional n)
   "Send one ore more newlines that won't submit the current command.
@@ -2295,30 +2299,31 @@ SCROLLINE is the scrolline at BEG."
 
   If N is a positive integer that many newlines."
   (interactive "p")
-  (unless mistty-bracketed-paste
-    (user-error "Newlines not supported in this context"))
   (let* ((nls (make-string (or n 1) ?\n))
          (nl-seq (concat "\e[200~" nls "\e[201~")))
-    (cond
-     ((and (buffer-live-p mistty-work-buffer)
-           (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
-      (with-current-buffer mistty-work-buffer
-        (mistty-before-positional)
-        (mistty--enqueue
-         mistty--queue
-         (mistty--interact newline (interact)
-           (if (mistty-on-prompt-p (point))
-               (progn
-                 (setq mistty-goto-cursor-next-time t)
-                 (mistty--interact-send interact nl-seq)
-                 (mistty--interact-wait-for-output-then #'mistty--interact-done))
-             (insert nls)
-             (mistty--interact-done))))))
+    (if (mistty--should-fallback-to-emacs)
+        (insert nls)
 
-     ((process-live-p mistty-proc)
-      (mistty--send-string mistty-proc nl-seq))
+      (unless mistty-bracketed-paste
+        (user-error "Newlines not supported in this context"))
 
-     (t (insert "\n")))))
+      (if (and (buffer-live-p mistty-work-buffer)
+               (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
+          (with-current-buffer mistty-work-buffer
+            (mistty-before-positional)
+            (mistty--enqueue
+             mistty--queue
+             (mistty--interact newline (interact)
+               (if (mistty-on-prompt-p (point))
+                   (progn
+                     (setq mistty-goto-cursor-next-time t)
+                     (mistty--interact-send interact nl-seq)
+                     (mistty--interact-wait-for-output-then #'mistty--interact-done))
+                 (insert nls)
+                 (mistty--interact-done)))))
+
+        ;; on term buffer
+        (mistty--send-string mistty-proc nl-seq)))))
 
 (defun mistty-positional-p (key)
   "Return non-nil if KEY is a positional key.
@@ -2341,6 +2346,23 @@ SCROLLINE is the scrolline at BEG."
            (characterp (aref key 0))
            (seq-contains-p mistty-positional-keys (aref key 0)))))
 
+(defun mistty--should-fallback-to-emacs ()
+  "Decide whether to send a command to the terminal or modify the buffer.
+
+This function should be called by command that can either execute
+locally or be sent to the terminal for execution, such as self-insert.
+It decides whether it is better to modify the buffer and let MisTTY
+replay it later or to send the command to the terminal for direct
+execution.
+
+Normally, it's better to send commands to the terminal application so it
+can decide what to do, but in some cases, this isn't practical."
+  (and (eq (current-buffer) mistty-work-buffer)
+       (or mistty--inhibit
+           (mistty--active-changeset)
+           (not (process-live-p mistty-proc))
+           (not mistty--queue))))
+
 (defun mistty-self-insert (&optional n c)
   "Send a self-inserting character to the terminal.
 
@@ -2348,7 +2370,7 @@ SCROLLINE is the scrolline at BEG."
 
   C is the character to send, a single character."
   (interactive "p")
-  (if mistty--inhibit
+  (if (mistty--should-fallback-to-emacs)
       (self-insert-command n c)
     (mistty-send-key n (when c (make-string 1 c)) 'positional)))
 
@@ -2358,7 +2380,7 @@ SCROLLINE is the scrolline at BEG."
   If N is unset, send DEL once. If N is negative, send Control d
   that many times instead."
   (interactive "p")
-  (if mistty--inhibit
+  (if (mistty--should-fallback-to-emacs)
       (call-interactively 'backward-delete-char)
     (if (and (numberp n) (< n 0))
         (mistty-send-key (abs n) "\C-d" 'positional)
@@ -2370,8 +2392,8 @@ SCROLLINE is the scrolline at BEG."
   If N is unset, send Control d once. If N is negative, send DEL
   that many times instead."
   (interactive "p")
-  (if mistty--inhibit
-      (delete-char n)
+  (if (mistty--should-fallback-to-emacs)
+      (call-interactively 'delete-char)
     (setq mistty--interacted t)
     (if (and (numberp n) (< n 0))
         (mistty-send-key (abs n) mistty-del 'positional)
@@ -2382,7 +2404,7 @@ SCROLLINE is the scrolline at BEG."
 
   If N is specified, do it N times."
   (interactive "p")
-  (if mistty--inhibit
+  (if (mistty--should-fallback-to-emacs)
       (call-interactively 'indent-for-tab-command)
     (mistty-send-key n (kbd "TAB") 'positional)))
 
@@ -2405,6 +2427,7 @@ buffers."
            (not (buffer-local-value
                  'mistty-fullscreen mistty-work-buffer)))
       (with-current-buffer mistty-work-buffer
+        (mistty--pickup-changes)
         (when (and positional
                    (not (and (eq this-command 'mistty-self-insert)
                              (eq last-command 'mistty-self-insert))))
@@ -2461,23 +2484,22 @@ buffers."
   forwards the argument to it."
   (interactive "p")
   (let ((n (or n 1)))
-    (if (and (= n 1)
-             (process-live-p mistty-proc)
-             mistty--queue)
-        (mistty--enqueue
-         mistty--queue
-         (mistty--interact bol (interact)
-           ;; While C-a is not, strictly-speaking, a positional,
-           ;; it's a good sign that we're on a prompt.
-           (if (or (mistty-maybe-realize-possible-prompt (point))
-                   (mistty-on-prompt-p (point)))
-               (progn
-                 (setq mistty-goto-cursor-next-time t)
-                 (mistty--interact-send interact "\C-a")
-                 (mistty--interact-wait-for-output-then #'mistty--interact-done))
-             (beginning-of-line n)
-             (mistty--interact-done))))
-      (beginning-of-line n))))
+    (if (or (/= n 1)
+            (mistty--should-fallback-to-emacs))
+        (beginning-of-line n)
+      (mistty--enqueue
+       mistty--queue
+       (mistty--interact bol (interact)
+         ;; While C-a is not, strictly-speaking, a positional,
+         ;; it's a good sign that we're on a prompt.
+         (if (or (mistty-maybe-realize-possible-prompt (point))
+                 (mistty-on-prompt-p (point)))
+             (progn
+               (setq mistty-goto-cursor-next-time t)
+               (mistty--interact-send interact "\C-a")
+               (mistty--interact-wait-for-output-then #'mistty--interact-done))
+           (beginning-of-line n)
+           (mistty--interact-done)))))))
 
 (defun mistty-end-of-line-or-goto-cursor (&optional n)
   "Move the point to the end of the Nth line, then to the cursor.
@@ -2511,11 +2533,9 @@ buffers."
   forwards the argument to it."
   (interactive "p")
   (let ((n (or n 1)))
-    (cond
-     (mistty--inhibit (end-of-line n))
-     ((and (= 1 n)
-           (process-live-p mistty-proc)
-           mistty--queue)
+    (if (or (/= n 1)
+            (mistty--should-fallback-to-emacs))
+        (end-of-line n)
       (mistty--enqueue
        mistty--queue
        (mistty--interact eol (interact)
@@ -2532,9 +2552,7 @@ buffers."
                (mistty--interact-send interact "\C-e")
                (mistty--interact-wait-for-output-then #'mistty--interact-done))
            (end-of-line n)
-           (mistty--interact-done)))))
-     (t
-      (end-of-line n)))))
+           (mistty--interact-done)))))))
 
 (defun mistty--after-change-on-work (beg end old-length)
   "Handler for modifications made to the work buffer.

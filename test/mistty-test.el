@@ -300,7 +300,10 @@
 
 (mistty-deftest mistty-test-send-command-in-scrollback (:type all)
   (mistty-simulate-scrollback-buffer
-   (should-error (call-interactively 'mistty-send-command))))
+   (let ((before (buffer-string)))
+     ;; This just inserts a \n
+     (mistty-send-command)
+     (should (equal (concat before "\n") (buffer-string))))))
 
 (mistty-deftest mistty-test-send-command-is-queued (:type all)
   (mistty--enqueue mistty--queue (mistty--stuck-interaction "echo ok"))
@@ -2267,6 +2270,50 @@
 
   (mistty-backward-delete-char -3)
   (mistty-wait-for-output :str "echorld" :start (point-min)))
+
+(mistty-deftest mistty-test-commands-after-buffer-change (:type all)
+  (mistty-run-command
+   (insert "achoo")
+
+   ;; now that the buffer has been modified, all the mistty- command
+   ;; below should just modify the buffer, otherwise the changes would
+   ;; happen out of order.
+   (mistty-backward-delete-char)
+   (mistty-beginning-of-line)
+   (forward-char 2)
+   (mistty-self-insert 1 ?e)
+   (mistty-delete-char)
+   (mistty-end-of-line)
+   (mistty-self-insert 1 ?\ )
+   (mistty-send-string "foo"))
+  (mistty-send-command)
+
+  (mistty-wait-for-output :regexp "^foo" :cursor-at-end nil)
+
+  (should (equal "$ echo foo\nfoo\n$ <>" (mistty-test-content :show (point)))))
+
+(mistty-deftest mistty-test-mixed-commands (:type all)
+  (mistty-run-command
+   (insert "fooo")
+   (should (mistty--active-changeset))
+
+   ;; this one just modifies the buffer
+   (mistty-backward-delete-char)
+
+   ;; mistty-send-key captures the change and then the other commands
+   ;; sends keys directly to the terminal
+   (mistty-send-key 1 (kbd "C-a"))
+   (should-not (mistty--active-changeset))
+   (mistty-send-string "echo")
+   (mistty-send-key 1 (kbd "SPC"))
+   (should-not (mistty--active-changeset)))
+
+  (mistty-send-command)
+
+  (mistty-wait-for-output :regexp "^foo" :cursor-at-end nil)
+
+  (should (equal "$ echo foo\nfoo\n$ <>"
+                 (mistty-test-content :show (point)))))
 
 (mistty-deftest mistty-test-send-key-from-term-buffer ( :type all)
   (with-current-buffer mistty-term-buffer

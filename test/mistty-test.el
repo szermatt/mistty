@@ -1522,7 +1522,8 @@
                     (unless clear-screen "Press ENTER:\n")
                     "fullscreen off\n"
                     "$ <>")
-                   (mistty-test-content :show (mistty-cursor))))))
+                   (with-current-buffer work-buffer
+                     (mistty-test-content :show (mistty-cursor)))))))
 
 (ert-deftest mistty-test-enter-fullscreen-47/alacritty ()
   :tags '(:slow)
@@ -2332,10 +2333,10 @@
   (mistty-wait-for-output :regexp "echo ok *$")
   (should (equal "ok" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-raw-string-from-term-buffer ( :type all)
+(mistty-deftest mistty-test-mistty-send-string-from-term-buffer ( :type all)
   (with-current-buffer mistty-term-buffer
-    (mistty-send-text "echo ok"))
-
+    (mistty-send-string "echo ok"))
+  (mistty-wait-for-output :str "echo ok")
   (should (equal "ok" (mistty-send-and-capture-command-output))))
 
 (mistty-deftest mistty-test-send-last-key (:selected t :type all)
@@ -2804,17 +2805,19 @@
 
   (goto-char (point-min))
   (should (equal (mistty-test-pos "foo")
-                 (mistty--from-term-pos
+                 (mistty--from-pos-of
                   (with-current-buffer mistty-term-buffer
                     (goto-char (point-min))
-                    (mistty-test-pos "foo")))))
+                    (mistty-test-pos "foo"))
+                  mistty-term-buffer)))
 
   (goto-char (point-min))
   (should (equal (mistty-test-pos "hello")
-                 (mistty--from-term-pos
+                 (mistty--from-pos-of
                   (with-current-buffer mistty-term-buffer
                     (goto-char (point-min))
-                    (mistty-test-pos "hello"))))))
+                    (mistty-test-pos "hello"))
+                  mistty-term-buffer))))
 
 (mistty-deftest mistty-test-ignore-new-trailing-spaces-during-replay (:type all)
   (mistty--send-string mistty-proc "echo foo")

@@ -909,6 +909,11 @@ fullscreen mode.")
 (defvar-local mistty--pickup-changes-timer nil
   "Idle timer that will call `mistty--pickup-changes'.")
 
+(defvar-local mistty--cursor nil
+  "Position of the cursor on the work buffer.
+
+This is updated after each refresh.")
+
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
 
@@ -942,6 +947,7 @@ be ignored if coming from window size.")
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
 
+  (setq mistty--cursor (copy-marker (point-min)))
   (setq mistty-sync-marker (point-max-marker))
   (mistty--init-scrolline mistty-sync-marker 0)
   (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
@@ -1498,8 +1504,7 @@ a special string describing the new process state."
           (save-restriction
             (widen)
             (mistty--refresh)
-            (when (and (processp mistty-proc)
-                       (>= (point) (mistty-cursor)))
+            (when (>= (point) (mistty-cursor))
               (goto-char (point-max)))
             (mistty--detach)))
         (kill-buffer term-buffer))
@@ -1661,8 +1666,7 @@ If there's something below the point in a prompt, the window down so
 it's visible. Emacs won't do it on its own, since all it cares about is
 the point being visible."
   (mistty--require-work-buffer)
-  (when (and mistty-proc
-             (equal (point) (mistty-cursor))
+  (when (and (equal (point) (mistty-cursor))
              (mistty-on-prompt-p (point)))
     (let* ((pos (point))
            (end (mistty--last-non-ws))
@@ -1740,7 +1744,7 @@ few lines of scrollback to help recovery."
   "Move the point to the terminal's cursor."
   (interactive)
   (mistty--require-proc)
-  (let ((cursor (mistty--safe-pos (mistty-cursor))))
+  (let ((cursor (mistty-cursor)))
     (when (/= cursor (point))
       (goto-char cursor)
       (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
@@ -1750,27 +1754,14 @@ few lines of scrollback to help recovery."
 (defun mistty-cursor ()
   "Return the position of the terminal cursor in the MisTTY buffer.
 
-Note that the position might not exist in `mistty-work-buffer',
-not yet, if it the work buffer is out of sync with
-`mistty-term-buffer'."
-  ;; Not using mistty--require-proc as a non-live process is
-  ;; acceptable here.
-  (unless mistty-proc
-    (error "No process"))
-  (mistty--from-pos-of (process-mark mistty-proc) mistty-term-buffer))
+This is the position of the cursor at the time of the last refresh. It
+is updated after each refresh"
+  (marker-position mistty--cursor))
 
 (defun mistty--from-pos-of (pos buffer-of-pos)
   "Return the local equivalent to POS defined in BUFFER-OF-POS."
   (+ mistty-sync-marker (with-current-buffer buffer-of-pos
                           (- pos mistty-sync-marker))))
-
-(defun mistty--from-term-pos (pos)
-  "Convert POS in the terminal to its equivalent in the work buffer.
-
-Note that the position might not exist in `mistty-work-buffer',
-not yet, if it the work buffer is out of sync with
-`mistty-term-buffer'."
-  (mistty--from-pos-of pos mistty-term-buffer))
 
 (defun mistty--needs-refresh ()
   "Let next call to `mistty--refresh' know there's something to refresh."
@@ -1804,9 +1795,7 @@ Also updates prompt and point."
        (save-restriction
          (widen)
          (setq mistty--need-refresh nil)
-         (setq on-prompt (and mistty-proc ;; doesn't need to be live
-                              (buffer-live-p mistty-term-buffer)
-                              (mistty-on-prompt-p (mistty-cursor))))
+         (setq on-prompt (mistty-on-prompt-p (mistty-cursor)))
 
          (mistty-log "refresh (%s)@%s"
                      (if on-prompt "complete" "quick")
@@ -1838,7 +1827,7 @@ Also updates prompt and point."
            (when (and (not (mistty--prompt-realized prompt))
                       (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
                       (null (mistty--prompt-end prompt)))
-             (when-let* ((cursor (when (process-live-p mistty-proc) (mistty-cursor))))
+             (when-let* ((cursor (mistty-cursor)))
                (when (and (> cursor prompt-beg)
                           (or (eq 'osc133 (mistty--prompt-source prompt))
                               (string-match mistty--prompt-regexp
@@ -2078,8 +2067,8 @@ Does nothing if SOURCE-BUFFER is dead."
           (goto-char mistty-sync-marker)
           (delete-region mistty-sync-marker (point-max))
           (insert-buffer-substring
-           mistty-term-buffer
-           (with-current-buffer mistty-term-buffer
+           source-buffer
+           (with-current-buffer source-buffer
              mistty-sync-marker))
           (unless at-eobp
             (goto-char old-point))))
@@ -2096,16 +2085,16 @@ Does nothing if SOURCE-BUFFER is dead."
               (save-restriction
                 (narrow-to-region mistty-sync-marker (point-max))
                 (if (eval-when-compile (>= emacs-major-version 31))
-                     (let ((point-marker (or mistty--point-marker
-                                             (setq mistty--point-marker (make-marker)))))
-                       (set-marker point-marker (point))
-                       (set-marker-insertion-type point-marker nil)
-                       (replace-region-contents (point-min) (point-max) source-buffer 0.2)
-                       (goto-char point-marker)
-                       (move-marker point-marker nil))
-                   ;; Before Emacs 31, replace-region-contents could
-                   ;; not take a buffer as source.
-                   (replace-buffer-contents source-buffer 0.2))
+                    (let ((point-marker (or mistty--point-marker
+                                            (setq mistty--point-marker (make-marker)))))
+                      (set-marker point-marker (point))
+                      (set-marker-insertion-type point-marker nil)
+                      (replace-region-contents (point-min) (point-max) source-buffer 0.2)
+                      (goto-char point-marker)
+                      (move-marker point-marker nil))
+                  ;; Before Emacs 31, replace-region-contents could
+                  ;; not take a buffer as source.
+                  (replace-buffer-contents source-buffer 0.2))
                 (mistty--restore-properties properties (point-min)))
 
               ;; If the point was outside the sync region, restore it,
@@ -2113,7 +2102,12 @@ Does nothing if SOURCE-BUFFER is dead."
               ;; trust replace-buffer-contents to do something
               ;; reasonable with it.
               (when old-point
-                (goto-char old-point)))))))))
+                (goto-char old-point))))))))
+
+  (set-marker mistty--cursor
+              (+ mistty-sync-marker
+                 (with-current-buffer source-buffer
+                   (- (process-mark mistty-proc) mistty-sync-marker)))))
 
 (defun mistty--copy-buffer-local-variables (variables source-buffer)
   "Copy the buffer-local values of VARIABLES between buffers.
@@ -2299,13 +2293,16 @@ SCROLLINE is the scrolline at BEG."
      (cl-incf scrolline))
    beg end))
 
-
 (defun mistty-send-string (str)
   "Send STR to the process."
   (mistty--require-proc)
-  (if (mistty--should-fallback-to-emacs)
-      (insert str)
-    (mistty--enqueue-str mistty--queue str)))
+  (cond
+   ((mistty--should-fallback-to-emacs)
+    (insert str))
+   (mistty--queue
+    (mistty--enqueue-str mistty--queue str))
+   (t
+    (process-send-string mistty-proc str))))
 
 (defun mistty-send-command ()
   "Send the current command to the shell.
@@ -2322,8 +2319,7 @@ SCROLLINE is the scrolline at BEG."
      (mistty--interact send-command (interact)
        (mistty-maybe-realize-possible-prompt)
        (setq mistty-goto-cursor-next-time t)
-       (when (and mistty-proc
-                  (mistty-on-prompt-p (point))
+       (when (and (mistty-on-prompt-p (point))
                   (mistty-on-prompt-p (mistty-cursor)))
          (setq mistty--end-prompt (mistty-cursor)))
        (mistty--interact-send interact "\C-m")
@@ -4091,6 +4087,7 @@ The value of the buffer-local variables `mistty-log', and
     (with-current-buffer backstage
       (setq-local mistty-sync-marker (point-min))
       (setq-local mistty-proc proc)
+      (setq-local mistty--cursor (make-marker))
       (mistty--copy-buffer-local-variables
        '(mistty-bracketed-paste
          mistty--can-move-vertically)
@@ -4108,8 +4105,7 @@ The point is set to the equivalent of proc marker
 position (cursor) in the buffer."
   (let ((buf (process-buffer mistty-proc)))
     (mistty--sync-buffer buf)
-    (goto-char
-     (mistty--from-pos-of (process-mark mistty-proc) buf))))
+    (goto-char (mistty-cursor))))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."
@@ -4131,8 +4127,7 @@ This is meant to be added to `pre-redisplay-functions'"
                  ;; Never move point at cursor.
                  (or (null mistty--cursor-after-last-refresh)
                      (not (equal (point) mistty--cursor-after-last-refresh)))
-                 (or (null mistty-proc)
-                     (not (equal (point) (mistty-cursor))))
+                 (not (equal (point) (mistty-cursor)))
                  (mistty-on-prompt-p (setq pos (window-point win))))
         (when-let* ((last-state (window-parameter win 'mistty--cursor-skip-state)))
           (when (eq (car last-state) (current-buffer))
@@ -4207,8 +4202,7 @@ of them."
         (let ((cursor (min (+ (match-beginning 0) 1
                               (mistty--line-indent beg))
                            (1- (match-end 0))))
-              (actual-cursor (ignore-errors
-                               (mistty-cursor))))
+              (actual-cursor (mistty-cursor)))
           (when (and actual-cursor
                      (> actual-cursor (match-beginning 0))
                      (< actual-cursor (match-end 0)))

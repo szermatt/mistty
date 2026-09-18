@@ -62,11 +62,6 @@ provide the feature `mistty-alacritty-vt'."
           mistty-alacritty-arch
           module-file-suffix))
 
-;; TODO: load versioned module instead of just 'dev' module once the
-;; module is part of the release. For now, the module should be
-;; considered experimental and always compiled from the same checkout
-;; as the lisp files.
-
 (defun mistty-alacritty-load ()
   "Attempt to load the module.
 

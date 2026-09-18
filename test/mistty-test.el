@@ -7105,3 +7105,10 @@ precmd_functions+=(prompt_header)
       (mistty-send-command)
       (mistty-wait-for-output :str "YmFyZm9v"))))
 
+(mistty-deftest mistty-test-change-outside-command (:type all)
+  (insert "echo hello")
+  (ert-run-idle-timers)
+  (mistty-wait-for-empty-queue)
+  (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
+  (should (equal "hello" (mistty-send-and-capture-command-output))))
+

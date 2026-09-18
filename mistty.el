@@ -855,6 +855,9 @@ fullscreen mode.")
 (defvar-local mistty--point-marker nil
   "Marker (re)used by `mistty--sync-buffer' on Emacs 31 and later.")
 
+(defvar-local mistty--pickup-changes-timer nil
+  "Idle timer that will call `mistty--pickup-changes'.")
+
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
 
@@ -1125,6 +1128,7 @@ Returns M or a new marker."
   (when mistty--queue
     (mistty--cancel-queue mistty--queue)
     (setq mistty--queue nil))
+  (mistty--release-all-changesets)
   (when mistty-proc
     (let ((accum (process-filter mistty-proc)))
       (mistty--accum-reset accum))
@@ -1552,8 +1556,7 @@ terminal region of WORK-BUFFER in sync with TERM-BUFFER."
 
      (mistty--with-live-buffer work-buffer
        (mistty--cancel-queue mistty--queue)
-       (while-let ((cs (car mistty--changesets)))
-         (mistty--release-changeset cs))
+       (mistty--release-all-changesets)
        (setq mistty--inhibit-refresh nil)
        (setq mistty-bracketed-paste nil))
      (mistty--with-live-buffer term-buffer
@@ -2567,11 +2570,17 @@ buffers."
             (beg (max beg mistty-sync-marker))
             (end (max end mistty-sync-marker))
             (old-end (max (+ beg old-length) mistty-sync-marker))
-            (cs (mistty--activate-changeset)))
-        ;; Temporarily stop refreshing the work buffer while collecting
-        ;; modifications.
-        (setq mistty--inhibit-refresh t)
-
+            (cs (or (mistty--active-changeset)
+                    (let ((cs (mistty--activate-changeset)))
+                      (prog1 cs
+                        ;; Temporarily stop refreshing the work buffer while collecting
+                        ;; modifications.
+                        (setq mistty--inhibit-refresh t)
+                        (unless this-command
+                          ;; Outside of a command, use an idle timer
+                          ;; to later on pickup the change and send it
+                          ;; to the terminal.
+                          (mistty--schedule-pickup-changes)))))))
         (mistty--inhibit-undo
          (mistty--changeset-mark-region cs beg end old-end)))))
 
@@ -3318,6 +3327,7 @@ Return the prompt range that was accepted or nil."
 (defun mistty--pre-command ()
   "Function called from the `pre-command-hook' in `mistty-mode' buffers."
   (with-demoted-errors "mistty: pre-command error %S"
+    (mistty--cancel-pickup-changes)
     (mistty--detect-foreign-overlays 'noschedule)
     (mistty--pre-command-for-undo)
     (when (and mistty--self-insert-line
@@ -3479,6 +3489,29 @@ post-command hook."
           (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction))))
       (mistty--refresh))))
 
+(defun mistty--release-all-changesets ()
+  "Give up on replaying any open changesets."
+  (while-let ((cs (car mistty--changesets)))
+    (mistty--release-changeset cs))
+  (mistty--cancel-pickup-changes))
+
+(defun mistty--cancel-pickup-changes ()
+  "Cancel any scheduled pickup change timer."
+  (mistty--require-work-buffer)
+  (when (timerp mistty--pickup-changes-timer)
+    (cancel-timer mistty--pickup-changes-timer)
+    (setq mistty--pickup-changes-timer nil)))
+
+(defun mistty--schedule-pickup-changes ()
+  "Schedule `mistty-pickup-changes' to run on an idle timer."
+  (mistty--cancel-pickup-changes)
+  (setq mistty--pickup-changes-timer
+        (run-with-idle-timer
+         0 nil (lambda (buf)
+                 (mistty--with-live-buffer buf
+                   (mistty--pickup-changes)))
+         mistty-work-buffer)))
+
 (defun mistty--pickup-changes ()
   "Pick up changes made to the terminal area to replay them.
 
@@ -3486,7 +3519,7 @@ Not every change is replayable. This function discards unreplayable
 changes.
 
 Return non-nil if a change was picked up to be replayed."
-  (mistty--require-work-buffer)
+  (mistty--cancel-pickup-changes)
   (when (and (not mistty--inhibit)
              (process-live-p mistty-proc)
              (buffer-live-p mistty-term-buffer))

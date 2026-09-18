@@ -414,9 +414,12 @@ default, the default directory is a temp directory created for the test."
   (run-hooks 'post-command-hook)
   (ert-run-idle-timers)
   (unless noempty-queue
-    (mistty-wait-for-output
-     :test (lambda ()
-             (mistty--queue-empty-p mistty--queue)))))
+    (mistty-wait-for-empty-queue)))
+
+(defun mistty-wait-for-empty-queue ()
+  (mistty-wait-for-output
+   :test (lambda ()
+           (mistty--queue-empty-p mistty--queue))))
 
 (cl-defun mistty-wait-for-output
     (&key (test nil) (str nil) (regexp nil) (start (point-min))

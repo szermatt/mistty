@@ -23,13 +23,20 @@
 (require 'mistty-testing)
 (require 'mistty-changeset)
 
+(defun mistty-changeset-test-setup-hook ()
+  ;; mistty--after-change-on-work schedules a timer to pickup the
+  ;; change if it thinks it's run outside of a command. This turns it
+  ;; off.
+  (setq-local this-command 'test)
+  (add-hook 'after-change-functions #'mistty--after-change-on-work nil t))
+
 (ert-deftest mistty-changeset-test-collect-modifications-delete-after-replace ()
   (ert-with-test-buffer ()
     (insert "$ ")
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 9)
     (goto-char 6)
@@ -51,7 +58,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 (point-max))
 
@@ -65,7 +72,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 (point-max))
     (goto-char 6)
@@ -81,7 +88,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 15 (point-max))
     (delete-region 9 12)
@@ -98,7 +105,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (goto-char 12)
     (insert "NEW")
@@ -119,7 +126,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdef")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (goto-char 9)
     (insert "NEW")
@@ -134,7 +141,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (goto-char 12)
     (delete-region 12 15)
@@ -154,7 +161,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 9)
     (goto-char 6)
@@ -178,7 +185,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcd<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (goto-char 6)
     (insert "new-value")
@@ -195,7 +202,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcd<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 7)
     (goto-char 6)
@@ -214,7 +221,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcd<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 7)
 
@@ -230,7 +237,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 9)
     (goto-char 6)
@@ -252,7 +259,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdef")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (goto-char 9)
     (insert "NEW")
@@ -269,7 +276,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 (point-max))
     (goto-char 6)
@@ -287,7 +294,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcdefghijklmno<<end>>")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (delete-region 6 (point-max))
     (goto-char 6)
@@ -305,7 +312,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abcd")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (goto-char 6)
     (insert "new")
@@ -322,7 +329,7 @@
     (setq mistty-sync-marker (point))
 
     (insert "abc")
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+    (mistty-changeset-test-setup-hook)
 
     (goto-char 6)
     (insert "at-end")

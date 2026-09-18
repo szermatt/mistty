@@ -2231,19 +2231,6 @@ SCROLLINE is a scrolline that's currently visible on the terminal."
     (setq mistty--scrolline-home-num scrolline)
     (move-overlay mistty--sync-ov mistty-sync-marker (point-max))))
 
-(defun mistty--update-sync-marker-scrolline ()
-  "Update `mistty--sync-marker-scrolline' on the term and work buffers."
-  (mistty--require-work-buffer)
-  (let (scrolline)
-    (mistty--with-live-buffer mistty-term-buffer
-      (setq scrolline (mistty--scrolline-at mistty-sync-marker))
-      (setq mistty--scrolline-home-num scrolline)
-      (mistty-log "SYNC MARKER AT SCROLLINE %s ON SCREEN %s-"
-                  scrolline
-                  (mistty--term-scrolline-at-screen-start)))
-    (when scrolline
-      (setq mistty--scrolline-home-num scrolline))))
-
 (defun mistty--process-archived-prompts (limit-pos)
   "Remove any archived prompt above END and mark their regions.
 

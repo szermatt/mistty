@@ -1848,12 +1848,10 @@ Also updates prompt and point."
              (mistty-log "FORBID EDIT off"))))
 
          (unless mistty--active-prompt
-           (mistty--with-live-buffer mistty-term-buffer
-             ;; Next time, only sync the visible portion of the terminal.
-             (when (< mistty-sync-marker (mistty--term-screen-top-pos mistty--term))
-               (let ((scrolline (mistty--term-scrolline-at-screen-start)))
-                 (mistty--with-live-buffer mistty-work-buffer
-                   (mistty--maybe-move-sync-mark scrolline))))))
+           (let ((screen-start (mistty--term-scrolline-at-screen-start)))
+             (when (< mistty--scrolline-home-num screen-start)
+               ;; Next time, only sync the visible portion of the terminal.
+               (mistty--maybe-move-sync-mark screen-start))))
 
          ;; Move the point to the cursor, if necessary.
          (when (process-live-p mistty-proc)

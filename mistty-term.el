@@ -526,6 +526,24 @@ terminal modes. See the documentation of `mistty-term-mode-hook' for
 details."
   (run-hooks 'mistty-shadowed-term-mode-hook))
 
+(defun mistty--truncate-buffer (home-marker)
+  "Truncate the buffer before HOME-MARKER.
+
+If there's more than 1000 chars in the buffer before the given marker,
+truncate the buffer at a BOL, leaving at least 200 chars."
+  (let ((chars (- home-marker (point-min))))
+    (when (>= chars 1000)
+      (save-excursion
+        (goto-char (- home-marker 200))
+        (goto-char (pos-bol))
+        (unless (bobp)
+          (mistty-log "[term] truncate %s chars of scrollback, leaving %s."
+                      (- (point) (point-min))
+                      (- home-marker (point)))
+          (let ((inhibit-read-only t)
+                (inhibit-modification-hooks t))
+            (delete-region (point-min) (point))))))))
+
 (provide 'mistty-term)
 
 ;;; mistty-term.el ends here

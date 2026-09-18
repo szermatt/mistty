@@ -210,6 +210,14 @@ This marks the final newline as \\='empty-lines-at-eob."
        last-newline (point-max)
        '(mistty-skip empty-lines-at-eob yank-handler (nil "" nil nil))))))
 
+(cl-defmethod mistty--term-truncate-buffer ((term mistty--term-alacritty) scrolline-limit)
+  "Truncate the terminal buffer, if necessary.
+
+Always keep SCROLLINE-LIMIT and below."
+  (with-current-buffer (mistty--term-alacritty-buf term)
+    (when (>= scrolline-limit mistty--scrolline-home-num)
+      (mistty--truncate-buffer mistty-alacritty--home))))
+
 (defun mistty--term-alacritty-add-osc-detection (accum term)
   "Register handlers for OSC sequences in ACCUM for TERM."
 

@@ -406,6 +406,14 @@ This is not needed as it's enough to clear the text properties for eterm.")
   (mistty--hide-line-wraps beg (point-max) (mistty--term-columns term))
   (mistty--mark-empty-line-at-eob beg))
 
+(cl-defmethod mistty--term-truncate-buffer ((term mistty--term-eterm) scrolline-limit)
+  "Truncate the terminal buffer, if necessary.
+
+Always keep SCROLLINE-LIMIT and below."
+  (with-current-buffer (mistty--term-eterm-buf term)
+    (when (>= scrolline-limit mistty--scrolline-home-num)
+      (mistty--truncate-buffer term-home-marker))))
+
 (defun mistty--term-postprocess-changed (accum term)
   "Set \\='mistty-skip on the regions changed since last call.
 

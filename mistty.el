@@ -1068,8 +1068,7 @@ window."
   "Attach the current `mistty-mode' buffer to TERM."
   (let ((work-buffer (current-buffer))
         (term-buffer (mistty--term-buf term))
-        (proc (mistty--term-proc term))
-        (sync-scrolline mistty--scrolline-home-num))
+        (proc (mistty--term-proc term)))
 
     (when proc
       (process-put proc 'mistty-work-buffer work-buffer)
@@ -1088,16 +1087,6 @@ window."
       (setq mistty-proc proc)
       (setq mistty-work-buffer work-buffer)
       (setq mistty-term-buffer term-buffer)
-      (unless mistty-sync-marker
-        (setq mistty-sync-marker (make-marker)))
-
-      ;; attempt to recover the previous sync position, if that fails,
-      ;; continue from screen top.
-      (if-let* ((sync-pos (mistty--find-scrolline sync-scrolline)))
-          (move-marker mistty-sync-marker sync-pos)
-        (move-marker mistty-sync-marker (mistty--term-screen-top-pos term))
-        (setq mistty--scrolline-home-num sync-scrolline))
-
       (mistty--term-autoresize mistty--term nil)
       (mistty--term-setup-buffer term nil))
 
@@ -2040,12 +2029,6 @@ terminal region.
 
 SCROLLINE is a scrolline that's currently visible on the terminal."
   (mistty--require-work-buffer)
-  (mistty--with-live-buffer mistty-term-buffer
-    (let ((pos (mistty--find-scrolline scrolline)))
-      (unless pos
-        (error "Scrolline %s not accessible in terminal buffer" scrolline))
-      (set-marker mistty-sync-marker pos)))
-
   (unless (and (= sync-pos mistty-sync-marker)
                (= scrolline mistty--scrolline-home-num))
     (mistty-log "MOVE SYNC MARKER %s to %s at scrolline %s"

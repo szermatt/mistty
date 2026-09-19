@@ -40,7 +40,7 @@
 
 (eval-when-compile
   (require 'cl-lib))
-
+(require 'mistty-log)
 (require 'mistty-util)
 
 (defvar-local mistty--changesets nil

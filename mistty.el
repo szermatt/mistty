@@ -2751,10 +2751,13 @@ buffers."
          (after-insert-and-delete ()
            (setq waiting-for-last-change nil)
            (mistty--update-backstage)
-           (mistty--with-live-buffer term-buffer
-             (mistty--detect-dead-spaces-after-insert
-              mistty--term
-              content (+ mistty-sync-marker (marker-position beg))))
+           (let ((beg-scrolline (mistty--scrolline-at beg))
+                 (beg-after-bol (1+ (- beg (mistty--bol beg)))))
+             (mistty--with-live-buffer term-buffer
+               (mistty--detect-dead-spaces-after-insert
+                mistty--term
+                content (+ (mistty--find-scrolline beg-scrolline)
+                           beg-after-bol))))
 
            ;; Move right prompt just like the shell would, to avoid it
            ;; confusing the sync happening after applying all

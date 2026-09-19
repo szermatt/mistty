@@ -1030,6 +1030,7 @@ window."
 
   (mistty--kill-term-buffer)
   (erase-buffer)
+  (setq mistty--scrolline-home-num 0)
 
   (let ((command (if (consp program) (car program) program))
         (args (if (consp program) (cdr program) nil)))

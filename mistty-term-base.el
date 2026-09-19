@@ -108,11 +108,44 @@ LEAVE-FULLSCREEN-FUNC is a function that takes the TERM instance and
 leaves fullscreen mode.")
 
 (cl-defgeneric mistty--term-setup-accum
-    (term accum enter-fullscreen-func)
+    (term accum &key enter-fullscreen active-prompt after-clear-screen sync-scrolline)
   "Register processors for TERM on ACCUM in normal mode.
 
-ENTER-FULLSCREEN-FUNC is a function that takes he TERM instance and
-enters fullscreen mode.")
+ENTER-FULLSCREEN is to be called when entering fullscreen mode.
+
+ACTIVE-PROMPT should return the active `mistty--prompt'.
+
+AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
+
+SYNC-SCROLLINE-FUNC is a function that return the current sync scrolline.")
+
+(cl-defgeneric mistty--term-sync
+    (term dest-buffer sync-pos sync-scrolline keep-markers cursor-marker)
+  "Update the content of DEST-BUFFER to match the terminal.
+
+The buffer from SYNC-POS to EOB is rewritten to match the content of the
+terminal below SYNC-SCROLLINE.
+
+If KEEP-MARKERS is nil, the function may complete rewrite and discard
+the content of the buffer within that range. If KEEP-MARKERS is non-nil,
+the function needs to do its best to keep markers and overlays and move
+them as appropriate.
+
+The function return a (cons SYNC-POS SYNC-SCROLLINE) containing new
+proposed values for future calls. It may propose to increase the sync
+scrolline, in cases where SYNC-SCROLLINE is above the top of the
+terminal screen, or to decrease it, in cases where changes were detected
+above SYNC-SCROLLINE.
+
+Note that in the latter case, the function may modify DEST-BUFFER above
+SYNC-POS and the new proposed value may be above the initial value.
+
+DEST-BUFFER can change from one call to the next. If DEST-BUFFER is the
+same as in the last call, the function may assume that changes
+previously made are still in place to optimize its operations.
+
+CURSOR-MARKER must be a marker. It will be updated with the position of
+the cursor on DEST-BUFFER.")
 
 (cl-defgeneric mistty--term-clear-to-eol (term pos)
   "Mark spaces in TERM from POS to end-of-line as unmodified.")

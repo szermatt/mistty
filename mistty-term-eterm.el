@@ -177,7 +177,7 @@ to call `mistty--term-postprocess'.")
 (cl-defstruct (mistty--term-eterm
                (:constructor mistty--make-term-eterm)
                (:copier nil))
-  proc buf)
+  proc buf change-before-scrolline)
 
 (cl-defmethod mistty--create-term ((_type (eql 'eterm)) name command &key width height)
   "Create an eterm-based terminal called NAME.
@@ -292,13 +292,18 @@ FULLSCREEN is non-nil in fullscreen mode."
     (font-lock-mode -1)
     (jit-lock-mode nil)))
 
-(cl-defmethod mistty--term-setup-accum  ((term mistty--term-eterm) accum
-                                         &key enter-fullscreen active-prompt after-clear-screen)
+(cl-defmethod mistty--term-setup-accum
+  ((term mistty--term-eterm) accum
+   &key enter-fullscreen active-prompt after-clear-screen sync-scrolline)
   "Setup TERM's ACCUM.
 
 ENTER-FULLSCREEN is to be called when entering fullscreen mode.
+
 ACTIVE-PROMPT should return the active `mistty--prompt'.
-AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared."
+
+AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
+
+SYNC-SCROLLINE is a function that return the current sync scrolline."
   (mistty--term-postprocess-changed accum term)
   (mistty--accum-add-post-processor
    accum (mistty--regexp-prompt-detector))
@@ -355,7 +360,58 @@ AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared."
                 (let ((orig (symbol-function 'move-to-column)))
                   (lambda (&rest args)
                     (apply #'mistty--around-move-to-column orig args)))))
-       (funcall func)))))
+       (funcall func))))
+
+  ;; Detect changes made to the terminal above the sync scrolline, which
+  ;; means that the sync scrolline needs to be updated.
+  (mistty--accum-add-around-process-filter
+   accum
+   (lambda (func)
+     (when (mistty--detect-change-before-scrolline
+            func (mistty--term-eterm-buf term) (funcall sync-scrolline))
+       (mistty-log "DETECTED BUFFER CHANGE, above %s" sync-scrolline)
+       (setf (mistty--term-eterm-change-before-scrolline term) t)))))
+
+(cl-defmethod mistty--term-sync
+  ((term mistty--term-eterm) dest-buffer sync-pos sync-scrolline keep-markers
+   cursor-marker)
+  (mistty--with-live-buffer (mistty--term-eterm-buf term)
+    (let ((home-marker term-home-marker)
+          (home-scrolline (mistty--scrolline-at term-home-marker))
+          (proc (mistty--term-eterm-proc term))
+          (source-buffer (current-buffer)))
+      ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
+      (cond
+       ((< sync-scrolline home-scrolline)
+        (pcase-setq
+         `(,sync-pos . ,sync-scrolline)
+         (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
+       ((mistty--term-eterm-change-before-scrolline term)
+        (mistty-log "Detected terminal change above sync mark, at scrolline %s"
+                    mistty--scrolline-home-num)
+        (pcase-setq
+         `(,sync-pos . ,sync-scrolline)
+         (mistty--realign-buffers
+          source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
+
+      (setf (mistty--term-eterm-change-before-scrolline term) nil)
+
+      (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
+        (mistty--sync-buffer
+         source-buffer
+         source-sync-pos
+         dest-buffer
+         sync-pos
+         keep-markers)
+
+
+        (mistty--with-live-buffer dest-buffer
+          (set-marker cursor-marker
+                      (+ sync-pos
+                         (- (process-mark proc) source-sync-pos)))))
+
+      (cons sync-pos sync-scrolline))))
+
 
 (cl-defmethod mistty--term-setup-accum-for-fullscreen ((_term mistty--term-eterm) accum
                                                        &key leave-fullscreen)

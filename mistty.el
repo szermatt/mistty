@@ -903,9 +903,6 @@ fullscreen mode.")
 (defvar-local mistty--can-move-vertically nil
   "If non-nil, vertical moves are allowed.")
 
-(defvar-local mistty--point-marker nil
-  "Marker (re)used by `mistty--sync-buffer' on Emacs 31 and later.")
-
 (defvar-local mistty--pickup-changes-timer nil
   "Idle timer that will call `mistty--pickup-changes'.")
 
@@ -1120,7 +1117,11 @@ window."
            (mistty--with-live-buffer work-buffer
              (if mistty-allow-clearing-scrollback
                  (mistty--clear-scrollback)
-               (mistty--scroll-after-reset)))))
+               (mistty--scroll-after-reset))))
+         :sync-scrolline
+         (lambda ()
+           (mistty--with-live-buffer work-buffer
+             mistty--scrolline-home-num)))
         (mistty--add-toggle-cursor accum work-buffer)
         (mistty--add-sync-buffers accum work-buffer term-buffer))
       (set-process-sentinel proc #'mistty--process-sentinel))
@@ -1572,14 +1573,6 @@ terminal region of WORK-BUFFER in sync with TERM-BUFFER."
      (mistty--with-live-buffer work-buffer
        (mistty--needs-refresh))))
 
-  ;; Detect changes made to the terminal which might invalidate the
-  ;; sync mark.
-  (mistty--accum-add-around-process-filter
-   accum
-   (lambda (func)
-     (mistty--detect-write-before-sync-mark
-      func term-buffer)))
-
   ;; Refresh the terminal region of the work buffer after data has
   ;; been processed.
   (mistty--accum-add-post-processor
@@ -1680,47 +1673,6 @@ the point being visible."
             (with-selected-window win
               (recenter (- lines-after-point)))))))))
 
-(defun mistty--detect-write-before-sync-mark (func term-buffer)
-  "Realigning work and term buffers as necessary.
-
-This function detects FUNC moving the sync mark in TERM-BUFFER and
-triggers realignment with the work buffer when that happens."
-  (let ((old-sync-position (mistty--with-live-buffer term-buffer
-                             (marker-position mistty-sync-marker)))
-        sync-scrolline home-scrolline)
-    ;; Reminder: call func with no buffer set, to avoid strange
-    ;; breakages when the term buffer is killed.
-    (funcall func)
-    (mistty--with-live-buffer term-buffer
-      (setq sync-scrolline (mistty--with-live-buffer mistty-work-buffer
-                             mistty--scrolline-home-num))
-      (setq home-scrolline (mistty--term-screen-top-scrolline mistty--term))
-      (cond
-       ((< sync-scrolline home-scrolline)
-        (mistty-log "Detected rapid scroll (sync @%s, home now @%s). Catching up."
-                    sync-scrolline home-scrolline)
-        (let* ((catchup-lines (- home-scrolline sync-scrolline))
-               (home (mistty--term-screen-top-pos mistty--term))
-               (catchup-start (save-excursion
-                                (goto-char home)
-                                (pos-bol (1+ (- catchup-lines)))))
-               (catchup-end (marker-position home)))
-          (mistty-log "Catchup [%s-%s] %s lines" catchup-start catchup-end catchup-lines)
-          (move-marker mistty-sync-marker catchup-end)
-          (setq mistty--scrolline-home-num home-scrolline)
-          (mistty--with-live-buffer mistty-work-buffer
-            (let ((screen-top (save-excursion
-                                (goto-char mistty-sync-marker)
-                                (let ((inhibit-modification-hooks t))
-                                  (insert-buffer-substring
-                                   mistty-term-buffer catchup-start catchup-end))
-                                (point))))
-              (mistty--set-sync-mark screen-top home-scrolline)))))
-       ((/= mistty-sync-marker old-sync-position)
-        (mistty-log "Detected terminal change above sync mark, at scrolline %s"
-                    mistty--scrolline-home-num)
-        (mistty--realign-buffers))))))
-
 (defun mistty-goto-cursor ()
   "Move the point to the terminal's cursor."
   (interactive)
@@ -1781,7 +1733,17 @@ Also updates prompt and point."
          (mistty-log "refresh (%s)@%s"
                      (if on-prompt "complete" "quick")
                      mistty--scrolline-home-num)
-         (mistty--sync-buffer mistty-term-buffer (not on-prompt))
+         (pcase-let* ((`(,sync-pos . ,sync-scrolline)
+                       (mistty--term-sync
+                        mistty--term
+                        mistty-work-buffer
+                        mistty-sync-marker
+                        mistty--scrolline-home-num
+                        (and on-prompt (not mistty--end-prompt))
+                        mistty--cursor)))
+           (when (or (/= sync-pos mistty-sync-marker)
+                     (/= sync-scrolline mistty--scrolline-home-num))
+             (mistty--set-sync-mark sync-pos sync-scrolline)))
          (mistty--term-after-refresh mistty--term mistty-sync-marker)
 
          ;; Right after a mistty-send-command, we're waiting for a line
@@ -2020,74 +1982,6 @@ Does not update `mistty--can-move-vertically'."
           (throw 'mistty-end-loop t)))
       nil)))
 
-(defun mistty--sync-buffer (source-buffer &optional quick)
-  "Copy the sync region of SOURCE-BUFFER to the current buffer.
-
-The region [mistty-sync-marker,(point-max)] is copied from PROC
-buffer to the current buffer. Both buffers must have
-`mistty-sync-marker' set.
-
-The text and text properties of the destination buffer are
-overwritten with the properties of SOURCE-BUFFER.
-
-Unless QUICK evaluates to non-nil, markers, restrictions,
-overlays and point of the destination buffer are moved as
-relevant to the changes that happened on the process buffer since
-the last update.
-
-Does nothing if SOURCE-BUFFER is dead."
-  (if quick
-      ;; Quicker version of sync-buffer that doesn't bother with
-      ;; markers.
-      (save-restriction
-        (widen)
-        (let ((old-point (point))
-              (at-eobp (eobp)))
-          (goto-char mistty-sync-marker)
-          (delete-region mistty-sync-marker (point-max))
-          (insert-buffer-substring
-           source-buffer
-           (with-current-buffer source-buffer
-             mistty-sync-marker))
-          (unless at-eobp
-            (goto-char old-point))))
-
-    ;; Complete but expensive version of sync-buffer that conserves
-    ;; markers.
-    (let ((dest-buffer (current-buffer))
-          (old-point (and (< (point) mistty-sync-marker) (point))))
-      (mistty--with-live-buffer source-buffer
-        (save-restriction
-          (narrow-to-region mistty-sync-marker (point-max))
-          (let ((properties (mistty--save-properties (point-min))))
-            (with-current-buffer dest-buffer
-              (save-restriction
-                (narrow-to-region mistty-sync-marker (point-max))
-                (if (eval-when-compile (>= emacs-major-version 31))
-                    (let ((point-marker (or mistty--point-marker
-                                            (setq mistty--point-marker (make-marker)))))
-                      (set-marker point-marker (point))
-                      (set-marker-insertion-type point-marker nil)
-                      (replace-region-contents (point-min) (point-max) source-buffer 0.2)
-                      (goto-char point-marker)
-                      (move-marker point-marker nil))
-                  ;; Before Emacs 31, replace-region-contents could
-                  ;; not take a buffer as source.
-                  (replace-buffer-contents source-buffer 0.2))
-                (mistty--restore-properties properties (point-min)))
-
-              ;; If the point was outside the sync region, restore it,
-              ;; as it has been moved by narrow-to-region . Otherwise,
-              ;; trust replace-buffer-contents to do something
-              ;; reasonable with it.
-              (when old-point
-                (goto-char old-point))))))))
-
-  (set-marker mistty--cursor
-              (+ mistty-sync-marker
-                 (with-current-buffer source-buffer
-                   (- (process-mark mistty-proc) mistty-sync-marker)))))
-
 (defun mistty--copy-buffer-local-variables (variables source-buffer)
   "Copy the buffer-local values of VARIABLES between buffers.
 
@@ -2129,29 +2023,6 @@ Fails if CUTOFF is inside the synced region."
       (error "Cutoff must be outside the synced region [%s-]"
              (marker-position mistty-sync-marker)))
     (delete-region (point-min) cutoff)))
-
-(defun mistty--save-properties (start)
-  "Extracts the properties from START in the current buffer.
-
-Returns a list of (BEG END PROPERTIES), ordered, with positions
-relative to START."
-  (let ((pos start) intervals)
-    (while (< pos (point-max))
-      (let ((props (text-properties-at pos))
-            (last-pos pos))
-        (setq pos (next-property-change pos nil (point-max)))
-        (push `(,(- last-pos start) ,(- pos start) ,props)
-              intervals)))
-
-    intervals))
-
-(defun mistty--restore-properties (intervals start)
-  "Apply saved properties INTERVALS to the buffer at START.
-
-This is the reverse operation of `mistty--save-properties'."
-  (pcase-dolist (`(,beg ,end ,props) intervals)
-    (set-text-properties (+ beg start) (+ end start) props)))
-
 (defun mistty--maybe-move-sync-mark (scrolline)
   "Move sync mark to SCROLLINE on both buffers, if possible.
 
@@ -2615,6 +2486,7 @@ buffers."
         ;; created, not when it is run
         (modifications (mistty--changeset-modifications cs))
         (calling-buffer (current-buffer))
+        (term mistty--term)
         (term-buffer mistty-term-buffer)
         (inhibit-moves mistty--forbid-edit)
         (beg (make-marker))
@@ -2640,7 +2512,7 @@ buffers."
       (cl-labels
           ((start (&optional _) ;; Interact entry point
              (set-buffer calling-buffer)
-             (setq backstage (mistty--create-backstage mistty-proc))
+             (setq backstage (mistty--create-backstage term))
              (let ((work-sync-marker (marker-position mistty-sync-marker)))
                (set-buffer backstage)
                ;; Move modifications positions into the backstage buffer.
@@ -4052,12 +3924,12 @@ prompts."
               (user-input-start (+ start length)))
     (and (>= pos user-input-start) (<= pos (mistty--eol start)))))
 
-(defun mistty--create-backstage (proc)
-  "Create a backstage buffer for PROC.
+(defun mistty--create-backstage (term)
+  "Create a backstage buffer for TERM.
 
-A backstage buffer is a partial copy of PROC's buffer that's kept
-up-to-date with `replace-buffer-contents', so markers can be used
-to keep positions stable while the buffer is being modified.
+A backstage buffer is a partial copy of TERM's virtual terminal that's
+kept up-to-date in a way that allows markers can be used to keep
+positions stable while the buffer is being modified.
 
 The value of the buffer-local variables `mistty-log', and
 `mistty-bracketed-paste' are carried over to the backstage buffer."
@@ -4065,11 +3937,13 @@ The value of the buffer-local variables `mistty-log', and
         (calling-buffer (current-buffer)))
     (with-current-buffer backstage
       (setq-local mistty-sync-marker (point-min))
-      (setq-local mistty-proc proc)
+      (setq-local mistty--term term)
+      (setq-local mistty-proc (mistty--term-proc term))
       (setq-local mistty--cursor (make-marker))
       (mistty--copy-buffer-local-variables
        '(mistty-bracketed-paste
-         mistty--can-move-vertically)
+         mistty--can-move-vertically
+         mistty--scrolline-home-num)
        calling-buffer)
       (mistty--update-backstage))
     backstage))
@@ -4082,9 +3956,10 @@ The current buffer must be a backstage buffer, created by
 
 The point is set to the equivalent of proc marker
 position (cursor) in the buffer."
-  (let ((buf (process-buffer mistty-proc)))
-    (mistty--sync-buffer buf)
-    (goto-char (mistty-cursor))))
+  (mistty--term-sync
+   mistty--term (current-buffer) (point-min) mistty--scrolline-home-num
+   'keep-markers mistty--cursor)
+  (goto-char mistty--cursor))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."
@@ -4506,66 +4381,6 @@ This function is meant to be used in the configuration option
   (when-let* ((remote-host (file-remote-p default-directory 'host)))
     (unless (string= remote-host (system-name))
       (concat "@" remote-host))))
-
-(defun mistty--realign-buffers()
-  "Realign the work and terminal buffers, if possible."
-  (mistty--require-term-buffer)
-  (let ((term-top (mistty--term-scrolline-at-screen-start)))
-    (mistty--with-live-buffer mistty-work-buffer
-      (let ((prop (save-excursion
-                    (goto-char mistty-sync-marker)
-                    (text-property-search-backward
-                     'mistty-scrolline
-                     term-top ;; goal
-                     (lambda (goal val)
-                       (and val (<= val goal)))))))
-        (cond
-         ;; Found exact scrolline, align there or below if rows match
-         ((and prop (= term-top (prop-match-value prop)))
-          (let ((sync-pos (prop-match-beginning prop)))
-            (pcase-setq `(,sync-pos . ,term-top)
-                        (mistty--skip-identical-rows sync-pos term-top))
-            (mistty-log "REALIGN scrolline %s to pos %s; terminal [%s-]"
-                        term-top sync-pos term-top)
-            (mistty--set-sync-mark sync-pos term-top)))
-
-         ;; Found scrolline < goal, align at line after
-         (prop
-          (let ((sync-pos (mistty--bol (prop-match-beginning prop) 2)))
-            (mistty-log "REALIGN APPROXIMATE scrolline %s to pos %s; terminal [%s-]"
-                        term-top sync-pos term-top)
-            (mistty--set-sync-mark sync-pos term-top)))
-
-         ;; Couldn't find beginning. It might have been deleted. Sync
-         ;; whole buffer.
-         (t
-          (mistty-log "REALIGN FALLBACK scrolline %s to point-min %s"
-                      term-top (point-min))
-          (mistty--set-sync-mark (point-min) term-top)))))))
-
-(defun mistty--skip-identical-rows (pos scrolline)
-  "Skip rows from POS to `mistty-sync-marker' that are the same on the term buffer.
-
-POS is a position in the work buffer before `mistty-sync-marker' that is
-believed to correspond to SCROLLINE.
-
-Return a (CONS new-pos new-scrolline), possibly modified values for POS
-and SCROLLINE."
-  (mistty--with-live-buffer mistty-work-buffer
-    (save-excursion
-      (while
-          (when (equal scrolline (get-text-property pos 'mistty-scrolline))
-            (when-let* ((end-row (next-single-property-change pos 'mistty-scrolline)))
-              (when (string= (string-trim (buffer-substring-no-properties pos end-row)
-                                          "" "\n")
-                             (mistty--with-live-buffer mistty-term-buffer
-                               (save-excursion
-                                 (goto-char (mistty--find-scrolline scrolline))
-                                 (mistty--unwrapped-scrolline-text))))
-                (setq pos end-row))))
-        (goto-char pos)
-        (cl-incf scrolline))))
-  `(,pos . ,scrolline))
 
 (defun mistty-beginning-of-defun (&optional n)
   "Go to the beginning of the N'th defun.

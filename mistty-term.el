@@ -544,6 +544,210 @@ truncate the buffer at a BOL, leaving at least 200 chars."
                 (inhibit-modification-hooks t))
             (delete-region (point-min) (point))))))))
 
+
+(defun mistty--detect-change-before-scrolline (func term-buffer scrolline)
+  "Return non-nil if FUNC modifies TERM-BUFFER above SCROLLINE.
+
+FUNC is called in the caller's environment. It is supposed to modify
+TERM-BUFFER.
+
+Return non-nil if changes were detected."
+  (let ((old-sync-position (mistty--with-live-buffer term-buffer
+                             (mistty--find-scrolline scrolline))))
+    ;; Reminder: call func with no buffer set, to avoid strange
+    ;; breakages when the term buffer is killed.
+    (funcall func)
+    (mistty--with-live-buffer term-buffer
+      (/= old-sync-position (mistty--with-live-buffer term-buffer
+                              (mistty--find-scrolline scrolline))))))
+
+(defvar-local mistty--point-marker nil
+  "Marker (re)used by `mistty--sync-buffer' on Emacs 31 and later.")
+
+(defun mistty--catchup
+    (home-marker home-scrolline dest-buffer sync-pos sync-scrolline)
+  "Catch up scrollback lines.
+
+This function copies lines before HOME-MARKER, with scrolline
+HOME-SCROLLINE, to DEST-BUFFER, at SYNC-POS. The line copies are those
+between SYNC-SCROLLINE and HOME-SCROLLINE.
+
+Returns new sync position and scrolline (cons SYNC-POS SYNC-SCROLLINE)."
+  (cl-assert (< sync-scrolline home-scrolline))
+  (mistty-log "Detected rapid scroll (sync @%s, home now @%s). Catching up."
+              sync-scrolline home-scrolline)
+  (let* ((source-buffer (current-buffer))
+         (catchup-lines (- home-scrolline sync-scrolline))
+         (catchup-start (save-excursion
+                          (goto-char home-marker)
+                          (pos-bol (1+ (- catchup-lines)))))
+         (catchup-end (marker-position home-marker)))
+    (mistty-log "Catchup [%s-%s] %s lines" catchup-start catchup-end catchup-lines)
+    (cons (mistty--with-live-buffer dest-buffer
+            (save-excursion
+              (goto-char sync-pos)
+              (let ((inhibit-modification-hooks t)
+                    (inhibit-read-only t))
+                (insert-buffer-substring
+                 source-buffer catchup-start catchup-end))
+              (point)))
+          home-scrolline)))
+
+(defun mistty--realign-buffers
+    (source-buffer home-scrolline dest-buffer sync-pos sync-scrolline)
+  "Reset sync position and scrolline after an unexpected change.
+
+This function is called when something changed about the current sync
+position, either because the position was set too low or because the
+screen was overwritten by the currently running command. It does its
+best to find align the two buffers while avoiding duplicated lines as
+much as possible.
+
+SOURCE-BUFFER is the terminal buffer, HOME-SCROLLINE the scrolline that
+correspond to the top of the screen on the terminal.
+
+DEST-BUFFER is the destination buffer to terminal data to at SYNC-POS,
+which correspond to SYNC-SCROLLINE. The lines above SYNC-POS in
+DEST-BUFFER may be annotated with \\='mistty-scrolline to specify the
+scrolline the original data corresponds to; this function uses this
+information to align the two buffers.
+
+Return (cons SYNC-POS SYNC-SCROLLINE) with the new proposed values of
+the sync position in DEST-BUFFER and the corresponding scrolline."
+  (mistty--with-live-buffer dest-buffer
+    (let ((prop (save-excursion
+                  (goto-char sync-pos)
+                  (text-property-search-backward
+                   'mistty-scrolline
+                   home-scrolline ;; goal
+                   (lambda (goal val)
+                     (and val (<= val goal)))))))
+      (cond
+       ;; Found exact scrolline, align there or below if rows match
+       ((and prop (= home-scrolline (prop-match-value prop)))
+        (pcase-setq `(,sync-pos . ,sync-scrolline)
+                    (mistty--skip-identical-rows
+                     (prop-match-beginning prop)
+                     home-scrolline
+                     source-buffer))
+        (mistty-log "REALIGN scrolline %s to pos %s; terminal [%s-]"
+                    sync-scrolline sync-pos home-scrolline))
+
+       ;; Found scrolline < goal, align at line after
+       (prop
+        (let ((found-pos (mistty--bol (prop-match-beginning prop) 2)))
+          (mistty-log "REALIGN APPROXIMATE scrolline %s to pos %s; terminal [%s-]"
+                      home-scrolline found-pos home-scrolline)
+          (setq sync-pos found-pos
+                sync-scrolline home-scrolline)))
+
+       ;; Couldn't find beginning. It might have been deleted. Sync
+       ;; whole buffer.
+       (t
+        (mistty-log "REALIGN FALLBACK scrolline %s to point-min %s"
+                    home-scrolline (point-min))
+        (setq sync-pos (point-min)
+              sync-scrolline home-scrolline))))
+
+    (cons sync-pos sync-scrolline)))
+
+(defun mistty--sync-buffer
+    (source-buffer source-pos dest-buffer dest-pos keep-markers)
+  "Copy SOURCE-BUFFER from SOURCE-POS to eob to DEST-BUFFER.
+
+The text and text properties of the region from DEST-POS to eob is
+overwritten. If KEEP-MARKERS is non-nil, the function attempt to keep
+markers point and overlays as it rewrites the text."
+  (if (not keep-markers)
+      ;; Quicker version of sync-buffer that doesn't bother with
+      ;; markers.
+      (mistty--with-live-buffer dest-buffer
+        (save-restriction
+          (widen)
+          (let ((old-point (point))
+                (at-eobp (eobp)))
+            (goto-char dest-pos)
+            (delete-region dest-pos (point-max))
+            (insert-buffer-substring source-buffer source-pos)
+            (if (and (not at-eobp)
+                     (>= dest-pos old-point)
+                     (<= dest-pos (point-max)))
+                (goto-char old-point)))))
+
+    ;; Complete but expensive version of sync-buffer that conserves
+    ;; markers.
+    (mistty--with-live-buffer source-buffer
+      (save-restriction
+        (narrow-to-region source-pos (point-max))
+        (let ((properties (mistty--save-properties (point-min))))
+          (with-current-buffer dest-buffer
+            (let ((old-point (and (< (point) dest-pos) (point))))
+              (save-restriction
+                (narrow-to-region dest-pos (point-max))
+                (if (eval-when-compile (>= emacs-major-version 31))
+                    (let ((point-marker (or mistty--point-marker
+                                            (setq mistty--point-marker (make-marker)))))
+                      (set-marker point-marker (point))
+                      (set-marker-insertion-type point-marker nil)
+                      (replace-region-contents (point-min) (point-max) source-buffer 0.2)
+                      (goto-char point-marker)
+                      (move-marker point-marker nil))
+                  ;; Before Emacs 31, replace-region-contents could
+                  ;; not take a buffer as source.
+                  (replace-buffer-contents source-buffer 0.2))
+                (mistty--restore-properties properties (point-min)))
+
+              ;; If the point was outside the sync region, restore it,
+              ;; as it has been moved by narrow-to-region . Otherwise,
+              ;; trust replace-buffer-contents to do something
+              ;; reasonable with it.
+              (when old-point
+                (goto-char old-point)))))))))
+
+
+(defun mistty--save-properties (start)
+  "Extracts the properties from START in the current buffer.
+
+Returns a list of (BEG END PROPERTIES), ordered, with positions
+relative to START."
+  (let ((pos start) intervals)
+    (while (< pos (point-max))
+      (let ((props (text-properties-at pos))
+            (last-pos pos))
+        (setq pos (next-property-change pos nil (point-max)))
+        (push `(,(- last-pos start) ,(- pos start) ,props)
+              intervals)))
+
+    intervals))
+
+(defun mistty--restore-properties (intervals start)
+  "Apply saved properties INTERVALS to the buffer at START.
+
+This is the reverse operation of `mistty--save-properties'."
+  (pcase-dolist (`(,beg ,end ,props) intervals)
+    (set-text-properties (+ beg start) (+ end start) props)))
+
+(defun mistty--skip-identical-rows (pos scrolline source-buffer)
+  "Skip rows from POS that are the same on SOURCE-BUFFER.
+
+Return a (CONS new-pos new-scrolline), possibly modified values for POS
+and SCROLLINE."
+  (save-excursion
+    (while
+        (when (equal scrolline (get-text-property pos 'mistty-scrolline))
+          (when-let* ((end-row (next-single-property-change pos 'mistty-scrolline)))
+            (when (string= (string-trim (buffer-substring-no-properties pos end-row)
+                                        "" "\n")
+                           (mistty--with-live-buffer source-buffer
+                             (save-excursion
+                               (goto-char (mistty--find-scrolline scrolline))
+                               (mistty--unwrapped-scrolline-text))))
+              (setq pos end-row))))
+      (goto-char pos)
+      (cl-incf scrolline)))
+
+  `(,pos . ,scrolline))
+
 (provide 'mistty-term)
 
 ;;; mistty-term.el ends here

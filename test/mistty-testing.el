@@ -514,18 +514,15 @@ buffer to a new region at the beginning of the new prompt."
 
 Puts the point at the end of the prompt and return the position
 of the beginning of the prompt."
-  (let ((before-send (copy-marker (or start (if mistty-proc (mistty-cursor) (point))))))
-    (unwind-protect
-        (progn
-          (funcall (or send #'mistty-send-command))
-          (mistty-wait-for-output
-           :regexp (or (if prompt (concat "^" (regexp-quote prompt)))
-                       mistty-test-prompt-re
-                       (error "mistty-test-prompt-re not set"))
-           :start before-send
-           :proc (or proc mistty-proc))
-          (match-beginning 0))
-      (set-marker before-send nil))))
+  (let ((before-send (or start (if mistty-proc (mistty-cursor) (point)))))
+    (funcall (or send #'mistty-send-command))
+    (mistty-wait-for-output
+     :regexp (or (if prompt (concat "^" (regexp-quote prompt)))
+                 mistty-test-prompt-re
+                 (error "mistty-test-prompt-re not set"))
+     :start before-send
+     :proc (or proc mistty-proc))
+    (match-beginning 0)))
 
 (defun mistty-test-report-issue (issue)
   "Report ISSUE with extra debugging information.

@@ -174,12 +174,6 @@ sequence.")
 (cl-defgeneric mistty--term-changed (term beg end)
   "Mark the region of TERM between BEG and END as requiring post-processing.")
 
-(cl-defgeneric mistty--term-after-refresh (term beg)
-  "Post-process TERM's work buffer after a refresh.
-
-At the time this is called, the current buffer contains a fresh copy of
-the term buffer from BEG to the end of the buffer.")
-
 (cl-defgeneric mistty--term-truncate-buffer (term scrolline-limit)
   "Truncate TERM's buffer, if necessary.
 

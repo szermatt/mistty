@@ -222,7 +222,16 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
         (mistty--with-live-buffer dest-buffer
           (set-marker cursor-marker
                       (+ sync-pos
-                         (- (process-mark proc) source-sync-pos)))))
+                         (- (process-mark proc) source-sync-pos)))
+
+          ;; When rendering, alacritty always render a final newline. Mark it.
+          (let ((last-newline (1- (point-max))))
+            (when (and (> last-newline sync-pos)
+                       (eq ?\n (char-after last-newline)))
+              (add-text-properties
+               last-newline (point-max)
+               '(mistty-skip empty-lines-at-eob
+                             yank-handler (nil "" nil nil)))))))
 
       (cons sync-pos sync-scrolline))))
 
@@ -252,19 +261,6 @@ LEAVE-FULLSCREEN is to be called when leaving fullscreen mode."
 
 (cl-defmethod mistty--term-changed ((_term mistty--term-alacritty) _beg _end)
   "Does nothing.")
-
-(cl-defmethod mistty--term-after-refresh ((_term mistty--term-alacritty) beg)
-  "Post-process work buffer from BEG to end after a refresh.
-
-This marks the final newline as \\='empty-lines-at-eob."
-
-  ;; When rendering, alacritty always render a final newline. Mark it.
-  (let ((last-newline (1- (point-max))))
-    (when (and (> last-newline beg)
-               (eq ?\n (char-after last-newline)))
-      (add-text-properties
-       last-newline (point-max)
-       '(mistty-skip empty-lines-at-eob yank-handler (nil "" nil nil))))))
 
 (cl-defmethod mistty--term-truncate-buffer ((term mistty--term-alacritty) scrolline-limit)
   "Truncate the terminal buffer, if necessary.

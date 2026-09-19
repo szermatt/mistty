@@ -396,7 +396,8 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
 
       (setf (mistty--term-eterm-change-before-scrolline term) nil)
 
-      (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
+      (let ((source-sync-pos (mistty--find-scrolline sync-scrolline))
+            (column-count term-width))
         (mistty--sync-buffer
          source-buffer
          source-sync-pos
@@ -408,7 +409,10 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
         (mistty--with-live-buffer dest-buffer
           (set-marker cursor-marker
                       (+ sync-pos
-                         (- (process-mark proc) source-sync-pos)))))
+                         (- (process-mark proc) source-sync-pos)))
+
+          (mistty--hide-line-wraps sync-pos (point-max) column-count)
+          (mistty--mark-empty-line-at-eob sync-pos)))
 
       (cons sync-pos sync-scrolline))))
 
@@ -456,11 +460,6 @@ This is not needed as it's enough to clear the text properties for eterm.")
 (cl-defmethod mistty--term-changed ((_term mistty--term-eterm) beg end)
   "Report that the region between BEG and END changed on the terminal buffer."
   (mistty--changed beg end))
-
-(cl-defmethod mistty--term-after-refresh ((term mistty--term-eterm) beg)
-  "Post-process TERM's work buffer from BEG to the end after a refresh."
-  (mistty--hide-line-wraps beg (point-max) (mistty--term-columns term))
-  (mistty--mark-empty-line-at-eob beg))
 
 (cl-defmethod mistty--term-truncate-buffer ((term mistty--term-eterm) scrolline-limit)
   "Truncate the terminal buffer, if necessary.

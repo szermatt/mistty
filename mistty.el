@@ -1699,7 +1699,9 @@ function just sets `mistty--need-refresh' and returns.
 
 Also updates prompt and point."
   (mistty--require-work-buffer)
-  (when (and mistty--need-refresh (not mistty--inhibit-refresh) (not mistty--inhibit))
+  (when (and mistty--need-refresh
+             (not mistty--inhibit-refresh)
+             (not mistty--inhibit))
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (old-point-max (point-max))
@@ -1729,7 +1731,6 @@ Also updates prompt and point."
            (when (or (/= sync-pos mistty-sync-marker)
                      (/= sync-scrolline mistty--scrolline-home-num))
              (mistty--set-sync-mark sync-pos sync-scrolline)))
-         (mistty--term-after-refresh mistty--term mistty-sync-marker)
 
          ;; Right after a mistty-send-command, we're waiting for a line
          ;; after mistty--end-prompt that's not part of the old prompt.

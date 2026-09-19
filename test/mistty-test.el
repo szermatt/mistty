@@ -2797,28 +2797,6 @@
     (ert-run-idle-timers)
     (should (<= (count-lines (point-min) (point-max)) 30))))
 
-(mistty-deftest mistty-test-from-pos-of ( :type all)
-  (mistty--send-string mistty-proc "echo foo")
-  (mistty--send-string mistty-proc "\e[200~\n\e[201~")
-  (mistty--send-string mistty-proc "echo hello world")
-  (mistty-wait-for-output :str "hello world")
-
-  (goto-char (point-min))
-  (should (equal (mistty-test-pos "foo")
-                 (mistty--from-pos-of
-                  (with-current-buffer mistty-term-buffer
-                    (goto-char (point-min))
-                    (mistty-test-pos "foo"))
-                  mistty-term-buffer)))
-
-  (goto-char (point-min))
-  (should (equal (mistty-test-pos "hello")
-                 (mistty--from-pos-of
-                  (with-current-buffer mistty-term-buffer
-                    (goto-char (point-min))
-                    (mistty-test-pos "hello"))
-                  mistty-term-buffer))))
-
 (mistty-deftest mistty-test-ignore-new-trailing-spaces-during-replay (:type all)
   (mistty--send-string mistty-proc "echo foo")
   (mistty--send-string mistty-proc "\e[200~\n\e[201~")

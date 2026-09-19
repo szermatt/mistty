@@ -1691,11 +1691,6 @@ This is the position of the cursor at the time of the last refresh. It
 is updated after each refresh"
   (marker-position mistty--cursor))
 
-(defun mistty--from-pos-of (pos buffer-of-pos)
-  "Return the local equivalent to POS defined in BUFFER-OF-POS."
-  (+ mistty-sync-marker (with-current-buffer buffer-of-pos
-                          (- pos mistty-sync-marker))))
-
 (defun mistty--needs-refresh ()
   "Let next call to `mistty--refresh' know there's something to refresh."
   (mistty--require-work-buffer)
@@ -3501,10 +3496,7 @@ Might modify CS before allowing replay."
                 (>= from (point-min))
                 (<= from (point-max))
                 (>= to (point-min))
-                (<= to (point-max))
-                (mistty--with-live-buffer mistty-term-buffer
-                  (<= (mistty--from-pos-of to mistty-work-buffer)
-                      (point-max)))))
+                (<= to (point-max))))
 
          ;; Interaction entry point
          (start (&optional _)

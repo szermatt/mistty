@@ -111,7 +111,9 @@ leaves fullscreen mode.")
     (term accum &key enter-fullscreen active-prompt after-clear-screen sync-scrolline)
   "Register processors for TERM on ACCUM in normal mode.
 
-ENTER-FULLSCREEN is to be called when entering fullscreen mode.
+ENTER-FULLSCREEN is to be called when entering fullscreen mode. It takes
+a single boolean argument which specifies whether this is split-buffer
+fullscreen mode or normal fullscreen mode.
 
 ACTIVE-PROMPT should return the active `mistty--prompt'.
 

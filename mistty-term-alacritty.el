@@ -149,7 +149,7 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
    '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
    (lambda (ctx str)
      (mistty--accum-ctx-flush ctx)
-     (funcall enter-fullscreen)
+     (funcall enter-fullscreen 'split)
      (mistty--accum-ctx-push-down ctx str)))
 
   (unless active-prompt (error ":active-prompt required"))

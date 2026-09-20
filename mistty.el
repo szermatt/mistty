@@ -4042,7 +4042,8 @@ This function skips spaces marked with ==\'mistty-skip, depending
 on the direction of the last move.
 
 This is meant to be added to `pre-redisplay-functions'"
-  (when (and mistty-proc
+  (when (and (not mistty-fullscreen)
+             mistty-proc
              (process-live-p mistty-proc)
              (buffer-live-p mistty-term-buffer))
     (let (pos last-pos move-to)

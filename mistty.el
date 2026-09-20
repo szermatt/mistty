@@ -793,15 +793,6 @@ When this variable is non-nil, it contains a position in the work buffer
 that's on the current prompt. The line after that is going to be a
 process output or a new prompt.")
 
-(defvar-local mistty--cursor-after-last-refresh nil
-  "A marker on the cursor at the end of `mistty--refresh'.
-
-This variable is meant for `mistty--refresh' to detect
-whether the cursor has moved since its last call. It's not meant
-to be modified or accessed by other functions.
-
-This variable is available in the work buffer.")
-
 (defvar-local mistty--inhibit-refresh nil
   "When non-nil, prevent `mistty--refresh' from copying data.
 
@@ -1738,8 +1729,7 @@ Also updates prompt and point."
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (old-point-max (point-max))
-          (point-was-at-cursor (or (null mistty--cursor-after-last-refresh)
-                                   (= (point) mistty--cursor-after-last-refresh)))
+          (point-was-at-cursor (= (point) mistty--cursor))
           on-prompt)
       (mistty--copy-buffer-local-variables
        (cons 'mistty-bracketed-paste mistty-variables-to-copy)
@@ -1782,10 +1772,6 @@ Also updates prompt and point."
              (when (and (not (eq mistty-goto-cursor-next-time 'off))
                         (or mistty-goto-cursor-next-time point-was-at-cursor))
                (mistty-goto-cursor)))
-
-           (unless mistty--cursor-after-last-refresh
-             (setq mistty--cursor-after-last-refresh (make-marker)))
-           (move-marker mistty--cursor-after-last-refresh (mistty-cursor))
            (setq mistty-goto-cursor-next-time nil))))
       (if mistty-fullscreen
           (mistty--maybe-scroll-fullscreen-windows)
@@ -4049,8 +4035,6 @@ This is meant to be added to `pre-redisplay-functions'"
     (let (pos last-pos move-to)
       (when (and mistty-skip-empty-spaces
                  ;; Never move point at cursor.
-                 (or (null mistty--cursor-after-last-refresh)
-                     (not (equal (point) mistty--cursor-after-last-refresh)))
                  (not (equal (point) (mistty-cursor)))
                  (mistty-on-prompt-p (setq pos (window-point win))))
         (when-let* ((last-state (window-parameter win 'mistty--cursor-skip-state)))

@@ -35,7 +35,7 @@
 (cl-defstruct (mistty--term-alacritty
                (:constructor mistty--make-term-alacritty)
                (:copier nil))
-  proc buf change-before-scrolline)
+  proc buf change-before-scrolline fs)
 
 (cl-defmethod mistty--create-term ((_type (eql 'alacritty)) name command &key width height)
   "Create an alacritty-type terminal with the given NAME and COMMAND.
@@ -149,7 +149,8 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
    '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
    (lambda (ctx str)
      (mistty--accum-ctx-flush ctx)
-     (funcall enter-fullscreen 'split)
+     (funcall enter-fullscreen nil)
+     (setf (mistty--term-alacritty-fs term) t)
      (mistty--accum-ctx-push-down ctx str)))
 
   (unless active-prompt (error ":active-prompt required"))
@@ -190,50 +191,63 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
 (cl-defmethod mistty--term-sync
   ((term mistty--term-alacritty) dest-buffer sync-pos sync-scrolline keep-markers
    cursor-marker)
-  (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-    (let ((home-marker mistty-alacritty--home)
-          (home-scrolline mistty--scrolline-home-num)
-          (proc (mistty--term-alacritty-proc term))
-          (source-buffer (current-buffer)))
-      ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
-      (cond
-       ((< sync-scrolline home-scrolline)
-        (pcase-setq
-         `(,sync-pos . ,sync-scrolline)
-         (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
-       ((mistty--term-alacritty-change-before-scrolline term)
-        (mistty-log "Detected terminal change above sync mark, at scrolline %s"
-                    mistty--scrolline-home-num)
-        (pcase-setq
-         `(,sync-pos . ,sync-scrolline)
-         (mistty--realign-buffers
-          source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
-
-      (setf (mistty--term-alacritty-change-before-scrolline term) nil)
-
-      (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
+  (if (mistty--term-alacritty-fs term)
+      ;; fullscreen mode, without support for prompts
+      (mistty--with-live-buffer (mistty--term-alacritty-buf term)
         (mistty--sync-buffer
-         source-buffer
-         source-sync-pos
-         dest-buffer
-         sync-pos
-         keep-markers)
+         (current-buffer) mistty-alacritty--home
+         dest-buffer sync-pos
+         nil)
 
-        (mistty--with-live-buffer dest-buffer
-          (set-marker cursor-marker
-                      (+ sync-pos
-                         (- (process-mark proc) source-sync-pos)))
+        (let ((cursor-pos (+ sync-pos
+                             (- (process-mark (mistty--term-proc term))
+                                mistty-alacritty--home))))
+          (mistty--with-live-buffer dest-buffer
+            (set-marker cursor-marker cursor-pos))))
 
-          ;; When rendering, alacritty always render a final newline. Mark it.
-          (let ((last-newline (1- (point-max))))
-            (when (and (> last-newline sync-pos)
-                       (eq ?\n (char-after last-newline)))
-              (add-text-properties
-               last-newline (point-max)
-               '(mistty-skip empty-lines-at-eob
-                             yank-handler (nil "" nil nil)))))))
+    ;; normal mode, with support for prompts
+    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
+      (let ((home-marker mistty-alacritty--home)
+            (home-scrolline mistty--scrolline-home-num)
+            (proc (mistty--term-alacritty-proc term))
+            (source-buffer (current-buffer)))
+        ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
+        (cond
+         ((< sync-scrolline home-scrolline)
+          (pcase-setq
+           `(,sync-pos . ,sync-scrolline)
+           (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
+         ((mistty--term-alacritty-change-before-scrolline term)
+          (mistty-log "Detected terminal change above sync mark, at scrolline %s"
+                      mistty--scrolline-home-num)
+          (pcase-setq
+           `(,sync-pos . ,sync-scrolline)
+           (mistty--realign-buffers
+            source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
 
-      (cons sync-pos sync-scrolline))))
+        (setf (mistty--term-alacritty-change-before-scrolline term) nil)
+
+        (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
+          (mistty--sync-buffer
+           source-buffer source-sync-pos
+           dest-buffer sync-pos
+           keep-markers)
+
+          (mistty--with-live-buffer dest-buffer
+            (set-marker cursor-marker
+                        (+ sync-pos
+                           (- (process-mark proc) source-sync-pos)))
+
+            ;; When rendering, alacritty always render a final newline. Mark it.
+            (let ((last-newline (1- (point-max))))
+              (when (and (> last-newline sync-pos)
+                         (eq ?\n (char-after last-newline)))
+                (add-text-properties
+                 last-newline (point-max)
+                 '(mistty-skip empty-lines-at-eob
+                               yank-handler (nil "" nil nil))))))))))
+
+  (cons sync-pos sync-scrolline))
 
 
 (cl-defmethod mistty--term-setup-accum-for-fullscreen ((term mistty--term-alacritty) accum
@@ -249,6 +263,7 @@ LEAVE-FULLSCREEN is to be called when leaving fullscreen mode."
    (lambda (ctx str)
      (mistty--accum-ctx-push-down ctx str)
      (mistty--accum-ctx-flush ctx)
+     (setf (mistty--term-alacritty-fs term) nil)
      (funcall leave-fullscreen))))
 
 (cl-defmethod mistty--term-clear-to-eol ((_term mistty--term-alacritty) pos)

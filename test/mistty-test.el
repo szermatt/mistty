@@ -1428,7 +1428,7 @@
        "$")
       (buffer-string)))))
 
-(mistty-deftest mistty-test-enter-split-fullscreen (:selected t :type all)
+(mistty-deftest mistty-test-enter-split-fullscreen (:selected t :type eterm)
   (let ((bufname (buffer-name))
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
@@ -1458,7 +1458,45 @@
     (should (equal (concat " mistty tty " bufname) (buffer-name term-buffer)))
     (should (equal bufname (buffer-name work-buffer)))))
 
-(mistty-deftest mistty-test-point-after-leaving-split-fullscreen (:selected t :type all)
+(mistty-deftest mistty-test-enter-single-buffer-fullscreen (:selected t :type alacritty)
+  (let ((work-buffer mistty-work-buffer)
+        (term-buffer mistty-term-buffer)
+        (win (selected-window)))
+    (should (executable-find "vi"))
+    (execute-kbd-macro (kbd "v i RET"))
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (with-current-buffer work-buffer
+         mistty-fullscreen)))
+    ;; the buffer and window haven't changed
+    (should (eq (current-buffer) work-buffer))
+    (should (equal win (get-buffer-window work-buffer)))
+    (should-not (get-buffer-window term-buffer))
+
+    ;; mistty-fullscreen is t, not 'split
+    (should (eq t mistty-fullscreen))
+    (with-current-buffer term-buffer
+      (should (eq t mistty-fullscreen)))
+
+
+    (execute-kbd-macro (kbd ": q ! RET"))
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (with-current-buffer work-buffer
+         (not mistty-fullscreen))))
+
+    (should (eq nil mistty-fullscreen))
+    (with-current-buffer term-buffer
+      (should (eq nil mistty-fullscreen)))
+    (mistty-wait-for-output
+     :start mistty-sync-marker
+     :str "$ " :cursor-at-end t)
+    (should (equal "$ vi\n$ <>\n"
+                   (mistty-test-content :trim nil :show (point))))))
+
+(mistty-deftest mistty-test-point-after-leaving-split-fullscreen (:selected t :type eterm)
   (mistty-send-text "echo hello, world")
   (mistty-send-and-wait-for-prompt)
 
@@ -1525,46 +1563,40 @@
                    (with-current-buffer work-buffer
                      (mistty-test-content :show (mistty-cursor)))))))
 
-(ert-deftest mistty-test-enter-split-fullscreen-47/alacritty ()
-  :tags '(:slow)
-  (mistty-with-test-buffer (:selected t :type alacritty)
-    (mistty-test-enter-split-fullscreen "[47h" "[47l")))
-
 (ert-deftest mistty-test-enter-split-fullscreen-47/eterm ()
   :tags '(:slow)
   ;; 47h/47l clear the screen on eterm but not on alacritty
   (mistty-with-test-buffer (:selected t :type eterm)
     (mistty-test-enter-split-fullscreen "[47h" "[47l" 'clear-screen)))
 
-(ert-deftest mistty-test-enter-split-fullscreen-47-alternative-code/alacritty ()
-  :tags '(:slow)
-  (mistty-with-test-buffer (:selected t :type alacritty)
-    (mistty-test-enter-split-fullscreen "[?47h" "[?47l")))
-
 (ert-deftest mistty-test-enter-split-fullscreen-47-alternative-code/eterm ()
   :tags '(:slow)
   (mistty-with-test-buffer (:selected t :type eterm)
     (mistty-test-enter-split-fullscreen "[?47h" "[?47l" 'clear-screen)))
-
-(ert-deftest mistty-test-enter-split-fullscreen-1047/alacritty ()
-  :tags '(:slow)
-  (mistty-with-test-buffer (:selected t :type alacritty)
-    (mistty-test-enter-split-fullscreen "[?1047h" "[?1047l")))
 
 (ert-deftest mistty-test-enter-split-fullscreen-1047/eterm ()
   :tags '(:slow)
   (mistty-with-test-buffer (:selected t :type eterm)
     (mistty-test-enter-split-fullscreen "[?1047h" "[?1047l" 'clear-screen)))
 
-(mistty-deftest mistty-test-enter-split-fullscreen-1049 (:selected t :type all :slow t)
+(mistty-deftest mistty-test-enter-split-fullscreen-1049 (:selected t :type eterm :slow t)
   (mistty-test-enter-split-fullscreen "[?1049h" "[?1049l" 'clear-screen))
 
-(mistty-deftest mistty-test-call-fullscreen-hooks (:selected t :type all)
-  (let (calls)
+(mistty-deftest mistty-test-call-fullscreen-hooks/eterm (:selected t :type eterm)
+  (mistty-test-call-fullscreen-hooks 'split))
+
+(mistty-deftest mistty-test-call-fullscreen-hooks/alacritty (:selected t :type alacritty)
+  (mistty-test-call-fullscreen-hooks t))
+
+(defun mistty-test-call-fullscreen-hooks (value)
+  (let ((work-buffer mistty-work-buffer)
+        (term-buffer mistty-term-buffer)
+        (calls (list)))
+
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc)
                 (push `(end
-                        ,(not mistty-fullscreen)
+                        ,mistty-fullscreen
                         ,(not (process-live-p proc)))
                       calls)))
     (add-hook 'mistty-entered-fullscreen-hook
@@ -1574,11 +1606,26 @@
               (lambda ()
                 (push `(leave ,mistty-fullscreen) calls)))
 
-    (mistty-test-enter-split-fullscreen "[?1049h" "[?1049l" 'clear-screen)
+    (should (executable-find "vi"))
+    (execute-kbd-macro (kbd "v i RET"))
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (with-current-buffer work-buffer
+         mistty-fullscreen)))
 
-    (should (equal '((enter split) (leave nil)) (nreverse calls)))))
+    (should (equal `((enter ,value)) calls))
 
-(mistty-deftest mistty-test-killed-while-split-fullscreen ( :type all)
+    (execute-kbd-macro (kbd ": q ! RET"))
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (with-current-buffer work-buffer
+         (not mistty-fullscreen))))
+
+    (should (equal `((enter ,value) (leave nil)) (nreverse calls)))))
+
+(mistty-deftest mistty-test-killed-while-split-fullscreen (:type eterm)
   (let (calls)
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc)
@@ -1601,14 +1648,16 @@
     (should (equal '((enter split) (leave nil) (end nil t))
                    (nreverse calls)))))
 
-(mistty-deftest mistty-test-live-buffer-p ( :type all)
+(mistty-deftest mistty-test-live-buffer-p (:type all)
   (should (mistty-live-buffer-p mistty-work-buffer))
   (should (not (mistty-live-buffer-p mistty-term-buffer)))
   (with-temp-buffer
     (should (not (mistty-live-buffer-p (current-buffer))))))
 
-(mistty-deftest mistty-test-split-fullscreen-live-buffer-p ( :type all)
-  (let ((proc mistty-proc))
+(mistty-deftest mistty-test-split-fullscreen-live-buffer-p (:type eterm)
+  (let ((proc mistty-proc)
+        (work-buffer mistty-work-buffer)
+        (term-buffer mistty-term-buffer))
     (mistty-send-text
      (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
              "[47h" "[47l"))
@@ -1616,10 +1665,11 @@
     (mistty-wait-for-output
      :test
      (lambda ()
-       (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
+       (with-current-buffer work-buffer
+         mistty-fullscreen)))
 
-    (should (not (mistty-live-buffer-p mistty-work-buffer)))
-    (should (mistty-live-buffer-p mistty-term-buffer))
+    (should-not (mistty-live-buffer-p work-buffer))
+    (should (mistty-live-buffer-p term-buffer))
 
     ;; Cleanup. Without this, the term buffer would not be killed
     ;; when the work buffer is killed since it's in fullscreen mode,
@@ -1628,9 +1678,35 @@
     (mistty-wait-for-output
      :test
      (lambda ()
-       (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer))))))
+       (with-current-buffer work-buffer
+         (not mistty-fullscreen))))))
 
-(mistty-deftest mistty-test-toggle-buffers (:selected t :type all)
+(mistty-deftest mistty-single-buffer-fullscreen-live-buffer-p (:type alacritty)
+  (let ((proc mistty-proc)
+        (work-buffer mistty-work-buffer)
+        (term-buffer mistty-term-buffer))
+    (mistty-send-text
+     (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
+             "[47h" "[47l"))
+    (mistty-send-command)
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (with-current-buffer mistty-work-buffer
+         mistty-fullscreen)))
+
+    (should (mistty-live-buffer-p work-buffer))
+    (should-not (mistty-live-buffer-p term-buffer))
+
+    ;; cleanup
+    (mistty--send-string proc "\C-m")
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (with-current-buffer work-buffer
+         (not mistty-fullscreen))))))
+
+(mistty-deftest mistty-test-toggle-buffers (:selected t :type eterm)
   (let ((proc mistty-proc)
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
@@ -1667,7 +1743,7 @@
     (should-error (mistty-toggle-buffers))
     (should (equal work-buffer (window-buffer win)))))
 
-(mistty-deftest mistty-test-split-fullscreen-swap-buffers (:selected t :type all)
+(mistty-deftest mistty-test-split-fullscreen-swap-buffers (:selected t :type eterm)
   (let ((proc mistty-proc)
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
@@ -1720,7 +1796,7 @@
     (should (equal work-buffer (window-buffer winA)))
     (should (equal term-buffer (window-buffer winB)))))
 
-(mistty-deftest mistty-test-kill-split-fullscreen-buffer-kills-scrollback (:selected t :type all)
+(mistty-deftest mistty-test-kill-split-fullscreen-buffer-kills-scrollback (:selected t :type eterm)
   (let ((work-buffer mistty-work-buffer)
         (proc mistty-proc))
     (should (executable-find "vi"))
@@ -1730,7 +1806,7 @@
     (kill-buffer mistty-term-buffer)
     (mistty-wait-for-term-buffer-and-proc-to-die work-buffer proc)))
 
-(mistty-deftest mistty-test-proc-dies-during-split-fullscreen (:selected t :type all)
+(mistty-deftest mistty-test-proc-dies-during-split-fullscreen (:selected t :type eterm)
   (let ((bufname (buffer-name))
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
@@ -4648,8 +4724,8 @@
   (mistty-send-text "echo $(tput cols)x$(tput lines)")
   (should (equal "79x10" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-set-terminal-size-and-fullscreen
-    (:selected t :term-size 'window :type all :turtles t)
+(mistty-deftest mistty-test-set-terminal-size-and-split-screen-fullscreen
+    (:selected t :term-size 'window :type eterm :turtles t)
   (let ((proc mistty-proc)
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer))
@@ -6168,37 +6244,6 @@ function prompt {
   (should (equal "hello, world"
                  (mistty-send-and-capture-command-output))))
 
-(ert-deftest mistty-disable-jit-lock-mode-in-term-buf/alacritty ()
-  (let ((was-enabled global-goto-address-mode))
-    (unwind-protect
-        (progn
-          ;; Turning on global-goto-address-mode force jit-lock-mode
-          ;; on all buffers, even the hidden ones.
-          (global-goto-address-mode)
-          (mistty-with-test-buffer (:type alacritty)
-            (let ((proc mistty-proc)
-                  (workbuf mistty-work-buffer)
-                  (termbuf mistty-term-buffer))
-              (with-current-buffer termbuf
-                (should-not jit-lock-mode))
-              (mistty-send-text "echo OK | less")
-              (mistty-send-command)
-              (mistty-wait-for-output
-               :proc proc
-               :test
-               (lambda ()
-                 (buffer-local-value 'mistty-fullscreen workbuf)))
-              (with-current-buffer termbuf
-                (should-not jit-lock-mode))
-              (mistty-send-and-wait-for-prompt
-               :send (lambda () (process-send-string proc "q"))
-               :proc proc)
-              (with-current-buffer termbuf
-                (should-not jit-lock-mode)))))
-      (unless was-enabled
-        (global-goto-address-mode -1)))))
-
-
 (ert-deftest mistty-disable-jit-lock-mode-in-term-buf/eterm ()
   (let ((was-enabled global-goto-address-mode))
     (unwind-protect
@@ -6228,6 +6273,39 @@ function prompt {
                :send (lambda () (process-send-string proc "q"))
                :proc proc)
               (with-current-buffer termbuf
+                (should-not jit-lock-mode)))))
+      (unless was-enabled
+        (global-goto-address-mode -1)))))
+
+
+(ert-deftest mistty-disable-jit-lock-mode-in-term-buf/alacritty ()
+  (let ((was-enabled global-goto-address-mode))
+    (unwind-protect
+        (progn
+          ;; Turning on global-goto-address-mode force jit-lock-mode
+          ;; on all buffers, even the hidden ones.
+          (global-goto-address-mode)
+          (mistty-with-test-buffer (:type alacritty)
+            (let ((proc mistty-proc)
+                  (work-buffer mistty-work-buffer)
+                  (term-buffer mistty-term-buffer))
+              (with-current-buffer term-buffer
+                (should-not jit-lock-mode))
+              (mistty-send-text "echo OK | less")
+              (mistty-send-command)
+              (mistty-wait-for-output
+               :proc proc
+               :test
+               (lambda ()
+                 (with-current-buffer work-buffer
+                   mistty-fullscreen)))
+              (with-current-buffer term-buffer
+                (should-not jit-lock-mode))
+              (mistty-send-and-wait-for-prompt
+               :send (lambda () (process-send-string proc "q"))
+               :proc proc
+               :start mistty-sync-marker)
+              (with-current-buffer term-buffer
                 (should-not jit-lock-mode)))))
       (unless was-enabled
         (global-goto-address-mode -1)))))

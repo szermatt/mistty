@@ -755,7 +755,7 @@ See mistty-queue.el.")
   "A marker that links `mistty-term-buffer' to `mistty-work-buffer'.
 
 The region of the terminal that's copied to the work buffer by
-`mistty--sync-buffer' starts at `mistty-sync-marker' and ends
+`mistty--term-sync' starts at `mistty-sync-marker' and ends
 at `(point-max)' on both buffers. The two markers must always be
 kept in sync.
 
@@ -1657,6 +1657,14 @@ kept."
             (inhibit-read-only t))
         (delete-region 1 mistty-sync-marker)))))
 
+(defun mistty--maybe-scroll-fullscreen-windows ()
+  "Anchor the top of the terminal to the top of the window."
+  (mistty--require-work-buffer)
+  (dolist (win (get-buffer-window-list))
+    (when (and (>= (window-point win) mistty-sync-marker)
+               (< (window-start win) mistty-sync-marker))
+        (set-window-start win mistty-sync-marker))))
+
 (defun mistty--maybe-scroll-window-down ()
   "Make sure that newly inserted text is visible.
 
@@ -1724,11 +1732,13 @@ Also updates prompt and point."
       (mistty--copy-buffer-local-variables
        (cons 'mistty-bracketed-paste mistty-variables-to-copy)
        mistty-term-buffer)
+
       (mistty--inhibit-undo
        (save-restriction
          (widen)
          (setq mistty--need-refresh nil)
-         (setq on-prompt (mistty-on-prompt-p (mistty-cursor)))
+         (setq on-prompt (unless mistty-fullscreen
+                           (mistty-on-prompt-p (mistty-cursor))))
 
          (mistty-log "refresh (%s)@%s"
                      (if on-prompt "complete" "quick")
@@ -1745,88 +1755,102 @@ Also updates prompt and point."
                      (/= sync-scrolline mistty--scrolline-home-num))
              (mistty--set-sync-mark sync-pos sync-scrolline)))
 
-         ;; Right after a mistty-send-command, we're waiting for a line
-         ;; after mistty--end-prompt that's not part of the old prompt.
-         (when mistty--end-prompt
-           (when-let* ((prompt mistty--active-prompt)
-                       (scrolline (mistty--with-live-buffer mistty-term-buffer
-                                    (mistty--scrolline-at-point)))
-                       (end-scrolline (mistty--prompt-end prompt)))
-             (when (>= scrolline end-scrolline)
-               (when (mistty--maybe-move-sync-mark end-scrolline)
-                 (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrolline %s)"
-                             (mistty--prompt-source prompt)
-                             (mistty--prompt-input-id prompt)
-                             (mistty--prompt-start prompt)
-                             end-scrolline
-                             scrolline)))))
-
-         (when-let* ((prompt (mistty--prompt))
-                     (prompt-beg (mistty--find-scrolline
-                                  (mistty--prompt-start prompt))))
-           ;; If a new prompt was detected, restrict sync region to
-           ;; the beginning of that prompt.
-           (when (and (not (mistty--prompt-realized prompt))
-                      (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
-                      (null (mistty--prompt-end prompt)))
-             (when-let* ((cursor (mistty-cursor)))
-               (when (and (> cursor prompt-beg)
-                          (or (eq 'osc133 (mistty--prompt-source prompt))
-                              (string-match mistty--prompt-regexp
-                                            (save-excursion
-                                              (goto-char cursor)
-                                              (mistty--unwrapped-scrolline-text-to-point)))))
-                 (mistty-log "Realized %s prompt #%s [%s-] @%s"
-                             (mistty--prompt-source prompt)
-                             (mistty--prompt-input-id prompt)
-                             (mistty--prompt-start prompt)
-                             prompt-beg)
-                 (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
-                 (setf (mistty--prompt-realized prompt) t)
-                 (setq mistty--active-prompt prompt))))
-           (when (mistty--prompt-realized prompt)
-             (mistty--mark-continue-prompts prompt prompt-beg)
-             (mistty--mark-right-prompt prompt-beg)
-             (mistty--mark-prompt-fields prompt prompt-beg)))
-
-         (let ((v (and on-prompt (mistty--can-move-vertically-p))))
-           (unless (eq v mistty--can-move-vertically)
-             (mistty-log "Can move vertically: %s" v)
-             (setq mistty--can-move-vertically v)))
-
-         ;; Turn mistty-forbid-edit on or off
-         (let ((forbid-edit (mistty--match-forbid-edit-regexp-p)))
-           (cond
-            ((and forbid-edit (not mistty--forbid-edit))
-             (setq mistty--forbid-edit t)
-             (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
-             (mistty--update-mode-lines)
-             (mistty-log "FORBID EDIT on"))
-            ((and (not forbid-edit) mistty--forbid-edit)
-             (setq mistty--forbid-edit nil)
-             (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
-             (mistty--update-mode-lines)
-             (mistty-log "FORBID EDIT off"))))
-
-         (unless mistty--active-prompt
-           (let ((screen-start (mistty--term-scrolline-at-screen-start)))
-             (when (< mistty--scrolline-home-num screen-start)
-               ;; Next time, only sync the visible portion of the terminal.
-               (mistty--maybe-move-sync-mark screen-start))))
+         (unless mistty-fullscreen
+           (mistty--post-process-prompts on-prompt))
 
          ;; Move the point to the cursor, if necessary.
          (when (process-live-p mistty-proc)
-           (when (and (not (eq mistty-goto-cursor-next-time 'off))
-                      (or mistty-goto-cursor-next-time point-was-at-cursor))
-             (mistty-goto-cursor))
+           (if mistty-fullscreen
+               ;; fullscreen; point follows cursor when in term region
+               (when (or (>= (point) mistty-sync-marker)
+                         mistty-goto-cursor-next-time)
+                 (mistty-goto-cursor))
+
+             ;; not fullscreen; point sometimes follows cursor
+             (when (and (not (eq mistty-goto-cursor-next-time 'off))
+                        (or mistty-goto-cursor-next-time point-was-at-cursor))
+               (mistty-goto-cursor)))
+
            (unless mistty--cursor-after-last-refresh
              (setq mistty--cursor-after-last-refresh (make-marker)))
-           (move-marker mistty--cursor-after-last-refresh (mistty-cursor)))
-         (setq mistty-goto-cursor-next-time nil)))
-      (when (> (point-max) old-point-max)
-        (mistty--maybe-scroll-window-down)))
+           (move-marker mistty--cursor-after-last-refresh (mistty-cursor))
+           (setq mistty-goto-cursor-next-time nil))))
+      (if mistty-fullscreen
+          (mistty--maybe-scroll-fullscreen-windows)
+        (when (> (point-max) old-point-max)
+          (mistty--maybe-scroll-window-down))))
 
     (mistty--report-self-inserted-text)))
+
+(defun mistty--post-process-prompts (on-prompt)
+  ;; Right after a mistty-send-command, we're waiting for a line
+  ;; after mistty--end-prompt that's not part of the old prompt.
+  (when mistty--end-prompt
+    (when-let* ((prompt mistty--active-prompt)
+                (scrolline (mistty--with-live-buffer mistty-term-buffer
+                             (mistty--scrolline-at-point)))
+                (end-scrolline (mistty--prompt-end prompt)))
+      (when (>= scrolline end-scrolline)
+        (when (mistty--maybe-move-sync-mark end-scrolline)
+          (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrolline %s)"
+                      (mistty--prompt-source prompt)
+                      (mistty--prompt-input-id prompt)
+                      (mistty--prompt-start prompt)
+                      end-scrolline
+                      scrolline)))))
+
+  (when-let* ((prompt (mistty--prompt))
+              (prompt-beg (mistty--find-scrolline
+                           (mistty--prompt-start prompt))))
+    ;; If a new prompt was detected, restrict sync region to
+    ;; the beginning of that prompt.
+    (when (and (not (mistty--prompt-realized prompt))
+               (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
+               (null (mistty--prompt-end prompt)))
+      (when-let* ((cursor (mistty-cursor)))
+        (when (and (> cursor prompt-beg)
+                   (or (eq 'osc133 (mistty--prompt-source prompt))
+                       (string-match mistty--prompt-regexp
+                                     (save-excursion
+                                       (goto-char cursor)
+                                       (mistty--unwrapped-scrolline-text-to-point)))))
+          (mistty-log "Realized %s prompt #%s [%s-] @%s"
+                      (mistty--prompt-source prompt)
+                      (mistty--prompt-input-id prompt)
+                      (mistty--prompt-start prompt)
+                      prompt-beg)
+          (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
+          (setf (mistty--prompt-realized prompt) t)
+          (setq mistty--active-prompt prompt))))
+    (when (mistty--prompt-realized prompt)
+      (mistty--mark-continue-prompts prompt prompt-beg)
+      (mistty--mark-right-prompt prompt-beg)
+      (mistty--mark-prompt-fields prompt prompt-beg)))
+
+  (let ((v (and on-prompt (mistty--can-move-vertically-p))))
+    (unless (eq v mistty--can-move-vertically)
+      (mistty-log "Can move vertically: %s" v)
+      (setq mistty--can-move-vertically v)))
+
+  ;; Turn mistty-forbid-edit on or off
+  (let ((forbid-edit (mistty--match-forbid-edit-regexp-p)))
+    (cond
+     ((and forbid-edit (not mistty--forbid-edit))
+      (setq mistty--forbid-edit t)
+      (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
+      (mistty--update-mode-lines)
+      (mistty-log "FORBID EDIT on"))
+     ((and (not forbid-edit) mistty--forbid-edit)
+      (setq mistty--forbid-edit nil)
+      (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
+      (mistty--update-mode-lines)
+      (mistty-log "FORBID EDIT off"))))
+
+  (unless mistty--active-prompt
+    (let ((screen-start (mistty--term-scrolline-at-screen-start)))
+      (when (< mistty--scrolline-home-num screen-start)
+        ;; Next time, only sync the visible portion of the terminal.
+        (mistty--maybe-move-sync-mark screen-start)))))
 
 (defun mistty--mark-continue-prompts (prompt prompt-start)
   "Detect and mark continue prompts that are part of PROMPT.

@@ -1706,7 +1706,7 @@
        (with-current-buffer work-buffer
          (not mistty-fullscreen))))))
 
-(mistty-deftest mistty-test-toggle-buffers (:selected t :type eterm)
+(mistty-deftest mistty-test-toggle-between-split-buffers (:selected t :type eterm)
   (let ((proc mistty-proc)
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
@@ -1723,10 +1723,10 @@
 
     (should (equal term-buffer (window-buffer win)))
     (with-current-buffer (window-buffer win)
-      (mistty-toggle-buffers))
+      (mistty-toggle))
     (should (equal work-buffer (window-buffer win)))
     (with-current-buffer (window-buffer win)
-      (mistty-toggle-buffers))
+      (mistty-toggle))
     (should (equal term-buffer (window-buffer win)))
 
     ;; Cleanup.
@@ -1736,12 +1736,37 @@
      (lambda ()
        (not (buffer-local-value 'mistty-fullscreen work-buffer))))))
 
-(mistty-deftest mistty-test-toggle-buffers-not-split (:selected t :type all)
-  (let ((work-buffer mistty-work-buffer)
-        (win (selected-window)))
-    (should (equal work-buffer (window-buffer win)))
-    (should-error (mistty-toggle-buffers))
-    (should (equal work-buffer (window-buffer win)))))
+(mistty-deftest mistty-test-toggle (:type all)
+  (mistty-send-text "echo two")
+  (mistty-send-and-wait-for-prompt)
+
+  ;; point should be at cursor
+  (should (= (point) (mistty-cursor)))
+
+  ;; point goes to the line just above terminal area
+  (mistty-toggle)
+  (should (equal (concat
+                  "$ echo two\n"
+                  "<>two\n"
+                  "$ <1>")
+                 (mistty-test-content
+                  :show (list (point) (mistty-cursor)))))
+  ;; move point somewhere else
+  (goto-char (point-min))
+  (search-forward "echo tw")
+
+  ;; point goes back to cursor
+  (mistty-toggle)
+  (should (= (point) (mistty-cursor)))
+
+  ;; point goes to the line just above terminal area
+  (mistty-toggle)
+  (should (equal (concat
+                  "$ echo two\n"
+                  "<>two\n"
+                  "$ <1>")
+                 (mistty-test-content
+                  :show (list (point) (mistty-cursor))))))
 
 (mistty-deftest mistty-test-split-fullscreen-swap-buffers (:selected t :type eterm)
   (let ((proc mistty-proc)
@@ -4256,14 +4281,14 @@
         (mistty-fullscreen-mode-map (make-sparse-keymap)))
     (should (equal "Fullscreen mode ON" (mistty--split-buffer-message)))
 
-    (keymap-set mistty-mode-map "C-c C-a" #'mistty-toggle-buffers)
-    (keymap-set mistty-fullscreen-mode-map "C-c C-a" #'mistty-toggle-buffers)
+    (keymap-set mistty-mode-map "C-c C-a" #'mistty-toggle)
+    (keymap-set mistty-fullscreen-mode-map "C-c C-a" #'mistty-toggle)
 
     (should (equal
              "Fullscreen mode ON. C-c C-a switches between terminal and scrollback buffers."
              (mistty--split-buffer-message)))
 
-    (keymap-set mistty-fullscreen-mode-map "C-c C-b" #'mistty-toggle-buffers)
+    (keymap-set mistty-fullscreen-mode-map "C-c C-b" #'mistty-toggle)
     (should (equal
              "Fullscreen mode ON. C-c C-a goes to terminal, C-c C-b to scrollback."
              (mistty--split-buffer-message)))))

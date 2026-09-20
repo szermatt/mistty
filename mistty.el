@@ -491,7 +491,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-l" #'mistty-clear
   "C-c C-r" #'mistty-create-buffer-with-output
   "C-c C-o" #'mistty-select-output
-  "C-c C-j" #'mistty-toggle-buffers
+  "C-c C-j" #'mistty-toggle
   "C-c C-q" #'mistty-send-key-sequence
   "C-c C-s" #'mistty-sudo
   "C-e" #'mistty-end-of-line-or-goto-cursor
@@ -578,7 +578,7 @@ are sent directly to the terminal."
 
 This is in addition to the mode's keymap, `mistty-term-mode-map' for
 eterm terminals and `mistty-alacritty-mode-map' for alacritty terminals."
-  "C-c C-j" #'mistty-toggle-buffers)
+  "C-c C-j" #'mistty-toggle)
 
 (define-minor-mode mistty-fullscreen-mode
   "Minor mode active on the terminal buffer while fullscreen.
@@ -667,7 +667,7 @@ bottom.
 In normal mode, this is the buffer that's displayed to the user.
 In fullscreen mode, this buffer is kept as historical scrollback
 buffer that can be independently switched to with
-`mistty-toggle-buffers'.
+`mistty-toggle'.
 
 While there is normally a terminal buffer, available as
 `mistty-term-buffer' as well as a process, available as
@@ -1656,6 +1656,18 @@ kept."
       (let ((inhibit-modification-hooks t)
             (inhibit-read-only t))
         (delete-region 1 mistty-sync-marker)))))
+
+(defun mistty--maybe-scroll-windows ()
+  "Scroll windows as appropriate for the terminal mode.
+
+In fullscreen mode, make sure that the top of the terminal is at the top
+of the window.
+
+In normal mode, make sure that the bottom of the terminal is visible,
+not just the cursor, so that things like TAB expansion are usable."
+  (if (eq t mistty-fullscreen)
+      (mistty--maybe-scroll-fullscreen-windows)
+    (mistty--maybe-scroll-window-down)))
 
 (defun mistty--maybe-scroll-fullscreen-windows ()
   "Anchor the top of the terminal to the top of the window."
@@ -3716,12 +3728,12 @@ messages when an app enters fullscreen mode and leaves it immediately."
   "Build a user message when entering split buffer fullscreen mode.
 
 This function looks into the maps to find the key bindings for
-`mistty-toggle-buffers' to include into the message."
+`mistty-toggle' to include into the message."
   (let ((from-work (where-is-internal
-                    #'mistty-toggle-buffers mistty-mode-map
+                    #'mistty-toggle mistty-mode-map
                     'firstonly 'noindirect))
         (from-term (where-is-internal
-                    #'mistty-toggle-buffers mistty-fullscreen-mode-map
+                    #'mistty-toggle mistty-fullscreen-mode-map
                     'firstonly 'noindirect))
         (keybinding-descr nil))
     (cond
@@ -3793,7 +3805,7 @@ Ignores buffers that don't exist."
                         'local-map '(keymap
                                      (mode-line
                                       keymap
-                                      (down-mouse-1 . mistty-toggle-buffers))))))
+                                      (down-mouse-1 . emistty-toggle))))))
      (mistty-proc
       (setq mode-line-process
             (concat
@@ -3841,7 +3853,7 @@ Ignores buffers that don't exist."
          'local-map '(keymap
                       (mode-line
                        keymap
-                       (down-mouse-1 . mistty-toggle-buffers))))
+                       (down-mouse-1 . mistty-toggle))))
         ":%s")))
      (t
       (setq mode-line-process "misTTY:%s"))))
@@ -3864,18 +3876,36 @@ This function keeps prev-buffers list unmodified."
        (when prevs
          (set-window-prev-buffers win prevs))))))
 
-(defun mistty-toggle-buffers ()
-  "Toggle between the fullscreen buffer and the scrollback buffer."
+(define-obsolete-function-alias
+  'mistty-toggle-buffers 'mistty-toggle "2.0.2snapshot")
+
+(defun mistty-toggle ()
+  "Toggle between the scrollback and terminal areas.
+
+This function may switch buffers if the scrollback and the terminal area
+are in different buffer."
   (interactive)
-  (unless (eq 'split mistty-fullscreen)
-    (user-error "Not in fullscreen mode"))
-  (let* ((from-buf (current-buffer))
-         (to-buf (cond
-                  ((eq from-buf mistty-work-buffer) mistty-term-buffer)
-                  ((eq from-buf mistty-term-buffer) mistty-work-buffer))))
-    (unless (buffer-live-p to-buf)
-      (user-error "Buffer not available"))
-    (switch-to-buffer to-buf)))
+  (cond
+   ;; go from term buffer to mistty buffer
+   ((not (eq (current-buffer) mistty-work-buffer))
+    (switch-to-buffer mistty-work-buffer))
+
+   ;; go from scrollback buffer to term buffer
+   ((eq mistty-fullscreen 'split)
+    (switch-to-buffer mistty-term-buffer))
+
+   ;; go from terminal area to scrollback area
+   ((>= (point) mistty-sync-marker)
+    (when (<= mistty-sync-marker (point-min))
+      (user-error "No accessible scrollback area yet"))
+    (goto-char (mistty--bol mistty-sync-marker 0))
+    (when (eq (current-buffer) (window-buffer (selected-window)))
+      (recenter)))
+
+   ;; go from scrollback area to terminal area
+   (t
+    (goto-char (mistty-cursor))
+    (mistty--maybe-scroll-windows))))
 
 (defun mistty-sudo ()
   "Prepend sudo to the current command."

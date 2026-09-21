@@ -23,7 +23,14 @@
 
 ;;; Code:
 
-(cl-defgeneric mistty--create-term (type name command &key width height)
+(cl-defgeneric mistty--create-term
+    (type name command
+          &key width height
+          enter-fullscreen
+          leave-fullscreen
+          active-prompt
+          after-clear-screen
+          sync-scrolline)
   "Create a new term buffer of the given TYPE with name NAME.
 
 The buffer runs COMMAND, a list containing the program to run and its
@@ -35,7 +42,20 @@ WIDTH and HEIGHT are the initial dimension of the terminal
 reported to the remote process.
 
 This function returns an instance of the generic terminal type, which
-allows getting hold of the buffer and process.")
+allows getting hold of the buffer and process.
+
+ENTER-FULLSCREEN is to be called when entering fullscreen mode. It takes
+a single boolean argument which specifies whether this is split-buffer
+fullscreen mode or normal fullscreen mode.
+
+LEAVE-FULLSCREEN is a function that takes the TERM instance and
+leaves fullscreen mode.
+
+ACTIVE-PROMPT should return the active `mistty--prompt'.
+
+AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
+
+SYNC-SCROLLINE-FUNC is a function that return the current sync scrolline.")
 
 (cl-defgeneric mistty--term-buf (term)
   "Return the TERM's terminal or process buffer.")
@@ -53,6 +73,9 @@ The marker is only valid in the terminal buffer.")
 
 (cl-defgeneric mistty--term-alt-screen-p (term)
   "Return non-nil when TERM is displaying the alternate screen buffer.")
+
+(cl-defgeneric mistty--term-detect-prompt-p (term)
+  "Return non-nil prompt detection should be enabled in TERM.")
 
 (cl-defgeneric mistty--term-lines (term)
   "Return the height of TERM's terminal, in lines.")
@@ -99,27 +122,6 @@ A non-nil value for ENABLE enables autoresize, a nil value disables it.")
   "Prepare TERM's terminal/process buffer for use.
 
 If FULLSCREEN is non-nil, prepare the buffer for fullscreen mode")
-
-(cl-defgeneric mistty--term-setup-accum-for-fullscreen
-    (term accum leave-fullscreen-func)
-  "Register processors for TERM on ACCUM in fullscreen mode.
-
-LEAVE-FULLSCREEN-FUNC is a function that takes the TERM instance and
-leaves fullscreen mode.")
-
-(cl-defgeneric mistty--term-setup-accum
-    (term accum &key enter-fullscreen active-prompt after-clear-screen sync-scrolline)
-  "Register processors for TERM on ACCUM in normal mode.
-
-ENTER-FULLSCREEN is to be called when entering fullscreen mode. It takes
-a single boolean argument which specifies whether this is split-buffer
-fullscreen mode or normal fullscreen mode.
-
-ACTIVE-PROMPT should return the active `mistty--prompt'.
-
-AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
-
-SYNC-SCROLLINE-FUNC is a function that return the current sync scrolline.")
 
 (cl-defgeneric mistty--term-sync
     (term dest-buffer sync-pos sync-scrolline keep-markers cursor-marker)

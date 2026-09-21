@@ -1047,16 +1047,43 @@ window."
                      (selected-window))))
         (setq width (window-max-chars-per-line win))
         (setq height (floor (with-selected-window win
-                                   (window-screen-lines))))))
-    (mistty--attach
-     (mistty--create-term (or mistty-terminal-type
-                              (if (mistty-alacritty-available-p)
-                                  'alacritty
-                                'eterm))
-                          (concat " mistty tty " (buffer-name))
-                          (cons command args)
-                          :width width
-                          :height height)))
+                              (window-screen-lines))))))
+    (let* ((work-buffer (current-buffer))
+           (term (mistty--create-term
+                 (or mistty-terminal-type
+                     (if (mistty-alacritty-available-p)
+                         'alacritty
+                       'eterm))
+                 (concat " mistty tty " (buffer-name))
+                 (cons command args)
+                 :width width
+                 :height height
+                 :enter-fullscreen
+                 (lambda (split)
+                   (mistty--enter-fullscreen work-buffer split))
+                 :leave-fullscreen
+                 (lambda ()
+                   (mistty--leave-fullscreen work-buffer))
+                 :active-prompt
+                 (lambda ()
+                   (mistty--with-live-buffer work-buffer
+                     mistty--active-prompt))
+                 :after-clear-screen
+                 (lambda ()
+                   (mistty--with-live-buffer work-buffer
+                     (if mistty-allow-clearing-scrollback
+                         (mistty--clear-scrollback)
+                       (mistty--scroll-after-reset))))
+                 :sync-scrolline
+                 (lambda ()
+                   (mistty--with-live-buffer work-buffer
+                     mistty--scrolline-home-num))))
+           (term-buffer (mistty--term-buf term))
+           (accum (process-filter (mistty--term-proc term))))
+      (mistty--add-toggle-cursor accum work-buffer term-buffer)
+      (mistty--add-sync-buffers accum work-buffer term-buffer)
+
+      (mistty--attach term)))
   (mistty--wrap-capf-functions)
   (mistty--update-mode-lines)
   (run-hooks 'mistty-after-process-start-hook))
@@ -1088,7 +1115,6 @@ window."
       (mistty--term-setup-buffer term nil))
 
     (when proc
-      (mistty--setup-accum term work-buffer)
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
@@ -1105,50 +1131,6 @@ window."
       ;; window sizes might not be reliable without a redisplay
       (redisplay t)
       (mistty--set-process-window-size-from-windows))))
-
-(defun mistty--setup-accum (term work-buffer)
-  (let ((accum (process-filter (mistty--term-proc term))))
-    (mistty--accum-reset accum)
-    (mistty--term-setup-accum
-     term accum
-     :enter-fullscreen
-     (lambda (split)
-       (mistty--enter-fullscreen term work-buffer split))
-     :active-prompt
-     (lambda ()
-       (mistty--with-live-buffer work-buffer
-         mistty--active-prompt))
-     :after-clear-screen
-     (lambda ()
-       (mistty--with-live-buffer work-buffer
-         (if mistty-allow-clearing-scrollback
-             (mistty--clear-scrollback)
-           (mistty--scroll-after-reset))))
-     :sync-scrolline
-     (lambda ()
-       (mistty--with-live-buffer work-buffer
-         mistty--scrolline-home-num)))
-    (mistty--add-toggle-cursor accum work-buffer)
-    (mistty--add-sync-buffers accum work-buffer (mistty--term-buf term))))
-
-(defun mistty--add-toggle-cursor (accum buf)
-  "Configure ACCUM to show/hide cursor in BUF."
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI "?25h")
-   (lambda (_ _)
-     (mistty-log "Show cursor")
-     (mistty--with-live-buffer buf
-       (mistty-log "Show Cursor in %s" major-mode)
-       (mistty--show-cursor))))
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI "?25l")
-   (lambda (_ _)
-     (mistty-log "Hide cursor")
-     (mistty--with-live-buffer buf
-       (mistty-log "Hide cursor in %s" major-mode)
-       (mistty--hide-cursor)))))
 
 (defun mistty--create-or-reuse-marker (m initial-pos)
   "Create the marker M set to INITIAL-POS or move it to that position.
@@ -1178,8 +1160,6 @@ Returns M or a new marker."
     (setq mistty--queue nil))
   (mistty--release-all-changesets)
   (when mistty-proc
-    (let ((accum (process-filter mistty-proc)))
-      (mistty--accum-reset accum))
     (set-process-sentinel mistty-proc (mistty--term-sentinel-func mistty--term))
     (setq mistty-proc nil)))
 
@@ -1538,11 +1518,7 @@ special string describing the new process state."
         (work-buffer (process-get proc 'mistty-work-buffer)))
     (cond
      ((and process-dead (buffer-live-p term-buffer) (buffer-live-p work-buffer))
-      (mistty--leave-fullscreen
-       ;; TODO: get term from proc
-       (with-current-buffer work-buffer
-         mistty--term)
-       work-buffer)
+      (mistty--leave-fullscreen work-buffer)
       (mistty--process-sentinel proc msg))
      ((and process-dead (not (buffer-live-p term-buffer)) (buffer-live-p work-buffer))
       (let ((kill-buffer-query-functions nil))
@@ -1573,10 +1549,13 @@ terminal region of WORK-BUFFER in sync with TERM-BUFFER."
    accum
    (lambda ()
      (mistty--with-live-buffer work-buffer
-       (mistty--cancel-timeout mistty--queue)
-       (mistty--refresh)
-       (mistty--dequeue mistty--queue 'intermediate)
-       (mistty--dequeue-with-timer mistty--queue 'stable))))
+       (if mistty--queue
+           (progn
+             (mistty--cancel-timeout mistty--queue)
+             (mistty--refresh)
+             (mistty--dequeue mistty--queue 'intermediate)
+             (mistty--dequeue-with-timer mistty--queue 'stable))
+         (mistty--refresh)))))
 
   (mistty--accum-add-post-processor
    accum
@@ -1596,20 +1575,22 @@ terminal region of WORK-BUFFER in sync with TERM-BUFFER."
    accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
    (lambda (ctx str)
      (mistty--accum-ctx-push-down ctx str)
-     (mistty--accum-ctx-flush ctx)
-     (mistty-log "RESET")
+       (mistty--accum-ctx-flush ctx)
+       (mistty-log "RESET")
 
-     (mistty--with-live-buffer work-buffer
-       (mistty--cancel-queue mistty--queue)
-       (mistty--release-all-changesets)
-       (setq mistty--inhibit-refresh nil)
-       (setq mistty-bracketed-paste nil))
-     (mistty--with-live-buffer term-buffer
-       (setq mistty-bracketed-paste nil))
+       (mistty--with-live-buffer work-buffer
+         (when mistty-fullscreen
+           (mistty--leave-fullscreen work-buffer))
+         (mistty--cancel-queue mistty--queue)
+         (mistty--release-all-changesets)
+         (setq mistty--inhibit-refresh nil)
+         (setq mistty-bracketed-paste nil))
+       (mistty--with-live-buffer term-buffer
+         (setq mistty-bracketed-paste nil))
 
-     (if mistty-allow-clearing-scrollback
-         (mistty--clear-scrollback)
-       (mistty--scroll-after-reset))))
+       (if mistty-allow-clearing-scrollback
+           (mistty--clear-scrollback)
+         (mistty--scroll-after-reset))))
 
   (mistty--accum-add-processor
    accum '(seq CSI ?3 ?J) ;; Clear scrollback
@@ -3654,13 +3635,14 @@ Width and height are limited to `mistty-min-terminal-width' and
           (height (max height mistty-min-terminal-height)))
       (mistty--term-resize mistty--term width height))))
 
-(defun mistty--enter-fullscreen (term work-buffer split)
+(defun mistty--enter-fullscreen (work-buffer split)
   "Enter fullscreen mode.
 
 Make TERM and WORK-BUFFER enter fullscreen mode. If SPLIT is non-nil,
 splits the buffers into a scrollback buffer and a terminal buffer."
   (mistty--with-live-buffer work-buffer
-    (let ((proc (mistty--term-proc term)))
+    (let* ((term mistty--term)
+           (proc (mistty--term-proc term)))
       (when split
         (mistty--detach)
         (let ((bufname (buffer-name)))
@@ -3673,16 +3655,6 @@ splits the buffers into a scrollback buffer and a terminal buffer."
           (overlay-put mistty--sync-ov 'after-string (concat "\n" msg "\n"))
           (run-with-idle-timer 0.1 nil #'mistty--report-split-buffers (current-buffer) msg)))
 
-      (let ((accum (process-filter proc)))
-        (mistty--accum-reset accum)
-        (mistty--term-setup-accum-for-fullscreen
-         mistty--term accum
-         :leave-fullscreen
-         (lambda ()
-           (mistty--leave-fullscreen term work-buffer)))
-        (mistty--add-toggle-cursor accum mistty-term-buffer)
-        (unless split
-          (mistty--add-sync-buffers accum work-buffer (mistty--term-buf term))))
       (when split
         (set-process-sentinel proc #'mistty--split-buffer-sentinel))
 
@@ -3736,13 +3708,13 @@ This function looks into the maps to find the key bindings for
             (when keybinding-descr ". ")
             keybinding-descr)))
 
-(defun mistty--leave-fullscreen (term work-buffer)
+(defun mistty--leave-fullscreen (work-buffer)
   "Have TERM and WORK-BUFFER leave fullscreen mode.
 
 When in split-buffer fullscreen mode, this also swaps the buffers back."
   (mistty--with-live-buffer work-buffer
-    (if (eq 'split mistty-fullscreen)
-        ;; leaving split buffer fullscreen
+    (let ((term mistty--term))
+      (when (eq 'split mistty-fullscreen)
         (save-restriction
           (widen)
           (overlay-put mistty--sync-ov 'after-string nil)
@@ -3758,18 +3730,15 @@ When in split-buffer fullscreen mode, this also swaps the buffers back."
               (rename-buffer (generate-new-buffer-name (concat " mistty tty " bufname))))
             (rename-buffer bufname))
 
-          (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer))
+          (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer)))
 
-      ;; leaving single buffer fullscreen
-      (mistty--setup-accum term work-buffer))
-
-    (setq mistty-fullscreen nil)
-    (mistty--with-live-buffer mistty-term-buffer
-      (mistty-fullscreen-mode -1)
-      (setq mistty-fullscreen nil))
-    (mistty--update-mode-lines (mistty--term-proc term))
-    (run-hooks 'mistty-left-fullscreen-hook)
-    (mistty-log "Left fullscreen mode")))
+      (setq mistty-fullscreen nil)
+      (mistty--with-live-buffer mistty-term-buffer
+        (mistty-fullscreen-mode -1)
+        (setq mistty-fullscreen nil))
+      (mistty--update-mode-lines (mistty--term-proc term))
+      (run-hooks 'mistty-left-fullscreen-hook)
+      (mistty-log "Left fullscreen mode"))))
 
 (defun mistty--update-mode-lines (&optional proc)
   "Update the mode lines of the work and term buffers of PROC.

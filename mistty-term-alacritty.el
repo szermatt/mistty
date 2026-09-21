@@ -37,7 +37,14 @@
                (:copier nil))
   proc buf change-before-scrolline fs)
 
-(cl-defmethod mistty--create-term ((_type (eql 'alacritty)) name command &key width height)
+(cl-defmethod mistty--create-term
+  ((_type (eql 'alacritty)) name command
+   &key width height
+   enter-fullscreen
+   leave-fullscreen
+   active-prompt
+   after-clear-screen
+   sync-scrolline)
   "Create an alacritty-type terminal with the given NAME and COMMAND.
 
 If WIDTH and HEIGHT are specified, they'll be used as terminal line and
@@ -56,10 +63,76 @@ column count. The default is 80x24."
                process-environment)))
         (mistty-alacritty-exec name program args width height))
       (let* ((proc (get-buffer-process term-buffer))
-             (term (mistty--make-term-alacritty :buf term-buffer :proc proc)))
-        (set-process-filter proc (mistty--make-accumulator
-                                  (mistty--term-filter-func term)))
+             (term (mistty--make-term-alacritty :buf term-buffer :proc proc))
+             (accum (mistty--make-accumulator
+                     (mistty--term-filter-func term))))
+        (set-process-filter proc accum)
         (process-put proc 'mistty-term term)
+
+        (mistty--add-prompt-detection accum term)
+        (mistty--term-alacritty-add-osc-detection accum term)
+        (unless enter-fullscreen (error ":enter-fullscreen required"))
+        (mistty--accum-add-processor
+         accum
+         '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
+         (lambda (ctx str)
+           (unless (mistty--term-alacritty-fs term)
+             (mistty--accum-ctx-flush ctx)
+             (funcall enter-fullscreen nil)
+             (setf (mistty--term-alacritty-fs term) t))
+           (mistty--accum-ctx-push-down ctx str)))
+
+        (unless leave-fullscreen (error ":leave-fullscreen required"))
+        (mistty--accum-add-processor
+         accum
+         '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
+         (lambda (ctx str)
+           (mistty--accum-ctx-push-down ctx str)
+           (when (mistty--term-alacritty-fs term)
+             (mistty--accum-ctx-flush ctx)
+             (setf (mistty--term-alacritty-fs term) nil)
+             (funcall leave-fullscreen))))
+
+        (unless active-prompt (error ":active-prompt required"))
+        (mistty--accum-add-processor
+         accum '(seq CSI ?2 ?J) ;; Clear screen
+         (lambda (ctx str)
+           (if (not (mistty--term-alacritty-fs term))
+               (mistty--accum-ctx-push-down ctx str)
+
+             (mistty--accum-ctx-flush ctx)
+             (if (when-let* ((p (funcall active-prompt)))
+                   (equal
+                    (mistty--prompt-start p)
+                    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
+                      mistty--scrolline-home-num)))
+                 (progn
+                   (mistty-log "CLEAR PROMPT (%S)" str)
+                   (mistty--accum-ctx-push-down
+                    ctx
+                    ;; This is equivalent to CSI 2J, but doesn't trigger
+                    ;; alacritty's storing the current screen content into
+                    ;; scrollback.
+                    "\e[1J\e[0J"))
+               (mistty-log "CLEAR SCREEN (%S)" str)
+               (mistty--accum-ctx-push-down ctx str)
+               (mistty--accum-ctx-flush ctx)
+               (when after-clear-screen
+                 (funcall after-clear-screen))))))
+
+        ;; Detect changes made to the terminal above the sync scrolline, which
+        ;; means that the sync scrolline needs to be updated.
+        ;; TODO: re-think and move at least partially into the module.
+        (mistty--accum-add-around-process-filter
+         accum
+         (lambda (func)
+           (if (mistty--term-alacritty-fs term)
+               (funcall func)
+
+             (when (mistty--detect-change-before-scrolline
+                    func (mistty--term-alacritty-buf term) (funcall sync-scrolline))
+               (mistty-log "DETECTED BUFFER CHANGE, above %s" sync-scrolline)
+               (setf (mistty--term-alacritty-change-before-scrolline term) t)))))
 
         term))))
 
@@ -85,6 +158,10 @@ column count. The default is 80x24."
   "Return non-nil if TERM is showing the alt buffer."
   (with-current-buffer (mistty--term-alacritty-buf term)
     (mistty-alacritty--alt-screen-p)))
+
+(cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-alacritty))
+  "Return non-nil prompt detection should be enabled in TERM."
+  (not (mistty--term-alacritty-fs term)))
 
 (cl-defmethod mistty--term-lines ((term mistty--term-alacritty))
   "Return the number of lines in TERM (its height)."
@@ -128,65 +205,6 @@ If ENABLE is non-nil, enable autoresize, otherwise disable it."
 
 (cl-defmethod mistty--term-setup-buffer ((_term mistty--term-alacritty) &optional _fullscreen)
   "Does nothing.")
-
-(cl-defmethod mistty--term-setup-accum
-  ((term mistty--term-alacritty) accum
-   &key enter-fullscreen active-prompt after-clear-screen sync-scrolline)
-  "Setup TERM's ACCUM.
-
-ENTER-FULLSCREEN is to be called when entering fullscreen mode.
-
-ACTIVE-PROMPT should return the active `mistty--prompt'.
-
-AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
-
-SYNC-SCROLLINE is a function that return the current sync scrolline."
-  (mistty--add-prompt-detection accum term)
-  (mistty--term-alacritty-add-osc-detection accum term)
-  (unless enter-fullscreen (error ":enter-fullscreen required"))
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
-   (lambda (ctx str)
-     (mistty--accum-ctx-flush ctx)
-     (funcall enter-fullscreen nil)
-     (setf (mistty--term-alacritty-fs term) t)
-     (mistty--accum-ctx-push-down ctx str)))
-
-  (unless active-prompt (error ":active-prompt required"))
-  (mistty--accum-add-processor
-   accum '(seq CSI ?2 ?J) ;; Clear screen
-   (lambda (ctx str)
-     (mistty--accum-ctx-flush ctx)
-     (if (when-let* ((p (funcall active-prompt)))
-           (equal
-            (mistty--prompt-start p)
-            (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-              mistty--scrolline-home-num)))
-         (progn
-           (mistty-log "CLEAR PROMPT (%S)" str)
-           (mistty--accum-ctx-push-down
-            ctx
-            ;; This is equivalent to CSI 2J, but doesn't trigger
-            ;; alacritty's storing the current screen content into
-            ;; scrollback.
-            "\e[1J\e[0J"))
-       (mistty-log "CLEAR SCREEN (%S)" str)
-       (mistty--accum-ctx-push-down ctx str)
-       (mistty--accum-ctx-flush ctx)
-       (when after-clear-screen
-         (funcall after-clear-screen)))))
-
-  ;; Detect changes made to the terminal above the sync scrolline, which
-  ;; means that the sync scrolline needs to be updated.
-  ;; TODO: re-think and move at least partially into the module.
-  (mistty--accum-add-around-process-filter
-   accum
-   (lambda (func)
-     (when (mistty--detect-change-before-scrolline
-            func (mistty--term-alacritty-buf term) (funcall sync-scrolline))
-       (mistty-log "DETECTED BUFFER CHANGE, above %s" sync-scrolline)
-       (setf (mistty--term-alacritty-change-before-scrolline term) t)))))
 
 (cl-defmethod mistty--term-sync
   ((term mistty--term-alacritty) dest-buffer sync-pos sync-scrolline keep-markers
@@ -249,23 +267,6 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
 
   (cons sync-pos sync-scrolline))
 
-
-(cl-defmethod mistty--term-setup-accum-for-fullscreen ((term mistty--term-alacritty) accum
-                                                       &key leave-fullscreen)
-  "Setup TERM's ACCUM for fullescreen mode.
-
-LEAVE-FULLSCREEN is to be called when leaving fullscreen mode."
-  (mistty--term-alacritty-add-osc-detection accum term)
-  (unless leave-fullscreen (error ":leave-fullscreen required"))
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
-   (lambda (ctx str)
-     (mistty--accum-ctx-push-down ctx str)
-     (mistty--accum-ctx-flush ctx)
-     (setf (mistty--term-alacritty-fs term) nil)
-     (funcall leave-fullscreen))))
-
 (cl-defmethod mistty--term-clear-to-eol ((_term mistty--term-alacritty) pos)
   "Mark spaces as cleared from POS to the end of the line."
   (mistty-alacritty--clear-to-eol pos))
@@ -298,7 +299,7 @@ Always keep SCROLLINE-LIMIT and below."
    accum
    (ctx '(seq OSC "133;" (let text Pt) ST))
    (mistty--accum-ctx-flush ctx) ;; for accurate cursor pos
-   (unless (mistty--term-alt-screen-p term)
+   (unless (mistty--term-alacritty-fs term)
      (mistty-osc133 "133" text))))
 
 (provide 'mistty-term-alacritty)

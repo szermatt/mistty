@@ -177,9 +177,16 @@ to call `mistty--term-postprocess'.")
 (cl-defstruct (mistty--term-eterm
                (:constructor mistty--make-term-eterm)
                (:copier nil))
-  proc buf change-before-scrolline)
+  proc buf change-before-scrolline fs)
 
-(cl-defmethod mistty--create-term ((_type (eql 'eterm)) name command &key width height)
+(cl-defmethod mistty--create-term
+  ((_type (eql 'eterm)) name command
+   &key width height
+   enter-fullscreen
+   leave-fullscreen
+   active-prompt
+   after-clear-screen
+   sync-scrolline)
   "Create an eterm-based terminal called NAME.
 
 COMMAND is run in the terminal and its size is set to WIDTH x HEIGHT,
@@ -209,18 +216,118 @@ defaulting to 80 x 24."
 
       (mistty-term--exec (car command) (cdr command))
       (let* ((proc (get-buffer-process term-buffer))
-             (term (mistty--make-term-eterm :buf term-buffer :proc proc)))
+             (term (mistty--make-term-eterm :buf term-buffer :proc proc))
+             (accum (mistty--make-accumulator
+                     #'mistty--emulate-terminal)))
+
         ;; TRAMP sets adjust-window-size-function to #'ignore, which
         ;; prevents normal terminal resizing from working. This turns
         ;; it on again.
         (process-put proc 'adjust-window-size-function nil)
         (process-put proc 'mistty-term term)
         (set-process-window-size proc height width)
-        (set-process-filter proc (mistty--make-accumulator
-                                  #'mistty--emulate-terminal))
+        (set-process-filter proc accum)
         (setq-local term-raw-map mistty-term-mode-map)
         (term-char-mode)
         (add-hook 'after-change-functions #'mistty--after-change-on-term nil t)
+
+        (mistty--term-postprocess-changed accum term)
+        (mistty--add-prompt-detection accum term) ;; CHECK
+
+        (mistty--add-da1 accum)
+        (mistty--add-skip-unsupported accum)
+        (mistty--add-osc-detection accum)
+        (unless enter-fullscreen (error ":enter-fullscreen required"))
+        (mistty--accum-add-processor
+         accum
+         '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
+         (lambda (ctx _str)
+           (unless (mistty--term-eterm-fs term)
+             (mistty--accum-ctx-flush ctx)
+             (funcall enter-fullscreen 'split)
+             (setf (mistty--term-eterm-fs term) t))
+           (mistty--accum-ctx-push-down ctx "\e[47h")))
+
+        (unless leave-fullscreen (error ":leave-fullscreen required"))
+        (let ((end (copy-marker (point-max))))
+          (mistty--accum-add-processor
+           accum
+           '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
+           (lambda (ctx _str)
+             (mistty--accum-ctx-push-down ctx "\e[47l")
+             (when (mistty--term-eterm-fs term)
+               (mistty--accum-ctx-flush ctx)
+               ;; When handling CSI 47 h, term.el sometimes add a newline
+               ;; that is not removed after handling CSI 47 l. This
+               ;; manifests as extra newlines, especially visible when
+               ;; launching recent versions of fish. This code works around
+               ;; the problem by deleting anything after the position that
+               ;; was end-of-buffer just before CSI 47 h was handled.
+               (when (and end (< end (point-max))
+                          (eq ?\n (char-after end)))
+                 (let ((inhibit-read-only t))
+                   (delete-region end (point-max))))
+               (move-marker end nil)
+               (setf (mistty--term-eterm-fs term) nil)
+               (funcall leave-fullscreen)))))
+
+        (unless active-prompt (error ":active-prompt required"))
+        (mistty--accum-add-processor
+         accum
+         ;; CSI H CSI J is the exact sequence sent by 'clear'. We're going to
+         ;; handle it like 2J and clear the screen.
+         '(or (seq CSI ?2 ?J)
+              (seq CSI ?H CSI ?J))
+         (lambda (ctx str)
+           (if (mistty--term-eterm-fs term)
+               (mistty--accum-ctx-push-down ctx str)
+
+             (let ((goto-home (equal str "\e[H\e[J")))
+               (mistty--accum-ctx-flush ctx)
+               (if (when-let* ((p (funcall active-prompt)))
+                     (equal
+                      (mistty--prompt-start p)
+                      (mistty--with-live-buffer (mistty--term-eterm-buf term)
+                        mistty--scrolline-home-num)))
+                   (progn
+                     (mistty-log "CLEAR PROMPT (%S)" str)
+                     (mistty--accum-ctx-push-down
+                      ctx (if goto-home "\e[H\e[0J" "\e[1J\e[0J")))
+                 (mistty-log "CLEAR SCREEN (%S)" str)
+                 (mistty--accum-ctx-push-down
+                  ctx (if goto-home "\e[H\e[2J" "\e[2J"))
+                 (mistty--accum-ctx-flush ctx)
+                 (when after-clear-screen
+                   (funcall after-clear-screen)))))))
+
+        (mistty--accum-add-around-process-filter
+         accum
+         (lambda (func)
+           (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
+                     ((symbol-function 'term-delete-chars)
+                      (lambda (count)
+                        (let ((save-point (point)))
+                          (move-to-column (+ (term-current-column) count) t)
+                          (delete-region save-point (point)))))
+                     ((symbol-function 'move-to-column)
+                      (let ((orig (symbol-function 'move-to-column)))
+                        (lambda (&rest args)
+                          (apply #'mistty--around-move-to-column orig args)))))
+             (funcall func))))
+
+        ;; Detect changes made to the terminal above the sync scrolline, which
+        ;; means that the sync scrolline needs to be updated.
+        (mistty--accum-add-around-process-filter
+         accum
+         (lambda (func)
+           (if (mistty--term-eterm-fs term)
+               (funcall func)
+
+             (when (mistty--detect-change-before-scrolline
+                    func (mistty--term-eterm-buf term)
+                    (funcall sync-scrolline))
+               (mistty-log "DETECTED BUFFER CHANGE, above %s" sync-scrolline)
+               (setf (mistty--term-eterm-change-before-scrolline term) t)))))
 
         term))))
 
@@ -246,6 +353,10 @@ defaulting to 80 x 24."
   "Return non-nil when the TERM's terminal is showing the alt buffer."
   (with-current-buffer (mistty--term-eterm-buf term)
     (term-using-alternate-sub-buffer)))
+
+(cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-eterm))
+  "Return non-nil prompt detection should be enabled in TERM."
+  (not (mistty--term-eterm-fs term)))
 
 (cl-defmethod mistty--term-lines ((term mistty--term-eterm))
   "Return TERM's height."
@@ -292,86 +403,6 @@ FULLSCREEN is non-nil in fullscreen mode."
     (font-lock-mode -1)
     (jit-lock-mode nil)))
 
-(cl-defmethod mistty--term-setup-accum
-  ((term mistty--term-eterm) accum
-   &key enter-fullscreen active-prompt after-clear-screen sync-scrolline)
-  "Setup TERM's ACCUM.
-
-ENTER-FULLSCREEN is to be called when entering fullscreen mode.
-
-ACTIVE-PROMPT should return the active `mistty--prompt'.
-
-AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
-
-SYNC-SCROLLINE is a function that return the current sync scrolline."
-  (mistty--term-postprocess-changed accum term)
-  (mistty--accum-add-post-processor
-   accum (mistty--regexp-prompt-detector))
-  (mistty--add-prompt-detection accum term)
-
-  (mistty--add-da1 accum)
-  (mistty--add-skip-unsupported accum)
-  (mistty--add-osc-detection accum)
-  (unless enter-fullscreen (error ":enter-fullscreen required"))
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
-   (lambda (ctx _str)
-     (mistty--accum-ctx-flush ctx)
-     (funcall enter-fullscreen 'split)
-     (mistty--accum-ctx-push-down ctx "\e[47h")))
-
-  (unless active-prompt (error ":active-prompt required"))
-  (mistty--accum-add-processor
-   accum
-   ;; CSI H CSI J is the exact sequence sent by 'clear'. We're going to
-   ;; handle it like 2J and clear the screen.
-   '(or (seq CSI ?2 ?J)
-        (seq CSI ?H CSI ?J))
-   (lambda (ctx str)
-     (let ((goto-home (equal str "\e[H\e[J")))
-       (mistty--accum-ctx-flush ctx)
-       (if (when-let* ((p (funcall active-prompt)))
-             (equal
-              (mistty--prompt-start p)
-              (mistty--with-live-buffer (mistty--term-eterm-buf term)
-                mistty--scrolline-home-num)))
-           (progn
-             (mistty-log "CLEAR PROMPT (%S)" str)
-             (mistty--accum-ctx-push-down
-              ctx (if goto-home "\e[H\e[0J" "\e[1J\e[0J")))
-         (mistty-log "CLEAR SCREEN (%S)" str)
-         (mistty--accum-ctx-push-down
-          ctx (if goto-home "\e[H\e[2J" "\e[2J"))
-         (mistty--accum-ctx-flush ctx)
-         (when after-clear-screen
-           (funcall after-clear-screen))))))
-
-  (mistty--accum-add-around-process-filter
-   accum
-   (lambda (func)
-     (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
-               ((symbol-function 'term-delete-chars)
-                (lambda (count)
-                  (let ((save-point (point)))
-                    (move-to-column (+ (term-current-column) count) t)
-                    (delete-region save-point (point)))))
-               ((symbol-function 'move-to-column)
-                (let ((orig (symbol-function 'move-to-column)))
-                  (lambda (&rest args)
-                    (apply #'mistty--around-move-to-column orig args)))))
-       (funcall func))))
-
-  ;; Detect changes made to the terminal above the sync scrolline, which
-  ;; means that the sync scrolline needs to be updated.
-  (mistty--accum-add-around-process-filter
-   accum
-   (lambda (func)
-     (when (mistty--detect-change-before-scrolline
-            func (mistty--term-eterm-buf term) (funcall sync-scrolline))
-       (mistty-log "DETECTED BUFFER CHANGE, above %s" sync-scrolline)
-       (setf (mistty--term-eterm-change-before-scrolline term) t)))))
-
 (cl-defmethod mistty--term-sync
   ((term mistty--term-eterm) dest-buffer sync-pos sync-scrolline keep-markers
    cursor-marker)
@@ -416,36 +447,6 @@ SYNC-SCROLLINE is a function that return the current sync scrolline."
 
       (cons sync-pos sync-scrolline))))
 
-
-(cl-defmethod mistty--term-setup-accum-for-fullscreen ((_term mistty--term-eterm) accum
-                                                       &key leave-fullscreen)
-  "Setup TERM's ACCUM for fullescreen mode.
-
-LEAVE-FULLSCREEN is to be called when leaving fullscreen mode."
-  (mistty--add-osc-detection accum)
-  (mistty--add-da1 accum)
-  (mistty--add-skip-unsupported accum)
-  (unless leave-fullscreen (error ":leave-fullscreen required"))
-  (let ((end (copy-marker (point-max))))
-    (mistty--accum-add-processor
-     accum
-     '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
-     (lambda (ctx _str)
-       (mistty--accum-ctx-push-down ctx "\e[47l")
-       (mistty--accum-ctx-flush ctx)
-       ;; When handling CSI 47 h, term.el sometimes add a newline
-       ;; that is not removed after handling CSI 47 l. This
-       ;; manifests as extra newlines, especially visible when
-       ;; launching recent versions of fish. This code works around
-       ;; the problem by deleting anything after the position that
-       ;; was end-of-buffer just before CSI 47 h was handled.
-       (when (and end (< end (point-max))
-                  (eq ?\n (char-after end)))
-         (let ((inhibit-read-only t))
-           (delete-region end (point-max))))
-       (move-marker end nil)
-       (funcall leave-fullscreen)))))
-
 (cl-defmethod mistty--term-clear-to-eol ((_term mistty--term-eterm) _pos)
   "Does nothing.
 
@@ -477,19 +478,20 @@ given TERM."
   (mistty--accum-add-post-processor
    accum
    (lambda ()
-     (with-current-buffer (mistty--term-eterm-buf term)
-       (when (and mistty--term-changed (< mistty--term-changed (point-min)))
-         (setq mistty--term-changed (point-min)))
-       (when (and mistty--term-changed (>= mistty--term-changed (point-max)))
-         (setq mistty--term-changed nil))
-       (when-let* ((change-start
-                    (when mistty--term-changed
-                      (text-property-any
-                       mistty--term-changed (point-max) 'mistty-updated t))))
-         (mistty--term-postprocess change-start term-width)
-         (remove-text-properties
-          change-start (point-max) '(mistty-updated t))
-         (setq mistty--term-changed nil))))))
+     (unless (mistty--term-eterm-fs term)
+       (with-current-buffer (mistty--term-eterm-buf term)
+         (when (and mistty--term-changed (< mistty--term-changed (point-min)))
+           (setq mistty--term-changed (point-min)))
+         (when (and mistty--term-changed (>= mistty--term-changed (point-max)))
+           (setq mistty--term-changed nil))
+         (when-let* ((change-start
+                      (when mistty--term-changed
+                        (text-property-any
+                         mistty--term-changed (point-max) 'mistty-updated t))))
+           (mistty--term-postprocess change-start term-width)
+           (remove-text-properties
+            change-start (point-max) '(mistty-updated t))
+           (setq mistty--term-changed nil)))))))
 
 (defun mistty--add-skip-unsupported (accum)
   "Skip some unsupported terminal sequences that confuse term.el.

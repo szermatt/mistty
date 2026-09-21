@@ -216,64 +216,68 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
 
 Detected prompts can be found in `mistty-prompt'."
   (mistty--accum-add-post-processor
-   accum (mistty--regexp-prompt-detector))
+   accum (mistty--regexp-prompt-detector term))
 
   ;; Enable bracketed paste
   (mistty--accum-add-processor
    accum
    '(seq CSI "?2004h")
-   (lambda (ctx _)
-     (mistty--accum-ctx-flush ctx)
-     (unless mistty-bracketed-paste
-       (let* ((prompt (mistty--prompt))
-              (inhibit-read-only t)
-              (inhibit-modification-hooks t)
-              (start-pos (pos-bol))
-              (scrolline (mistty--scrolline-at-point)))
-         (when (or (null prompt)
-                   (memq (mistty--prompt-source prompt) '(regexp prompt_sp))
-                   (not (mistty--prompt-contains prompt scrolline)))
-           (cond
-            ;; Zsh enables bracketed past after opening the prompt. Rely on prompt_sp
-            ;; to find the beginning of possible multiline prompts.
-            ((and prompt
-                  (eq 'prompt_sp (mistty--prompt-source prompt))
-                  (mistty--prompt-contains prompt scrolline)
-                  (< (mistty--prompt-start prompt) scrolline))
-             (when-let* ((start-scrolline (mistty--prompt-start prompt))
-                         (pos (mistty--find-scrolline start-scrolline)))
-               (setq start-pos pos)
-               (mistty-log "Reusing prompt_sp start %s@%s" start-scrolline start-pos)
-               (setq scrolline start-scrolline))))
-           (setq prompt (mistty--make-prompt 'bracketed-paste scrolline))
-           (mistty-log "Detected %s prompt #%s [%s-]"
-                       (mistty--prompt-source prompt)
-                       (mistty--prompt-input-id prompt)
-                       (mistty--prompt-start prompt))
-           (when (> (pos-eol) start-pos)
-             (mistty--term-changed term start-pos (pos-eol)))
-           (setf (mistty--prompt) prompt))
-         (unless (eq 'osc133 (mistty--prompt-source prompt))
-           (setf (mistty--prompt-source prompt) 'bracketed-paste)
-           (setf (mistty--prompt-end prompt) nil)))
-       (setq mistty-bracketed-paste t))))
+   (lambda (ctx str)
+     (when (mistty--term-detect-prompt-p term)
+       (mistty--accum-ctx-flush ctx)
+       (unless mistty-bracketed-paste
+         (let* ((prompt (mistty--prompt))
+                (inhibit-read-only t)
+                (inhibit-modification-hooks t)
+                (start-pos (pos-bol))
+                (scrolline (mistty--scrolline-at-point)))
+           (when (or (null prompt)
+                     (memq (mistty--prompt-source prompt) '(regexp prompt_sp))
+                     (not (mistty--prompt-contains prompt scrolline)))
+             (cond
+              ;; Zsh enables bracketed past after opening the prompt. Rely on prompt_sp
+              ;; to find the beginning of possible multiline prompts.
+              ((and prompt
+                    (eq 'prompt_sp (mistty--prompt-source prompt))
+                    (mistty--prompt-contains prompt scrolline)
+                    (< (mistty--prompt-start prompt) scrolline))
+               (when-let* ((start-scrolline (mistty--prompt-start prompt))
+                           (pos (mistty--find-scrolline start-scrolline)))
+                 (setq start-pos pos)
+                 (mistty-log "Reusing prompt_sp start %s@%s" start-scrolline start-pos)
+                 (setq scrolline start-scrolline))))
+             (setq prompt (mistty--make-prompt 'bracketed-paste scrolline))
+             (mistty-log "Detected %s prompt #%s [%s-]"
+                         (mistty--prompt-source prompt)
+                         (mistty--prompt-input-id prompt)
+                         (mistty--prompt-start prompt))
+             (when (> (pos-eol) start-pos)
+               (mistty--term-changed term start-pos (pos-eol)))
+             (setf (mistty--prompt) prompt))
+           (unless (eq 'osc133 (mistty--prompt-source prompt))
+             (setf (mistty--prompt-source prompt) 'bracketed-paste)
+             (setf (mistty--prompt-end prompt) nil)))
+         (setq mistty-bracketed-paste t)))
+     (mistty--accum-ctx-push-down ctx str)))
 
   ;; Disable bracketed paste
   (mistty--accum-add-processor
    accum
    '(seq CSI "?2004l")
-   (lambda (ctx _)
-     (mistty--accum-ctx-flush ctx)
-     (when mistty-bracketed-paste
-       (when-let* ((prompt (mistty--prompt))
-                  (scrolline (if (eq ?\n (char-before (point)))
-                                 (mistty--scrolline-at-point)
-                               (1+ (mistty--scrolline-at-point)))))
-         (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
-                    (null (mistty--prompt-end prompt))
-                    (> scrolline (mistty--prompt-start prompt)))
-           (setf (mistty--prompt-end prompt) scrolline)))
-       (setq mistty-bracketed-paste nil))))
+   (lambda (ctx str)
+     (when (mistty--term-detect-prompt-p term)
+       (mistty--accum-ctx-flush ctx)
+       (when mistty-bracketed-paste
+         (when-let* ((prompt (mistty--prompt))
+                     (scrolline (if (eq ?\n (char-before (point)))
+                                    (mistty--scrolline-at-point)
+                                  (1+ (mistty--scrolline-at-point)))))
+           (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
+                      (null (mistty--prompt-end prompt))
+                      (> scrolline (mistty--prompt-start prompt)))
+             (setf (mistty--prompt-end prompt) scrolline)))
+         (setq mistty-bracketed-paste nil)))
+     (mistty--accum-ctx-push-down ctx str)))
 
   ;; Detect prompt-sp as many spaces followed by CR at the end of a
   ;; line.
@@ -285,43 +289,44 @@ Detected prompts can be found in `mistty-prompt'."
    accum
    'CR
    (lambda (ctx _)
-     ;; If we received at least 8 spaces before the \r (enough to fill
-     ;; the look-back buffer) flush and look at the state of the
-     ;; buffer just before the \r is taken into account.
-     (when (string= "        " (mistty--accum-ctx-look-back ctx))
-       (mistty--accum-ctx-flush ctx)
-       (when (or (and (= (1- (mistty--term-columns term))
-                         (cdr (mistty--term-cursor-linecol term)))
-                      (eq ?\  (char-before (point))))
-                 (and (get-text-property (pos-eol 0) 'term-line-wrap)
-                      (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
-         (let* ((prompt (mistty--prompt))
-                (pos (pos-bol))
-                (scrolline (mistty--scrolline-at pos)))
-           (when (get-text-property (pos-eol 0) 'term-line-wrap)
-             (mistty--term-cleanup-prompt-sp term (point))
-             (let* ((eol (pos-eol 0))
-                    (pos eol)
-                    (inhibit-read-only t)
-                    (inhibit-modification-hooks t))
-               (remove-text-properties eol (1+ eol) '(term-line-wrap nil))
-               (while (eq ?\  (char-before pos))
-                 (cl-decf pos))
-               (when (> eol pos)
-                 (add-text-properties pos eol '(mistty-blank t))))
-             (cl-incf scrolline))
-           (when (or (null prompt)
-                     (not (mistty--prompt-contains prompt scrolline)))
-             (setq prompt (mistty--make-prompt 'prompt_sp scrolline))
-             (setf (mistty--prompt) prompt)
-             (mistty-log "Suspected %s prompt #%s: [%s,)"
-                            (mistty--prompt-source prompt)
-                            (mistty--prompt-input-id prompt)
-                            (mistty--prompt-start prompt))))))
+     (when (mistty--term-detect-prompt-p term)
+       ;; If we received at least 8 spaces before the \r (enough to fill
+       ;; the look-back buffer) flush and look at the state of the
+       ;; buffer just before the \r is taken into account.
+       (when (string= "        " (mistty--accum-ctx-look-back ctx))
+         (mistty--accum-ctx-flush ctx)
+         (when (or (and (= (1- (mistty--term-columns term))
+                           (cdr (mistty--term-cursor-linecol term)))
+                        (eq ?\  (char-before (point))))
+                   (and (get-text-property (pos-eol 0) 'term-line-wrap)
+                        (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
+           (let* ((prompt (mistty--prompt))
+                  (pos (pos-bol))
+                  (scrolline (mistty--scrolline-at pos)))
+             (when (get-text-property (pos-eol 0) 'term-line-wrap)
+               (mistty--term-cleanup-prompt-sp term (point))
+               (let* ((eol (pos-eol 0))
+                      (pos eol)
+                      (inhibit-read-only t)
+                      (inhibit-modification-hooks t))
+                 (remove-text-properties eol (1+ eol) '(term-line-wrap nil))
+                 (while (eq ?\  (char-before pos))
+                   (cl-decf pos))
+                 (when (> eol pos)
+                   (add-text-properties pos eol '(mistty-blank t))))
+               (cl-incf scrolline))
+             (when (or (null prompt)
+                       (not (mistty--prompt-contains prompt scrolline)))
+               (setq prompt (mistty--make-prompt 'prompt_sp scrolline))
+               (setf (mistty--prompt) prompt)
+               (mistty-log "Suspected %s prompt #%s: [%s,)"
+                           (mistty--prompt-source prompt)
+                           (mistty--prompt-input-id prompt)
+                           (mistty--prompt-start prompt)))))))
      (mistty--accum-ctx-push-down ctx "\r"))))
 
-(defun mistty--regexp-prompt-detector ()
-  "Build a post-processor that look for a new prompt at cursor.
+(defun mistty--regexp-prompt-detector (term)
+  "Build a post-processor for TERM that look for a new prompt at cursor.
 
 The return value is meant to be
 `mistty--accum-add-post-processor'.
@@ -330,35 +335,36 @@ The return value is meant to be
 terminal buffer has been updated."
   (let ((last-nonempty-scrolline 0))
     (lambda ()
-      (let ((scrolline (mistty--scrolline-at-point)))
-        ;; Only look at new lines
-        (when (> scrolline
-                 (prog1 last-nonempty-scrolline
-                   ;; for next time
-                   (setq last-nonempty-scrolline
-                         (mistty--scrolline-at
-                          (mistty--last-non-ws)))))
-          (let ((cursor (point))
-                (bos (mistty--scrolline-start-pos))
-                (prompt (mistty--prompt)))
-            (when (and (or (null prompt)
-                           (and (mistty--prompt-end prompt)
-                                (>= scrolline (mistty--prompt-end prompt))))
-                       (> cursor bos)
-                       (>= cursor (mistty--last-non-ws))
-                       (string-match
-                        mistty--prompt-regexp
-                        (mistty--safe-bufstring bos cursor)))
-              (let ((prompt (mistty--make-prompt
-                             'regexp scrolline (1+ scrolline)
-                             :text (mistty--safe-bufstring bos (+ bos (match-end 0))))))
-                (setf (mistty--prompt) prompt)
-                (mistty-log "Suspected %s prompt #%s: [%s-%s] '%s'"
-                            (mistty--prompt-source prompt)
-                            (mistty--prompt-input-id prompt)
-                            (mistty--prompt-start prompt)
-                            (mistty--prompt-end prompt)
-                            (mistty--prompt-text prompt))))))))))
+      (when (mistty--term-detect-prompt-p term)
+        (let ((scrolline (mistty--scrolline-at-point)))
+          ;; Only look at new lines
+          (when (> scrolline
+                   (prog1 last-nonempty-scrolline
+                     ;; for next time
+                     (setq last-nonempty-scrolline
+                           (mistty--scrolline-at
+                            (mistty--last-non-ws)))))
+            (let ((cursor (point))
+                  (bos (mistty--scrolline-start-pos))
+                  (prompt (mistty--prompt)))
+              (when (and (or (null prompt)
+                             (and (mistty--prompt-end prompt)
+                                  (>= scrolline (mistty--prompt-end prompt))))
+                         (> cursor bos)
+                         (>= cursor (mistty--last-non-ws))
+                         (string-match
+                          mistty--prompt-regexp
+                          (mistty--safe-bufstring bos cursor)))
+                (let ((prompt (mistty--make-prompt
+                               'regexp scrolline (1+ scrolline)
+                               :text (mistty--safe-bufstring bos (+ bos (match-end 0))))))
+                  (setf (mistty--prompt) prompt)
+                  (mistty-log "Suspected %s prompt #%s: [%s-%s] '%s'"
+                              (mistty--prompt-source prompt)
+                              (mistty--prompt-input-id prompt)
+                              (mistty--prompt-start prompt)
+                              (mistty--prompt-end prompt)
+                              (mistty--prompt-text prompt)))))))))))
 
 (defun mistty-register-text-properties (id props)
   "Add PROPS to any text written to the terminal.
@@ -380,6 +386,28 @@ the last set of properties to be registered is applied."
     (setq mistty--term-properties-to-add-alist
           (delq cell
                 mistty--term-properties-to-add-alist))))
+
+
+(defun mistty--add-toggle-cursor (accum &rest bufs)
+  "Configure ACCUM to show/hide cursor in BUFS."
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?25h")
+   (lambda (_ _)
+     (mistty-log "Show cursor")
+     (dolist (buf bufs)
+       (mistty--with-live-buffer buf
+         (mistty-log "Show Cursor in %s" major-mode)
+         (mistty--show-cursor)))))
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?25l")
+   (lambda (_ _)
+     (mistty-log "Hide cursor")
+     (dolist (buf bufs)
+       (mistty--with-live-buffer buf
+         (mistty-log "Hide cursor in %s" major-mode)
+         (mistty--hide-cursor))))))
 
 (defun mistty--hide-cursor ()
   "Temporarily hide the cursor.

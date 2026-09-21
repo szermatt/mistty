@@ -6295,6 +6295,7 @@ function prompt {
               (with-current-buffer termbuf
                 (should jit-lock-mode))
               (mistty-send-and-wait-for-prompt
+               :start mistty-sync-marker
                :send (lambda () (process-send-string proc "q"))
                :proc proc)
               (with-current-buffer termbuf

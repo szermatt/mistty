@@ -110,47 +110,21 @@ terminals."
 
 (defvar-keymap mistty-term-mode-map
   :parent term-raw-map
-  :doc "Keymap active in eterm terminal while in fullscreen mode .
+  :doc "Keymap active in eterm terminal.
 
-While in fullscreen mode, the buffer is a `term-mode' with this keymap,
-`mistty-term-mode-map' which extends `term-raw-map'.
+This keymap overwrites some bindings from `term-raw-map'.
 
-This map is applied in addition to these as a way of making key
-mapping somewhat consistent between fullscreen and normal mode.
+`mistty-fullscreen-mode-map' is normally the map you want to configure.
+While in fullscreen mode, `mistty-fullscreen-mode-map' is also enabled
+on the term buffer in addition to this map.
 
-This map is ignored when using alacritty as a terminal. If you want to
-add a key binding in a way that's not specific to eterm terminals, check
-out `mistty-fullscreen-mode-map'. If you want to add key bindings that
-are specific to alacritty terminals, check out
-`mistty-alacritty-mode-map'."
-
-    "C-q" '(keymap (t . mistty-send-last-key))
-    "C-c C-q" #'mistty-send-key-sequence
+This map is ignored when using alacritty as a terminal."
 
     ;; Mirror keybindings from mistty-mode-map, for consistency.
     "C-c C-c" #'mistty-send-last-key
     "C-c C-z" #'mistty-send-last-key
     "C-c C-\\" #'mistty-send-last-key
     "C-c C-g" #'mistty-send-last-key
-
-    ;; Overwrite mapping from term-raw-map so they can be remapped
-    ;; with mistty-term-key-map, if necessary.
-    "<up>" #'mistty-send-key
-    "<down>" #'mistty-send-key
-    "<right>" #'mistty-send-key
-    "<left>" #'mistty-send-key
-    "C-<up>" #'mistty-send-key
-    "C-<down>" #'mistty-send-key
-    "C-<right>" #'mistty-send-key
-    "C-<left>" #'mistty-send-key
-    "<delete>" #'mistty-send-key
-    "<deletechar>" #'mistty-send-key
-    "<backspace>" #'mistty-send-key
-    "<home>" #'mistty-send-key
-    "<end>" #'mistty-send-key
-    "<insert>" #'mistty-send-key
-    "<prior>" #'mistty-send-key
-    "<next>" #'mistty-send-key
 
     ;; This only applies if term-bind-function-keys is non-nil.
     "<remap> <term-send-function-key>" #'mistty-send-key

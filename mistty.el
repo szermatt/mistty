@@ -558,7 +558,6 @@ terminal."
   "Keymap that forwards everything to`mistty-send-last-key'.")
 
 (defvar-keymap mistty-forbid-edit-map
-  :parent mistty-prompt-map
   :doc "Keymap active when line editing is off.
 
 This map is active on the part of `mistty-mode' synced with the
@@ -573,12 +572,45 @@ are sent directly to the terminal."
   "<left>" #'mistty-send-last-key
   "<right>" #'mistty-send-last-key)
 
-(defvar-keymap mistty-fullscreen-mode-map
-  :doc "Additional keymap active on the terminal buffer while fullscreen.
+(defvar mistty-fullscreen-mode-map
+  (let ((map (make-sparse-keymap))
+        (esc-map (make-sparse-keymap)))
+    (keymap-set map "C-c C-j" #'mistty-toggle)
+    (keymap-set map "C-c C-q" #'mistty-send-key-sequence)
 
-This is in addition to the mode's keymap, `mistty-term-mode-map' for
-eterm terminals and `mistty-alacritty-mode-map' for alacritty terminals."
-  "C-c C-j" #'mistty-toggle)
+    ;; Send C-<ascii char> and M-<ascii char> to the terminal,
+    ;; except for:
+    ;;    C-c, C-x, M-x
+    ;;
+    ;; C-q is handled specially and sends the following key to the
+    ;; terminal, so to really send C-q, send C-q C-q
+    (dotimes (c 128)
+      (unless (memq c '(?\C-c ?\C-x))
+        (define-key map (make-string 1 c) 'mistty-send-key)))
+    (define-key map "\C-q" '(keymap (t . mistty-send-last-key)))
+
+    ;; Send M-<ascii char> and ESC <ascii char> to the terminal
+    ;; To really type ESC, type either ESC ESC or C-q ESC
+    (define-key map (kbd "ESC") esc-map)
+    (dotimes (c 128)
+      (unless (memq c '(?x))
+        (define-key esc-map (make-string 1 c) 'mistty-send-key)))
+    (define-key esc-map "\e" 'mistty-send-key)
+
+    ;; Forward all keys for which a specific translation is known in
+    ;; mistty-term-key-map to the terminal.
+    (map-keymap (lambda (ev _)
+                  (when (eventp ev)
+                    (let ((key (vector ev)))
+                      (unless (lookup-key map key)
+                        (define-key map key 'mistty-send-key)))))
+                mistty-term-key-map)
+
+  map)
+  "Additional keymap active while fullscreen.
+
+This is in addition to the buffer keymap, `mistty-term-mode-map' for
+eterm terminals and `mistty-mode-map' for alacritty terminals.")
 
 (define-minor-mode mistty-fullscreen-mode
   "Minor mode active on the terminal buffer while fullscreen.
@@ -951,7 +983,7 @@ be ignored if coming from window size.")
   (setq-local imenu-create-index-function #'mistty-imenu-create-index)
   (setq-local imenu-sort-function nil) ;; keep imenu entries in order
 
-  (overlay-put mistty--sync-ov 'local-map (mistty--active-prompt-map))
+  (mistty--update-prompt-map)
 
   (when mistty-fringe-enabled
     (mistty-fringe-mode 'on)))
@@ -1816,12 +1848,12 @@ Also updates prompt and point."
     (cond
      ((and forbid-edit (not mistty--forbid-edit))
       (setq mistty--forbid-edit t)
-      (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
+      (mistty--update-prompt-map)
       (mistty--update-mode-lines)
       (mistty-log "FORBID EDIT on"))
      ((and (not forbid-edit) mistty--forbid-edit)
       (setq mistty--forbid-edit nil)
-      (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
+      (mistty--update-prompt-map)
       (mistty--update-mode-lines)
       (mistty-log "FORBID EDIT off"))))
 
@@ -3290,7 +3322,7 @@ change, unless NOSCHEDULE evaluates to true."
     (setq mistty--inhibit (delq sym mistty--inhibit))
     (unless mistty--inhibit
       (mistty-log "Long-running command OFF")
-      (overlay-put mistty--sync-ov 'keymap (mistty--active-prompt-map))
+      (mistty--update-prompt-map)
       (mistty--update-mode-lines)
       (unless noschedule
         (run-with-idle-timer
@@ -3666,6 +3698,7 @@ splits the buffers into a scrollback buffer and a terminal buffer."
           (mistty-fullscreen-mode 1))
         (setq mistty-fullscreen (if split 'split t)))
 
+      (mistty--update-prompt-map)
       (mistty--update-mode-lines proc)
       (run-hooks 'mistty-entered-fullscreen-hook)
       (mistty-log "Entered fullscreen mode (%s)" (if split "split" "single buffer")))))
@@ -3736,6 +3769,7 @@ When in split-buffer fullscreen mode, this also swaps the buffers back."
       (mistty--with-live-buffer mistty-term-buffer
         (mistty-fullscreen-mode -1)
         (setq mistty-fullscreen nil))
+      (mistty--update-prompt-map)
       (mistty--update-mode-lines (mistty--term-proc term))
       (run-hooks 'mistty-left-fullscreen-hook)
       (mistty-log "Left fullscreen mode"))))
@@ -4350,12 +4384,26 @@ If OPTION-OVERRIDE is non-nil, use that instead of the value of
                    (window-parent win))
               (ignore-errors (delete-window)))))))))
 
-(defun mistty--active-prompt-map ()
-  "Return the map active in the synced region."
-  (cond
-   (mistty--inhibit nil)
-   (mistty--forbid-edit mistty-forbid-edit-map)
-   (t mistty-prompt-map)))
+(defun mistty--update-prompt-map ()
+  "Install the appropriate terminal area keymap."
+  (overlay-put
+   mistty--sync-ov
+   'keymap
+   (cond
+    (mistty--inhibit
+     (mistty-log "Terminal area keymap: nil")
+     nil)
+    (mistty--forbid-edit
+     (mistty-log "Terminal area keymap: forbid-edit+prompt")
+     (make-composed-keymap (list mistty-forbid-edit-map
+                                 mistty-prompt-map)))
+    ((eq t mistty-fullscreen)
+     (mistty-log "Terminal area keymap: fullscreen-mode+forbid-edit+prompt")
+     (make-composed-keymap (list mistty-fullscreen-mode-map
+                                 mistty-prompt-map)))
+    (t
+     (mistty-log "Terminal area keymap: prompt")
+     mistty-prompt-map))))
 
 (defun mistty-new-buffer-name ()
   "Generate a name for a new MisTTY buffer.

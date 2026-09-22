@@ -37,7 +37,6 @@ If you change this key, remember to change the mapping in
     (define-key map (kbd "<tab>") "\t")
     (define-key map (kbd "<return>") "\C-m")
     (define-key map (kbd "<backspace>") mistty-del)
-    (define-key map (kbd "<escape>") "\e")
 
     ;; The following is a reversed copy of xterm-function-map from
     ;; term/xterm. Simulating xterm keys is generally convenient, as
@@ -464,6 +463,9 @@ If N is specified, the string is repeated N times."
       ;; ESC <char>
       ((and `[?\e ,c] (guard (characterp c)))
        (mistty--repeat-string n (format "\e%c" c)))
+
+      ;; <escape> -> ESC
+      (`[escape] (mistty--repeat-string n "\e"))
 
       ;; M-<char>
       ((and `[,c] (guard (and (/= 0 (logand c #x8000000))

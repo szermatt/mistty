@@ -446,26 +446,32 @@ The conversion can be configured by modifying
 
 If N is specified, the string is repeated N times."
   (let ((n (or n 1))
-        (c (and (length= key 1) (elt key 0)))
-        (non-meta)
+        (key (if (stringp key) (vconcat key) key))
         translated-key)
-    (cond
-     ;; DEL -> mistty-del
-     ((eq c ?\d)
-      (mistty--repeat-string n mistty-del))
-     ;; Self-inserted characters
-     ((and c (characterp c))
-      (make-string n (elt key 0)))
-     ;; M-char -> ESC char
-     ((and c (numberp c)
-           (characterp
-            (setq non-meta (logand c (lognot #x8000000)))))
-      (mistty--repeat-string n (format "\e%c" non-meta)))
-     ;; Lookup in mistty-term-key-map
-     ((setq translated-key (lookup-key mistty-term-key-map key))
-      (mistty--repeat-string n (concat translated-key)))
-     (t
-      (error "Key unknown in mistty-term-key-map: %s"
+    (pcase key
+      ;; First, lookup in mistty-term-key-map to allow overriding
+      ((guard (setq translated-key (lookup-key mistty-term-key-map key)))
+       (mistty--repeat-string n (concat translated-key)))
+
+      ;; DEL -> mistty-del; translation is done in code instead of
+      ;; looking up mistty-term-key-map to allow it to change.
+      (`[?\d] (mistty--repeat-string n mistty-del))
+
+      ;; A single self-inserted characters
+      ((and `[,c] (guard (characterp c)))
+       (make-string n (elt key 0)))
+
+      ;; ESC <char>
+      ((and `[?\e ,c] (guard (characterp c)))
+       (mistty--repeat-string n (format "\e%c" c)))
+
+      ;; M-<char>
+      ((and `[,c] (guard (and (/= 0 (logand c #x8000000))
+                              (characterp (logand c (lognot #x8000000))))))
+       (mistty--repeat-string n (format "\e%c" (logand c (lognot #x8000000)))))
+
+     (_
+      (error "No known translation for %s; Configure it in mistty-term-key-map"
              (key-description key))))))
 
 (defun mistty--maybe-bracketed-str (str)

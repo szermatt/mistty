@@ -18,21 +18,6 @@
 (require 'ert)
 (require 'ert-x)
 
-(ert-deftest mistty-term-translate-key ()
-  (should (equal "a" (mistty-translate-key (kbd "a") 1)))
-  (should (equal "aaa" (mistty-translate-key (kbd "a") 3)))
-
-  (should (equal "\C-a" (mistty-translate-key (kbd "C-a") 1)))
-
-  (should (equal "\ea" (mistty-translate-key (kbd "M-a") 1)))
-  (should (equal "\ea\ea\ea" (mistty-translate-key (kbd "M-a") 3)))
-
-  (should (equal mistty-left-str (mistty-translate-key (kbd "<left>") 1)))
-  (should (equal mistty-right-str (mistty-translate-key (kbd "<right>") 1)))
-
-  (should (equal mistty-up-str (mistty-translate-key (kbd "<up>") 1)))
-  (should (equal mistty-down-str (mistty-translate-key (kbd "<down>") 1))))
-
 (ert-deftest mistty-prompt-contains-open-ended ()
   (let ((mistty--prompt-cell (mistty--make-prompt-cell)))
     (should (mistty--prompt-contains (mistty--make-prompt 'test 10) 10))

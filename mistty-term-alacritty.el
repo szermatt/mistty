@@ -129,10 +129,11 @@ column count. The default is 80x24."
            (if (mistty--term-alacritty-fs term)
                (funcall func)
 
-             (when (mistty--detect-change-before-scrolline
-                    func (mistty--term-alacritty-buf term) (funcall sync-scrolline))
-               (mistty-log "DETECTED BUFFER CHANGE, above %s" sync-scrolline)
-               (setf (mistty--term-alacritty-change-before-scrolline term) t)))))
+             (let ((limit (funcall sync-scrolline)))
+               (when (mistty--detect-change-before-scrolline
+                      func (mistty--term-alacritty-buf term) limit)
+                 (mistty-log "DETECTED BUFFER CHANGE, above %s" limit)
+                 (setf (mistty--term-alacritty-change-before-scrolline term) t))))))
 
         term))))
 

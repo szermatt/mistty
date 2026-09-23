@@ -297,11 +297,11 @@ defaulting to 80 x 24."
            (if (mistty--term-eterm-fs term)
                (funcall func)
 
-             (when (mistty--detect-change-before-scrolline
-                    func (mistty--term-eterm-buf term)
-                    (funcall sync-scrolline))
-               (mistty-log "DETECTED BUFFER CHANGE, above %s" sync-scrolline)
-               (setf (mistty--term-eterm-change-before-scrolline term) t)))))
+             (let ((limit (funcall sync-scrolline)))
+               (when (mistty--detect-change-before-scrolline
+                      func (mistty--term-eterm-buf term) limit)
+                 (mistty-log "DETECTED BUFFER CHANGE, above %s" limit)
+                 (setf (mistty--term-eterm-change-before-scrolline term) t))))))
 
         term))))
 

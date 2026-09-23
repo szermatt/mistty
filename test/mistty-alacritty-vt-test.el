@@ -189,7 +189,44 @@
            :trim nil
            :show cursor)))))))
 
-(turtles-ert-deftest mistty-alacritty-vt-set-color (:instance 'mistty)
+(turtles-ert-deftest mistty-alacritty-vt-all-fg-color (:instance 'mistty)
+  (ert-with-test-buffer ()
+    (let ((term (mistty-alacritty-vt-make-vterm 80 20))
+          (colors '((30 40 ansi-color-black)
+                    (31 41 ansi-color-red)
+                    (32 42 ansi-color-green)
+                    (33 43 ansi-color-yellow)
+                    (34 44 ansi-color-blue)
+                    (35 45 ansi-color-magenta)
+                    (36 46 ansi-color-cyan)
+                    (37 47 ansi-color-white)
+                    (90 100 ansi-color-bright-black)
+                    (91 101 ansi-color-bright-red)
+                    (92 102 ansi-color-bright-green)
+                    (93 103 ansi-color-bright-yellow)
+                    (94 104 ansi-color-bright-blue)
+                    (95 105 ansi-color-bright-magenta)
+                    (96 106 ansi-color-bright-cyan)
+                    (97 107 ansi-color-bright-white))))
+
+      (dolist (entry colors)
+        (mistty-alacritty-vt-process-bytes
+         term (vconcat (format "\e[%dmfg\e[0m  \e[%dmbg\e[0m %s\r\n"
+                               (nth 0 entry)
+                               (nth 1 entry)
+                               (symbol-name (nth 2 entry))))))
+      (mistty-alacritty-vt-render term (make-marker))
+      (turtles-with-grab-buffer ()
+        (goto-char (point-min))
+        (dolist (entry colors)
+          (should (equal (mistty-colors-at-point)
+                         (mistty-face-colors (nth 2 entry) 'default)))
+          (goto-char (+ 4 (point)))
+          (should (equal (mistty-colors-at-point)
+                         (mistty-face-colors 'default (nth 2 entry))))
+          (forward-line))))))
+
+(turtles-ert-deftest mistty-alacritty-vt-set-all-color (:instance 'mistty)
  (ert-with-test-buffer ()
    (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
     (mistty-alacritty-vt-process-bytes term (vconcat "\e[31mred\e[0m, \e[37m\e[42mgreen\e[0m, \e[34mblue\e[0m."))
@@ -204,8 +241,7 @@
       (mistty-test-goto "red")
       (should
        (equal (mistty-colors-at-point)
-              (mistty-face-colors 'ansi-color-red 'default)
-              ))
+              (mistty-face-colors 'ansi-color-red 'default)))
 
       (mistty-test-goto ",")
       (should
@@ -221,6 +257,7 @@
       (should
        (equal (mistty-colors-at-point)
               (mistty-face-colors 'ansi-color-blue 'default)))))))
+
 
 (turtles-ert-deftest mistty-alacritty-vt-set-24bit-color (:instance 'mistty)
  (ert-with-test-buffer ()

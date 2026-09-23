@@ -844,28 +844,28 @@ fn to_emacs_color(env: &Env, color: Color, fg: bool) -> Result<String> {
             face_color(env, ansi_color_white, fg)?
         }
         Color::Named(NamedColor::BrightBlack) | Color::Indexed(8) => {
-            face_color(env, ansi_color_black, fg)?
+            face_color(env, ansi_color_bright_black, fg)?
         }
         Color::Named(NamedColor::BrightRed) | Color::Indexed(9) => {
-            face_color(env, ansi_color_red, fg)?
+            face_color(env, ansi_color_bright_red, fg)?
         }
         Color::Named(NamedColor::BrightGreen) | Color::Indexed(10) => {
-            face_color(env, ansi_color_green, fg)?
+            face_color(env, ansi_color_bright_green, fg)?
         }
         Color::Named(NamedColor::BrightYellow) | Color::Indexed(11) => {
-            face_color(env, ansi_color_yellow, fg)?
+            face_color(env, ansi_color_bright_yellow, fg)?
         }
         Color::Named(NamedColor::BrightBlue) | Color::Indexed(12) => {
-            face_color(env, ansi_color_blue, fg)?
+            face_color(env, ansi_color_bright_blue, fg)?
         }
         Color::Named(NamedColor::BrightMagenta) | Color::Indexed(13) => {
-            face_color(env, ansi_color_magenta, fg)?
+            face_color(env, ansi_color_bright_magenta, fg)?
         }
         Color::Named(NamedColor::BrightCyan) | Color::Indexed(14) => {
-            face_color(env, ansi_color_cyan, fg)?
+            face_color(env, ansi_color_bright_cyan, fg)?
         }
         Color::Named(NamedColor::BrightWhite) | Color::Indexed(15) => {
-            face_color(env, ansi_color_white, fg)?
+            face_color(env, ansi_color_bright_white, fg)?
         }
         Color::Named(
             NamedColor::Foreground | NamedColor::BrightForeground | NamedColor::DimForeground,

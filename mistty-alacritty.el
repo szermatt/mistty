@@ -276,12 +276,11 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
                                (pcase mistty-del
                                        ("\C-h" "^H")
                                        ("\d" "^?"))
-                               ;; TODO: choose appropriate null-device
-                               "/dev/null")
+                               null-device)
 	               ".."
 	               program args)))
       ;; Window size must be adjusted manually with mistty-alacritty--resize
-      (process-put proc 'adjust-window-size-function #'ignore)
+      (process-put proc 'adjust-window-size-function nil)
 
       ;; start-file-process doesn't always respect
       ;; coding-system-for-read. Force it.
@@ -307,7 +306,7 @@ Set ENABLED to non-nil to enable automatic resize to nil to disable it."
           (process-put proc 'adjust-window-size-function #'mistty-alacritty--resize-from-window)
           (when-let* ((wins (get-buffer-window-list)))
             (mistty-alacritty--resize-from-window proc wins)))
-      (process-put proc 'adjust-window-size-function #'ignore))))
+      (process-put proc 'adjust-window-size-function nil))))
 
 (defun mistty-alacritty--resize-from-window (proc win)
   "Choose window size and apply it to the virtual terminal.

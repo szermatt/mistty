@@ -97,7 +97,7 @@ column count. The default is 80x24."
         (mistty--accum-add-processor
          accum '(seq CSI ?2 ?J) ;; Clear screen
          (lambda (ctx str)
-           (if (not (mistty--term-alacritty-fs term))
+           (if (mistty--term-alacritty-fs term)
                (mistty--accum-ctx-push-down ctx str)
 
              (mistty--accum-ctx-flush ctx)

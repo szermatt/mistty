@@ -449,7 +449,10 @@ If N is specified, the string is repeated N times."
         translated-key)
     (pcase key
       ;; First, lookup in mistty-term-key-map to allow overriding
-      ((guard (setq translated-key (lookup-key mistty-term-key-map key)))
+      ((and (guard (and
+                    (setq translated-key (lookup-key mistty-term-key-map key))
+                    (or (characterp translated-key)
+                        (stringp translated-key)))))
        (mistty--repeat-string n (concat translated-key)))
 
       ;; DEL -> mistty-del; translation is done in code instead of
@@ -468,7 +471,8 @@ If N is specified, the string is repeated N times."
       (`[escape] (mistty--repeat-string n "\e"))
 
       ;; M-<char>
-      ((and `[,c] (guard (and (/= 0 (logand c #x8000000))
+      ((and `[,c] (guard (and (numberp c)
+                              (/= 0 (logand c #x8000000))
                               (characterp (logand c (lognot #x8000000))))))
        (mistty--repeat-string n (format "\e%c" (logand c (lognot #x8000000)))))
 

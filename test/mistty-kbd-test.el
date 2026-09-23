@@ -36,7 +36,8 @@
   (should (equal mistty-down-str (mistty-translate-key (kbd "<down>") 1))))
 
 (ert-deftest mistty-kbd-translate-key-escape ()
-  (should (equal "\e" (mistty-translate-key (kbd "<escape>")))))
+  (should (equal "\e" (mistty-translate-key (kbd "<escape>"))))
+  (should (equal "\e" (mistty-translate-key "\e"))))
 
 (ert-deftest mistty-kbd-key-override ()
   (let* ((map (copy-keymap mistty-term-key-map))

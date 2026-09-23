@@ -431,6 +431,57 @@ the commands `mistty-set-terminal-size' and
                        (natnum :tag "Width")
                        (natnum :tag "Height"))))
 
+(defcustom mistty-bracketed-paste-command-alist
+  '((yank . t)
+    (yank-pop . t)
+    (yank-rectangle . t)
+    (insert-register . t)
+    (insert-rectangle . t)
+    (undo . t)
+    (self-insert-command . nil))
+  "Specify whether to use bracketed paste to replay command changes.
+
+This option exists because some applications handle strings pasted using
+bracketed paste differently from others. Bash, for example, highlights
+strings inserted using bracketed paste. Fish, on the other hand, might
+try to match opening braces, causing havoc, unless the string is
+inserted using bracketed paste.
+
+Commands that insert strings, such as `yank' should definitely use
+bracketed paste, because that most closely matches what applications
+expect. Commands that modify strings, on the other hand, benefit from
+not using bracketed paste, so the application handles the text as if it
+was typed.
+
+See also `mistty-bracketed-paste-default', which controls how commands
+are handled that are not on this list."
+  :group 'mistty
+  :type '(alist :key-type function :value-type boolean))
+
+(defcustom mistty-bracketed-paste-default nil
+  "Specify whether to use bracketed paste even when not necessary.
+
+This option specifies whether MisTTY should use bracketed paste when
+replaying changes made to the Emacs buffer even when the string contains
+no special characters that need to be escaped.
+
+This option exists because some applications handle strings pasted using
+bracketed paste differently from others. Bash, for example, highlights
+strings inserted using bracketed paste. Fish, on the other hand, might
+try to match opening braces, causing havoc, unless the string is
+inserted using bracketed paste.
+
+Whether to use bracketed paste or not can also be configured on a
+command-by-command basis by configuring
+`mistty-bracketed-paste-command-alist'.
+
+Note that no matter the value of this option, bracketed paste will not
+be used if the application doesn't support it even if this option is t.
+Also, bracketed paste will be used if the inserted string contains
+newlines or other control characters even if this option is nil."
+  :group 'mistty
+  :type 'boolean)
+
 (defvar-keymap mistty-mode-map
   :doc "Keymap of `mistty-mode'.
 
@@ -2672,13 +2723,14 @@ buffers."
                    (move-marker old-end (1- old-end)))))
              (setq old-length (- old-end beg))
 
-             (mistty-log "replay: %s '%s' %s old-content: '%s' (limit: [%s-%s])"
+             (mistty-log "replay: %s '%s' %s old-content: '%s' (limit: [%s-%s]) for command %s"
                          (marker-position orig-beg)
                          content
                          old-length
                          (mistty--safe-bufstring beg old-end)
                          (marker-position lower-limit)
-                         (marker-position upper-limit))
+                         (marker-position upper-limit)
+                         (mistty--changeset-command cs))
              (if (> old-length 0)
                  (setq target old-end)
                (setq target beg))
@@ -2834,7 +2886,7 @@ buffers."
                              ;; insert
                              (when (length> content 0)
                                (mistty-log "INSERT: '%s'" content)
-                               (mistty--maybe-bracketed-str content)))))
+                               (mistty--format-string-for-insert content cs)))))
                        (when (mistty--nonempty-str-p term-seq)
 
                          ;; ignore term-line-wrap and mistty-skip when
@@ -2974,6 +3026,21 @@ buffers."
         ;; Nothing to do; clean things up right away
         (mistty--interact-close interact)
         nil)))
+
+(defun mistty--format-string-for-insert (str cs)
+  "Return the terminal sequence for inserting STR for changeset CS.
+
+When bracketed paste is enabled, it is used only if STR contains control
+characters, unless the command that created the changeset is in
+`mistty-bracketed-paste-commands'."
+  (if (and mistty-bracketed-paste
+           (or (string-match "[\0-\010\012-\037]" str)
+               (if-let* ((config (assq (mistty--changeset-command cs)
+                                       mistty-bracketed-paste-command-alist)))
+                   (cdr config)
+                 mistty-bracketed-paste-default)))
+      (mistty--bracketed-str str)
+    (mistty--untabify str)))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."

@@ -469,16 +469,18 @@ If N is specified, the string is repeated N times."
              (key-description key))))))
 
 (defun mistty--maybe-bracketed-str (str)
-  "Prepare STR to be sent, possibly bracketed, to the terminal.
+  "Prepare STR to be sent, possibly bracketed, to the terminal."
+  (if mistty-bracketed-paste
+      (mistty--bracketed-str str)
+    (mistty--untabify str)))
 
-If bracketed paste is enabled and STR contains control and
-bracketed paste is enabled, this function returns STR with
-bracketed paste brackets around it."
-  (let ((str (string-replace "\t" (make-string tab-width ? ) str)))
-    (cond
-     ((not mistty-bracketed-paste) str)
-     ((not (string-match "[[:cntrl:]]" str)) str)
-     (t (concat "\e[200~" str "\e[201~")))))
+(defun mistty--bracketed-str (str)
+  "Mark STR as bracketed-paste string."
+  (concat "\e[200~" str "\e[201~"))
+
+(defun mistty--untabify (str)
+  "Replace tabs in STR with spaces."
+  (string-replace "\t" (make-string tab-width ? ) str))
 
 (provide 'mistty-kbd)
 

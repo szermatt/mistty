@@ -53,7 +53,10 @@ Use `mistty--active-changeset' to access it.")
 
 (cl-defstruct (mistty--changeset
                (:constructor mistty--make-changeset
-                             (&aux (id (cl-incf mistty--last-changeset-id))))
+                             (&aux (id (cl-incf mistty--last-changeset-id))
+                                   (command (if (eq this-command t)
+                                                real-this-command
+                                              this-command))))
                (:conc-name mistty--changeset-)
                (:copier nil))
   ;; changeset identifier, for debugging
@@ -68,7 +71,11 @@ Use `mistty--active-changeset' to access it.")
   ;; Modification intervals collected from the buffer. As long as this
   ;; is nil, details about the modifications are stored in the buffer,
   ;; as text properties.
-  intervals)
+  intervals
+
+  ;; Value of this-command active when the change was created. May be
+  ;; nil if a change was not created during a command.
+  command)
 
 (defsubst mistty--changeset-collected (changeset)
   "Evaluate to a true value if CHANGESET intervals exist.
@@ -83,7 +90,9 @@ Returns the changeset."
   (let ((changeset (mistty--active-changeset)))
     (unless changeset
       (setq changeset (mistty--make-changeset))
-      (mistty-log "NEW CHANGESET #%s" (mistty--changeset-id changeset))
+      (mistty-log "NEW CHANGESET #%s for %s"
+                  (mistty--changeset-id changeset)
+                  (mistty--changeset-command changeset))
       (push changeset mistty--changesets))
     changeset))
 

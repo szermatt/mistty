@@ -7112,3 +7112,58 @@ precmd_functions+=(prompt_header)
   (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
   (should (equal "hello" (mistty-send-and-capture-command-output))))
 
+(mistty-deftest mistty-test-bracketed-paste-commands (:type all :shell bash)
+  (let ((mistty-bracketed-paste-alist '((self-insert-command . nil)
+                                        (yank . t)))
+        (mistty-bracketed-paste-default nil))
+
+  ;; Insert as "self-insert-command". Bracketed paste is not used so
+  ;; bash doesn't highlight the new word.
+  (mistty-run-command
+   (setq this-command 'self-insert-command)
+   (insert "echo"))
+  (should (equal nil (text-properties-at (mistty-test-pos "echo"))))
+
+  ;; Insert as "yank". Bracketed paste is used, so bash highlights the
+  ;; word.
+  (mistty-run-command
+   (setq this-command 'yank)
+   (insert " foo"))
+  (should-not (equal nil (text-properties-at (mistty-test-pos "foo"))))
+
+  ;; Insert as an unknown command. Bracketed paste is not used so bash doesn't
+  ;; highlight the new word.
+  (mistty-run-command
+   (setq this-command 'other)
+   (insert " bar"))
+  (should (equal nil (text-properties-at (mistty-test-pos "bar"))))
+
+  ;; Insert as an unknown command. Bracketed paste is not used so bash doesn't
+  ;; highlight the new word.
+  (mistty-run-command
+   (setq this-command 'other-one)
+   (insert " bar"))
+  (should (equal nil (text-properties-at (mistty-test-pos "bar"))))
+
+  ;; Insert as an unknown command with a newline. Usage of bracketed
+  ;; paste is forced, so bash doesn't highlight the new word.
+  (mistty-run-command
+   (setq this-command 'other-one)
+   (insert ";\n echo baz"))
+  (should-not (equal nil (text-properties-at (mistty-test-pos "baz"))))
+
+  ;; Insert as "self-insert-command" a word containing a newline.
+  ;; Bracketed paste is used so bash doesn't highlight the new
+  ;; word.
+  (mistty-run-command
+   (setq this-command 'self-insert-command)
+   (insert ";\n echo qux"))
+  (should-not (equal nil (text-properties-at (mistty-test-pos "qux"))))
+
+  ;; Insert as an unknown command with a different default. Bracketed
+  ;; paste is used so bash highlights the new word.
+  (let ((mistty-bracketed-paste-default t))
+    (mistty-run-command
+     (setq this-command 'other-two)
+     (insert " corge"))
+    (should-not (equal nil (text-properties-at (mistty-test-pos "corge")))))))

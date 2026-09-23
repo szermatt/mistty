@@ -152,7 +152,11 @@ terminals created after the option was changed.
 This option only works on alacritty terminals. It has no effect on eterm
 terminals."
   :group 'mistty
-  :type 'string)
+  :type '(choice (const :tag "(auto)" nil)
+                 (const "alacritty")
+                 (const "xterm-256color")
+                 (const "xterm")
+                 string))
 
 (defvar-local mistty-alacritty--vterm nil
   "Virtual terminal tied to the buffer, from mistty-alacritty-vt.")

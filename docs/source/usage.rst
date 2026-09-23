@@ -539,6 +539,39 @@ When this mode is active:
 - Pressing :kbd:`C-g` sends a signal to the terminal and typically
   exits backward search mode without making a selection.
 
+.. _colors:
+
+Colors
+------
+
+The terminal supports ANSI colors, bright ANSI colors, 256 color
+palette and 24 bit color palette. It doesn't support dim colors.
+
+ANSI colors and bright ANSI colors are defined on Emacs by their
+faces. The face used depend on the terminal type:
+
+- `eterm` uses the Term color faces, such as `term-color-yellow`.
+  These can be configured on `M-x customize-group term`. The default
+  face is defined by `term-face`.
+
+- `alacritty` uses the ANSI color faces, such as `ansi-color-yellow`.
+  These can be configured on `M-x customize-group ansi-colors`. The
+  default face is defined by `default`.
+
+Note that if you edit a face or change themes, only the default
+foreground and background of the shell change immediately. Updating
+any other colors require redrawing the terminal.
+
+Support for 256 colors require the termcap entry defined by the `TERM`
+environment variable to haves support for that. `alacritty`
+`eterm-color`, `xterm-256color` and `xterm-direct` all support 256
+colors, but `xterm`, for example, doesn't.
+
+Support for 24bit colors in applications also require the termcap
+entry to have support for that, such as `alacritty`, `eterm-color`,
+`xterm-direct`, but some application require additional setting, such
+as setting the environment variable `COLORTERM=truecolor`.
+
 .. _cap:
 
 Completion-at-point

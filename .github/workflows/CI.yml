@@ -5,6 +5,8 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+    branches: # do not trigger on tag push
+      - '**'
   pull_request:
     paths-ignore:
       - '**.md'

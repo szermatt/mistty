@@ -35,7 +35,7 @@
 ;; loaded and compiled. Availability check should be done dynamically
 ;; dynamically using (mistty-alacritty-available-p)
 
-(defvar mistty-alacritty-version "2.0.1"
+(defvar mistty-alacritty-version "2.0.2"
   "Mistty version name or \"dev\" for local development version.
 
 This is used to download and load the correct version of the module.")

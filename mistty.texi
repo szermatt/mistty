@@ -1543,6 +1543,7 @@ paste mode, on by default, so it should not be turned off.
 * Command History in Fish:: 
 * Directory tracking in Fish:: 
 * Multi-line prompts in Fish:: 
+* Autopair in Fish:: 
 * VI mode in Fish:: 
 * Fancy prompts in Fish:: 
 
@@ -1619,7 +1620,7 @@ end
 such sequence are either ignored or understood by most terminals. You
 might already have it set up.
 
-@node Multi-line prompts in Fish,VI mode in Fish,Directory tracking in Fish,Fish
+@node Multi-line prompts in Fish,Autopair in Fish,Directory tracking in Fish,Fish
 @anchor{shells multi-line-prompts-in-fish}@anchor{3d}
 @subsubsection Multi-line prompts in Fish
 
@@ -1635,8 +1636,37 @@ in a normal terminal. @code{M-x customize-option
 mistty-skip-empty-spaces} allows you to turn that on or off in a
 MisTTY buffer.
 
-@node VI mode in Fish,Fancy prompts in Fish,Multi-line prompts in Fish,Fish
-@anchor{shells vi-mode-in-fish}@anchor{3e}
+@node Autopair in Fish,VI mode in Fish,Multi-line prompts in Fish,Fish
+@anchor{shells autopair-fish}@anchor{3e}@anchor{shells autopair-in-fish}@anchor{3f}
+@subsubsection Autopair in Fish
+
+
+@geindex variable; mistty-bracketed-paste-command-alist
+@geindex variable; mistty-bracketed-paste-default
+
+Fish can be configured to insert the matching pair as you type them,
+such as with autopair@footnote{https://github.com/jorgebucaran/autopair.fish}.
+
+This can be a problem for MisTTY, as it doesn’t necessarily know
+whether you’d like Emacs command output to behave as if you typed
+them, with autopair, or as if you pasted them, using bracketed paste,
+without autopair.
+
+By default, MisTTY outputs well-known commands, such as @cite{yank}, as
+paste, so without autopair and any others as typed commands, with
+autopair. This can be configured on a command-by-command basis with
+@code{M-x configure-option mistty-bracketed-paste-command-alist} or
+globally with @code{M-x configure-option
+mistty-bracketed-paste-default}
+
+If you set the default to true, to always use bracketed paste and to
+never have matching pairs, keep in mind that other application and
+other shells might handle bracketed paste differently. Under Bash, for
+example, if bracketed paste always on, newly-inserted text is always
+highlighted.
+
+@node VI mode in Fish,Fancy prompts in Fish,Autopair in Fish,Fish
+@anchor{shells vi-mode-in-fish}@anchor{40}
 @subsubsection VI mode in Fish
 
 
@@ -1655,7 +1685,7 @@ end
 @end example
 
 @node Fancy prompts in Fish,,VI mode in Fish,Fish
-@anchor{shells fancy-prompts-in-fish}@anchor{3f}
+@anchor{shells fancy-prompts-in-fish}@anchor{41}
 @subsubsection Fancy prompts in Fish
 
 
@@ -1666,7 +1696,7 @@ configuring your shell to send out @ref{2e,,OSC 133} codes to
 help MisTTY correctly identify your prompt.
 
 @node Zsh,IPython,Fish,Shells
-@anchor{shells id4}@anchor{40}@anchor{shells zsh}@anchor{41}
+@anchor{shells id4}@anchor{42}@anchor{shells zsh}@anchor{43}
 @subsection Zsh
 
 
@@ -1680,13 +1710,14 @@ unexpected results if you yank text containing special characters.
 * Autosuggestions in Zsh:: 
 * Directory tracking in Zsh:: 
 * Multi-line prompts in Zsh:: 
+* Autopair in Zsh:: 
 * VI mode in Zsh:: 
 * Fancy prompts in Zsh:: 
 
 @end menu
 
 @node Autosuggestions in Zsh,Directory tracking in Zsh,,Zsh
-@anchor{shells autosuggestions-in-zsh}@anchor{42}
+@anchor{shells autosuggestions-in-zsh}@anchor{44}
 @subsubsection Autosuggestions in Zsh
 
 
@@ -1699,7 +1730,7 @@ The recommended way of accepting an autosuggestion in MisTTY is to
 type @code{C-e}. This works in normal terminals as well.
 
 @node Directory tracking in Zsh,Multi-line prompts in Zsh,Autosuggestions in Zsh,Zsh
-@anchor{shells directory-tracking-in-zsh}@anchor{43}@anchor{shells zsh-dirtrack}@anchor{26}
+@anchor{shells directory-tracking-in-zsh}@anchor{45}@anchor{shells zsh-dirtrack}@anchor{26}
 @subsubsection Directory tracking in Zsh
 
 
@@ -1717,8 +1748,8 @@ precmd_functions+=(osc7_precmd)
 Such sequence are either ignored or understood by any well-behaved
 terminals, so you shouldn’t need to check the terminal.
 
-@node Multi-line prompts in Zsh,VI mode in Zsh,Directory tracking in Zsh,Zsh
-@anchor{shells multi-line-prompts-in-zsh}@anchor{44}
+@node Multi-line prompts in Zsh,Autopair in Zsh,Directory tracking in Zsh,Zsh
+@anchor{shells multi-line-prompts-in-zsh}@anchor{46}
 @subsubsection Multi-line prompts in Zsh
 
 
@@ -1740,8 +1771,34 @@ may leave trailing spaces at the end of some lines. In situations
 where these are significant, you will need to remove trailing spaces
 using @code{C-d} or @code{DEL}.
 
-@node VI mode in Zsh,Fancy prompts in Zsh,Multi-line prompts in Zsh,Zsh
-@anchor{shells vi-mode-in-zsh}@anchor{45}
+@node Autopair in Zsh,VI mode in Zsh,Multi-line prompts in Zsh,Zsh
+@anchor{shells autopair-in-zsh}@anchor{47}@anchor{shells autopair-zsh}@anchor{48}
+@subsubsection Autopair in Zsh
+
+
+Zsh can be configured to insert the matching pair as you type them,
+such as with zsh-autopair@footnote{https://github.com/hlissner/zsh-autopair}.
+
+This can be a problem for MisTTY, as it doesn’t necessarily know
+whether you’d like Emacs command output to behave as if you typed
+them, with autopair, or as if you pasted them, using bracketed paste,
+without autopair.
+
+By default, MisTTY outputs well-known commands, such as @cite{yank}, as
+paste, so without autopair and any others as typed commands, with
+autopair. This can be configured on a command-by-command basis with
+@code{M-x configure-option mistty-bracketed-paste-command-alist} or
+globally with @code{M-x configure-option
+mistty-bracketed-paste-default}
+
+If you set the default to true, to always use bracketed paste and to
+never have matching pairs, keep in mind that other application and
+other shells might handle bracketed paste differently. Under Bash, for
+example, if bracketed paste always on, newly-inserted text is always
+highlighted.
+
+@node VI mode in Zsh,Fancy prompts in Zsh,Autopair in Zsh,Zsh
+@anchor{shells vi-mode-in-zsh}@anchor{49}
 @subsubsection VI mode in Zsh
 
 
@@ -1760,7 +1817,7 @@ fi
 @end example
 
 @node Fancy prompts in Zsh,,VI mode in Zsh,Zsh
-@anchor{shells fancy-prompts-in-zsh}@anchor{46}
+@anchor{shells fancy-prompts-in-zsh}@anchor{4a}
 @subsubsection Fancy prompts in Zsh
 
 
@@ -1798,7 +1855,7 @@ configuring your shell to send out @ref{2e,,OSC 133 codes} to
 help MisTTY correctly identify your prompt.
 
 @node IPython,,Zsh,Shells
-@anchor{shells id5}@anchor{47}@anchor{shells ipython}@anchor{48}
+@anchor{shells id5}@anchor{4b}@anchor{shells ipython}@anchor{4c}
 @subsection IPython
 
 
@@ -1827,7 +1884,7 @@ shouldn’t match any other prompts. You don’t need to do anything here
 if you configured IPython to not output any continue prompt.
 
 @node Extending MisTTY,FAQ,Shells,Contents
-@anchor{extensions doc}@anchor{49}@anchor{extensions extending-mistty}@anchor{4a}
+@anchor{extensions doc}@anchor{4d}@anchor{extensions extending-mistty}@anchor{4e}
 @section Extending MisTTY
 
 
@@ -1842,7 +1899,7 @@ if you configured IPython to not output any continue prompt.
 @end menu
 
 @node Hooks,OSC Sequences,,Extending MisTTY
-@anchor{extensions hooks}@anchor{4b}@anchor{extensions id1}@anchor{4c}
+@anchor{extensions hooks}@anchor{4f}@anchor{extensions id1}@anchor{50}
 @subsection Hooks
 
 
@@ -1857,7 +1914,7 @@ if you configured IPython to not output any continue prompt.
 @end menu
 
 @node mistty-mode-hook,mistty-interactive-insert-hook,,Hooks
-@anchor{extensions mistty-mode-hook}@anchor{4d}
+@anchor{extensions mistty-mode-hook}@anchor{51}
 @subsubsection mistty-mode-hook
 
 
@@ -1889,7 +1946,7 @@ you could do:
 @geindex hook; mistty-interactive-interactive
 
 @node mistty-interactive-insert-hook,mistty-after-process-start-hook,mistty-mode-hook,Hooks
-@anchor{extensions mistty-interactive-insert-hook}@anchor{4e}
+@anchor{extensions mistty-interactive-insert-hook}@anchor{52}
 @subsubsection mistty-interactive-insert-hook
 
 
@@ -1913,7 +1970,7 @@ prefer to trigger the auto-completion UI yourself by adding your own
 function to this hook and turning the above option off.
 
 @node mistty-after-process-start-hook,mistty-after-process-end-hook,mistty-interactive-insert-hook,Hooks
-@anchor{extensions mistty-after-process-start-hook}@anchor{4f}
+@anchor{extensions mistty-after-process-start-hook}@anchor{53}
 @subsubsection mistty-after-process-start-hook
 
 
@@ -1924,7 +1981,7 @@ usually a shell. The process itself is available as
 typically empty, as no output from the process has been processed.
 
 @node mistty-after-process-end-hook,mistty-entered-fullscreen-hook,mistty-after-process-start-hook,Hooks
-@anchor{extensions mistty-after-process-end-hook}@anchor{50}
+@anchor{extensions mistty-after-process-end-hook}@anchor{54}
 @subsubsection mistty-after-process-end-hook
 
 
@@ -1943,7 +2000,7 @@ the shell exits successfully, with @code{mistty-kill-buffer} or
 @end example
 
 @node mistty-entered-fullscreen-hook,mistty-left-fullscreen-hook,mistty-after-process-end-hook,Hooks
-@anchor{extensions mistty-entered-fullscreen-hook}@anchor{51}
+@anchor{extensions mistty-entered-fullscreen-hook}@anchor{55}
 @subsubsection mistty-entered-fullscreen-hook
 
 
@@ -1956,7 +2013,7 @@ run within the terminal buffer, available as
 buried until @code{mistty-toggle-buffers} is called.
 
 @node mistty-left-fullscreen-hook,,mistty-entered-fullscreen-hook,Hooks
-@anchor{extensions mistty-left-fullscreen-hook}@anchor{52}
+@anchor{extensions mistty-left-fullscreen-hook}@anchor{56}
 @subsubsection mistty-left-fullscreen-hook
 
 
@@ -1967,7 +2024,7 @@ In this mode, @code{mistty-fullscreen} is nil and user commands run
 in the work buffer.
 
 @node OSC Sequences,Writing Your Own Commands,Hooks,Extending MisTTY
-@anchor{extensions ext-osc}@anchor{2f}@anchor{extensions osc-sequences}@anchor{53}
+@anchor{extensions ext-osc}@anchor{2f}@anchor{extensions osc-sequences}@anchor{57}
 @subsection OSC Sequences
 
 
@@ -2013,7 +2070,7 @@ same argument.
 @end itemize
 
 @node Writing Your Own Commands,Terminal Keymap,OSC Sequences,Extending MisTTY
-@anchor{extensions custom-commands}@anchor{54}@anchor{extensions writing-your-own-commands}@anchor{55}
+@anchor{extensions custom-commands}@anchor{58}@anchor{extensions writing-your-own-commands}@anchor{59}
 @subsection Writing Your Own Commands
 
 
@@ -2120,7 +2177,7 @@ position.
 @end table
 
 @node Terminal Keymap,Auto-complete,Writing Your Own Commands,Extending MisTTY
-@anchor{extensions term-keymap}@anchor{56}@anchor{extensions terminal-keymap}@anchor{57}
+@anchor{extensions term-keymap}@anchor{5a}@anchor{extensions terminal-keymap}@anchor{5b}
 @subsection Terminal Keymap
 
 
@@ -2179,7 +2236,7 @@ that simulates rxvt, you might do:
 distribution; it’s only available on github@footnote{https://github.com/szermatt/mistty/tree/master/extras}.
 
 @node Auto-complete,Long-running commands,Terminal Keymap,Extending MisTTY
-@anchor{extensions auto-complete}@anchor{58}@anchor{extensions autocomplete}@anchor{20}
+@anchor{extensions auto-complete}@anchor{5c}@anchor{extensions autocomplete}@anchor{20}
 @subsection Auto-complete
 
 
@@ -2189,7 +2246,7 @@ Auto-complete is a completion UI that shows up automatically after
 some delay, without having to call @cite{completion-at-point}. This used
 not to work in MisTTY terminal region. The hook
 @code{mistty-simulates-self-insert-command} was introduced to fix
-that. See @code{mistty-interactive-insert-hook} in @ref{4b,,Hooks}.
+that. See @code{mistty-interactive-insert-hook} in @ref{4f,,Hooks}.
 
 By default this hook calls the buffer @code{pre-command-hook} and
 @code{post-command-hook} with @code{this-command} set to
@@ -2203,7 +2260,7 @@ should be possible to build a custom bridge between this hook and the
 auto-completion package.
 
 @node Long-running commands,,Auto-complete,Extending MisTTY
-@anchor{extensions long-running-commands}@anchor{59}@anchor{extensions lrc}@anchor{23}
+@anchor{extensions long-running-commands}@anchor{5d}@anchor{extensions lrc}@anchor{23}
 @subsection Long-running commands
 
 
@@ -2290,7 +2347,7 @@ Here’s an example of code that would detect
 @end example
 
 @node FAQ,Contributing,Extending MisTTY,Contents
-@anchor{faq doc}@anchor{5a}@anchor{faq faq}@anchor{5b}
+@anchor{faq doc}@anchor{5e}@anchor{faq faq}@anchor{5f}
 @section FAQ
 
 
@@ -2528,8 +2585,29 @@ when the shell ends. If you don’t like that, change the option at
 @code{M-x customize-option mistty-at-end} to do nothing.
 @end quotation
 
+`Inserted text is all messed up!'
+
+@quotation
+
+There might be some strange issues if you enabled autopair or
+some other tool that modifies the behavior of typed characters,
+as MisTTY attempts to replay changes made on the Emacs buffer on
+the shell.
+
+When replaying the change, MisTTY may either pretend the user
+typed them or the user pasted them. Different shells and
+applications treat the two differently. MisTTY does its best to
+make the right decision, but if it gets it wrong, you can
+configure this behavior on a command-by-command basis with
+@code{M-x configure-option mistty-bracketed-paste-command-alist}
+or globally with @code{M-x configure-option
+mistty-bracketed-paste-default}
+
+For details, see  @ref{3e,,Autopair in Fish} or @ref{48,,Autopair in Zsh}
+@end quotation
+
 @node Contributing,,FAQ,Contents
-@anchor{contrib doc}@anchor{5c}@anchor{contrib contributing}@anchor{5d}
+@anchor{contrib doc}@anchor{60}@anchor{contrib contributing}@anchor{61}
 @section Contributing
 
 
@@ -2543,7 +2621,7 @@ when the shell ends. If you don’t like that, change the option at
 @end menu
 
 @node Reporting issues,Suggesting features,,Contributing
-@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{5e}
+@anchor{contrib reporting}@anchor{3}@anchor{contrib reporting-issues}@anchor{62}
 @subsection Reporting issues
 
 
@@ -2627,7 +2705,7 @@ anything private, and include it into the issue.
 @end itemize
 
 @node Suggesting features,Asking questions,Reporting issues,Contributing
-@anchor{contrib discussion}@anchor{5f}@anchor{contrib suggesting-features}@anchor{60}
+@anchor{contrib discussion}@anchor{63}@anchor{contrib suggesting-features}@anchor{64}
 @subsection Suggesting features
 
 
@@ -2635,14 +2713,14 @@ Please create a new discussion@footnote{https://github.com/szermatt/mistty/discu
 feature suggestions to the Issue Tracker@footnote{https://github.com/szermatt/mistty/issues}.
 
 @node Asking questions,Code contributions,Suggesting features,Contributing
-@anchor{contrib asking-questions}@anchor{61}
+@anchor{contrib asking-questions}@anchor{65}
 @subsection Asking questions
 
 
 Start a new discussion@footnote{https://github.com/szermatt/mistty/discussions} with your question in the General category.
 
 @node Code contributions,Documentation contributions,Asking questions,Contributing
-@anchor{contrib code-contributions}@anchor{62}
+@anchor{contrib code-contributions}@anchor{66}
 @subsection Code contributions
 
 
@@ -2665,7 +2743,7 @@ fixes with “fix: “, refactorings with “refactor: ” and tests with
 “test: “.
 
 @node Documentation contributions,,Code contributions,Contributing
-@anchor{contrib documentation-contributions}@anchor{63}@anchor{contrib eldev}@anchor{64}
+@anchor{contrib documentation-contributions}@anchor{67}@anchor{contrib eldev}@anchor{68}
 @subsection Documentation contributions
 
 

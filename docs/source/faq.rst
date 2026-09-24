@@ -192,3 +192,21 @@ FAQ
      MisTTY now by default kills the buffer and its containing window
      when the shell ends. If you don't like that, change the option at
      :kbd:`M-x customize-option mistty-at-end` to do nothing.
+
+**Inserted text is all messed up!**
+
+     There might be some strange issues if you enabled autopair or
+     some other tool that modifies the behavior of typed characters,
+     as MisTTY attempts to replay changes made on the Emacs buffer on
+     the shell.
+
+     When replaying the change, MisTTY may either pretend the user
+     typed them or the user pasted them. Different shells and
+     applications treat the two differently. MisTTY does its best to
+     make the right decision, but if it gets it wrong, you can
+     configure this behavior on a command-by-command basis with
+     :kbd:`M-x configure-option mistty-bracketed-paste-command-alist`
+     or globally with :kbd:`M-x configure-option
+     mistty-bracketed-paste-default`
+
+     For details, see  :ref:`autopair_fish` or :ref:`autopair_zsh`

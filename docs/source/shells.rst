@@ -230,6 +230,37 @@ in a normal terminal. :kbd:`M-x customize-option
 mistty-skip-empty-spaces` allows you to turn that on or off in a
 MisTTY buffer.
 
+.. _autopair_fish:
+
+Autopair in Fish
+^^^^^^^^^^^^^^^^^
+
+.. index::
+   pair: variable; mistty-bracketed-paste-command-alist
+   pair: variable; mistty-bracketed-paste-default
+
+Fish can be configured to insert the matching pair as you type them,
+such as with `autopair
+<https://github.com/jorgebucaran/autopair.fish>`_.
+
+This can be a problem for MisTTY, as it doesn't necessarily know
+whether you'd like Emacs command output to behave as if you typed
+them, with autopair, or as if you pasted them, using bracketed paste,
+without autopair.
+
+By default, MisTTY outputs well-known commands, such as `yank`, as
+paste, so without autopair and any others as typed commands, with
+autopair. This can be configured on a command-by-command basis with
+:kbd:`M-x configure-option mistty-bracketed-paste-command-alist` or
+globally with :kbd:`M-x configure-option
+mistty-bracketed-paste-default`
+
+If you set the default to true, to always use bracketed paste and to
+never have matching pairs, keep in mind that other application and
+other shells might handle bracketed paste differently. Under Bash, for
+example, if bracketed paste always on, newly-inserted text is always
+highlighted.
+
 VI mode in Fish
 ^^^^^^^^^^^^^^^
 
@@ -318,6 +349,33 @@ Please be aware that when editing a multi-line command in Zsh, MisTTY
 may leave trailing spaces at the end of some lines. In situations
 where these are significant, you will need to remove trailing spaces
 using :kbd:`C-d` or :kbd:`DEL`.
+
+.. _autopair_zsh:
+
+Autopair in Zsh
+^^^^^^^^^^^^^^^^^
+
+Zsh can be configured to insert the matching pair as you type them,
+such as with `zsh-autopair <https://github.com/hlissner/zsh-autopair>`_.
+
+This can be a problem for MisTTY, as it doesn't necessarily know
+whether you'd like Emacs command output to behave as if you typed
+them, with autopair, or as if you pasted them, using bracketed paste,
+without autopair.
+
+By default, MisTTY outputs well-known commands, such as `yank`, as
+paste, so without autopair and any others as typed commands, with
+autopair. This can be configured on a command-by-command basis with
+:kbd:`M-x configure-option mistty-bracketed-paste-command-alist` or
+globally with :kbd:`M-x configure-option
+mistty-bracketed-paste-default`
+
+If you set the default to true, to always use bracketed paste and to
+never have matching pairs, keep in mind that other application and
+other shells might handle bracketed paste differently. Under Bash, for
+example, if bracketed paste always on, newly-inserted text is always
+highlighted.
+
 
 VI mode in Zsh
 ^^^^^^^^^^^^^^

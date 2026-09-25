@@ -1,6 +1,6 @@
 use crate::render;
 use alacritty_terminal::{
-    Term,
+    Grid, Term,
     event::{Event, EventListener},
     grid::{Dimensions, Row},
     index::{Column, Line, Point},
@@ -40,6 +40,10 @@ pub struct VTerm {
     scrollback_enabled: bool,
     render_count: i32,
 
+    /// Rows of scrollback, taken from the grid. These rows
+    /// come before the ones in the current grid, if any.
+    scrollback: Vec<Row<Cell>>,
+
     /// Damage made by functions at the VTerm level that directly
     /// modify the grid. Such changes don't register as part of
     /// [Term::damage].
@@ -73,6 +77,7 @@ impl VTerm {
             start_with_wrapped_line: false,
             scrollback_enabled: false,
             render_count: 0,
+            scrollback: vec![],
             extra_damage: BTreeSet::new(),
         }
     }
@@ -95,69 +100,73 @@ impl VTerm {
     pub fn disable_scrollback(&mut self) {
         if self.scrollback_enabled {
             self.inner_mut().grid_mut().update_history(0);
+            self.scrollback.clear();
             self.scrollback_enabled = false;
         }
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        let history_size = self.inner().grid().history_size();
+        let history_size = if self.scrollback_enabled {
+            SCROLLBACK_SIZE
+        } else {
+            0
+        };
         self.inner_mut()
             .resize(VTermDimensions::new(width, height, history_size));
     }
 
     /// Clear history, normally after having written scrollback to the
     /// buffer.
-    pub fn clear_history(&mut self) {
-        self.truncate_history(0);
+    pub fn clear_scrollback(&mut self) {
+        let wrapped = self.scrollback_ends_with_wrapline();
+        self.scrollback.clear();
+        self.inner.grid_mut().clear_history();
+
+        self.start_with_wrapped_line = wrapped;
     }
 
-    /// Remove that many line from history.
-    pub fn shrink_history(&mut self, lines: usize) {
-        let history_size = self.inner.grid().history_size();
-        if history_size <= lines {
-            return;
-        }
-        self.truncate_history(history_size - lines);
-    }
-
-    /// Truncate history to that many lines.
-    fn truncate_history(&mut self, remaining: usize) {
-        let grid = self.inner_mut().grid_mut();
-        if remaining == 0 {
-            let wrapped = if grid.history_size() > 0 {
-                grid[Line(-1)][grid.last_column()]
-                    .flags
-                    .contains(Flags::WRAPLINE)
-            } else {
-                false
-            };
-            grid.clear_history();
-
-            self.start_with_wrapped_line = wrapped;
+    /// Return the last scrollback line, if any.
+    ///
+    /// This takes into account the rows from [Self::scrollback] then
+    /// the rows from the grid, before line 0.
+    fn last_scrollback_line(&self) -> Option<&Row<Cell>> {
+        if self.inner.grid().history_size() > 0 {
+            Some(&self.inner.grid()[Line(-1)])
         } else {
-            grid.update_history(remaining);
-
-            // update_history not only truncates history, but also
-            // sets max history size. Revert that last part.
-            grid.update_history(SCROLLBACK_SIZE);
+            self.scrollback.last()
         }
+    }
+
+    /// Check whether scrollback ends in an incomplete line.
+    pub fn scrollback_ends_with_wrapline(&self) -> bool {
+        let last_column = self.inner.last_column();
+        self.last_scrollback_line()
+            .map(|row| row[last_column].flags.contains(Flags::WRAPLINE))
+            .unwrap_or(false)
+    }
+
+    /// Number of terminal lines in the scrollback.
+    pub fn scrollback_line_count(&self) -> usize {
+        self.scrollback.len() + self.inner.grid().history_size()
+    }
+
+    /// Return all scrollback rows.
+    ///
+    /// This returns the rows from [Self::scrollback] then the rows
+    /// from the grid, before line 0.
+    pub fn scrollback_rows(&self) -> impl Iterator<Item = &Row<Cell>> {
+        let grid = self.inner.grid();
+        let topmost_line = grid.topmost_line();
+
+        self.scrollback
+            .iter()
+            .chain((topmost_line.0..0).map(|line| &grid[Line(line)]))
     }
 
     /// Check whether the last line cleared by the previous call to
     /// `clear_history` ended within a line that was wrapped.
     pub fn start_with_wrapped_line(&self) -> bool {
         self.start_with_wrapped_line
-    }
-
-    /// Return the first line of scrollback, or the top of the screen.
-    ///
-    /// The top of the screen is always `Line(0)`. If there are lines
-    /// currently in the scrollback buffer of the virtual terminal,
-    /// these lines have negative number. Lines on the screen have
-    /// positive numbers.
-    #[inline]
-    pub fn topmost_line(&self) -> Line {
-        self.inner.grid().topmost_line()
     }
 
     /// Return the last line available in the virtual terminal, that
@@ -224,7 +233,7 @@ impl VTerm {
     /// Parse terminal data and update internal state
     pub fn process_bytes(&mut self, bytes: &[u8]) {
         self.processor.advance(
-            &mut HandlerProxy::new(&mut self.inner, self.scrollback_enabled),
+            &mut HandlerProxy::new(&mut self.inner, &mut self.scrollback),
             bytes,
         );
     }
@@ -430,6 +439,18 @@ fn blank_trailing(row: &mut Row<Cell>) {
     }
 }
 
+/// Move the history from the current grid into the scrollback vector.
+fn move_history(grid: &mut Grid<Cell>, history: &mut Vec<Row<Cell>>) {
+    for line in grid.topmost_line().0..0 {
+        let line = Line(line);
+        let row = &mut grid[line];
+        let mut copy = Row::new(row.len());
+        std::mem::swap(row, &mut copy);
+        history.push(copy);
+    }
+    grid.clear_history();
+}
+
 fn pty_write<'a>(env: &'a Env, result: Value<'a>, data: String) -> Result<Value<'a>> {
     env.cons(env.list((pty_write_sym, data))?, result)
 }
@@ -499,53 +520,12 @@ impl EventListener for EventAccumulator {
 /// require allocating a separate flag for that.
 struct HandlerProxy<'a, T> {
     inner: &'a mut Term<T>,
-    scrollback_enabled: bool,
+    scrollback: &'a mut Vec<Row<Cell>>,
 }
 
 impl<'a, T> HandlerProxy<'a, T> {
-    fn new(inner: &'a mut Term<T>, scrollback_enabled: bool) -> Self {
-        Self {
-            inner,
-            scrollback_enabled,
-        }
-    }
-
-    /// Store the scrollback into a vector, so it can later on be recovered.
-    fn keep_scrollback(&mut self) -> Vec<Row<Cell>> {
-        let history_size = self.inner.grid().history_size();
-        let mut history = Vec::with_capacity(history_size);
-        if history_size > 0 && self.scrollback_enabled {
-            let grid = self.inner.grid_mut();
-            for line in grid.topmost_line().0..0 {
-                let line = Line(line);
-                let row = &mut grid[line];
-                let mut copy = Row::new(row.len());
-                std::mem::swap(row, &mut copy);
-                history.push(copy);
-            }
-            grid.clear_history();
-        }
-        history
-    }
-
-    /// Put back scrollback saved by `take_scrollback`.
-    ///
-    /// This assumes an empty screen.
-    fn recover_scrollback(&mut self, scrollback: Vec<Row<Cell>>) {
-        if scrollback.is_empty() {
-            return;
-        }
-        let grid = self.inner.grid_mut();
-
-        let mut line = Line(0);
-        let history_size = scrollback.len();
-        for mut row in scrollback {
-            std::mem::swap(&mut row, &mut grid[line]);
-            line += 1;
-        }
-        grid.update_history(SCROLLBACK_SIZE);
-        // Put written lines into scrollback
-        grid.scroll_up(&(Line(0)..grid.bottommost_line()), history_size);
+    fn new(inner: &'a mut Term<T>, scrollback: &'a mut Vec<Row<Cell>>) -> Self {
+        Self { inner, scrollback }
     }
 }
 
@@ -745,11 +725,10 @@ where
         // the scrollback, if desired, can be done elisp-side with
         // mistty-allow-clearing-scrollback.
         self.inner.clear_screen(ansi::ClearMode::All);
-        let scrollback = self.keep_scrollback();
+        move_history(self.inner.grid_mut(), self.scrollback);
 
         self.inner.reset_state();
         init_grid(self.inner.grid_mut());
-        self.recover_scrollback(scrollback);
     }
 
     fn reverse_index(&mut self) {

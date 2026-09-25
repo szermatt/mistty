@@ -140,9 +140,7 @@ fn display_substring<'a>(
 
 /// Return the position of the cursor as (LINE, COLUMN).
 ///
-/// LINE is a terminal line number betwen `mistty-mod-topmost-line`
-/// and `mistty-mod-bottommost-line`, with 0 being the terminal screen
-/// top.
+/// LINE is a terminal line number betwen 0 and `mistty-mod-bottommost-line`.
 ///
 /// COLUMN is a column number between 0 and `mistty-mod-last-column`.
 #[defun]
@@ -196,27 +194,15 @@ fn column_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Colu
 }
 
 /// Create a `Column` that's guaranteed to be a valid line for the
-/// terminal that is inside the range [topmost_line, bottommost_line].
+/// terminal that is inside the range [0, bottommost_line].
 fn line_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
-    range_check(
-        env,
-        "line",
-        val,
-        term.topmost_line().0..=term.bottommost_line().0,
-    )
-    .map(|c| Line(c))
+    range_check(env, "line", val, 0..=term.bottommost_line().0).map(|c| Line(c))
 }
 
 /// Create a `Column` that's guaranteed to be a valid line for the
-/// terminal that is inside the range [topmost_line, bottommost_line+1].
+/// terminal that is inside the range [0, bottommost_line+1].
 pub fn line_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
-    range_check(
-        env,
-        "line",
-        val,
-        term.topmost_line().0..=term.inner().screen_lines() as i32,
-    )
-    .map(|c| Line(c))
+    range_check(env, "line", val, 0..=term.inner().screen_lines() as i32).map(|c| Line(c))
 }
 
 /// Create a `Point` that's guaranteed to be a valid point within the

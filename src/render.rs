@@ -142,21 +142,18 @@ impl ToggleProperty {
     }
 }
 
-/// Clear terminal history without writing it.
-///
-/// Return how many lines were cleared.
+/// Clear terminal history.
 #[defun]
-pub fn clear_scrollback(term: &mut VTerm) -> Result<usize> {
-    let history_size = term.inner().grid().history_size();
-    term.clear_history();
+pub fn clear_scrollback(term: &mut VTerm) -> Result<()> {
+    term.clear_scrollback();
 
-    Ok(history_size)
+    Ok(())
 }
 
-/// Return the number of terminal lines currently in scrollback.
+/// Return the number of terminal lines in the scrollback.
 #[defun]
-pub fn scrollback_line_count(term: &VTerm) -> Result<usize> {
-    Ok(term.inner().grid().history_size())
+fn scrollback_line_count(term: &VTerm) -> Result<usize> {
+    Ok(term.scrollback_line_count())
 }
 
 /// Write scrollback lines to the current buffer.
@@ -173,7 +170,6 @@ pub fn scrollback_line_count(term: &VTerm) -> Result<usize> {
 /// always returns 0 and does nothing.
 pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     let grid = term.inner().grid();
-    let topmost_line = grid.topmost_line();
     let last_column = grid.last_column();
     let history_size = grid.history_size();
     if history_size == 0 {
@@ -194,15 +190,13 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
             env.call(delete_char, (-1,))?;
         }
     }
-    let mut as_string = String::with_capacity((-topmost_line.0) as usize * (last_column.0 * 2 + 1));
+    let mut as_string =
+        String::with_capacity(term.scrollback_line_count() as usize * (last_column.0 * 2 + 1));
     let origin = BufferPos::point(env)?;
     let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_SCROLLBACK);
     let mut pos = origin;
     let mut scrollines = 0;
-    for line in topmost_line.0..0 {
-        let line = Line(line);
-        let row = &grid[line];
-
+    for row in term.scrollback_rows() {
         if let Some(right_col) = last_written_cell(row) {
             for col in 0..=right_col.0 {
                 let col = Column(col);
@@ -220,7 +214,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     }
     env.call(insert, (as_string,))?;
     tracker.apply(env, pos)?;
-    if topmost_line.0 != 0 && grid[Line(-1)][last_column].flags.contains(Flags::WRAPLINE) {
+    if term.scrollback_ends_with_wrapline() {
         env.call(
             insert,
             (env.call(propertize, ("\n", term_line_wrap, true))?,),

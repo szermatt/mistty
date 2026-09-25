@@ -876,15 +876,28 @@ This simulates what happens in the command loop."
 This is useful after files have changed, such as after checking
  out a new branch."
   (interactive)
-  (load "mistty-util.el" nil 'nomessage 'nosuffix)
-  (load "mistty-log.el" nil 'nomessage 'nosuffix)
-  (load "mistty-changeset.el" nil 'nomessage 'nosuffix)
-  (load "mistty-undo.el" nil 'nomessage 'nosuffix)
-  (load "mistty-term.el" nil 'nomessage 'nosuffix)
-  (load "mistty-queue.el" nil 'nomessage 'nosuffix)
-  (load "mistty-osc7.el" nil 'nomessage 'nosuffix)
-  (load "mistty.el"nil 'nomessage 'nosuffix))
-
+  (dolist (file '("mistty-accum-macros.el"
+                  "mistty-accum.el"
+                  "mistty-alacritty.el"
+                  "mistty-autoloads.el"
+                  "mistty-changeset.el"
+                  "mistty-install.el"
+                  "mistty-kbd.el"
+                  "mistty-launch.el"
+                  "mistty-log.el"
+                  "mistty-osc-colors.el"
+                  "mistty-osc7.el"
+                  "mistty-project.el"
+                  "mistty-queue.el"
+                  "mistty-scrolline.el"
+                  "mistty-term-alacritty.el"
+                  "mistty-term-base.el"
+                  "mistty-term-eterm.el"
+                  "mistty-term.el"
+                  "mistty-undo.el"
+                  "mistty-util.el"
+                  "mistty.el"))
+    (load file nil 'nomessage 'nosuffix)))
 
 (cl-defmacro mistty-with-test-process ((proc-var) &rest body)
   "Evaluate BODY with a pipe process running.

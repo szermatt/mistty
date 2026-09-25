@@ -95,6 +95,7 @@ for some reason."
   (declare-function mistty-alacritty-vt-render nil (term cursor))
   (declare-function mistty-alacritty-vt-render-screen nil (term cursor))
   (declare-function mistty-alacritty-vt-resize nil (term w h))
+  (declare-function mistty-alacritty-vt-scrollback-line-count nil (term))
   (declare-function mistty-alacritty-vt-write-scrollback nil (term)))
 
 (defcustom mistty-alacritty-osc52 'only-copy

@@ -153,6 +153,12 @@ pub fn clear_scrollback(term: &mut VTerm) -> Result<usize> {
     Ok(history_size)
 }
 
+/// Return the number of terminal lines currently in scrollback.
+#[defun]
+pub fn scrollback_line_count(term: &VTerm) -> Result<usize> {
+    Ok(term.inner().grid().history_size())
+}
+
 /// Write scrollback lines to the current buffer.
 ///
 /// This function writes any scrollback line kept in the virtual

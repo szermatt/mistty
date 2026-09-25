@@ -138,32 +138,6 @@ fn display_substring<'a>(
     .into_lisp(env)
 }
 
-/// Return the number of the topmost line in the virtual terminal.
-///
-/// The screen first line is always 0 and scrollback lines are
-/// negatives.
-///
-/// This will always return 0 right after a call to
-/// `mistty-mod-write-scrollback`.
-#[defun]
-fn topmost_line(term: &VTerm) -> Result<i32> {
-    Ok(term.topmost_line().0)
-}
-
-/// Return the number of the bottom most line in the virtual terminal.
-///
-/// This is usually the screen bottom, so screen_height -1.
-#[defun]
-fn bottommost_line(term: &VTerm) -> Result<i32> {
-    Ok(term.bottommost_line().0)
-}
-
-/// Return the number of the last valid column (screen width -1).
-#[defun]
-fn last_column(term: &VTerm) -> Result<usize> {
-    Ok(term.last_column().0)
-}
-
 /// Return the position of the cursor as (LINE, COLUMN).
 ///
 /// LINE is a terminal line number betwen `mistty-mod-topmost-line`
@@ -188,90 +162,6 @@ fn alt_screen_p(term: &VTerm) -> Result<bool> {
 #[defun]
 fn bracketed_paste_p(term: &VTerm) -> Result<bool> {
     Ok(term.inner().mode().contains(TermMode::BRACKETED_PASTE))
-}
-
-/// Return the character count within [start, end).
-///
-/// This can be used to match column number to buffer positions, but
-/// be aware that char distance in the virtual terminal only matches
-/// the buffer just after rendering, and before calling
-/// `mistty-mod-process-bytes'.
-///
-/// The newline at the end of a column is counted.
-#[defun]
-fn count_chars(
-    env: &Env,
-    term: &VTerm,
-    start_line: i32,
-    start_col: i32,
-    end_line: i32,
-    end_col: i32,
-) -> Result<usize> {
-    let start = point_range_check(env, start_line, start_col, term)?;
-    let end = point_range_boundary_check(env, end_line, end_col, term)?;
-    if start > end {
-        return env.signal(
-            args_out_of_range,
-            (format!(
-                "range start comes before end: [{start:?}, {end:?})"
-            ),),
-        );
-    }
-    Ok(term.count_chars(start, end))
-}
-
-/// Return the cells count between [start, end), ignoring clear cells.
-#[defun]
-fn count_cells(
-    env: &Env,
-    term: &VTerm,
-    start_line: i32,
-    start_col: i32,
-    end_line: i32,
-    end_col: i32,
-) -> Result<usize> {
-    let start = point_range_check(env, start_line, start_col, term)?;
-    let end = point_range_boundary_check(env, end_line, end_col, term)?;
-    if start > end {
-        return env.signal(
-            args_out_of_range,
-            (format!(
-                "range start comes before end: [{start:?}, {end:?})"
-            ),),
-        );
-    }
-    Ok(term.count_cells(start, end))
-}
-
-/// Return the number of unwrapped line separating `start` from
-/// `end`.
-///
-/// The lines passed to this function are terminal line, with the
-/// topmost line of the terminal being 0. If there are scrollback
-/// lines not consumed by `mistty-mod-write-scrollback` yet, they are
-/// accessible using negative line numbers. The line must be between
-/// `mistty-mod-topmost-line` and `mistty-mod-bottmmmost-line`.
-///
-/// This counts the number of newlines not marked as line wrap
-/// between `start` and `end`.
-///
-/// Be aware that unwrapped line distance in the virtual terminal only
-/// matches the buffer just after rendering, and before calling
-/// `mistty-mod-process-bytes'.
-#[defun]
-fn count_unwrapped_lines(env: &Env, term: &VTerm, start: i32, end: i32) -> Result<usize> {
-    let start = line_range_check(env, start, term)?;
-    let end = line_range_boundary_check(env, end, term)?;
-    if start > end {
-        return env.signal(
-            args_out_of_range,
-            (format!(
-                "line range start comes before end: [{start:?}, {end:?})"
-            ),),
-        );
-    }
-
-    Ok(term.count_unwrapped_lines(start, end))
 }
 
 /// Mark spaces at the given line between beg_chars and end_chars as clear.

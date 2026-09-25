@@ -35,7 +35,20 @@
 (cl-defstruct (mistty--term-alacritty
                (:constructor mistty--make-term-alacritty)
                (:copier nil))
-  proc buf change-before-scrolline fs)
+  ;; associated process
+  proc
+
+  ;; process buffer a.k.a. term buffer
+  buf
+
+  ;; virtual terminal, from mistty-alacritty-vt module
+  vterm
+
+  ;; if non-nil, a change before scrolline was detected
+  change-before-scrolline
+
+  ;; if non-nil, we are in fullscreen mode
+  fs)
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'alacritty)) name command
@@ -63,7 +76,10 @@ column count. The default is 80x24."
                process-environment)))
         (mistty-alacritty-exec name program args width height))
       (let* ((proc (get-buffer-process term-buffer))
-             (term (mistty--make-term-alacritty :buf term-buffer :proc proc))
+             (term (mistty--make-term-alacritty
+                    :buf term-buffer
+                    :proc proc
+                    :vterm mistty-alacritty--vterm))
              (accum (mistty--make-accumulator
                      (mistty--term-filter-func term))))
         (set-process-filter proc accum)
@@ -212,17 +228,11 @@ If ENABLE is non-nil, enable autoresize, otherwise disable it."
    cursor-marker)
   (if (mistty--term-alacritty-fs term)
       ;; fullscreen mode, without support for prompts
-      (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-        (mistty--sync-buffer
-         (current-buffer) mistty-alacritty--home
-         dest-buffer sync-pos
-         nil)
-
-        (let ((cursor-pos (+ sync-pos
-                             (- (process-mark (mistty--term-proc term))
-                                mistty-alacritty--home))))
-          (mistty--with-live-buffer dest-buffer
-            (set-marker cursor-marker cursor-pos))))
+      (mistty--with-live-buffer dest-buffer
+        (let ((vterm (mistty--term-alacritty-vterm term)))
+          (save-excursion
+            (goto-char sync-pos)
+            (mistty-alacritty-vt-render vterm cursor-marker))))
 
     ;; normal mode, with support for prompts
     (mistty--with-live-buffer (mistty--term-alacritty-buf term)

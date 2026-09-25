@@ -153,7 +153,7 @@ pub fn clear_scrollback(term: &mut VTerm) -> Result<usize> {
     Ok(history_size)
 }
 
-/// Write scrollback lines to the current buffer, clear terminal history.
+/// Write scrollback lines to the current buffer.
 ///
 /// This function writes any scrollback line kept in the virtual
 /// terminal to the current buffer at the current point and leaves the
@@ -165,7 +165,6 @@ pub fn clear_scrollback(term: &mut VTerm) -> Result<usize> {
 ///
 /// If scrollback is disabled on the virtual terminal, this call
 /// always returns 0 and does nothing.
-#[defun]
 pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     let grid = term.inner().grid();
     let topmost_line = grid.topmost_line();
@@ -215,9 +214,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     }
     env.call(insert, (as_string,))?;
     tracker.apply(env, pos)?;
-    term.clear_history();
-
-    if term.start_with_wrapped_line() {
+    if topmost_line.0 != 0 && grid[Line(-1)][last_column].flags.contains(Flags::WRAPLINE) {
         env.call(
             insert,
             (env.call(propertize, ("\n", term_line_wrap, true))?,),
@@ -311,21 +308,35 @@ fn last_written_line(grid: &Grid<Cell>) -> Option<Line> {
 /// Render the state of the terminal in a way Emacs understands.
 ///
 /// Rendering is done in the current buffer in the range from point to
-/// end of buffer (or earlier if narrowing is enabled).
+/// end of buffer (or earlier if narrowing is enabled), starting with
+/// the scrollback lines, then the screen itself.
 ///
 /// `cursor_marker` is set to the cursor position.
 ///
 /// The point is not conserved. Wrap this call inside a
 /// `save_excursion`.
+///
+/// This function returns the buffer position of the top right corner
+/// of the screen and the number of scrollines before that. Everything
+/// before that position belongs in the scrollback area.
 #[defun]
-pub fn render(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
-    render_inner(env, term, cursor_marker, None)
+pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
+    let history_scrollines = write_scrollback(env, term)?;
+    let screen_top = BufferPos::point(env)?;
+
+    render_screen(env, term, cursor_marker)?;
+
+    env.cons(screen_top, history_scrollines)
 }
 
-/// Re-render modified parts of the terminal, Emacs-side.
+/// Render the terminal content on the current buffer.
 ///
-/// This call optimizes rendering by only updating the portions of the
-/// terminal that have changed since last call to `render` or
+/// This call renders only the terminal content, ignoring the
+/// scrollback area. Call [render] to take the scrollback area into
+/// account.
+///
+/// This call may optimize rendering by only updating the portions of
+/// the terminal that have changed since last call to `render` or
 /// `render_damage. For this to work, the range from point to end of
 /// buffer must contain the unmodified result of the previous call.
 ///
@@ -337,21 +348,11 @@ pub fn render(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
 /// call, the marker might just be left as it is.
 ///
 /// The point is not conserved. Wrap this call inside
-/// `save_excursion`.
+/// `save_excursion` if it matters.
 #[defun]
-pub fn render_damaged(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
+pub fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
     let damage = term.damaged_lines();
-    render_inner(env, term, cursor_marker, damage)
-}
-
-fn render_inner(
-    env: &Env,
-    term: &mut VTerm,
-    cursor_marker: Value,
-    damage: Option<Vec<Line>>,
-) -> Result<()> {
     let mut cursor_pos = None;
-
     let cursor_line = term.inner().grid().cursor.point.line;
     let last_written = last_written_line(term.inner().grid()).unwrap_or(Line(0));
     let last_line = max(last_written, cursor_line);

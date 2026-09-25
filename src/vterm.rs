@@ -108,16 +108,39 @@ impl VTerm {
     /// Clear history, normally after having written scrollback to the
     /// buffer.
     pub fn clear_history(&mut self) {
-        let grid = self.inner_mut().grid_mut();
-        if grid.topmost_line() == 0 {
+        self.truncate_history(0);
+    }
+
+    /// Remove that many line from history.
+    pub fn shrink_history(&mut self, lines: usize) {
+        let history_size = self.inner.grid().history_size();
+        if history_size <= lines {
             return;
         }
-        let wrapped = grid[Line(-1)][grid.last_column()]
-            .flags
-            .contains(Flags::WRAPLINE);
-        grid.clear_history();
+        self.truncate_history(history_size - lines);
+    }
 
-        self.start_with_wrapped_line = wrapped;
+    /// Truncate history to that many lines.
+    fn truncate_history(&mut self, remaining: usize) {
+        let grid = self.inner_mut().grid_mut();
+        if remaining == 0 {
+            let wrapped = if grid.history_size() > 0 {
+                grid[Line(-1)][grid.last_column()]
+                    .flags
+                    .contains(Flags::WRAPLINE)
+            } else {
+                false
+            };
+            grid.clear_history();
+
+            self.start_with_wrapped_line = wrapped;
+        } else {
+            grid.update_history(remaining);
+
+            // update_history not only truncates history, but also
+            // sets max history size. Revert that last part.
+            grid.update_history(SCROLLBACK_SIZE);
+        }
     }
 
     /// Check whether the last line cleared by the previous call to

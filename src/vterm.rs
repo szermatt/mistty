@@ -34,6 +34,7 @@ pub struct VTerm {
     events: Rc<RefCell<VecDeque<Event>>>,
     start_with_wrapped_line: bool,
     scrollback_enabled: bool,
+    render_count: i32,
 }
 
 impl VTerm {
@@ -59,6 +60,7 @@ impl VTerm {
             events,
             start_with_wrapped_line: false,
             scrollback_enabled: false,
+            render_count: 0,
         }
     }
 
@@ -300,6 +302,30 @@ impl VTerm {
         }
 
         count
+    }
+
+    // Compare the render count with a value form Emacs side.
+    pub fn check_render_count_tag(&self, tag_value: Value<'_>) -> Result<bool> {
+        if !tag_value.is_not_nil() {
+            return Ok(false);
+        }
+        let tag_value: i32 = tag_value.into_rust()?;
+
+        Ok(self.render_count == tag_value)
+    }
+
+    // Return a tag that identifies a render operation.
+    pub fn inc_render_count(&mut self) -> i32 {
+        let mut next = self.render_count + 1;
+
+        // keep value inside minimum integer range supported by Emacs
+        if next > 536870911 {
+            next = -536870912;
+        }
+
+        self.render_count = next;
+
+        next
     }
 }
 

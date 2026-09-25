@@ -1475,3 +1475,114 @@
                               (base64-encode-string "new value"))))
                    (mistty-alacritty-vt-process-bytes
                     term (vconcat "\e]52;c;?\a."))))))
+
+(ert-deftest mistty-alacritty-vt-render-damaged ()
+  (let ((term (mistty-alacritty-vt-make-vterm 80 24)))
+    (mistty-alacritty-vt-process-bytes term (vconcat "baa, baa\r\nblack sheep\r\nhave you any wool?\r\n"))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+        (should
+         (equal
+          (concat
+           "baa, baa\n"
+           "black sheep\n"
+           "have you any wool?\n\n")
+          (mistty-test-content :trim nil)))
+
+        ;; append; partial rendering OK
+        (mistty-alacritty-vt-process-bytes term (vconcat "yes, sir!"))
+        (put-text-property (point-min) (point-max) 'existing 1)
+        (goto-char (point-min))
+        (mistty-alacritty-vt-render-damaged term cursor)
+        (should
+         (equal
+          (concat
+           "baa, baa\n"
+           "[black sheep\n"
+           "have you any wool?\n]"
+           "yes, sir!\n")
+          (mistty-test-content :trim nil :show-property '(existing 1))))
+
+        ;; edit line; partial rendering OK
+        (mistty-alacritty-vt-process-bytes term (vconcat "\r\e[2A\e[6Ctiger"))
+        (put-text-property (point-min) (point-max) 'existing 2)
+        (goto-char (point-min))
+        (mistty-alacritty-vt-render-damaged term cursor)
+        (should
+         (equal
+          (concat
+           "[baa, baa\n"
+           "]black tiger\n"
+           "[have you any wool?\n"
+           "]yes, sir!\n") ;; modified because the cursor used to be there
+          (mistty-test-content :trim nil :show-property '(existing 2))))))))
+
+
+(ert-deftest mistty-alacritty-vt-render-damaged-detect-issues ()
+  (let ((term (mistty-alacritty-vt-make-vterm 80 24)))
+    (mistty-alacritty-vt-process-bytes term (vconcat "baa, baa\r\nblack sheep\r\nhave you any wool?\r\n"))
+    (ert-with-test-buffer ()
+      (let ((bufa (current-buffer)))
+        (ert-with-test-buffer ()
+          (let ((bufb (current-buffer))
+                (cursor (make-marker)))
+            (with-current-buffer bufa
+              (goto-char (point-min))
+              (mistty-alacritty-vt-render term cursor)
+              (should
+               (equal
+                (concat
+                 "baa, baa\n"
+                 "black sheep\n"
+                 "have you any wool?\n\n")
+                (mistty-test-content :trim nil)))
+              (put-text-property (point-min) (point-max) 'existing t))
+
+            ;; append; full rendering is required since it's on the
+            ;; wrong buffer.
+            (with-current-buffer bufb
+              (mistty-alacritty-vt-process-bytes term (vconcat "yes, sir!\r\n"))
+              (goto-char (point-min))
+              (mistty-alacritty-vt-render-damaged term cursor)
+              (should
+               (equal
+                (concat
+                 "baa, baa\n"
+                 "black sheep\n"
+                 "have you any wool?\n"
+                 "yes, sir!\n\n")
+                (mistty-test-content :trim nil :show-property '(existing t))))
+              (put-text-property (point-min) (point-max) 'existing t))
+
+            ;; append; partial rendering OK, since it's on the same buffer.
+            (with-current-buffer bufb
+              (mistty-alacritty-vt-process-bytes term (vconcat "yes, sir!\r\n"))
+              (goto-char (point-min))
+              (mistty-alacritty-vt-render-damaged term cursor)
+              (should
+               (equal
+                (concat
+                 "[baa, baa\n"
+                 "black sheep\n"
+                 "have you any wool?\n"
+                 "yes, sir!\n]"
+                 "yes, sir!\n\n")
+                (mistty-test-content :trim nil :show-property '(existing t)))))
+
+            ;; append; full rendering is required since the buffer changed, even
+            ;; though some data exist from the first rendering.
+            (with-current-buffer bufa
+              (mistty-alacritty-vt-process-bytes term (vconcat "three bags full!\r\n"))
+              (goto-char (point-min))
+              (mistty-alacritty-vt-render-damaged term cursor)
+              (should
+               (equal
+                (concat
+                 "baa, baa\n"
+                 "black sheep\n"
+                 "have you any wool?\n"
+                 "yes, sir!\n"
+                 "yes, sir!\n"
+                 "three bags full!\n\n")
+                (mistty-test-content :trim nil :show-property '(existing t)))))))))))

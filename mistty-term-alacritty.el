@@ -231,8 +231,9 @@ If ENABLE is non-nil, enable autoresize, otherwise disable it."
       (mistty--with-live-buffer dest-buffer
         (let ((vterm (mistty--term-alacritty-vterm term)))
           (save-excursion
+            (mistty-log "RENDER FULLSCREEN")
             (goto-char sync-pos)
-            (mistty-alacritty-vt-render vterm cursor-marker))))
+            (mistty-alacritty-vt-render-damaged vterm cursor-marker))))
 
     ;; normal mode, with support for prompts
     (mistty--with-live-buffer (mistty--term-alacritty-buf term)

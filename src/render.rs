@@ -15,6 +15,7 @@ use std::{cmp::max, collections::HashMap, str::FromStr};
 
 emacs::use_functions! {
     add_face_text_property
+    put_text_property
     get_text_property
     char_before
     delete_char
@@ -57,11 +58,11 @@ emacs::use_symbols! {
     foreground_sym => ":foreground"
     background_sym => ":background"
     bold_sym => "bold"
-    put_text_property
     term_line_wrap
     yank_handler
     invisible_sym => "invisible"
     mistty_clear
+    mistty_render_tag
     mistty_skip
     indent_sym => "indent"
     right_prompt_sym => "right-prompt"
@@ -367,7 +368,10 @@ fn render_inner(
     let cursor_line = term.inner().grid().cursor.point.line;
     let last_written = last_written_line(term.inner().grid()).unwrap_or(Line(0));
     let last_line = max(last_written, cursor_line);
-    if let Some(damaged_lines) = damage {
+    let start = BufferPos::point(env)?;
+    if let Some(damaged_lines) = damage
+        && term.check_render_count_tag(env.call(get_text_property, (start, mistty_render_tag))?)?
+    {
         let mut line_at_point = Line(0);
         for line in damaged_lines
             .into_iter()
@@ -404,6 +408,10 @@ fn render_inner(
         )?;
         render_lines(env, term, Line(0), last_line + 1, Some(&mut cursor_pos))?;
     }
+    env.call(
+        put_text_property,
+        (start, start + 1, mistty_render_tag, term.inc_render_count()),
+    )?;
 
     if let Some(cursor_pos) = cursor_pos {
         env.call(set_marker, (cursor_marker, cursor_pos))?;

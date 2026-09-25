@@ -372,6 +372,9 @@ cursor.
 
 The default implementation just sends to the buffer process.")
 
+(defvar mistty--send-key-sequence-active nil
+  "This boolean is set globally by `mistty-send-key-sequence'.")
+
 (defun mistty--send-default (str _key _n _positional)
   "Send STR to the buffer process.
 
@@ -416,21 +419,36 @@ This command is available in fullscreen mode."
 This function continuously read keys and sends them to the
 terminal, just like `mistty-send-key', until it is interrupted
 with \\[keyboard-quit] or until it is passed a key or event it
-doesn't support, such as a mouse event.."
-  (interactive)
-  (let (key)
-    (while
-        (and
-         (setq key
-               (read-key "Sending all KEYS to terminal... Exit with C-g."
-                         'inherit-input-method))
-         (not (eq key ?\C-g)))
+doesn't support, such as a mouse event.
 
-      (pcase key
-        (`(xterm-paste ,str)
-         (funcall mistty--send-function
-                  (mistty--maybe-bracketed-str str) nil nil nil))
-        (_ (mistty-send-key 1 (make-vector 1 key)))))))
+It can also be stopped programmatically by calling
+`mistty-exit-send-key-sequence' from a hook or a filter."
+  (interactive)
+  (catch 'mistty-send-key-sequence
+    (let ((mistty--send-key-sequence-active t)
+          key)
+      (while
+          (and
+           (setq key
+                 (read-key "Sending all KEYS to terminal... Exit with C-g."
+                           'inherit-input-method))
+           (not (eq key ?\C-g)))
+
+        (pcase key
+          (`(xterm-paste ,str)
+           (funcall mistty--send-function
+                    (mistty--maybe-bracketed-str str) nil nil nil))
+          (_ (mistty-send-key 1 (make-vector 1 key))))))))
+
+(defun mistty-exit-send-key-sequence ()
+  "Abort any currently running `mistty-send-key-sequence'.
+
+Does nothing if there is no running `mistty-send-key-sequence'."
+  (when mistty--send-key-sequence-active
+    (run-with-idle-timer 0 nil
+                         (lambda ()
+                           (when mistty--send-key-sequence-active
+                             (throw 'mistty-send-key-sequence nil))))))
 
 (defun mistty-translate-key (key &optional n)
   "Generate string to sent to the terminal for KEY.

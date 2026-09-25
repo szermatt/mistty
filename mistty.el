@@ -684,7 +684,7 @@ successfully. See `mistty-kill-buffer` and
 
 At the point this hook is called, `mistty-fullscreen` is non-nil.")
 
-(defvar mistty-left-fullscreen-hook nil
+(defvar mistty-left-fullscreen-hook '(mistty-exit-send-key-sequence)
   "Report that MisTTY just left fullscreen mode.
 
 At the point this hook is called, `mistty-fullscreen` is nil.")

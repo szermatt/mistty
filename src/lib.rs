@@ -2,14 +2,11 @@ mod render;
 mod types;
 mod vterm;
 
-use crate::{render::cell_char_count, vterm::VTerm};
+use crate::vterm::VTerm;
 use alacritty_terminal::{
-    grid::{Dimensions, Row},
+    grid::Dimensions,
     index::{Column, Line, Point},
-    term::{
-        Osc52, TermMode,
-        cell::{Cell, Flags},
-    },
+    term::{Osc52, TermMode},
 };
 use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
 use std::{fmt::Debug, ops::RangeBounds};
@@ -282,13 +279,7 @@ fn count_unwrapped_lines(env: &Env, term: &VTerm, start: i32, end: i32) -> Resul
 fn clear_to_eol(env: &Env, term: &mut VTerm, line: i32, beg_chars: usize) -> Result<()> {
     let line = line_range_check(env, line, term)?;
 
-    let mut chars = 0;
-    for cell in &mut term.inner_mut().grid_mut()[line] {
-        if chars >= beg_chars && cell.c == ' ' {
-            cell.flags.set(Flags::DIM, false);
-        }
-        chars += cell_char_count(cell);
-    }
+    term.clear_to_eol(line, beg_chars);
 
     Ok(())
 }
@@ -297,32 +288,9 @@ fn clear_to_eol(env: &Env, term: &mut VTerm, line: i32, beg_chars: usize) -> Res
 #[defun]
 fn cleanup_prompt_sp(env: &Env, term: &mut VTerm, line: i32) -> Result<()> {
     let line = line_range_check(env, line, term)?;
-    if line == Line(0) {
-        return Ok(());
-    }
-
-    let grid = term.inner_mut().grid_mut();
-    let last_column = grid.last_column();
-    let prev_line: Line = line - 1;
-    let prev_row = &mut grid[prev_line];
-    if prev_row[last_column].flags.contains(Flags::WRAPLINE) {
-        prev_row[last_column].flags.remove(Flags::WRAPLINE);
-        blank_trailing(prev_row);
-    }
-    blank_trailing(&mut grid[line]);
+    term.cleanup_prompt_sp(line);
 
     Ok(())
-}
-
-fn blank_trailing(row: &mut Row<Cell>) {
-    for col in (0..row.len()).rev() {
-        let col = Column(col);
-        let cell = &mut row[col];
-        if cell.c != ' ' {
-            break;
-        }
-        cell.flags.set(Flags::DIM, false);
-    }
 }
 
 /// Create a `Column` that's guaranteed to be a valid column for the

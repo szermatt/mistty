@@ -5,13 +5,17 @@ use alacritty_terminal::{
     grid::{Dimensions, Row},
     index::{Column, Line, Point},
     term::{
-        ClipboardType, Config, Osc52,
+        ClipboardType, Config, Osc52, TermDamage,
         cell::{Cell, Flags},
     },
     vte::ansi::{self, Attr, Color, Handler, Processor},
 };
 use emacs::{Env, IntoLisp, Result, Value};
-use std::{cell::RefCell, collections::VecDeque, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeSet, VecDeque},
+    rc::Rc,
+};
 
 emacs::use_functions! {
     nreverse_func => "nreverse"
@@ -35,6 +39,14 @@ pub struct VTerm {
     start_with_wrapped_line: bool,
     scrollback_enabled: bool,
     render_count: i32,
+
+    /// Damage made by functions at the VTerm level that directly
+    /// modify the grid. Such changes don't register as part of
+    /// [Term::damage].
+    ///
+    /// Always call [VTerm::damaged_lines] and [VTerm::reset_lines]
+    /// instead of the [Term] equivalent.
+    extra_damage: BTreeSet<Line>,
 }
 
 impl VTerm {
@@ -61,6 +73,7 @@ impl VTerm {
             start_with_wrapped_line: false,
             scrollback_enabled: false,
             render_count: 0,
+            extra_damage: BTreeSet::new(),
         }
     }
 
@@ -326,6 +339,71 @@ impl VTerm {
         self.render_count = next;
 
         next
+    }
+
+    /// Clear the given line from the given char to end of line.
+    pub fn clear_to_eol(&mut self, line: Line, beg_chars: usize) {
+        let mut chars = 0;
+        for cell in &mut self.inner_mut().grid_mut()[line] {
+            if chars >= beg_chars && cell.c == ' ' {
+                cell.flags.set(Flags::DIM, false);
+            }
+            chars += render::cell_char_count(cell);
+        }
+        self.extra_damage.insert(line);
+    }
+
+    /// Cleanup after a shell's PROMPT-SP hack.
+    pub fn cleanup_prompt_sp(&mut self, line: Line) {
+        if line == Line(0) {
+            return;
+        }
+
+        let grid = self.inner_mut().grid_mut();
+        let last_column = grid.last_column();
+        let prev_line: Line = line - 1;
+        let prev_row = &mut grid[prev_line];
+        let mut prev_damaged = false;
+        if prev_row[last_column].flags.contains(Flags::WRAPLINE) {
+            prev_row[last_column].flags.remove(Flags::WRAPLINE);
+            blank_trailing(prev_row);
+            prev_damaged = true;
+        }
+        blank_trailing(&mut grid[line]);
+        if prev_damaged {
+            self.extra_damage.insert(prev_line);
+        }
+        self.extra_damage.insert(line);
+    }
+
+    pub fn damaged_lines(&mut self) -> Option<Vec<Line>> {
+        if let TermDamage::Partial(iter) = self.inner_mut().damage() {
+            let mut lines: Vec<Line> = iter.map(|d| Line(d.line as i32)).collect();
+            lines.extend(self.extra_damage.iter());
+            lines.sort_unstable();
+            lines.dedup();
+            // damage is sorted by line, one damage per line.
+
+            Some(lines)
+        } else {
+            None
+        }
+    }
+
+    pub fn reset_damage(&mut self) {
+        self.extra_damage.clear();
+        self.inner.reset_damage();
+    }
+}
+
+fn blank_trailing(row: &mut Row<Cell>) {
+    for col in (0..row.len()).rev() {
+        let col = Column(col);
+        let cell = &mut row[col];
+        if cell.c != ' ' {
+            break;
+        }
+        cell.flags.set(Flags::DIM, false);
     }
 }
 

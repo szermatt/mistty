@@ -4,10 +4,7 @@ use alacritty_terminal::{
     Grid,
     grid::{Dimensions, Row},
     index::{Column, Line},
-    term::{
-        TermDamage,
-        cell::{Cell, Flags, Hyperlink},
-    },
+    term::cell::{Cell, Flags, Hyperlink},
     vte::ansi::{Color, NamedColor, Rgb},
 };
 use emacs::{Env, Result, Value, defun};
@@ -343,17 +340,7 @@ pub fn render(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
 /// `save_excursion`.
 #[defun]
 pub fn render_damaged(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
-    let damage = if let TermDamage::Partial(iter) = term.inner_mut().damage() {
-        let mut lines: Vec<Line> = iter.map(|d| Line(d.line as i32)).collect();
-        lines.sort_unstable();
-        lines.dedup();
-        // damage is sorted by line, one damage per line.
-
-        Some(lines)
-    } else {
-        None
-    };
-
+    let damage = term.damaged_lines();
     render_inner(env, term, cursor_marker, damage)
 }
 
@@ -417,7 +404,7 @@ fn render_inner(
         env.call(set_marker, (cursor_marker, cursor_pos))?;
     }
 
-    term.inner_mut().reset_damage();
+    term.reset_damage();
 
     Ok(())
 }

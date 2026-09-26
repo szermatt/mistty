@@ -947,6 +947,24 @@ mod tests {
     }
 
     #[test]
+    fn clear_scrollback() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        term.move_history();
+
+        term.process_bytes(b"line 6\r\nline 7\r\n");
+        assert_eq!(2, term.grid().history_size());
+
+        // this should clear both the scrollback in VTerm::scrollback and the grid history
+        term.clear_scrollback();
+
+        assert_eq!(0, term.grid().history_size());
+        assert_eq!(0, term.scrollback_row_count());
+    }
+
+    #[test]
     fn ignore_clear_scrollback() {
         let mut term = VTerm::new(10, 3, Osc52::Disabled);
         term.enable_scrollback();

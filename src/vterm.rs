@@ -166,6 +166,16 @@ impl VTerm {
             .unwrap_or(false)
     }
 
+    /// Store grid history into [VTerm]'s scrollback buffer.
+    ///
+    /// Call this before making a change that would otherwise lose or
+    /// hide grid history, such as reset or swapping to the alt
+    /// buffer.
+    #[cfg(test)]
+    fn move_history(&mut self) {
+        move_history(self.inner.grid_mut(), &mut self.scrollback);
+    }
+
     /// Number of terminal lines in the scrollback.
     pub fn scrollback_row_count(&self) -> usize {
         self.scrollback.len() + self.inner.grid().history_size()
@@ -802,5 +812,122 @@ where
 
     fn set_scp(&mut self, char_path: ansi::ScpCharPath, update_mode: ansi::ScpUpdateMode) {
         self.inner.set_scp(char_path, update_mode);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scrollback_empty() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        assert_eq!(0, term.scrollback_row_count());
+        assert_eq!(0, term.scrollback_rows().count());
+        assert!(term.last_scrollback_row().is_none());
+    }
+
+    #[test]
+    fn disabled_scrollback() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.disable_scrollback();
+
+        // fill and scroll terminal
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        // scrollback remains empty
+        assert_eq!(0, term.scrollback_row_count());
+        assert_eq!(0, term.scrollback_rows().count());
+        assert!(term.last_scrollback_row().is_none());
+    }
+
+    #[test]
+    fn scrollback_from_grid() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        // fill and scroll terminal
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        // the first three lines are no included into history
+        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(
+            vec!["line 1", "line 2", "line 3"],
+            term.scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        assert_eq!(
+            row_to_string(term.last_scrollback_row().expect("last_row")),
+            "line 3"
+        );
+    }
+
+    #[test]
+    fn scrollback_after_move() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        // fill and scroll terminal, putting 3 rows into history
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        term.move_history();
+
+        // grid history is empty
+        assert_eq!(0, term.grid().history_size());
+
+        // the three lines are still available in VTerm.scrollback
+        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(
+            vec!["line 1", "line 2", "line 3"],
+            term.scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        assert_eq!(
+            row_to_string(term.last_scrollback_row().expect("last_row")),
+            "line 3"
+        );
+    }
+
+    #[test]
+    fn scrollback_merged() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        // fill and scroll terminal, putting 3 rows into history
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        term.move_history();
+
+        term.process_bytes(b"line 6\r\nline 7\r\n");
+        assert_eq!(term.grid().history_size(), 2);
+
+        // 3 rows are in VTerm.scrollback, 2 in grid history
+        assert_eq!(term.scrollback_row_count(), 5);
+        assert_eq!(
+            vec!["line 1", "line 2", "line 3", "line 4", "line 5"],
+            term.scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        assert_eq!(
+            row_to_string(term.last_scrollback_row().expect("last_row")),
+            "line 5"
+        );
+    }
+
+    /// --- test utilities
+
+    /// Return a string representation of the row.
+    ///
+    /// This doesn't support hidden chars or multi-column characters;
+    /// it's just good enough for testing.
+    fn row_to_string(row: &Row<Cell>) -> String {
+        (0..row.len())
+            .map(|col| row[Column(col)].c)
+            .collect::<String>()
+            .trim_end()
+            .to_string()
     }
 }

@@ -5,10 +5,10 @@ mod vterm;
 use crate::vterm::VTerm;
 use alacritty_terminal::{
     grid::Dimensions,
-    index::{Column, Line, Point},
+    index::Line,
     term::{Osc52, TermMode},
 };
-use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
+use emacs::{Env, Result, Value, Vector, defun};
 use std::{fmt::Debug, ops::RangeBounds};
 
 emacs::plugin_is_GPL_compatible!();
@@ -151,18 +151,6 @@ fn cleanup_prompt_sp(env: &Env, term: &mut VTerm, line: i32) -> Result<()> {
     Ok(())
 }
 
-/// Create a `Column` that's guaranteed to be a valid column for the
-/// terminal that is inside the range [0, screen_columns).
-fn column_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Column> {
-    range_check(env, "column", val, 0..(term.grid().columns() as i32)).map(|c| Column(c as usize))
-}
-
-/// Create a `Column` that's valid for a boundary, that is, within
-/// the range [0, screen_columns].
-fn column_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Column> {
-    range_check(env, "column", val, 0..=(term.grid().columns() as i32)).map(|c| Column(c as usize))
-}
-
 /// Create a `Column` that's guaranteed to be a valid line for the
 /// terminal that is inside the range [0, bottommost_line].
 fn line_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
@@ -173,28 +161,6 @@ fn line_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
 /// terminal that is inside the range [0, bottommost_line+1].
 pub fn line_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
     range_check(env, "line", val, 0..=term.grid().screen_lines() as i32).map(|c| Line(c))
-}
-
-/// Create a `Point` that's guaranteed to be a valid point within the
-/// terminal, possibly in the scrollback area.
-fn point_range_check(env: &Env, l: i32, c: i32, term: &VTerm) -> Result<Point> {
-    Ok(Point::new(
-        line_range_check(env, l, term)?,
-        column_range_check(env, c, term)?,
-    ))
-}
-
-/// Create a `Point` that's guaranteed to be a valid point within the
-/// terminal, possibly in the scrollback area just after that at
-/// column+1 on a valid line or at (bottomline+1, 0).
-fn point_range_boundary_check(env: &Env, l: i32, c: i32, term: &VTerm) -> Result<Point> {
-    if l == (term.bottommost_line().0 + 1) && c == 0 {
-        return Ok(Point::new(Line(l), Column(0)));
-    }
-    Ok(Point::new(
-        line_range_check(env, l, term)?,
-        column_range_boundary_check(env, c, term)?,
-    ))
 }
 
 /// Return a column guaranteed to be within [0, last_column] or

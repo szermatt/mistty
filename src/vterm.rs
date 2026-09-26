@@ -901,10 +901,10 @@ mod tests {
         term.move_history();
 
         term.process_bytes(b"line 6\r\nline 7\r\n");
-        assert_eq!(term.grid().history_size(), 2);
+        assert_eq!(2, term.grid().history_size());
 
         // 3 rows are in VTerm.scrollback, 2 in grid history
-        assert_eq!(term.scrollback_row_count(), 5);
+        assert_eq!(5, term.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3", "line 4", "line 5"],
             term.scrollback_rows()
@@ -917,7 +917,58 @@ mod tests {
         );
     }
 
+    #[test]
+    fn ignore_clear_scrollback() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        assert_eq!(3, term.grid().history_size());
+
+        handler(&mut term).clear_screen(ansi::ClearMode::Saved);
+        assert_eq!(3, term.grid().history_size());
+    }
+
+    #[test]
+    fn reset_fills_scrollback() {
+        let mut term = VTerm::new(10, 6, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3");
+
+        // scrollback is initially empty
+        assert_eq!(0, term.scrollback_row_count());
+        assert_eq!(0, term.scrollback_rows().count());
+
+        // reset clears the screen (among other things) and store
+        // the screen content into scrollback.
+        handler(&mut term).reset_state();
+
+        // the three screen lines are now in scrollback
+        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(
+            vec!["line 1", "line 2", "line 3"],
+            term.scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        assert_eq!(
+            row_to_string(term.last_scrollback_row().expect("last_row")),
+            "line 3"
+        );
+
+        // the screen is clear
+        assert_eq!(0, term.grid().history_size());
+        for line in 0..=term.bottommost_line().0 {
+            assert!(term.grid()[Line(line)].is_clear());
+        }
+    }
+
     /// --- test utilities
+
+    fn handler<'a>(term: &'a mut VTerm) -> HandlerProxy<'a, EventAccumulator> {
+        HandlerProxy::new(&mut term.inner, &mut term.scrollback)
+    }
 
     /// Return a string representation of the row.
     ///

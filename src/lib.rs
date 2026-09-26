@@ -1,3 +1,4 @@
+mod gridext;
 mod render;
 mod types;
 mod vterm;

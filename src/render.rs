@@ -1,5 +1,6 @@
-use crate::types::BufferPos;
+use crate::gridext::{self, CellExt, RowExt};
 use crate::vterm::VTerm;
+use crate::{gridext::GridExt, types::BufferPos};
 use alacritty_terminal::{
     Grid,
     grid::{Dimensions, Row},
@@ -129,7 +130,7 @@ impl ToggleProperty {
             ToggleProperty::Underline => Some(flags.intersects(Flags::UNDERLINE)),
 
             // Flags::DIM is handled specially in this code. See comment on vterm::HandlerProxy.
-            ToggleProperty::Clear => Some(is_clear(flags)),
+            ToggleProperty::Clear => Some(gridext::is_clear(&flags)),
 
             // Wrapline is handled specially, as it applies to the
             // newline following the last column, to the column that's
@@ -198,15 +199,13 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     let mut scrollines = 0;
     for row in term.scrollback_rows() {
         if let Some(right_col) = last_written_cell(row) {
-            for col in 0..=right_col.0 {
-                let col = Column(col);
-                let cell = &row[col];
+            for (_, cell) in row.iter_to(right_col + 1) {
                 let cell_pos = pos;
                 pos += append_cell_to_string(&cell, &mut as_string);
                 tracker.track_change(cell_pos, &cell);
             }
         }
-        if !row[last_column].flags.contains(Flags::WRAPLINE) {
+        if !row.is_wrapped() {
             as_string.push('\n');
             pos += 1;
             scrollines += 1;
@@ -226,9 +225,8 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
 
 /// Return the column of the last cell that isn't clear.
 fn last_written_cell(row: &Row<Cell>) -> Option<Column> {
-    for col in (0..row.len()).rev() {
-        let col = Column(col);
-        if !is_clear(row[col].flags) {
+    for (col, cell) in row.iter().rev() {
+        if !cell.is_clear() {
             return Some(col);
         }
     }
@@ -247,9 +245,8 @@ fn detect_indent(
     if right_prompt_start.is_some() {
         return None;
     }
-    for col in 0..end_col.0 {
-        let col = Column(col);
-        if !is_clear(row[col].flags) {
+    for (col, cell) in row.iter_to(end_col) {
+        if !cell.is_clear() {
             if col.0 > 0 {
                 return Some(col);
             } else {
@@ -269,13 +266,11 @@ fn detect_right_prompt(row: &Row<Cell>, last_written: Option<Column>) -> Option<
         None => None,
         Some(last_written) => {
             if (last_written.0 + 2) >= row.len() {
-                for col in (0..last_written.0).rev() {
-                    let col = Column(col);
-                    if is_clear(row[col].flags) {
+                for (col, cell) in row.iter_to(last_written).rev() {
+                    if cell.is_clear() {
                         let empty = col;
-                        for col in (0..empty.0).rev() {
-                            let col = Column(col);
-                            if !is_clear(row[col].flags) {
+                        for (col, cell) in row.iter_to(empty).rev() {
+                            if !cell.is_clear() {
                                 let start = col + 1;
                                 if start <= empty {
                                     return Some(start);
@@ -295,9 +290,8 @@ fn detect_right_prompt(row: &Row<Cell>, last_written: Option<Column>) -> Option<
 
 /// Return the line containing the last cell that isn't clear.
 fn last_written_line(grid: &Grid<Cell>) -> Option<Line> {
-    for line in (0..=grid.bottommost_line().0).rev() {
-        let line = Line(line);
-        if !last_written_cell(&grid[line]).is_none() {
+    for (line, row) in grid.screen_iter().rev() {
+        if !last_written_cell(row).is_none() {
             return Some(line);
         }
     }
@@ -431,9 +425,7 @@ pub fn render_lines<'a>(
     let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_TERMINAL);
     let mut as_string = String::with_capacity((end.0 - beg.0) as usize * (last_column.0 + 1));
     let mut pos = origin;
-    for line in beg.0..end.0 {
-        let line = Line(line);
-        let row = &grid[line];
+    for (line, row) in grid.ranged_iter(beg, end) {
         let last_written = last_written_cell(row).map(|c| c + 1);
         let end_col =
             if line == cursor_point.line && last_written.is_none_or(|v| v < cursor_point.column) {
@@ -446,9 +438,7 @@ pub fn render_lines<'a>(
         if indent_end.is_some() {
             tracker.set_toggle(pos, ToggleProperty::Indent, true);
         }
-        for col in 0..end_col.0 {
-            let col = Column(col);
-            let cell = &row[col];
+        for (col, cell) in row.iter_to(end_col) {
             let cell_pos = pos;
             pos += append_cell_to_string(cell, &mut as_string);
             tracker.track_change(cell_pos, cell);
@@ -482,7 +472,7 @@ pub fn render_lines<'a>(
 
         // A NL is never clear
         tracker.set_toggle(pos, ToggleProperty::Clear, false);
-        if row[last_column].flags.contains(Flags::WRAPLINE) {
+        if row.is_wrapped() {
             tracker.set_toggle(pos, ToggleProperty::Wrapline, true);
         }
         as_string.push('\n');
@@ -495,22 +485,6 @@ pub fn render_lines<'a>(
     Ok(())
 }
 
-/// Count the number of characters in the cell.
-pub fn cell_char_count(c: &Cell) -> usize {
-    if is_spacer(c) {
-        return 0;
-    }
-
-    1 + c.zerowidth().map(|chars| chars.len()).unwrap_or(0)
-}
-
-/// Check whether a cell is clear (has not been written to).
-///
-/// See comment on vterm::HandlerProxy
-pub fn is_clear(flags: Flags) -> bool {
-    !flags.intersects(Flags::DIM)
-}
-
 /// Append the content of a cell to the give string.
 ///
 /// A cell may contain more than one character, as long as they all
@@ -520,7 +494,7 @@ pub fn is_clear(flags: Flags) -> bool {
 ///
 /// Returns the number of characters added to `dest`.
 fn append_cell_to_string(cell: &Cell, dest: &mut String) -> usize {
-    if is_spacer(cell) {
+    if cell.is_spacer() {
         return 0;
     }
     if cell.c == '\t' {
@@ -537,23 +511,6 @@ fn append_cell_to_string(cell: &Cell, dest: &mut String) -> usize {
     }
 
     charcount
-}
-
-/// Check whether a cell contains as spacer.
-///
-/// Spacers should not be rendered.
-///
-/// Skipping spacers assumes that Emacs and Alacritty have the
-/// same idea of what a wide char is and will display them the
-/// same way, so a wide char for which Alacritty allocated two
-/// columns should actually take two columns when displayed by
-/// Emacs.
-///
-/// TODO: force Emacs to follow Alacritty's lead in case of
-/// inconsistencies.
-fn is_spacer(cell: &Cell) -> bool {
-    cell.flags
-        .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
 }
 
 /// Track cell flags and apply them Emacs-side as text properties.

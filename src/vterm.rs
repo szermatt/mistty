@@ -1,3 +1,8 @@
+//! Define [VTerm], a wrapper type for
+// [alacritty_terminal::term::Term] and
+// [alacritty_terminal::term::Grid].
+
+use crate::gridext::{CellExt, GridExt, RowExt};
 use crate::render;
 use alacritty_terminal::{
     Grid, Term,
@@ -160,9 +165,8 @@ impl VTerm {
     /// This takes into account the rows from [Self::scrollback] then
     /// the rows from the grid, before line 0.
     pub fn scrollback_ends_with_wrapline(&self) -> bool {
-        let last_column = self.inner.last_column();
         self.last_scrollback_row()
-            .map(|row| row[last_column].flags.contains(Flags::WRAPLINE))
+            .map(|row| row.is_wrapped())
             .unwrap_or(false)
     }
 
@@ -187,12 +191,9 @@ impl VTerm {
     /// from the grid, before line 0. There are
     /// [VTerm::scrollback_row_count] rows.
     pub fn scrollback_rows(&self) -> impl Iterator<Item = &Row<Cell>> {
-        let grid = self.inner.grid();
-        let topmost_line = grid.topmost_line();
-
         self.scrollback
             .iter()
-            .chain((topmost_line.0..0).map(|line| &grid[Line(line)]))
+            .chain(self.inner.grid().history_iter().map(|(_, row)| row))
     }
 
     /// Return the last scrollback line, if any.
@@ -325,7 +326,7 @@ impl VTerm {
             if chars >= beg_chars && cell.c == ' ' {
                 cell.flags.set(Flags::DIM, false);
             }
-            chars += render::cell_char_count(cell);
+            chars += cell.char_count();
         }
         self.extra_damage.insert(line);
     }
@@ -341,7 +342,7 @@ impl VTerm {
         let prev_line: Line = line - 1;
         let prev_row = &mut grid[prev_line];
         let mut prev_damaged = false;
-        if prev_row[last_column].flags.contains(Flags::WRAPLINE) {
+        if prev_row.is_wrapped() {
             prev_row[last_column].flags.remove(Flags::WRAPLINE);
             blank_trailing(prev_row);
             prev_damaged = true;

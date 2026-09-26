@@ -8,7 +8,7 @@ use alacritty_terminal::{
         ClipboardType, Config, Osc52, TermDamage, TermMode,
         cell::{Cell, Flags},
     },
-    vte::ansi::{self, Attr, Color, Handler, Processor},
+    vte::ansi::{self, Attr, Color, Handler, NamedPrivateMode, PrivateMode, Processor},
 };
 use emacs::{Env, IntoLisp, Result, Value};
 use std::{
@@ -702,15 +702,25 @@ where
         self.inner.report_mode(mode);
     }
 
-    fn set_private_mode(&mut self, mode: ansi::PrivateMode) {
-        self.inner.set_private_mode(mode);
+    fn set_private_mode(&mut self, mode: PrivateMode) {
+        match mode {
+            PrivateMode::Named(NamedPrivateMode::SwapScreenAndSetRestoreCursor) => {
+                if !self.inner.mode().contains(TermMode::ALT_SCREEN) {
+                    move_history(self.inner.grid_mut(), self.scrollback);
+                }
+                self.inner.set_private_mode(mode);
+            }
+            _ => {
+                self.inner.set_private_mode(mode);
+            }
+        }
     }
 
-    fn unset_private_mode(&mut self, mode: ansi::PrivateMode) {
+    fn unset_private_mode(&mut self, mode: PrivateMode) {
         self.inner.unset_private_mode(mode);
     }
 
-    fn report_private_mode(&mut self, mode: ansi::PrivateMode) {
+    fn report_private_mode(&mut self, mode: PrivateMode) {
         self.inner.report_private_mode(mode);
     }
 
@@ -1009,6 +1019,28 @@ mod tests {
         for line in 0..=term.bottommost_line().0 {
             assert!(term.grid()[Line(line)].is_clear());
         }
+    }
+
+    #[test]
+    fn save_scrollback_before_switching_to_alt_buf() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        assert_eq!(3, term.scrollback_row_count());
+
+        handler(&mut term).set_private_mode(PrivateMode::Named(
+            NamedPrivateMode::SwapScreenAndSetRestoreCursor,
+        ));
+
+        // scrollback is still available, even after the swap
+        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(
+            vec!["line 1", "line 2", "line 3"],
+            term.scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
     }
 
     /// --- test utilities

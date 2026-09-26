@@ -918,6 +918,35 @@ mod tests {
     }
 
     #[test]
+    fn scrollback_append() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        term.move_history();
+
+        term.process_bytes(b"line 6\r\nline 7\r\n");
+        assert_eq!(2, term.grid().history_size());
+
+        term.move_history();
+
+        // Everything is now in VTerm::scrollback; make sure it was
+        // handled properly.
+
+        assert_eq!(5, term.scrollback_row_count());
+        assert_eq!(
+            vec!["line 1", "line 2", "line 3", "line 4", "line 5"],
+            term.scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        assert_eq!(
+            row_to_string(term.last_scrollback_row().expect("last_row")),
+            "line 5"
+        );
+    }
+
+    #[test]
     fn ignore_clear_scrollback() {
         let mut term = VTerm::new(10, 3, Osc52::Disabled);
         term.enable_scrollback();

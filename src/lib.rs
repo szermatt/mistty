@@ -108,36 +108,6 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTerm, bytes: Vector) -> Result<Va
     term.handle_events(env)
 }
 
-/// Return the content of the virtual terminal as a string with no
-/// properties, without wapped lines.
-#[defun]
-fn display_string<'a>(term: &VTerm) -> Result<String> {
-    Ok(term.display_substring(
-        Point::new(Line(0), Column(0)),
-        Point::new(term.bottommost_line(), term.last_column()),
-    ))
-}
-
-/// Return a subset of the content of the virtual terminal as a string
-/// with no properties, without wapped lines.
-///
-/// This returns the content of the range [start, end).
-#[defun]
-fn display_substring<'a>(
-    env: &'a Env,
-    term: &VTerm,
-    start_line: i32,
-    start_col: i32,
-    end_line: i32,
-    end_col: i32,
-) -> Result<Value<'a>> {
-    term.display_substring(
-        point_range_check(env, start_line, start_col, term)?,
-        point_range_boundary_check(env, end_line, end_col, term)?,
-    )
-    .into_lisp(env)
-}
-
 /// Return the position of the cursor as (LINE, COLUMN).
 ///
 /// LINE is a terminal line number betwen 0 and `mistty-mod-bottommost-line`.
@@ -153,13 +123,13 @@ fn cursor<'a>(env: &'a Env, term: &VTerm) -> Result<Value<'a>> {
 /// Check whether the alternate screen is in use.
 #[defun]
 fn alt_screen_p(term: &VTerm) -> Result<bool> {
-    Ok(term.inner().mode().contains(TermMode::ALT_SCREEN))
+    Ok(term.mode().contains(TermMode::ALT_SCREEN))
 }
 
 /// Check whether bracketed paste is enabled.
 #[defun]
 fn bracketed_paste_p(term: &VTerm) -> Result<bool> {
-    Ok(term.inner().mode().contains(TermMode::BRACKETED_PASTE))
+    Ok(term.mode().contains(TermMode::BRACKETED_PASTE))
 }
 
 /// Mark spaces at the given line between beg_chars and end_chars as clear.
@@ -184,13 +154,13 @@ fn cleanup_prompt_sp(env: &Env, term: &mut VTerm, line: i32) -> Result<()> {
 /// Create a `Column` that's guaranteed to be a valid column for the
 /// terminal that is inside the range [0, screen_columns).
 fn column_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Column> {
-    range_check(env, "column", val, 0..(term.inner().columns() as i32)).map(|c| Column(c as usize))
+    range_check(env, "column", val, 0..(term.grid().columns() as i32)).map(|c| Column(c as usize))
 }
 
 /// Create a `Column` that's valid for a boundary, that is, within
 /// the range [0, screen_columns].
 fn column_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Column> {
-    range_check(env, "column", val, 0..=(term.inner().columns() as i32)).map(|c| Column(c as usize))
+    range_check(env, "column", val, 0..=(term.grid().columns() as i32)).map(|c| Column(c as usize))
 }
 
 /// Create a `Column` that's guaranteed to be a valid line for the
@@ -202,7 +172,7 @@ fn line_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
 /// Create a `Column` that's guaranteed to be a valid line for the
 /// terminal that is inside the range [0, bottommost_line+1].
 pub fn line_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
-    range_check(env, "line", val, 0..=term.inner().screen_lines() as i32).map(|c| Line(c))
+    range_check(env, "line", val, 0..=term.grid().screen_lines() as i32).map(|c| Line(c))
 }
 
 /// Create a `Point` that's guaranteed to be a valid point within the

@@ -5,7 +5,7 @@ use alacritty_terminal::{
     grid::{Dimensions, Row},
     index::{Column, Line, Point},
     term::{
-        ClipboardType, Config, Osc52, TermDamage,
+        ClipboardType, Config, Osc52, TermDamage, TermMode,
         cell::{Cell, Flags},
     },
     vte::ansi::{self, Attr, Color, Handler, Processor},
@@ -36,7 +36,7 @@ pub struct VTerm {
     inner: Term<EventAccumulator>,
     processor: Processor,
     events: Rc<RefCell<VecDeque<Event>>>,
-    start_with_wrapped_line: bool,
+    continues_wrapped_line: bool,
     scrollback_enabled: bool,
     render_count: i32,
 
@@ -74,7 +74,7 @@ impl VTerm {
             inner,
             processor,
             events,
-            start_with_wrapped_line: false,
+            continues_wrapped_line: false,
             scrollback_enabled: false,
             render_count: 0,
             scrollback: vec![],
@@ -82,14 +82,31 @@ impl VTerm {
         }
     }
 
-    pub fn inner(&self) -> &Term<EventAccumulator> {
-        &self.inner
+    /// Current terminal mode.
+    pub fn mode(&self) -> &TermMode {
+        self.inner.mode()
     }
 
-    pub fn inner_mut(&mut self) -> &mut Term<EventAccumulator> {
-        &mut self.inner
+    /// Read-only access to the terminal grid.
+    ///
+    /// WARNING: history is incomplete in the grid. To access
+    /// scrollback/history, do not access rows below 0 directly but
+    /// instead go through functions such as [VTerm::scrollback] that
+    /// include both the scrollback in [VTerm] as the scrollback in
+    /// the grid.
+    pub fn grid(&self) -> &Grid<Cell> {
+        self.inner.grid()
     }
 
+    /// Return a modifiable reference to the terminal grid.
+    ///
+    /// If you modify terminal content, remember to register the
+    /// modified lines as extra damage.
+    fn grid_mut(&mut self) -> &mut Grid<Cell> {
+        self.inner.grid_mut()
+    }
+
+    /// Enable scrollback.
     pub fn enable_scrollback(&mut self) {
         if !self.scrollback_enabled {
             self.inner.grid_mut().update_history(SCROLLBACK_SIZE);
@@ -97,63 +114,68 @@ impl VTerm {
         }
     }
 
+    /// Disable scrollback.
     pub fn disable_scrollback(&mut self) {
         if self.scrollback_enabled {
-            self.inner_mut().grid_mut().update_history(0);
+            self.inner.grid_mut().update_history(0);
             self.scrollback.clear();
             self.scrollback_enabled = false;
         }
     }
 
+    /// Change terminal size.
     pub fn resize(&mut self, width: usize, height: usize) {
         let history_size = if self.scrollback_enabled {
             SCROLLBACK_SIZE
         } else {
             0
         };
-        self.inner_mut()
+        self.inner
             .resize(VTermDimensions::new(width, height, history_size));
     }
 
     /// Clear history, normally after having written scrollback to the
     /// buffer.
+    ///
+    /// This clears both the scrollback stored in [VTerm] as the
+    /// history stored in the grid.
     pub fn clear_scrollback(&mut self) {
         let wrapped = self.scrollback_ends_with_wrapline();
         self.scrollback.clear();
         self.inner.grid_mut().clear_history();
 
-        self.start_with_wrapped_line = wrapped;
+        self.continues_wrapped_line = wrapped;
     }
 
-    /// Return the last scrollback line, if any.
+    /// Check whether the last line cleared by the previous call to
+    /// [VTerm::clear_scrollback] ended within a line that was
+    /// wrapped, the first line scrollback or, if the scrollback is
+    /// empty, on the terminal, continues an existing line.
+    pub fn continue_wrapped_line(&self) -> bool {
+        self.continues_wrapped_line
+    }
+
+    /// Check whether existing scrollback data ends in an incomplete line.
     ///
     /// This takes into account the rows from [Self::scrollback] then
     /// the rows from the grid, before line 0.
-    fn last_scrollback_line(&self) -> Option<&Row<Cell>> {
-        if self.inner.grid().history_size() > 0 {
-            Some(&self.inner.grid()[Line(-1)])
-        } else {
-            self.scrollback.last()
-        }
-    }
-
-    /// Check whether scrollback ends in an incomplete line.
     pub fn scrollback_ends_with_wrapline(&self) -> bool {
         let last_column = self.inner.last_column();
-        self.last_scrollback_line()
+        self.last_scrollback_row()
             .map(|row| row[last_column].flags.contains(Flags::WRAPLINE))
             .unwrap_or(false)
     }
 
     /// Number of terminal lines in the scrollback.
-    pub fn scrollback_line_count(&self) -> usize {
+    pub fn scrollback_row_count(&self) -> usize {
         self.scrollback.len() + self.inner.grid().history_size()
     }
 
     /// Return all scrollback rows.
     ///
     /// This returns the rows from [Self::scrollback] then the rows
-    /// from the grid, before line 0.
+    /// from the grid, before line 0. There are
+    /// [VTerm::scrollback_row_count] rows.
     pub fn scrollback_rows(&self) -> impl Iterator<Item = &Row<Cell>> {
         let grid = self.inner.grid();
         let topmost_line = grid.topmost_line();
@@ -163,10 +185,16 @@ impl VTerm {
             .chain((topmost_line.0..0).map(|line| &grid[Line(line)]))
     }
 
-    /// Check whether the last line cleared by the previous call to
-    /// `clear_history` ended within a line that was wrapped.
-    pub fn start_with_wrapped_line(&self) -> bool {
-        self.start_with_wrapped_line
+    /// Return the last scrollback line, if any.
+    ///
+    /// This takes into account the rows from [Self::scrollback] then
+    /// the rows from the grid, before line 0.
+    fn last_scrollback_row(&self) -> Option<&Row<Cell>> {
+        if self.inner.grid().history_size() > 0 {
+            Some(&self.inner.grid()[Line(-1)])
+        } else {
+            self.scrollback.last()
+        }
     }
 
     /// Return the last line available in the virtual terminal, that
@@ -188,49 +216,7 @@ impl VTerm {
         self.inner.grid().last_column()
     }
 
-    /// Return the number of characters between two positions on the string.
-    ///
-    /// start and end must be valid points within the terminal. End
-    /// may be just outside the valid range.
-    ///
-    /// Newlines count as one character, even newlines added for
-    /// wrapping count. Empty columns count as one character.
-    pub fn count_chars(&self, start: Point, end: Point) -> usize {
-        self.apply_cell_counter(start, end, render::cell_char_count)
-    }
-
-    /// Return the number of cells between two positions.
-    ///
-    /// This count ignores clear cells. Each newline count as one.
-    pub fn count_cells(&self, start: Point, end: Point) -> usize {
-        self.apply_cell_counter(
-            start,
-            end,
-            |c| if render::is_clear(c.flags) { 0 } else { 1 },
-        )
-    }
-
-    /// Return the number of unwrapped line separating `start` from
-    /// `end`.
-    ///
-    /// This counts the number of newlines not marked as line wrap
-    /// between `start` and `end`.
-    ///
-    /// If `end` < `start` a negative number is returned.}
-    pub fn count_unwrapped_lines(&self, start: Line, end: Line) -> usize {
-        let grid = self.inner.grid();
-        let last_col = grid.last_column();
-        let mut count = 0;
-        for line in start.0..end.0 {
-            if !grid[Line(line)][last_col].flags.contains(Flags::WRAPLINE) {
-                count += 1;
-            }
-        }
-
-        count
-    }
-
-    /// Parse terminal data and update internal state
+    /// Parse terminal data and update internal state.
     pub fn process_bytes(&mut self, bytes: &[u8]) {
         self.processor.advance(
             &mut HandlerProxy::new(&mut self.inner, &mut self.scrollback),
@@ -266,6 +252,10 @@ impl VTerm {
                 Event::Title(title) => {
                     result = env.cons(env.list((title_sym, title))?, result)?;
                 }
+                Event::ResetTitle => {
+                    result = env.cons(env.list((title_sym, ""))?, result)?;
+                }
+
                 Event::ClipboardStore(clipboard, data) => match clipboard {
                     ClipboardType::Clipboard => {
                         env.call(kill_new, (data,))?;
@@ -284,69 +274,14 @@ impl VTerm {
                     }
                     ClipboardType::Selection => {}
                 },
-
-                _ => {}
+                Event::MouseCursorDirty | Event::CursorBlinkingChange => {}
+                Event::TextAreaSizeRequest(_) => {}
+                Event::Wakeup | Event::Bell | Event::Exit | Event::ChildExit(_) => {}
             };
         }
         result = env.call(nreverse_func, (result,))?;
 
         Ok(result)
-    }
-
-    /// Return the content of the display as the string within range
-    /// [start, end).
-    ///
-    /// start and end must be valid points within the terminal. End
-    /// may be just outside the valid range.
-    pub fn display_substring(&self, start: Point, end: Point) -> String {
-        self.inner.bounds_to_string(start, end)
-    }
-
-    /// Process cells within [start, end) with `counter` and sum it up.
-    ///
-    /// Newlines count as 1.
-    fn apply_cell_counter<F>(&self, start: Point, end: Point, counter: F) -> usize
-    where
-        F: Fn(&Cell) -> usize,
-    {
-        if start == end {
-            return 0;
-        }
-
-        // If end points to the beginning of a line, count the newline just before it.
-        let (last_line, add_final_nl) = if end.column.0 == 0 {
-            (end.line - 1, true)
-        } else {
-            (end.line, false)
-        };
-        let grid = self.inner().grid();
-        let last_column = grid.last_column();
-        let mut count = 0;
-        for line in start.line.0..=last_line.0 {
-            let line = Line(line);
-            let row = &grid[line];
-            let start_col = if line == start.line {
-                start.column
-            } else {
-                count += 1; // last line newline
-
-                Column(0)
-            };
-            let end_col = if line == end.line {
-                end.column
-            } else {
-                last_column + 1
-            };
-            count += row[start_col..end_col]
-                .iter()
-                .map(|c| counter(c))
-                .sum::<usize>();
-        }
-        if add_final_nl {
-            count += 1;
-        }
-
-        count
     }
 
     // Compare the render count with a value form Emacs side.
@@ -376,7 +311,7 @@ impl VTerm {
     /// Clear the given line from the given char to end of line.
     pub fn clear_to_eol(&mut self, line: Line, beg_chars: usize) {
         let mut chars = 0;
-        for cell in &mut self.inner_mut().grid_mut()[line] {
+        for cell in &mut self.grid_mut()[line] {
             if chars >= beg_chars && cell.c == ' ' {
                 cell.flags.set(Flags::DIM, false);
             }
@@ -391,7 +326,7 @@ impl VTerm {
             return;
         }
 
-        let grid = self.inner_mut().grid_mut();
+        let grid = self.grid_mut();
         let last_column = grid.last_column();
         let prev_line: Line = line - 1;
         let prev_row = &mut grid[prev_line];
@@ -408,8 +343,13 @@ impl VTerm {
         self.extra_damage.insert(line);
     }
 
+    /// Return the set of lines to refresh, `None` to refresh the whole screen.
+    ///
+    /// If there are no changes, return an empty vector.
+    ///
+    /// This returns the terminal lines modified since last call to [VTerm::reset_damage].
     pub fn damaged_lines(&mut self) -> Option<Vec<Line>> {
-        if let TermDamage::Partial(iter) = self.inner_mut().damage() {
+        if let TermDamage::Partial(iter) = self.inner.damage() {
             let mut lines: Vec<Line> = iter.map(|d| Line(d.line as i32)).collect();
             lines.extend(self.extra_damage.iter());
             lines.sort_unstable();
@@ -422,6 +362,8 @@ impl VTerm {
         }
     }
 
+    /// Reset damage, so the next call to [VTerm::damaged_lines]
+    /// returns an empty vector.
     pub fn reset_damage(&mut self) {
         self.extra_damage.clear();
         self.inner.reset_damage();
@@ -439,7 +381,8 @@ fn blank_trailing(row: &mut Row<Cell>) {
     }
 }
 
-/// Move the history from the current grid into the scrollback vector.
+/// Move the history from the current grid into the given scrollback
+/// vector.
 fn move_history(grid: &mut Grid<Cell>, history: &mut Vec<Row<Cell>>) {
     for line in grid.topmost_line().0..0 {
         let line = Line(line);
@@ -451,10 +394,12 @@ fn move_history(grid: &mut Grid<Cell>, history: &mut Vec<Row<Cell>>) {
     grid.clear_history();
 }
 
+/// Generate `(pty-write <value>)`
 fn pty_write<'a>(env: &'a Env, result: Value<'a>, data: String) -> Result<Value<'a>> {
     env.cons(env.list((pty_write_sym, data))?, result)
 }
 
+/// Set flags on a newly-created or reset grid.
 fn init_grid(grid: &mut alacritty_terminal::Grid<Cell>) {
     grid.cursor.template.flags |= Flags::DIM;
 }

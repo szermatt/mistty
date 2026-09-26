@@ -19,18 +19,6 @@
 (require 'mistty-testing)
 (require 'turtles)
 
-(ert-deftest mistty-alacritty-vt-process-bytes ()
-  (let ((term (mistty-alacritty-vt-make-vterm 80 10)))
-    ;; fill the screen
-    (mistty-alacritty-vt-process-bytes term (vconcat "\r0"))
-    (dotimes (i 9)
-      (mistty-alacritty-vt-process-bytes term (vconcat (format "\r\n%d" (1+ i)))))
-    (should (equal "0\n1\n2\n3\n4\n5\n6\n7\n8\n9" (mistty-alacritty-vt-display-string term)))
-
-    ;; scroll
-    (mistty-alacritty-vt-process-bytes term (vconcat "\r\n10"))
-    (should (equal "1\n2\n3\n4\n5\n6\n7\n8\n9\n10" (mistty-alacritty-vt-display-string term)))))
-
 (ert-deftest mistty-alacritty-vt-render ()
   (let ((term (mistty-alacritty-vt-make-vterm 20 10))
         (cursor (make-marker)))
@@ -368,10 +356,6 @@
          (equal
            "a\U0001F7E7square!"
           (mistty-test-content)))
-        (should (equal "a" (mistty-alacritty-vt-display-substring term 0 0 0 0)))
-        (should (equal "a\U0001F7E7" (mistty-alacritty-vt-display-substring term 0 0 0 1)))
-        (should (equal "a\U0001F7E7" (mistty-alacritty-vt-display-substring term 0 0 0 2)))
-        (should (equal "a\U0001F7E7s" (mistty-alacritty-vt-display-substring term 0 0 0 3)))
 
         ;; The following makes sure that the text properties are
         ;; applied to the right portion of the text, despite the

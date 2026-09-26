@@ -153,7 +153,7 @@ pub fn clear_scrollback(term: &mut VTerm) -> Result<()> {
 /// Return the number of terminal lines in the scrollback.
 #[defun]
 fn scrollback_line_count(term: &VTerm) -> Result<usize> {
-    Ok(term.scrollback_line_count())
+    Ok(term.scrollback_row_count())
 }
 
 /// Write scrollback lines to the current buffer.
@@ -169,13 +169,13 @@ fn scrollback_line_count(term: &VTerm) -> Result<usize> {
 /// If scrollback is disabled on the virtual terminal, this call
 /// always returns 0 and does nothing.
 pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
-    let grid = term.inner().grid();
+    let grid = term.grid();
     let last_column = grid.last_column();
     let history_size = grid.history_size();
     if history_size == 0 {
         return Ok(0);
     }
-    if term.start_with_wrapped_line() {
+    if term.continue_wrapped_line() {
         // TODO: move this logic elisp-side
         let c = env.call(char_before, [])?;
         if c.is_not_nil()
@@ -191,7 +191,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
         }
     }
     let mut as_string =
-        String::with_capacity(term.scrollback_line_count() as usize * (last_column.0 * 2 + 1));
+        String::with_capacity(term.scrollback_row_count() as usize * (last_column.0 * 2 + 1));
     let origin = BufferPos::point(env)?;
     let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_SCROLLBACK);
     let mut pos = origin;
@@ -353,8 +353,8 @@ pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Resul
 pub fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
     let damage = term.damaged_lines();
     let mut cursor_pos = None;
-    let cursor_line = term.inner().grid().cursor.point.line;
-    let last_written = last_written_line(term.inner().grid()).unwrap_or(Line(0));
+    let cursor_line = term.grid().cursor.point.line;
+    let last_written = last_written_line(term.grid()).unwrap_or(Line(0));
     let last_line = max(last_written, cursor_line);
     let start = BufferPos::point(env)?;
     if let Some(damaged_lines) = damage
@@ -424,7 +424,7 @@ pub fn render_lines<'a>(
     end: Line,
     mut cursor_pos: Option<&mut Option<BufferPos>>,
 ) -> Result<()> {
-    let grid = term.inner().grid();
+    let grid = term.grid();
     let last_column = grid.last_column();
     let cursor_point = grid.cursor.point;
     let origin = BufferPos::point(env)?;

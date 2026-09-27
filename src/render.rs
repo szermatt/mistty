@@ -170,10 +170,7 @@ fn scrollback_line_count(term: &VTerm) -> Result<usize> {
 /// If scrollback is disabled on the virtual terminal, this call
 /// always returns 0 and does nothing.
 pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
-    let grid = term.grid();
-    let last_column = grid.last_column();
-    let history_size = grid.history_size();
-    if history_size == 0 {
+    if term.scrollback_row_count() == 0 {
         return Ok(0);
     }
     if term.continue_wrapped_line() {
@@ -191,8 +188,9 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
             env.call(delete_char, (-1,))?;
         }
     }
-    let mut as_string =
-        String::with_capacity(term.scrollback_row_count() as usize * (last_column.0 * 2 + 1));
+    let mut as_string = String::with_capacity(
+        term.scrollback_row_count() as usize * (term.grid().last_column().0 * 2 + 1),
+    );
     let origin = BufferPos::point(env)?;
     let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_SCROLLBACK);
     let mut pos = origin;

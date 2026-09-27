@@ -706,8 +706,7 @@
           (mistty-alacritty-vt-process-bytes vterm (vconcat (format "\r\n%d" i)))
           (goto-char screen-top)
           (set-marker
-           screen-top (car (mistty-alacritty-vt-render
-                            vterm cursor))))
+           screen-top (car (mistty-alacritty-vt-render vterm cursor))))
         (should
          (equal
           (concat
@@ -1435,3 +1434,21 @@
            "16\n"
            "17<>\n")
           (mistty-test-content :trim nil :show cursor))))))
+
+(ert-deftest mistty-alacritty-vt-render-scrollback-after-reset ()
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-enable-scrollback vterm)
+
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "Baa, baa, black sheep\r\n"))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "have you any wool?\ecreset."))
+
+    (ert-with-test-buffer ()
+      (goto-char (point-min))
+      (let ((screen-top (car (mistty-alacritty-vt-render vterm cursor))))
+        (should (equal
+                 (concat
+                  "Baa, baa, black sheep\n"
+                  "have you any wool?\n"
+                  "<>reset.")
+                  (mistty-test-content :show screen-top)))))))

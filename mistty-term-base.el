@@ -183,6 +183,12 @@ sequence.")
 
 Always keep SCROLLINE-LIMIT and below.")
 
+(cl-defgeneric mistty--term-clear-scrollback (term)
+  "Clear any scrollback still stored in the terminal.
+
+This is in addition to clearing the scrollback that's already copied
+over to the work buffer.")
+
 (provide 'mistty-term-base)
 
 ;;; mistty-term-base.el ends here

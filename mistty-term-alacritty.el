@@ -314,6 +314,15 @@ Always keep SCROLLINE-LIMIT and below."
    (unless (mistty--term-alacritty-fs term)
      (mistty-osc133 "133" text))))
 
+(cl-defmethod mistty--term-clear-scrollback ((term mistty--term-alacritty))
+  "Clear any scrollback still stored in the process buffer or vterm."
+  (with-current-buffer (mistty--term-alacritty-buf term)
+    (when-let* ((home mistty-alacritty--home))
+      (when (> home (point-min))
+        (delete-region (point-min) home)))
+    (mistty-alacritty-vt-clear-scrollback
+     (mistty--term-alacritty-vterm term))))
+
 (provide 'mistty-term-alacritty)
 
 ;;; mistty-term-alacritty.el ends here

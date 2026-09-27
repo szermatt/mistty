@@ -444,6 +444,14 @@ Always keep SCROLLINE-LIMIT and below."
     (when (>= scrolline-limit mistty--scrolline-home-num)
       (mistty--truncate-buffer term-home-marker))))
 
+(cl-defmethod mistty--term-clear-scrollback ((term mistty--term-eterm))
+  "Clear any scrollback still stored in the process buffer or vterm."
+  (with-current-buffer (mistty--term-eterm-buf term)
+    (when (> term-home-marker (point-min))
+      (let ((inhibit-read-only t)
+            (inhibit-modification-hooks t))
+        (delete-region (point-min) term-home-marker)))))
+
 (defun mistty--term-postprocess-changed (accum term)
   "Set \\='mistty-skip on the regions changed since last call.
 

@@ -586,8 +586,9 @@ Return non-nil if changes were detected."
     ;; breakages when the term buffer is killed.
     (funcall func)
     (mistty--with-live-buffer term-buffer
-      (/= old-sync-position (mistty--with-live-buffer term-buffer
-                              (mistty--find-scrolline scrolline))))))
+      (when-let* ((new-sync-position (mistty--with-live-buffer term-buffer
+                                       (mistty--find-scrolline scrolline))))
+        (/= old-sync-position new-sync-position)))))
 
 (defvar-local mistty--point-marker nil
   "Marker (re)used by `mistty--sync-buffer' on Emacs 31 and later.")

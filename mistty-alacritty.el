@@ -402,12 +402,12 @@ The current buffer must have a virtual terminal associated."
   (when-let* ((vterm mistty-alacritty--vterm))
     (save-excursion
       (goto-char mistty-alacritty--home)
-      (mistty-log "RENDER @%s" mistty--scrolline-home-num)
-      (pcase-let ((`(,screen-top ,scrollback-lines)
+      (pcase-let ((`(,screen-top . ,scrollback-lines)
                    (mistty-alacritty-vt-render vterm mistty-alacritty--cursor)))
-        (unless (zerop scrollback-lines)
-          (cl-incf mistty--scrolline-home-num scrollback-lines)
-          (mistty-alacritty-vt-clear-scrollback vterm))
+        (mistty-alacritty-vt-clear-scrollback vterm)
+        (cl-incf mistty--scrolline-home-num scrollback-lines)
+        (mistty-log "RENDER @%s (+%s)"
+                    mistty--scrolline-home-num scrollback-lines)
         (set-marker mistty-alacritty--home screen-top))
       (when-let* ((proc (get-buffer-process (current-buffer))))
         (when (process-live-p proc)

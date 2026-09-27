@@ -1607,22 +1607,22 @@ terminal region of WORK-BUFFER in sync with TERM-BUFFER."
    accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
    (lambda (ctx str)
      (mistty--accum-ctx-push-down ctx str)
-       (mistty--accum-ctx-flush ctx)
-       (mistty-log "RESET")
+     (mistty--accum-ctx-flush ctx)
+     (mistty-log "RESET")
 
-       (mistty--with-live-buffer work-buffer
-         (when mistty-fullscreen
-           (mistty--leave-fullscreen work-buffer))
-         (mistty--cancel-queue mistty--queue)
-         (mistty--release-all-changesets)
-         (setq mistty--inhibit-refresh nil)
-         (setq mistty-bracketed-paste nil))
-       (mistty--with-live-buffer term-buffer
-         (setq mistty-bracketed-paste nil))
+     (mistty--with-live-buffer work-buffer
+       (when mistty-fullscreen
+         (mistty--leave-fullscreen work-buffer))
+       (mistty--cancel-queue mistty--queue)
+       (mistty--release-all-changesets)
+       (setq mistty--inhibit-refresh nil)
+       (setq mistty-bracketed-paste nil))
+     (mistty--with-live-buffer term-buffer
+       (setq mistty-bracketed-paste nil))
 
-       (if mistty-allow-clearing-scrollback
-           (mistty--clear-scrollback)
-         (mistty--scroll-after-reset))))
+     (if mistty-allow-clearing-scrollback
+         (mistty--clear-scrollback)
+       (mistty--scroll-after-reset))))
 
   (mistty--accum-add-processor
    accum '(seq CSI ?3 ?J) ;; Clear scrollback
@@ -1659,7 +1659,9 @@ kept."
     (when (> mistty-sync-marker 1)
       (let ((inhibit-modification-hooks t)
             (inhibit-read-only t))
-        (delete-region 1 mistty-sync-marker)))))
+        (delete-region 1 mistty-sync-marker)))
+    (mistty-log "CLEAR SCROLLBACK (term)")
+    (mistty--term-clear-scrollback mistty--term)))
 
 (defun mistty--maybe-scroll-windows ()
   "Scroll windows as appropriate for the terminal mode.

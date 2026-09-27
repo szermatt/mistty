@@ -160,6 +160,14 @@ terminals."
                  (const "xterm")
                  string))
 
+(defvar mistty-alacritty--inhibit-render nil
+  "Tell the process filter not to update buffer content.
+
+This is meant to be set temporarily, within a let form that calls the
+filter.
+
+The virtual terminal state is still updated when this variable is set.")
+
 (defvar-local mistty-alacritty--vterm nil
   "Virtual terminal tied to the buffer, from mistty-alacritty-vt.")
 
@@ -378,7 +386,8 @@ PROC, for the process and STR for the data to send to the terminal."
   (mistty-log "RECV %S" str)
   (mistty--with-live-buffer (process-buffer proc)
     (mistty-alacritty--process-bytes str)
-    (mistty-alacritty--render)))
+    (unless mistty-alacritty--inhibit-render
+      (mistty-alacritty--render))))
 
 (defun mistty-alacritty--process-bytes (str)
   "Send bytes from STR to the virtual terminal to be processed.

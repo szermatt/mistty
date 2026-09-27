@@ -143,7 +143,8 @@ column count. The default is 80x24."
          accum
          (lambda (func)
            (if (mistty--term-alacritty-fs term)
-               (funcall func)
+               (let ((mistty-alacritty--inhibit-render))
+                 (funcall func))
 
              (let ((limit (funcall sync-scrolline)))
                (when (mistty--detect-change-before-scrolline

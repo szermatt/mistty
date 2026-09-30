@@ -20,6 +20,7 @@
 ;; normally accessed through mistty.el.
 
 ;;; Code:
+(require 'mistty-log)
 
 (defconst mistty-del "\C-h"
   "Sequence to send to the process when backspace is pressed.
@@ -349,6 +350,14 @@ The default value of this map was created by applying
 `mistty-reverse-input-decode-map', defined in
 mistty-reverse-input-decode-map.el to `xterm-function-map'.")
 
+(defvar mistty-start-send-key-sequence-hook nil
+  "Hooks run when `mistty-send-key-sequence' starts.
+
+Failures interrupt `mistty-send-key-sequence'.")
+
+(defvar mistty-kbd-end-key-send-sequence-hook nil
+  "Hooks run when `mistty-send-key-sequence' has ended.")
+
 (defvar-local mistty-bracketed-paste nil
   "Whether bracketed paste is enabled in the buffer's terminal.
 
@@ -424,21 +433,32 @@ doesn't support, such as a mouse event.
 It can also be stopped programmatically by calling
 `mistty-exit-send-key-sequence' from a hook or a filter."
   (interactive)
-  (catch 'mistty-send-key-sequence
-    (let ((mistty--send-key-sequence-active t)
-          key)
-      (while
-          (and
-           (setq key
-                 (read-key "Sending all KEYS to terminal... Exit with C-g."
-                           'inherit-input-method))
-           (not (eq key ?\C-g)))
+  (when mistty--send-key-sequence-active
+    (error "Recursive call to mistty-send-key-sequence"))
+  (unwind-protect
+      (let ((mistty--send-key-sequence-active t))
+        (mistty-log "capture start hook")
+        (run-hooks 'mistty-start-send-key-sequence-hook)
+        (catch 'mistty-send-key-sequence
+          (let (key)
+            (while
+                (and
+                 (setq key
+                       (read-key "Sending all KEYS to terminal... Exit with C-g."
+                                 'inherit-input-method))
+                 (not (eq key ?\C-g)))
 
-        (pcase key
-          (`(xterm-paste ,str)
-           (funcall mistty--send-function
-                    (mistty--maybe-bracketed-str str) nil nil nil))
-          (_ (mistty-send-key 1 (make-vector 1 key))))))))
+              (pcase key
+                (`(xterm-paste ,str)
+                 (funcall mistty--send-function
+                          (mistty--maybe-bracketed-str str) nil nil nil))
+                (_ (mistty-send-key 1 (make-vector 1 key))))))))
+    (mistty-log "capture end hook")
+    (run-hook-wrapped
+     'mistty-end-send-key-sequence-hook
+     (lambda (func)
+       (mistty-with-errors-logged "mistty-end-key-sequence-hook"
+         (funcall func))))))
 
 (defun mistty-exit-send-key-sequence ()
   "Abort any currently running `mistty-send-key-sequence'.

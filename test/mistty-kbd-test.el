@@ -47,3 +47,29 @@
     ;; override the default translation of M-a to \ea by adding it to the map
     (define-key map (kbd "M-a") "foobar")
     (should (equal "foobar" (mistty-translate-key (kbd "M-a") 1)))))
+
+(ert-deftest mistty-kbd-send-key-sequence-hooks  ()
+  (ert-with-test-buffer ()
+    (let ((buf (current-buffer))
+          (events nil)
+          (mistty-start-send-key-sequence-hook nil)
+          (mistty-end-send-key-sequence-hook nil))
+      (add-hook 'mistty-start-send-key-sequence-hook
+                (lambda ()
+                  (push `(start ,mistty--send-key-sequence-active) events)))
+      (add-hook 'mistty-end-send-key-sequence-hook
+                (lambda ()
+                  (push `(end ,mistty--send-key-sequence-active) events)))
+      (setq mistty--send-function (lambda (str key &rest _)
+                                    (push `(key ,key) events)
+                                    (with-current-buffer buf
+                                      (insert str))))
+      (ert-simulate-keys '(?f ?o ?o ?\C-g)
+        (mistty-send-key-sequence))
+      (should (equal "foo" (buffer-string)))
+      (should (equal '((start t)
+                       (key [?f])
+                       (key [?o])
+                       (key [?o])
+		       (end nil))
+                     (nreverse events))))))

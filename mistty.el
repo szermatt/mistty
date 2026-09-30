@@ -983,7 +983,11 @@ be ignored if coming from window size.")
   (setq-local imenu-create-index-function #'mistty-imenu-create-index)
   (setq-local imenu-sort-function nil) ;; keep imenu entries in order
 
-  (mistty--update-prompt-map)
+  (add-hook 'mistty-start-send-key-sequence-hook
+            #'mistty--update-secondary-mode nil t)
+  (add-hook 'mistty-end-send-key-sequence-hook
+            #'mistty--update-secondary-mode nil t)
+  (mistty--update-secondary-mode)
 
   (when mistty-fringe-enabled
     (mistty-fringe-mode 'on)))
@@ -1114,6 +1118,12 @@ window."
            (accum (process-filter (mistty--term-proc term))))
       (mistty--add-toggle-cursor accum work-buffer term-buffer)
       (mistty--add-sync-buffers accum work-buffer term-buffer)
+
+      (with-current-buffer term-buffer
+        (add-hook 'mistty-start-send-key-sequence-hook
+                  #'mistty--update-secondary-mode nil t)
+        (add-hook 'mistty-end-send-key-sequence-hook
+                  #'mistty--update-secondary-mode nil t))
 
       (mistty--attach term)))
   (mistty--wrap-capf-functions)

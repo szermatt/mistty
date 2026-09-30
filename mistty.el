@@ -2300,11 +2300,10 @@ SCROLLINE is the scrolline at BEG."
        (when (and (mistty-on-prompt-p (point))
                   (mistty-on-prompt-p (mistty-cursor)))
          (setq mistty--end-prompt (mistty-cursor)))
+       (setq mistty--interacted t)
        (mistty--interact-send interact "\C-m")
        (mistty--interact-wait-for-output-then
-        (lambda (&optional _)
-          (setq mistty--interacted t)
-          (mistty--interact-done)))))))
+        #'mistty--interact-done)))))
 
 (defun mistty-newline (&optional n)
   "Send one ore more newlines that won't submit the current command.

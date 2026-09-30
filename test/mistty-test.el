@@ -5068,7 +5068,7 @@
 
     (customize-set-variable 'mistty-fringe-enabled orig-value)))
 
-(mistty-deftest mistty-kill-buffer-after-exit ( :type all)
+(mistty-deftest mistty-kill-buffer-after-exit (:type all :shell (bash zsh fish))
   (let ((mistty-at-end 'kill-buffer-and-window))
     (add-hook 'mistty-after-process-end-hook #'mistty--at-end)
     (let ((term-proc mistty-proc)

@@ -304,10 +304,12 @@ defaulting to 80 x 24."
                (funcall func)
 
              (let ((limit (funcall sync-scrolline)))
+               (if (or (null limit) (<= limit 0))
+                   (funcall func)
                (when (mistty--detect-change-before-scrolline
                       func (mistty--term-eterm-buf term) limit)
                  (mistty-log "DETECTED BUFFER CHANGE, above %s" limit)
-                 (setf (mistty--term-eterm-change-before-scrolline term) t))))))
+                 (setf (mistty--term-eterm-change-before-scrolline term) t)))))))
 
         term))))
 
@@ -638,9 +640,12 @@ all situations, even when no work buffer is available."
     (mistty--with-live-buffer (process-buffer proc)
       (mistty--adjust-scrolline-base)
 
-      ;; MisTTY always wants the point at process mark, no matter what.
-      ;; term-mode is not so categorical and might sometimes lose sync
-      ;; during resizes.
+      ;; term-emulate-terminal sometimes ends up with the process mark
+      ;; coming before the home marker or the point not at the process
+      ;; mark. This is a workaround.
+      (move-marker
+       (process-mark proc)
+       (max (process-mark proc) term-home-marker))
       (goto-char (process-mark proc)))))
 
 (defun mistty--adjust-scrolline-base ()

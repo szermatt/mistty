@@ -5050,6 +5050,24 @@
       (mistty-send-command)
       (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc))))
 
+(mistty-deftest mistty-buffer-after-exit (:type all)
+  (let ((mistty-at-end nil))
+    (add-hook 'mistty-after-process-end-hook #'mistty--at-end)
+    (let ((proc mistty-proc))
+      (mistty-send-text "exit")
+      (mistty-send-command)
+      (mistty-wait-for-output
+       :test (lambda ()
+               (not (process-live-p proc)))
+       :on-error (lambda ()
+                   (error "Process didn't die. Status: %s"
+                          (process-status proc))))
+      (mistty-wait-for-output :str "Process")
+      ;; eterm prints the process name, alacritty doesn't 
+      (should (string-match "Process .*?finished"
+                     (mistty-test-content
+                      :start (mistty--bol (point-max) 0)))))))
+
 (ert-deftest mistty-keep-buffer-after-immediate-exit/alacritty ()
   (let ((mistty-terminal-type 'alacritty))
     (mistty-keep-buffer-after-immediate-exit)))

@@ -432,7 +432,7 @@ process is dead."
     (mistty--with-live-buffer (process-buffer proc)
       (save-excursion
         (goto-char (point-max))
-        (insert "\nProcess %s" msg)))
+        (insert "\nProcess " msg)))
     (set-process-buffer proc nil)
     (delete-process proc)))
 

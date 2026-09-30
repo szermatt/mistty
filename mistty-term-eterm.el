@@ -237,11 +237,14 @@ defaulting to 80 x 24."
                ;; launching recent versions of fish. This code works around
                ;; the problem by deleting anything after the position that
                ;; was end-of-buffer just before CSI 47 h was handled.
-               (when (and end (< end (point-max))
-                          (eq ?\n (char-after end)))
-                 (let ((inhibit-read-only t))
-                   (delete-region end (point-max))))
-               (move-marker end nil)
+               (mistty--with-live-buffer (mistty--term-eterm-buf term)
+                 (when (and end
+                            (< end (point-max))
+                            (eq ?\n (char-after end)))
+                   (let ((inhibit-read-only t))
+                     (delete-region end (point-max)))
+                   (move-marker end nil))
+                 (setq end nil))
                (setf (mistty--term-eterm-fs term) nil)
                (funcall leave-fullscreen)))))
 
@@ -277,17 +280,20 @@ defaulting to 80 x 24."
         (mistty--accum-add-around-process-filter
          accum
          (lambda (func)
-           (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
-                     ((symbol-function 'term-delete-chars)
-                      (lambda (count)
-                        (let ((save-point (point)))
-                          (move-to-column (+ (term-current-column) count) t)
-                          (delete-region save-point (point)))))
-                     ((symbol-function 'move-to-column)
-                      (let ((orig (symbol-function 'move-to-column)))
-                        (lambda (&rest args)
-                          (apply #'mistty--around-move-to-column orig args)))))
-             (funcall func))))
+           (if (mistty--term-eterm-fs term)
+               (funcall func)
+
+             (cl-letf ((inhibit-modification-hooks nil) ;; run mistty--after-change-on-term
+                       ((symbol-function 'term-delete-chars)
+                        (lambda (count)
+                          (let ((save-point (point)))
+                            (move-to-column (+ (term-current-column) count) t)
+                            (delete-region save-point (point)))))
+                       ((symbol-function 'move-to-column)
+                        (let ((orig (symbol-function 'move-to-column)))
+                          (lambda (&rest args)
+                            (apply #'mistty--around-move-to-column orig args)))))
+               (funcall func)))))
 
         ;; Detect changes made to the terminal above the sync scrolline, which
         ;; means that the sync scrolline needs to be updated.

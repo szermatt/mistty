@@ -1428,24 +1428,51 @@
        "$")
       (buffer-string)))))
 
-(mistty-deftest mistty-test-enter-split-fullscreen (:selected t :type eterm)
+(mistty-deftest mistty-test-enter-split-fullscreen (:selected t :type eterm :turtles t)
   (let ((bufname (buffer-name))
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
         (proc mistty-proc))
-
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
     (should (executable-find "vi"))
     (execute-kbd-macro (kbd "v i RET"))
     (mistty-wait-for-output
      :proc proc
      :test
      (lambda ()
-       (with-current-buffer work-buffer mistty-fullscreen)))
+       (with-current-buffer work-buffer
+         mistty-fullscreen)))
+    (ert-run-idle-timers)
     (should (eq mistty-term-buffer (window-buffer (selected-window))))
     (should (equal (concat bufname " scrollback") (buffer-name work-buffer)))
     (should (equal bufname (buffer-name term-buffer)))
+    (with-current-buffer work-buffer
+      (should (eq 'split mistty-fullscreen)))
     (with-current-buffer term-buffer
-      (should mistty-fullscreen-mode))
+      (should mistty-fullscreen-mode)
+      (should (eq 'split mistty-fullscreen)))
+    (pop-to-buffer work-buffer)
+    (delete-other-windows)
+    (turtles-with-grab-buffer (:buf work-buffer)
+      ;; Check what the work buffer looks like. Turtles is necessary,
+      ;; since the message is displayed using display properties and
+      ;; not just added to the buffer.
+      (should
+       (equal
+        (concat
+         "$ echo one\n"
+         "one\n"
+         "$ echo two\n"
+         "two\n"
+         "$ vi\n"
+         "\n"
+         "Fullscreen mode ON. C-c C-j switches between terminal and scrollback buffers."
+         )
+        (buffer-string))))
+    (pop-to-buffer term-buffer)
     (execute-kbd-macro (kbd ": q ! RET"))
     (mistty-wait-for-output
      :proc proc

@@ -73,3 +73,15 @@
                        (key [?o])
 		       (end nil))
                      (nreverse events))))))
+
+(ert-deftest mistty-kbd-send-key-sequence-mouse-event  ()
+  (ert-with-test-buffer ()
+    (let ((buf (current-buffer)))
+      (setq mistty--send-function (lambda (str key &rest _)
+                                    (with-current-buffer buf
+                                      (insert str))))
+      ;; down-mouse-1 must end the sequence and bar should never
+      ;; actually be typed
+      (ert-simulate-keys '(?f ?o ?o down-mouse-1 ?b ?a ?r ?\C-g)
+        (mistty-send-key-sequence))
+      (should (equal "foo" (buffer-string))))))

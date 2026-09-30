@@ -449,6 +449,8 @@ It can also be stopped programmatically by calling
                  (not (eq key ?\C-g)))
 
               (pcase key
+                ((pred mouse-event-p)
+                 (throw 'mistty-send-key-sequence nil))
                 (`(xterm-paste ,str)
                  (funcall mistty--send-function
                           (mistty--maybe-bracketed-str str) nil nil nil))

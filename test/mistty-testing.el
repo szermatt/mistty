@@ -47,7 +47,10 @@
 
   ;; Prevent minibuffer window from changing size and interfering with
   ;; window size tests
-  (setq resize-mini-windows nil))
+  (setq resize-mini-windows nil)
+
+  ;; Don't show line number in mode line; useful when testing mode lines
+  (line-number-mode -1))
 
 (defvar mistty-wait-for-output-timeout-s
   (if noninteractive 10 3)
@@ -953,5 +956,14 @@ This is meant to be compared with the output of `mistty-color-at-point'."
   (list (mistty-color-hex (face-foreground fg))
         (mistty-color-hex (face-background (or bg fg)))))
 
+(defun mistty-test-rename-buffer (name)
+  "Rename current buffer to NAME.
+
+Kill any other buffer with that name."
+  (when-let* ((buf (get-buffer name)))
+    (unless (eq buf (current-buffer))
+      (let ((kill-buffer-query-functions nil))
+        (kill-buffer buf))))
+  (rename-buffer name))
 
 (provide 'mistty-testing)

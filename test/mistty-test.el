@@ -3828,7 +3828,7 @@
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
     (should mistty--forbid-edit)
-    (should (equal " FE:run" mode-line-process))
+    (should (equal " ←↑↓→" mode-line-process))
 
     ;; following the cursor is disabled
     (let ((cursor (mistty-cursor)))
@@ -3847,7 +3847,7 @@
                (not (search-forward "search:" nil t)))))
 
     (should (not mistty--forbid-edit))
-    (should (equal ":run" mode-line-process))))
+    (should (equal " >_" mode-line-process))))
 
 (mistty-deftest mistty-test-exit-forbid-edit (:shell fish :type all)
   (let ((mistty-forbid-edit-regexps '("^search: ")))
@@ -4952,16 +4952,16 @@
 
 (mistty-deftest mistty-test-report-long-running-command ( :type all)
   (should-not (mistty-long-running-command-p))
-  (should (equal ":run" mode-line-process))
+  (should (equal " >_" mode-line-process))
 
   (mistty-report-long-running-command 'test t)
   (should (mistty-long-running-command-p))
-  (should (equal " CMD:run" mode-line-process))
+  (should (equal " …" mode-line-process))
 
   (insert "echo hello, world")
   (mistty-report-long-running-command 'test nil)
   (should-not (mistty-long-running-command-p))
-  (should (equal ":run" mode-line-process))
+  (should (equal " >_" mode-line-process))
 
   ;; the change made during the long-running command have been
   ;; replayed.
@@ -7305,3 +7305,262 @@ precmd_functions+=(prompt_header)
        (setq this-command 'other-two)
        (insert " corge"))
       (should (equal 'ansi-color-inverse (get-text-property (mistty-test-pos "corge") 'face))))))
+
+(mistty-deftest mistty-test-toggle-keymap-in-prompt-mode (:selected t :type all)
+  (let ((mistty-prompt-map (make-sparse-keymap "prompt"))
+        (mistty-fullscreen-mode-map (make-sparse-keymap "fs"))
+        (events nil))
+    (define-key mistty-prompt-map
+                "t" (lambda ()
+                      (interactive)
+                      (push 'prompt-t events)))
+    (define-key mistty-prompt-map
+                "p" (lambda ()
+                      (interactive)
+                      (push 'prompt-p events)))
+    (define-key mistty-fullscreen-mode-map
+                "t" (lambda ()
+                      (interactive)
+                      (push 'fs-t events)))
+    (define-key mistty-fullscreen-mode-map
+                "f" (lambda ()
+                      (interactive)
+                      (push 'fs-f events)))
+
+    ;; open a new prompt to be sure the right keymap are installed
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+
+    (execute-kbd-macro (kbd "t p f"))
+    (should (equal '(prompt-t prompt-p) (nreverse events)))
+    ;; prompt-map is installed, fullscreen-mode-map is not installed.
+
+    (mistty-toggle-keymap)
+
+    (setq events nil)
+    (execute-kbd-macro (kbd "t p f"))
+    (should (equal '(fs-t prompt-p fs-f) (nreverse events)))
+    ;; both prompt-map and fullscreen-mode-map are installed,
+    ;; fullscreen-mode-map takes precedence.
+
+    (mistty-toggle-keymap)
+
+    (setq events nil)
+    (execute-kbd-macro (kbd "t"))
+    (should (equal '(prompt-t) (nreverse events)))
+    ;; prompt-map is installed
+  ))
+
+(mistty-deftest mistty-test-toggle-keymap-in-fullscreen-mode (:selected t :type alacritty)
+  (let ((mistty-prompt-map (make-sparse-keymap "prompt"))
+        (mistty-fullscreen-mode-map (make-sparse-keymap "fs"))
+        (events nil))
+    (define-key mistty-prompt-map
+                "t" (lambda ()
+                      (interactive)
+                      (push 'prompt-t events)))
+    (define-key mistty-prompt-map
+                "p" (lambda ()
+                      (interactive)
+                      (push 'prompt-p events)))
+    (define-key mistty-fullscreen-mode-map
+                "t" (lambda ()
+                      (interactive)
+                      (push 'fs-t events)))
+    (define-key mistty-fullscreen-mode-map
+                "f" (lambda ()
+                      (interactive)
+                      (push 'fs-f events)))
+
+    ;; switch to fullscreen and make sure the right keymap is installed
+    (mistty--send-string
+     mistty-proc "printf '\\e[?1049h'; read -p 'FS'; printf '\\e[?1049lPROMPT\\n'")
+    (mistty-send-command)
+    (mistty-wait-for-output :start (point-min) :regexp "^FS")
+    (should mistty-fullscreen)
+
+    (execute-kbd-macro (kbd "t p f"))
+    (should (equal '(fs-t prompt-p fs-f) (nreverse events)))
+    ;; both prompt-map and fullscreen-mode-map are installed,
+    ;; fullscreen-mode-map takes precedence.
+
+    ;; toggle to prompt keymap
+    (mistty-toggle-keymap)
+
+    (setq events nil)
+    (execute-kbd-macro (kbd "t p f"))
+    (should (equal '(prompt-t prompt-p) (nreverse events)))
+    ;; prompt-map is installed, fullscreen-mode-map is not installed.
+
+    ;; toggle back to fullscreen keymap
+    (mistty-toggle-keymap)
+
+    (setq events nil)
+    (execute-kbd-macro (kbd "t p f"))
+    (should (equal '(fs-t prompt-p fs-f) (nreverse events)))
+    ;; both prompt-map and fullscreen-mode-map are installed,
+    ;; fullscreen-mode-map takes precedence.
+
+    ;; leave fullscreen, back to prompt
+    (mistty--send-string mistty-proc "\n")
+    (mistty-wait-for-output :start (point-min) :regexp "^PROMPT")
+    (should-not mistty-fullscreen)
+
+    (setq events nil)
+    (execute-kbd-macro (kbd "t p"))
+    (should (equal '(prompt-t prompt-p) (nreverse events)))
+    ;; prompt-map is installed
+  ))
+
+(mistty-deftest mistty-test-mode-line-prompt (:selected t :type all :turtles t)
+  ;; prompt
+  (should (eq 'prompt (mistty--secondary-mode)))
+  (mistty-test-rename-buffer "test-mode-line")
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY >_) ---------------------------------"
+             (buffer-string))))
+
+  ;; forbid-edit
+  (mistty-send-key 1 (kbd "C-r"))
+  (mistty-wait-for-output :str "reverse-i-search")
+  (should (eq 'arrows (mistty--secondary-mode)))
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY ←↑↓→) -------------------------------"
+             (buffer-string))))
+  (mistty-send-key 1 (kbd "ESC"))
+
+  (mistty-wait-for-output :str "$ " :cursor-at-end t :start (point-min))
+  (should (eq 'prompt (mistty--secondary-mode)))
+
+  ;; long-running command
+  (mistty-report-long-running-command 'test t)
+  (should (eq 'off (mistty--secondary-mode)))
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY …) ----------------------------------"
+             (buffer-string))))
+
+  (mistty-report-long-running-command 'test nil)
+  (should (eq 'prompt (mistty--secondary-mode)))
+
+  ;; dead
+  (mistty-send-text "exit")
+  (mistty-send-command)
+  (mistty-wait-for-output :str "finished")
+
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------"
+             (buffer-string)))))
+
+(mistty-deftest mistty-test-mode-line-send-key-sequence (:selected t :type all :turtles t)
+  (mistty-test-rename-buffer "test-mode-line")
+  
+  (turtles-with-minibuffer
+      (mistty-send-key-sequence)
+    (turtles-with-grab-buffer (:mode-line (selected-window))
+      (should (equal
+               "-UUU:**- F1  test-mode-line   All  (misTTY [#]) --------------------------------"
+               (buffer-string))))
+    :keys "C-g"))
+
+(mistty-deftest mistty-test-mode-line-prompt-with-fs-map (:selected t :type all :turtles t)
+  ;; prompt
+  (should (eq 'prompt (mistty--secondary-mode)))
+  (mistty-test-rename-buffer "test-mode-line")
+
+  (mistty-toggle-keymap)
+  
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY >_ ⌨) -------------------------------"
+             (buffer-string))))
+
+  ;; forbid-edit
+  (mistty-send-key 1 (kbd "C-r"))
+  (mistty-wait-for-output :str "reverse-i-search")
+  (should (eq 'arrows (mistty--secondary-mode)))
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY ←↑↓→ ⌨) -----------------------------"
+             (buffer-string))))
+  (mistty-send-key 1 (kbd "ESC"))
+
+  (mistty-wait-for-output :str "$ " :cursor-at-end t :start (point-min))
+  (should (eq 'prompt (mistty--secondary-mode)))
+
+  ;; long-running command
+  (mistty-report-long-running-command 'test t)
+  (should (eq 'off (mistty--secondary-mode)))
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY … ⌨) --------------------------------"
+             (buffer-string))))
+  (mistty-report-long-running-command 'test nil)
+  (should (eq 'prompt (mistty--secondary-mode)))
+
+  ;; dead (doesn't display the keyboard icon)
+  (mistty-send-text "exit")
+  (mistty-send-command)
+  (mistty-wait-for-output :str "finished")
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------"
+             (buffer-string)))))
+  
+(mistty-deftest mistty-test-mode-line-single-buffer-fs (:selected t :type alacritty :turtles t)
+  (mistty-test-rename-buffer "test-mode-line")
+  (mistty--send-string
+   mistty-proc "printf '\\e[?1049h'; read -p 'FS'\n")
+  (mistty-wait-for-output :start (point-min) :regexp "^FS")
+
+  (should (eq 'full (mistty--secondary-mode)))
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY [_] ⌨) ------------------------------"
+             (buffer-string))))
+
+  (mistty-toggle-keymap)
+
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             "-UUU:**- F1  test-mode-line   All  (misTTY [_]) --------------------------------"
+             (buffer-string)))))
+
+(mistty-deftest mistty-test-mode-line-split-buffer-fs (:selected t :type eterm :turtles t)
+  (let ((work-buffer mistty-work-buffer)
+        (term-buffer mistty-term-buffer)
+        (proc mistty-proc))
+    (with-current-buffer mistty-work-buffer 
+      (mistty-test-rename-buffer "test-mode-line"))
+    
+    (mistty--send-string
+     mistty-proc "printf '\\e[?1049h'; read -p 'FS'")
+    (mistty-send-command)
+    (mistty-wait-for-output
+     :test (lambda ()
+             (with-current-buffer term-buffer
+               (save-excursion
+                 (goto-char (point-min))
+                 (search-forward "FS" nil 'noerror)))))
+
+    (with-current-buffer mistty-work-buffer
+      (should (eq 'split mistty-fullscreen)))
+    
+    ;; term buffer
+    (pop-to-buffer mistty-term-buffer)
+    (delete-other-windows)
+    (turtles-with-grab-buffer (:mode-line (selected-window))
+      (should (equal
+               "-UUU:%*- F1  test-mode-line   All  (Term/misTTY ▲ ) ----------------------------"
+               (buffer-string))))
+
+    ;; work buffer (scrollback)
+    (pop-to-buffer mistty-work-buffer)
+    (delete-other-windows)
+    (turtles-with-grab-buffer (:mode-line (selected-window))
+      (should (equal
+               "-UUU:**- F1  test-mode-line scrollback   All  (misTTY ▼ ) ----------------------"
+               (buffer-string))))))

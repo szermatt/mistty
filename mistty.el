@@ -493,6 +493,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-o" #'mistty-select-output
   "C-c C-j" #'mistty-toggle
   "C-c C-q" #'mistty-send-key-sequence
+  "C-c C-k" #'mistty-toggle-keymap
   "C-c C-s" #'mistty-sudo
   "C-e" #'mistty-end-of-line-or-goto-cursor
 
@@ -519,7 +520,6 @@ This map is active whenever the current buffer is in MisTTY mode."
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
 
 (defvar-keymap mistty-prompt-map
-  :parent mistty-mode-map
   :doc "Keymap active on the part of `mistty-mode' synced with the terminal.
 
 This map is active only on the portion of a MisTTY mode buffer
@@ -952,6 +952,91 @@ be ignored if coming from window size.")
 Height smaller than that will not be accepted as terminal size and will
 be ignored if coming from window size.")
 
+(defconst mistty--secondary-mode-alist
+   '((dead :tag "×_×"
+           :help "Process is dead")
+     (running :tag "…"
+              :help "Process running"
+              :map prompt-map
+              :button menu)
+     (prompt :tag ">_"
+             :help "Prompt detected"
+             :map prompt-map
+             :button menu)
+     (off :tag "…"
+          :help "Emacs command executing"
+          :map prompt-map
+          :button exit-command)
+     (arrows :tag "←↑↓→"
+             :help "Special prompt detected, capturing arrows"
+             :map forbid-edit-map
+             :button menu)
+     (full :tag "[_]"
+           :help "Fullscreen command running"
+           :map fullscreen-mode-map
+           :button menu)
+     (scrollback :tag "▼ "
+                 :help "Fullscreen command running in another buffer"
+                 :button toggle)
+     (capture :tag "[#]"
+              :help "Keyboard capture"
+              :button exit-capture))
+   "Secondary mode ID and map.
+
+Each element is a plist that defines the associated overlay keymap, the
+tag as well as the help message and button to be shown in the modeline
+when the mode is active.
+
+Secondary mode is detected by `mistty--secondary-mode' and the
+map and mode line installed by `mistty--update-secondary-mode'")
+
+(defconst mistty--mode-line-button-alist
+  `((menu :menu mistty--secondary-mode-menu :help "Show menu")
+    (toggle :command mistty-toggle :help "Go to terminal buffer")
+    (exit-command :command mistty-ignore-long-running-command :help "Force exit of emacs command mode")
+    (exit-capture :command mistty-exit-send-key-sequence :help "End keyboard capture"))
+  "Button available in the mode-line.
+
+Normally accessed using `mistty--mode-line-button'.
+
+Entries in this list define buttons whose ID is referenced from
+`mistty--secondary-mode-alist'.")
+
+(defvar-local mistty--secondary-mode-map-override nil
+  "Temporarily override the :map tag of `mistty--secondary-mode-alist'.
+
+This is only valid for modes that have a non-nil :map tag.")
+
+(defconst mistty--fullscreen-mode-map-tag
+  (propertize "⌨" 'display '((height 0.7)))
+  "Tag that shows that the fullscreen map is active in modeline")
+
+(defvar mistty--secondary-mode-menu
+  (let ((map (make-sparse-keymap "Mistty")))
+    ;; Note that items are defined in reverse order
+
+    (define-key
+     map [capture]
+     '(menu-item "Capture Keyboard" mistty-send-key-sequence))
+    (define-key map [separator] '(menu-item "--"))
+    (define-key
+     map [fullscreen]
+     '(menu-item
+       "Fullscreen keymap"
+       mistty-toggle-keymap
+       :enable (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
+       :button (:radio . (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
+       :help "mistty-fullscreen-mode-map"))
+    (define-key
+     map [prompt]
+     '(menu-item
+       "Prompt keymap" mistty-toggle-keymap
+       :enable (eq 'fullscreen-mode-map (mistty--secondary-mode-map))
+       :button (:radio . (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map))))
+       :help "mistty-prompt-map"))
+
+    map))
+
 (define-derived-mode mistty-mode fundamental-mode "misTTY" "Line-based TTY."
   :interactive nil
   (setq buffer-read-only nil)
@@ -1086,34 +1171,34 @@ window."
                               (window-screen-lines))))))
     (let* ((work-buffer (current-buffer))
            (term (mistty--create-term
-                 (or mistty-terminal-type
-                     (if (mistty-alacritty-available-p)
-                         'alacritty
-                       'eterm))
-                 (concat " mistty tty " (buffer-name))
-                 (cons command args)
-                 :width width
-                 :height height
-                 :enter-fullscreen
-                 (lambda (split)
-                   (mistty--enter-fullscreen work-buffer split))
-                 :leave-fullscreen
-                 (lambda ()
-                   (mistty--leave-fullscreen work-buffer))
-                 :active-prompt
-                 (lambda ()
-                   (mistty--with-live-buffer work-buffer
-                     mistty--active-prompt))
-                 :after-clear-screen
-                 (lambda ()
-                   (mistty--with-live-buffer work-buffer
-                     (if mistty-allow-clearing-scrollback
-                         (mistty--clear-scrollback)
-                       (mistty--scroll-after-reset))))
-                 :sync-scrolline
-                 (lambda ()
-                   (mistty--with-live-buffer work-buffer
-                     mistty--scrolline-home-num))))
+                  (or mistty-terminal-type
+                      (if (mistty-alacritty-available-p)
+                          'alacritty
+                        'eterm))
+                  (concat " mistty tty " (buffer-name))
+                  (cons command args)
+                  :width width
+                  :height height
+                  :enter-fullscreen
+                  (lambda (split)
+                    (mistty--enter-fullscreen work-buffer split))
+                  :leave-fullscreen
+                  (lambda ()
+                    (mistty--leave-fullscreen work-buffer))
+                  :active-prompt
+                  (lambda ()
+                    (mistty--with-live-buffer work-buffer
+                      mistty--active-prompt))
+                  :after-clear-screen
+                  (lambda ()
+                    (mistty--with-live-buffer work-buffer
+                      (if mistty-allow-clearing-scrollback
+                          (mistty--clear-scrollback)
+                        (mistty--scroll-after-reset))))
+                  :sync-scrolline
+                  (lambda ()
+                    (mistty--with-live-buffer work-buffer
+                      mistty--scrolline-home-num))))
            (term-buffer (mistty--term-buf term))
            (accum (process-filter (mistty--term-proc term))))
       (mistty--add-toggle-cursor accum work-buffer term-buffer)
@@ -1127,7 +1212,7 @@ window."
 
       (mistty--attach term)))
   (mistty--wrap-capf-functions)
-  (mistty--update-mode-lines)
+  (mistty--update-secondary-mode)
   (run-hooks 'mistty-after-process-start-hook))
 
 (defun mistty--attach (term)
@@ -1208,10 +1293,10 @@ Returns M or a new marker."
 (defun mistty--kill-term-buffer ()
   "Kill-buffer-hook handler for `mistty-term-buffer'."
   (let ((term-buffer mistty-term-buffer))
-    (when (buffer-live-p mistty-work-buffer) ;; might be nil
-      (mistty--detach))
-    (mistty--update-mode-lines)
-    (when (buffer-live-p term-buffer)
+    (mistty--with-live-buffer mistty-work-buffer
+      (mistty--detach)
+      (mistty--update-secondary-mode))
+    (mistty--with-live-buffer term-buffer
       (when-let* ((proc (get-buffer-process term-buffer)))
         (when (process-live-p proc)
           (delete-process proc)))
@@ -1500,7 +1585,6 @@ See the documentation of `mistty-create' for details."
 PROC is the process, which might not be live anymore, and MSG is
 a special string describing the new process state."
   (mistty-with-errors-logged "process sentinel"
-    (mistty--update-mode-lines proc)
 
     (let ((work-buffer (process-get proc 'mistty-work-buffer))
           (term-buffer (process-buffer proc)))
@@ -1531,6 +1615,9 @@ a special string describing the new process state."
 
        ((buffer-live-p term-buffer)
         (kill-buffer term-buffer)))
+
+      (mistty--with-live-buffer work-buffer
+        (mistty--update-secondary-mode))
       (mistty--run-after-process-end-hooks work-buffer proc))))
 
 (defun mistty--run-after-process-end-hooks (buf proc)
@@ -1553,11 +1640,11 @@ buffer is killed."
 
 PROC is the process, which might not be live anymore, and MSG is a
 special string describing the new process state."
-  (mistty--update-mode-lines proc)
-
   (let ((process-dead (memq (process-status proc) '(signal exit)))
         (term-buffer (process-get proc 'mistty-term-buffer))
         (work-buffer (process-get proc 'mistty-work-buffer)))
+    (mistty--with-live-buffer work-buffer
+      (mistty--update-secondary-mode))
     (cond
      ((and process-dead (buffer-live-p term-buffer) (buffer-live-p work-buffer))
       (mistty--leave-fullscreen work-buffer)
@@ -1749,6 +1836,7 @@ function just sets `mistty--need-refresh' and returns.
 Also updates prompt and point."
   (mistty--require-work-buffer)
   (when (and mistty--need-refresh
+             (not (eq 'split mistty-fullscreen))
              (not mistty--inhibit-refresh)
              (not mistty--inhibit))
     (let ((inhibit-modification-hooks t)
@@ -1844,7 +1932,8 @@ Also updates prompt and point."
                       prompt-beg)
           (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
           (setf (mistty--prompt-realized prompt) t)
-          (setq mistty--active-prompt prompt))))
+          (setq mistty--active-prompt prompt)
+          (mistty--update-secondary-mode))))
     (when (mistty--prompt-realized prompt)
       (mistty--mark-continue-prompts prompt prompt-beg)
       (mistty--mark-right-prompt prompt-beg)
@@ -1860,13 +1949,11 @@ Also updates prompt and point."
     (cond
      ((and forbid-edit (not mistty--forbid-edit))
       (setq mistty--forbid-edit t)
-      (mistty--update-prompt-map)
-      (mistty--update-mode-lines)
+      (mistty--update-secondary-mode)
       (mistty-log "FORBID EDIT on"))
      ((and (not forbid-edit) mistty--forbid-edit)
       (setq mistty--forbid-edit nil)
-      (mistty--update-prompt-map)
-      (mistty--update-mode-lines)
+      (mistty--update-secondary-mode)
       (mistty-log "FORBID EDIT off"))))
 
   (unless mistty--active-prompt
@@ -2104,6 +2191,7 @@ SCROLLINE is a scrolline that's currently visible on the terminal."
       (mistty-log "Deactivate prompt #%s"
                   (mistty--prompt-input-id mistty--active-prompt))
       (setq mistty--active-prompt nil)
+      (mistty--update-secondary-mode)
       (setq mistty--end-prompt nil)))
 
     (mistty--process-archived-prompts sync-pos)
@@ -3323,7 +3411,7 @@ change."
     (unless was-inhibited
       (mistty-log "Long-running command ON %s" mistty--inhibit)
       (overlay-put mistty--sync-ov 'keymap nil)
-      (mistty--update-mode-lines))))
+      (mistty--update-secondary-mode))))
 
 (defun mistty--inhibit-remove (sym noschedule)
   "Remove a source of inhibition with SYM as id.
@@ -3334,8 +3422,7 @@ change, unless NOSCHEDULE evaluates to true."
     (setq mistty--inhibit (delq sym mistty--inhibit))
     (unless mistty--inhibit
       (mistty-log "Long-running command OFF")
-      (mistty--update-prompt-map)
-      (mistty--update-mode-lines)
+      (mistty--update-secondary-mode)
       (unless noschedule
         (run-with-idle-timer
          0 nil #'mistty--post-command-1
@@ -3710,8 +3797,7 @@ splits the buffers into a scrollback buffer and a terminal buffer."
           (mistty-fullscreen-mode 1))
         (setq mistty-fullscreen (if split 'split t)))
 
-      (mistty--update-prompt-map)
-      (mistty--update-mode-lines proc)
+      (mistty--update-secondary-mode)
       (run-hooks 'mistty-entered-fullscreen-hook)
       (mistty-log "Entered fullscreen mode (%s)" (if split "split" "single buffer")))))
 
@@ -3781,84 +3867,93 @@ When in split-buffer fullscreen mode, this also swaps the buffers back."
       (mistty--with-live-buffer mistty-term-buffer
         (mistty-fullscreen-mode -1)
         (setq mistty-fullscreen nil))
-      (mistty--update-prompt-map)
-      (mistty--update-mode-lines (mistty--term-proc term))
+
+      (mistty--update-secondary-mode)
       (run-hooks 'mistty-left-fullscreen-hook)
       (mistty-log "Left fullscreen mode"))))
 
-(defun mistty--update-mode-lines (&optional proc)
-  "Update the mode lines of the work and term buffers of PROC.
-
-If PROC is not specified, use the value of `mistty-work-buffer'
-and `mistty-term-buffer' to find the buffers.
+(defun mistty--update-mode-lines ()
+  "Update the mode lines of the work and term buffers.
 
 Ignores buffers that don't exist."
-  ;; work buffer modeline
-  (mistty--with-live-buffer
-      (or mistty-work-buffer
-          (and proc (process-get proc 'mistty-work-buffer)))
-    (cond
-     ((eq 'split mistty-fullscreen)
-      (setq mode-line-process
-            (propertize "scrollback"
-                        'help-echo "mouse-1: Go to Term buffer"
-                        'mouse-face 'mode-line-highlight
-                        'local-map '(keymap
-                                     (mode-line
-                                      keymap
-                                      (down-mouse-1 . emistty-toggle))))))
-     (mistty-proc
-      (setq mode-line-process
-            (concat
-             (cond
-              (mistty--inhibit
+  (mistty--with-live-buffer mistty-work-buffer
+    (setq mode-line-process
+          (when-let* ((mode (mistty--secondary-mode))
+                      (entry (alist-get mode mistty--secondary-mode-alist)))
+            (let ((button (plist-get entry :button)))
+              (concat
+               " "
+               ;; Display secondary mode
                (propertize
-                " CMD"
-                'help-echo "Long-running command, mouse-1: ignore command and re-enable MisTTY replays"
-                'mouse-face 'mode-line-highlight
-                'local-map '(keymap
-                             (mode-line
-                              keymap
-                              (down-mouse-1 . mistty-ignore-long-running-command)))))
-              (mistty--forbid-edit
-               (propertize
-                " FE"
-                'help-echo "Forbid Edit mode, see mouse-1: customize mistty-forbid-edit-regexps"
-                'mouse-face 'mode-line-highlight
-                'local-map '(keymap
-                             (mode-line
-                              keymap
-                              (down-mouse-1 . (lambda ()
-                                                (interactive)
-                                                (customize-option 'mistty-forbid-edit-regexps)))))))
-              (mistty-fullscreen
-               (propertize
-                " FS"
-                'help-echo "Fullscreen mode"
-                'mouse-face 'mode-line-highlight)))
-             (format ":%s" (process-status mistty-proc)))))
-     (t
-      (setq mode-line-process ":no process"))))
-  ;; term buffer modeline
-  (mistty--with-live-buffer
-      (or mistty-term-buffer (and proc (process-buffer proc)))
+                (plist-get entry :tag)
+                'help-echo (concat
+                            (plist-get entry :help)
+                            (when button
+                              (concat "\nmouse-1: "
+                                      (mistty--mode-line-button button :help))))
+                'mouse-face (when button 'mode-line-highlight)
+                'local-map (mistty--mode-line-button button))
+                ;; Show whether fullscreen map is active
+               (when (eq 'fullscreen-mode-map (mistty--secondary-mode-map))
+                 (concat
+                  " "
+                  (propertize
+                   mistty--fullscreen-mode-map-tag
+                   'help-echo (concat
+                               "Fullscreen keymap is active\nmouse-1: "
+                               (mistty--mode-line-button 'menu :help))
+                   'mouse-face 'mode-line-highlight
+                   'local-map (mistty--mode-line-button 'menu)))))))))
+
+  (mistty--with-live-buffer mistty-term-buffer
     (cond
      ((eq 'split mistty-fullscreen)
       (setq
        mode-line-process
        (concat
+        "/misTTY"
         (propertize
-         "misTTY"
-         'help-echo "mouse-1: Go to scrollback buffer"
+         " ▲ "
+         'help-echo (concat "Fullscreen command running, scrollback in another buffer\n"
+                            "mouse-1: Go to scrollback buffer")
          'mouse-face 'mode-line-highlight
          'local-map '(keymap
                       (mode-line
                        keymap
                        (down-mouse-1 . mistty-toggle))))
-        ":%s")))
+        (when mistty--send-key-sequence-active
+          (let ((entry (alist-get 'capture mistty--secondary-mode-alist)))
+            (propertize
+             (plist-get entry :tag)
+             'help-echo (concat (plist-get entry :help)
+                                "\nmouse-1: "
+                                (mistty--mode-line-button 'exit-capture :help))
+             'mouse-face 'mode-line-highlight
+             'local-map (mistty--mode-line-button 'exit-capture)))))))
      (t
       (setq mode-line-process "misTTY:%s"))))
+
   (force-mode-line-update))
+
+(defun mistty--mode-line-button (id &optional prop)
+  "Get the definition of button ID that correspond to PROP.
+
+This is a convenience function for accessing
+`mistty--mode-line-button-alist'.
+
+If PROP is nil, return the keymap defined as action, either by :command
+or by :menu, in `mistty--mode-line-button-alist'."
+  (if prop
+      (plist-get
+       (alist-get id mistty--mode-line-button-alist)
+       prop)
+    (let ((entry (alist-get id mistty--mode-line-button-alist)))
+      `(keymap
+        (mode-line
+         keymap
+         (down-mouse-1 . ,(if-let* ((menu (plist-get entry :menu)))
+                              (symbol-value menu)
+                            (plist-get entry :command))))))))
 
 (defun mistty--swap-buffer-in-windows (a b)
   "Swap buffers A and B in windows.
@@ -4396,26 +4491,93 @@ If OPTION-OVERRIDE is non-nil, use that instead of the value of
                    (window-parent win))
               (ignore-errors (delete-window)))))))))
 
-(defun mistty--update-prompt-map ()
-  "Install the appropriate terminal area keymap."
-  (overlay-put
-   mistty--sync-ov
-   'keymap
-   (cond
-    (mistty--inhibit
-     (mistty-log "Terminal area keymap: nil")
-     nil)
-    (mistty--forbid-edit
-     (mistty-log "Terminal area keymap: forbid-edit+prompt")
-     (make-composed-keymap (list mistty-forbid-edit-map
-                                 mistty-prompt-map)))
-    ((eq t mistty-fullscreen)
-     (mistty-log "Terminal area keymap: fullscreen-mode+forbid-edit+prompt")
-     (make-composed-keymap (list mistty-fullscreen-mode-map
-                                 mistty-prompt-map)))
-    (t
-     (mistty-log "Terminal area keymap: prompt")
-     mistty-prompt-map))))
+(defun mistty--secondary-mode (&optional prop)
+  "Return a property of the current secondary mode.
+
+If PROP is nil, return the ID, otherwise return the property defined in
+`mistty--secondary-mode-alist' for the current secondary mode.
+
+The ID corresponds to an entry in `mistty--secondary-mode-alist'."
+  (let ((id (cond
+             (mistty--send-key-sequence-active 'capture)
+             ((eq 'split mistty-fullscreen) 'scrollback)
+             ((or (not mistty-proc) (not (process-live-p mistty-proc))) 'dead)
+             ((eq t mistty-fullscreen) 'full)
+             (mistty--inhibit 'off)
+             (mistty--forbid-edit 'arrows)
+             (mistty--active-prompt 'prompt)
+             ((and mistty-proc (process-live-p mistty-proc)) 'running)
+             (t 'running))))
+    (if prop
+        (plist-get (alist-get id mistty--secondary-mode-alist) prop)
+      id)))
+
+(defun mistty--update-secondary-mode ()
+  "Update the secondary mode map and mode line.
+
+This should be called after changing anything that affects the secondary
+mode."
+  (mistty-log "Update secondary mode")
+  (when (eq (current-buffer) mistty-work-buffer)
+    (mistty--update-secondary-mode-map))
+  (mistty--update-mode-lines))
+
+(defun mistty--secondary-mode-map ()
+  "Return the secondary mode map.
+
+This merges the map configured in `mistty--secondary-mode-alist' with
+`mistty--secondary-mode-map-override'"
+  (when-let* ((map-id (mistty--secondary-mode :map)))
+    (or mistty--secondary-mode-map-override map-id)))
+
+(defun mistty--update-secondary-mode-map ()
+  "Install the appropriate keymap in the terminal area.
+
+The keymap that is installed depends on the secondary mode and secondary
+mode map override."
+  (let ((map-id (mistty--secondary-mode-map)))
+    (mistty-log "Install overlay map %s" map-id)
+    (overlay-put
+     mistty--sync-ov
+     'keymap
+     (pcase map-id
+       ('prompt-map mistty-prompt-map)
+       ('forbid-edit-map (make-composed-keymap
+                          mistty-forbid-edit-map mistty-prompt-map))
+       ('fullscreen-mode-map (make-composed-keymap
+                              mistty-fullscreen-mode-map mistty-prompt-map))
+       (_ nil)))))
+
+(defun mistty-toggle-keymap (&optional arg)
+  "Toggle terminal area keymap between prompt and fullscreen.
+
+When called in prompt mode, this command toggles
+`mistty-fullscreen-mode-map' on or off.
+
+When called in fullscreen mode, this command toggles `mistty-prompt-map'
+on or off.
+
+When called with a prefix argument, switch back to the default map for
+the mode."
+  (interactive "P")
+  (setq mistty--secondary-mode-map-override
+        (if arg
+            (progn
+              (message "MisTTY keymap: auto")
+              nil)
+          (let ((auto-map (mistty--secondary-mode :map))
+                (override mistty--secondary-mode-map-override))
+            (cond
+             ((and (null override) (eq 'fullscreen-mode-map auto-map))
+              (message "MisTTY keymap: prompt (forced)")
+              'prompt-map)
+             ((null override)
+              (message "MisTTY keymap: fullscreen (forced)")
+              'fullscreen-mode-map)
+             (t
+              (message "MisTTY keymap: auto")
+              nil)))))
+  (mistty--update-secondary-mode))
 
 (defun mistty-new-buffer-name ()
   "Generate a name for a new MisTTY buffer.

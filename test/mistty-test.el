@@ -2481,28 +2481,28 @@
   (mistty-wait-for-output :regexp "abc *$")
   (should (equal "abc" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-send-key-sequence  (:selected t :type all)
+(mistty-deftest mistty-test-capture-keyboard  (:selected t :type all)
   (mistty-send-text "echo abc def")
   (ert-simulate-keys '(?\C-w ?g ?i ?j ?\C-b ?\C-b ?h ?\C-e ?\C-g)
-    (mistty-send-key-sequence))
+    (mistty-capture-keyboard))
   (mistty-wait-for-output :str "ghij" :cursor-at-end t)
   (should (equal "abc ghij" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-send-key-sequence-paste  (:selected t :type all)
+(mistty-deftest mistty-test-capture-keyboard-paste  (:selected t :type all)
   (mistty-send-text "echo abc def")
   (ert-simulate-keys '((xterm-paste "hello\necho worl") ?d ?\C-g)
-    (mistty-send-key-sequence))
+    (mistty-capture-keyboard))
   (mistty-wait-for-output :str "world" :cursor-at-end t)
   (should (equal
            (concat "$ echo abc defhello\n"
                    "echo world")
            (mistty-test-content))))
 
-(mistty-deftest mistty-test-send-key-sequence-in-scrollback ( :type all)
+(mistty-deftest mistty-test-capture-keyboard-in-scrollback ( :type all)
   (mistty-simulate-scrollback-buffer
    (should-error
     (ert-simulate-keys '(?f ?o ?o)
-      (call-interactively 'mistty-send-key-sequence)))))
+      (call-interactively 'mistty-capture-keyboard)))))
 
 (mistty-deftest mistty-test-revert-insert-after-prompt (:shell zsh :type all)
   (dotimes (i 3)
@@ -7455,11 +7455,11 @@ precmd_functions+=(prompt_header)
              "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------"
              (buffer-string)))))
 
-(mistty-deftest mistty-test-mode-line-send-key-sequence (:selected t :type all :turtles t)
+(mistty-deftest mistty-test-mode-line-capture-keyboard (:selected t :type all :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
   
   (turtles-with-minibuffer
-      (mistty-send-key-sequence)
+      (mistty-capture-keyboard)
     (turtles-with-grab-buffer (:mode-line (selected-window))
       (should (equal
                "-UUU:**- F1  test-mode-line   All  (misTTY [#]) --------------------------------"

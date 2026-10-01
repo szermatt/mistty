@@ -213,7 +213,7 @@ This immediately follows the scrollback lines.")
     (keymap-set map "C-c C-z" #'mistty-send-last-key)
     (keymap-set map "C-c C-\\" #'mistty-send-last-key)
     (keymap-set map "C-c C-g" #'mistty-send-last-key)
-    (keymap-set map "C-c C-q" #'mistty-send-key-sequence)
+    (keymap-set map "C-c C-q" #'mistty-capture-keyboard)
     ;; TODO: support xterm-paste?
 
   map)

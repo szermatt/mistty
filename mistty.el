@@ -542,7 +542,7 @@ are sent directly to the terminal."
   (let ((map (make-sparse-keymap))
         (esc-map (make-sparse-keymap)))
     (keymap-set map "C-c C-j" #'mistty-toggle)
-    (keymap-set map "C-c C-q" #'mistty-send-key-sequence)
+    (keymap-set map "C-c C-q" #'mistty-capture-keyboard)
 
     ;; Send C-<ascii char> and M-<ascii char> to the terminal,
     ;; except for:
@@ -650,7 +650,7 @@ successfully. See `mistty-kill-buffer` and
 
 At the point this hook is called, `mistty-fullscreen` is non-nil.")
 
-(defvar mistty-left-fullscreen-hook '(mistty-exit-send-key-sequence)
+(defvar mistty-left-fullscreen-hook '(mistty-exit-capture-keyboard)
   "Report that MisTTY just left fullscreen mode.
 
 At the point this hook is called, `mistty-fullscreen` is nil.")
@@ -960,7 +960,7 @@ map and mode line installed by `mistty--update-secondary-mode'")
   `((menu :menu mistty--secondary-mode-menu :help "Show menu")
     (toggle :command mistty-toggle :help "Go to terminal buffer")
     (exit-command :command mistty-ignore-long-running-command :help "Force exit of emacs command mode")
-    (exit-capture :command mistty-exit-send-key-sequence :help "End keyboard capture"))
+    (exit-capture :command mistty-exit-capture-keyboard :help "End keyboard capture"))
   "Button available in the mode-line.
 
 Normally accessed using `mistty--mode-line-button'.
@@ -983,7 +983,7 @@ This is only valid for modes that have a non-nil :map tag.")
 
     (define-key
      map [capture]
-     '(menu-item "Capture Keyboard" mistty-send-key-sequence))
+     '(menu-item "Capture Keyboard" mistty-capture-keyboard))
     (define-key map [separator-1] '(menu-item "--"))
     (define-key
      map [fullscreen]
@@ -1047,7 +1047,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-r" #'mistty-create-buffer-with-output
   "C-c C-o" #'mistty-select-output
   "C-c C-j" #'mistty-toggle
-  "C-c C-q" #'mistty-send-key-sequence
+  "C-c C-q" #'mistty-capture-keyboard
   "C-c C-k" #'mistty-toggle-keymap
   "C-c C-s" #'mistty-sudo
   "C-e" #'mistty-end-of-line-or-goto-cursor
@@ -1104,9 +1104,9 @@ This map is active whenever the current buffer is in MisTTY mode."
   (setq-local imenu-create-index-function #'mistty-imenu-create-index)
   (setq-local imenu-sort-function nil) ;; keep imenu entries in order
 
-  (add-hook 'mistty-start-send-key-sequence-hook
+  (add-hook 'mistty-start-capture-keyboard-hook
             #'mistty--update-secondary-mode nil t)
-  (add-hook 'mistty-end-send-key-sequence-hook
+  (add-hook 'mistty-end-capture-keyboard-hook
             #'mistty--update-secondary-mode nil t)
   (mistty--update-secondary-mode)
 
@@ -1241,9 +1241,9 @@ window."
       (mistty--add-sync-buffers accum work-buffer term-buffer)
 
       (with-current-buffer term-buffer
-        (add-hook 'mistty-start-send-key-sequence-hook
+        (add-hook 'mistty-start-capture-keyboard-hook
                   #'mistty--update-secondary-mode nil t)
-        (add-hook 'mistty-end-send-key-sequence-hook
+        (add-hook 'mistty-end-capture-keyboard-hook
                   #'mistty--update-secondary-mode nil t))
 
       (mistty--attach term)))
@@ -3956,7 +3956,7 @@ Ignores buffers that don't exist."
                       (mode-line
                        keymap
                        (down-mouse-1 . mistty-toggle))))
-        (when mistty--send-key-sequence-active
+        (when mistty--capture-keyboard-active
           (let ((entry (alist-get 'capture mistty--secondary-mode-alist)))
             (propertize
              (plist-get entry :tag)
@@ -4534,7 +4534,7 @@ If PROP is nil, return the ID, otherwise return the property defined in
 
 The ID corresponds to an entry in `mistty--secondary-mode-alist'."
   (let ((id (cond
-             (mistty--send-key-sequence-active 'capture)
+             (mistty--capture-keyboard-active 'capture)
              ((eq 'split mistty-fullscreen) 'scrollback)
              ((or (not mistty-proc) (not (process-live-p mistty-proc))) 'dead)
              ((eq t mistty-fullscreen) 'full)

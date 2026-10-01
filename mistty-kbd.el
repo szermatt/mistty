@@ -350,13 +350,13 @@ The default value of this map was created by applying
 `mistty-reverse-input-decode-map', defined in
 mistty-reverse-input-decode-map.el to `xterm-function-map'.")
 
-(defvar mistty-start-send-key-sequence-hook nil
-  "Hooks run when `mistty-send-key-sequence' starts.
+(defvar mistty-start-capture-keyboard-hook nil
+  "Hooks run when `mistty-capture-keyboard' starts.
 
-Failures interrupt `mistty-send-key-sequence'.")
+Failures interrupt `mistty-capture-keyboard'.")
 
-(defvar mistty-kbd-end-key-send-sequence-hook nil
-  "Hooks run when `mistty-send-key-sequence' has ended.")
+(defvar mistty-kbd-end-key-capture-keyboard-hook nil
+  "Hooks run when `mistty-capture-keyboard' has ended.")
 
 (defvar-local mistty-bracketed-paste nil
   "Whether bracketed paste is enabled in the buffer's terminal.
@@ -368,7 +368,7 @@ command that controls.")
   "Function to use to send a string to the right process.
 
 This allows calling `mistty-send-key' `mistty-send-last-key'
-`mistty-send-key-sequence' or `mistty-translate-key' on non-mistty
+`mistty-capture-keyboard' or `mistty-translate-key' on non-mistty
 buffers, as long as they either have a process or have redefined this
 function..
 
@@ -381,8 +381,8 @@ cursor.
 
 The default implementation just sends to the buffer process.")
 
-(defvar mistty--send-key-sequence-active nil
-  "This boolean is set globally by `mistty-send-key-sequence'.")
+(defvar mistty--capture-keyboard-active nil
+  "This boolean is set globally by `mistty-capture-keyboard'.")
 
 (defun mistty--send-default (str _key _n _positional)
   "Send STR to the buffer process.
@@ -422,7 +422,10 @@ This command is available in fullscreen mode."
   (mistty-send-key
    (or n 1) (seq-subseq (this-command-keys-vector) -1)))
 
-(defun mistty-send-key-sequence ()
+(define-obsolete-face-alias
+ 'mistty-send-key-sequence 'mistty-capture-keyboard "2.1")
+
+(defun mistty-capture-keyboard ()
   "Send all keys to terminal until interrupted.
 
 This function continuously read keys and sends them to the
@@ -431,15 +434,15 @@ with \\[keyboard-quit] or until it is passed a key or event it
 doesn't support, such as a mouse event.
 
 It can also be stopped programmatically by calling
-`mistty-exit-send-key-sequence' from a hook or a filter."
+`mistty-exit-capture-keyboard' from a hook or a filter."
   (interactive)
-  (when mistty--send-key-sequence-active
-    (error "Recursive call to mistty-send-key-sequence"))
+  (when mistty--capture-keyboard-active
+    (error "Recursive call to mistty-capture-keyboard"))
   (unwind-protect
-      (let ((mistty--send-key-sequence-active t))
+      (let ((mistty--capture-keyboard-active t))
         (mistty-log "capture start hook")
-        (run-hooks 'mistty-start-send-key-sequence-hook)
-        (catch 'mistty-send-key-sequence
+        (run-hooks 'mistty-start-capture-keyboard-hook)
+        (catch 'mistty-capture-keyboard
           (let (key)
             (while
                 (and
@@ -450,27 +453,27 @@ It can also be stopped programmatically by calling
 
               (pcase key
                 ((pred mouse-event-p)
-                 (throw 'mistty-send-key-sequence nil))
+                 (throw 'mistty-capture-keyboard nil))
                 (`(xterm-paste ,str)
                  (funcall mistty--send-function
                           (mistty--maybe-bracketed-str str) nil nil nil))
                 (_ (mistty-send-key 1 (make-vector 1 key))))))))
     (mistty-log "capture end hook")
     (run-hook-wrapped
-     'mistty-end-send-key-sequence-hook
+     'mistty-end-capture-keyboard-hook
      (lambda (func)
        (mistty-with-errors-logged "mistty-end-key-sequence-hook"
          (funcall func))))))
 
-(defun mistty-exit-send-key-sequence ()
-  "Abort any currently running `mistty-send-key-sequence'.
+(defun mistty-exit-capture-keyboard ()
+  "Abort any currently running `mistty-capture-keyboard'.
 
-Does nothing if there is no running `mistty-send-key-sequence'."
-  (when mistty--send-key-sequence-active
+Does nothing if there is no running `mistty-capture-keyboard'."
+  (when mistty--capture-keyboard-active
     (run-with-idle-timer 0 nil
                          (lambda ()
-                           (when mistty--send-key-sequence-active
-                             (throw 'mistty-send-key-sequence nil))))))
+                           (when mistty--capture-keyboard-active
+                             (throw 'mistty-capture-keyboard nil))))))
 
 (defun mistty-translate-key (key &optional n)
   "Generate string to sent to the terminal for KEY.

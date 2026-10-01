@@ -48,24 +48,24 @@
     (define-key map (kbd "M-a") "foobar")
     (should (equal "foobar" (mistty-translate-key (kbd "M-a") 1)))))
 
-(ert-deftest mistty-kbd-send-key-sequence-hooks  ()
+(ert-deftest mistty-kbd-capture-keyboard-hooks  ()
   (ert-with-test-buffer ()
     (let ((buf (current-buffer))
           (events nil)
-          (mistty-start-send-key-sequence-hook nil)
-          (mistty-end-send-key-sequence-hook nil))
-      (add-hook 'mistty-start-send-key-sequence-hook
+          (mistty-start-capture-keyboard-hook nil)
+          (mistty-end-capture-keyboard-hook nil))
+      (add-hook 'mistty-start-capture-keyboard-hook
                 (lambda ()
-                  (push `(start ,mistty--send-key-sequence-active) events)))
-      (add-hook 'mistty-end-send-key-sequence-hook
+                  (push `(start ,mistty--capture-keyboard-active) events)))
+      (add-hook 'mistty-end-capture-keyboard-hook
                 (lambda ()
-                  (push `(end ,mistty--send-key-sequence-active) events)))
+                  (push `(end ,mistty--capture-keyboard-active) events)))
       (setq mistty--send-function (lambda (str key &rest _)
                                     (push `(key ,key) events)
                                     (with-current-buffer buf
                                       (insert str))))
       (ert-simulate-keys '(?f ?o ?o ?\C-g)
-        (mistty-send-key-sequence))
+        (mistty-capture-keyboard))
       (should (equal "foo" (buffer-string)))
       (should (equal '((start t)
                        (key [?f])
@@ -74,7 +74,7 @@
 		       (end nil))
                      (nreverse events))))))
 
-(ert-deftest mistty-kbd-send-key-sequence-mouse-event  ()
+(ert-deftest mistty-kbd-capture-keyboard-mouse-event  ()
   (ert-with-test-buffer ()
     (let ((buf (current-buffer)))
       (setq mistty--send-function (lambda (str key &rest _)
@@ -83,5 +83,5 @@
       ;; down-mouse-1 must end the sequence and bar should never
       ;; actually be typed
       (ert-simulate-keys '(?f ?o ?o down-mouse-1 ?b ?a ?r ?\C-g)
-        (mistty-send-key-sequence))
+        (mistty-capture-keyboard))
       (should (equal "foo" (buffer-string))))))

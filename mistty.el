@@ -3809,20 +3809,24 @@ splits the buffers into a scrollback buffer and a terminal buffer."
   (mistty--with-live-buffer work-buffer
     (let* ((term mistty--term)
            (proc (mistty--term-proc term)))
-      (when split
-        (mistty--detach)
-        (let ((bufname (buffer-name)))
-          (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
-          (with-current-buffer mistty-term-buffer
-            (rename-buffer bufname)))
-        (mistty--swap-buffer-in-windows mistty-work-buffer mistty-term-buffer)
+      (if split
+          ;; split-buffer fullscreen
+          (progn
+            (mistty--detach)
+            (set-process-sentinel proc #'mistty--split-buffer-sentinel)
+            (let ((bufname (buffer-name)))
+              (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
+              (with-current-buffer mistty-term-buffer
+                (rename-buffer bufname)))
+            (mistty--swap-buffer-in-windows mistty-work-buffer mistty-term-buffer)
 
-        (let ((msg (mistty--split-buffer-message)))
-          (overlay-put mistty--sync-ov 'after-string (concat "\n" msg "\n"))
-          (run-with-idle-timer 0.1 nil #'mistty--report-split-buffers (current-buffer) msg)))
+            (let ((msg (mistty--split-buffer-message)))
+              (overlay-put mistty--sync-ov 'after-string (concat "\n" msg "\n"))
+              (run-with-idle-timer 0.1 nil #'mistty--report-split-buffers (current-buffer) msg)))
 
-      (when split
-        (set-process-sentinel proc #'mistty--split-buffer-sentinel))
+        ;; single-buffer fullscreen
+        (mistty--cancel-queue mistty--queue)
+        (mistty--release-all-changesets))
 
       (setq mistty-fullscreen (if split 'split t))
       (mistty--with-live-buffer mistty-term-buffer

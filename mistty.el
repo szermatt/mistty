@@ -1281,12 +1281,7 @@ window."
       (set-process-sentinel proc #'mistty--process-sentinel))
 
     (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
-    (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
-    (add-hook 'pre-command-hook #'mistty--pre-command nil t)
-    (add-hook 'post-command-hook #'mistty--post-command-undo nil t)
-    (add-hook 'post-command-hook #'mistty--post-command-cursor nil t)
-    (add-hook 'post-command-hook #'mistty--post-command-quit nil t)
-    (add-hook 'post-command-hook #'mistty--post-command-schedule 10 t)
+    (mistty--add-replay-hooks)
 
     (if-let* ((size mistty--terminal-size))
         (mistty--set-process-window-size (car size) (cdr size))
@@ -1310,12 +1305,7 @@ Returns M or a new marker."
   (mistty--require-work-buffer)
 
   (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
-  (remove-hook 'after-change-functions #'mistty--after-change-on-work t)
-  (remove-hook 'pre-command-hook #'mistty--pre-command t)
-  (remove-hook 'post-command-hook #'mistty--post-command-undo t)
-  (remove-hook 'post-command-hook #'mistty--post-command-quit t)
-  (remove-hook 'post-command-hook #'mistty--post-command-cursor t)
-  (remove-hook 'post-command-hook #'mistty--post-command-schedule t)
+  (mistty--remove-replay-hooks)
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
 
   (when mistty--queue
@@ -1325,6 +1315,24 @@ Returns M or a new marker."
   (when mistty-proc
     (set-process-sentinel mistty-proc (mistty--term-sentinel-func mistty--term))
     (setq mistty-proc nil)))
+
+(defun mistty--add-replay-hooks ()
+  "Register hooks for tracking and replaying changes."
+  (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
+  (add-hook 'pre-command-hook #'mistty--pre-command nil t)
+  (add-hook 'post-command-hook #'mistty--post-command-undo nil t)
+  (add-hook 'post-command-hook #'mistty--post-command-cursor nil t)
+  (add-hook 'post-command-hook #'mistty--post-command-quit nil t)
+  (add-hook 'post-command-hook #'mistty--post-command-schedule 10 t))
+
+(defun mistty--remove-replay-hooks ()
+  "Unregister hooks for tracking and replaying changes."
+  (remove-hook 'after-change-functions #'mistty--after-change-on-work t)
+  (remove-hook 'pre-command-hook #'mistty--pre-command t)
+  (remove-hook 'post-command-hook #'mistty--post-command-undo t)
+  (remove-hook 'post-command-hook #'mistty--post-command-quit t)
+  (remove-hook 'post-command-hook #'mistty--post-command-cursor t)
+  (remove-hook 'post-command-hook #'mistty--post-command-schedule t))
 
 (defun mistty--kill-term-buffer ()
   "Kill-buffer-hook handler for `mistty-term-buffer'."
@@ -2611,7 +2619,9 @@ buffers."
   that region before the change.
 
   This is meant to be added to ==\'after-change-functions."
-  (if (and mistty-sync-marker (>= end mistty-sync-marker))
+  (if (and (not mistty-fullscreen)
+           mistty-sync-marker
+           (>= end mistty-sync-marker))
       ;; In sync region
       (let ((inhibit-read-only t)
             (beg (max beg mistty-sync-marker))
@@ -3825,6 +3835,7 @@ splits the buffers into a scrollback buffer and a terminal buffer."
               (run-with-idle-timer 0.1 nil #'mistty--report-split-buffers (current-buffer) msg)))
 
         ;; single-buffer fullscreen
+        (mistty--remove-replay-hooks)
         (mistty--cancel-queue mistty--queue)
         (mistty--release-all-changesets))
 
@@ -3884,23 +3895,27 @@ This function looks into the maps to find the key bindings for
 When in split-buffer fullscreen mode, this also swaps the buffers back."
   (mistty--with-live-buffer work-buffer
     (let ((term mistty--term))
-      (when (eq 'split mistty-fullscreen)
-        (save-restriction
-          (widen)
-          (overlay-put mistty--sync-ov 'after-string nil)
+      (if (eq 'split mistty-fullscreen)
+          ;; split buffers
+          (save-restriction
+            (widen)
+            (overlay-put mistty--sync-ov 'after-string nil)
 
-          (mistty--attach mistty--term)
-          (mistty--refresh)
-          (when-let* ((proc (mistty--term-proc term)))
-            (when (process-live-p proc)
-              (mistty-goto-cursor)))
+            (mistty--attach mistty--term)
+            (mistty--refresh)
+            (when-let* ((proc (mistty--term-proc term)))
+              (when (process-live-p proc)
+                (mistty-goto-cursor)))
 
-          (let ((bufname (buffer-name mistty-term-buffer)))
-            (with-current-buffer mistty-term-buffer
-              (rename-buffer (generate-new-buffer-name (concat " mistty tty " bufname))))
-            (rename-buffer bufname))
+            (let ((bufname (buffer-name mistty-term-buffer)))
+              (with-current-buffer mistty-term-buffer
+                (rename-buffer (generate-new-buffer-name (concat " mistty tty " bufname))))
+              (rename-buffer bufname))
 
-          (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer)))
+            (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer))
+
+        ;; single buffer
+        (mistty--add-replay-hooks))
 
       (setq mistty-fullscreen nil)
       (mistty--with-live-buffer mistty-term-buffer

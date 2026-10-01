@@ -482,40 +482,6 @@ newlines or other control characters even if this option is nil."
   :group 'mistty
   :type 'boolean)
 
-(defvar-keymap mistty-mode-map
-  :doc "Keymap of `mistty-mode'.
-
-This map is active whenever the current buffer is in MisTTY mode."
-  "C-c C-n" #'mistty-next-output
-  "C-c C-p" #'mistty-previous-output
-  "C-c C-l" #'mistty-clear
-  "C-c C-r" #'mistty-create-buffer-with-output
-  "C-c C-o" #'mistty-select-output
-  "C-c C-j" #'mistty-toggle
-  "C-c C-q" #'mistty-send-key-sequence
-  "C-c C-k" #'mistty-toggle-keymap
-  "C-c C-s" #'mistty-sudo
-  "C-e" #'mistty-end-of-line-or-goto-cursor
-
-  ;; mistty-send-last-key makes here some globally useful keys
-  ;; available in mistty-mode buffers. More specific keys can be
-  ;; input using C-q while mistty-prompt-map is active.
-  "C-c C-c" #'mistty-send-last-key
-  "C-c C-z" #'mistty-send-last-key
-  "C-c C-\\" #'mistty-send-last-key
-  "C-c C-g" #'mistty-send-last-key
-  ;;   when adding a new entry above, update mistty-term-mode-map and
-  ;;   mistty-alacritty-mode-map, too.
-
-  ;; Bind history search backward, previous history and next history
-  ;; to meta keys, like comint does.
-  "M-r" #'mistty-send-C-r
-  "M-p" #'mistty-send-C-p
-  "M-n" #'mistty-send-C-n
-  "M-<up>" #'mistty-send-C-p
-  "M-<down>" #'mistty-send-C-n
-  "M-." #'mistty-send-key)
-
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
 
@@ -1018,7 +984,7 @@ This is only valid for modes that have a non-nil :map tag.")
     (define-key
      map [capture]
      '(menu-item "Capture Keyboard" mistty-send-key-sequence))
-    (define-key map [separator] '(menu-item "--"))
+    (define-key map [separator-1] '(menu-item "--"))
     (define-key
      map [fullscreen]
      '(menu-item
@@ -1036,6 +1002,76 @@ This is only valid for modes that have a non-nil :map tag.")
        :help "mistty-prompt-map"))
 
     map))
+
+(defvar mistty-mode-menu
+  (let ((map (copy-keymap mistty--secondary-mode-menu)))
+    ;; Note that items are defined in reverse order
+    ;;
+    ;; This extends the menu built in mistty--secondary-mode-menu
+    (define-key map [separator-2] '(menu-item "--"))
+
+    (define-key map [create-buf]
+                '(menu-item "New Buffer With Output" mistty-create-buffer-with-output))
+    (define-key map [next-output]
+                '(menu-item "Next Output" mistty-next-output))
+    (define-key map [prev-output]
+                '(menu-item "Prev Output" mistty-previous-output))
+
+    (define-key map [separator-3] '(menu-item "--"))
+
+    (define-key map [exit-command]
+                '(menu-item "Exit Command"
+                            mistty-ignore-long-running-command
+                            :enable mistty--inhibit))
+    (define-key map [clear]
+                '(menu-item "Clear" mistty-clear))
+    (define-key map [go-to-scrollback]
+                '(menu-item "Go to scrollback" mistty-toggle
+                            :visible (and (>= (point) mistty-sync-marker)
+                                          (> mistty-sync-marker (point-min)))))
+    (define-key map [go-to-terminal]
+                '(menu-item "Go to terminal" mistty-toggle
+                            :visible (and mistty-proc
+                                          (not (eq 'split mistty-fullscreen))
+                                          (< (point) mistty-sync-marker))))
+
+    map))
+
+(defvar-keymap mistty-mode-map
+  :doc "Keymap of `mistty-mode'.
+
+This map is active whenever the current buffer is in MisTTY mode."
+  "C-c C-n" #'mistty-next-output
+  "C-c C-p" #'mistty-previous-output
+  "C-c C-l" #'mistty-clear
+  "C-c C-r" #'mistty-create-buffer-with-output
+  "C-c C-o" #'mistty-select-output
+  "C-c C-j" #'mistty-toggle
+  "C-c C-q" #'mistty-send-key-sequence
+  "C-c C-k" #'mistty-toggle-keymap
+  "C-c C-s" #'mistty-sudo
+  "C-e" #'mistty-end-of-line-or-goto-cursor
+
+  ;; mistty-send-last-key makes here some globally useful keys
+  ;; available in mistty-mode buffers. More specific keys can be
+  ;; input using C-q while mistty-prompt-map is active.
+  "C-c C-c" #'mistty-send-last-key
+  "C-c C-z" #'mistty-send-last-key
+  "C-c C-\\" #'mistty-send-last-key
+  "C-c C-g" #'mistty-send-last-key
+  ;;   when adding a new entry above, update mistty-term-mode-map and
+  ;;   mistty-alacritty-mode-map, too.
+
+  ;; Bind history search backward, previous history and next history
+  ;; to meta keys, like comint does.
+  "M-r" #'mistty-send-C-r
+  "M-p" #'mistty-send-C-p
+  "M-n" #'mistty-send-C-n
+  "M-<up>" #'mistty-send-C-p
+  "M-<down>" #'mistty-send-C-n
+  "M-." #'mistty-send-key
+
+  "<menu-bar> <mistty-mode-menu>" (cons "Mistty" mistty-mode-menu))
 
 (define-derived-mode mistty-mode fundamental-mode "misTTY" "Line-based TTY."
   :interactive nil

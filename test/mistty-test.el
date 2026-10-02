@@ -7418,8 +7418,9 @@ precmd_functions+=(prompt_header)
   (mistty-test-rename-buffer "test-mode-line")
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY >_) ---------------------------------"
-             (buffer-string))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY >_) ---------------------------------")
+             (mistty-test-trim-mode-line))))
 
   ;; forbid-edit
   (mistty-send-key 1 (kbd "C-r"))
@@ -7427,8 +7428,9 @@ precmd_functions+=(prompt_header)
   (should (eq 'arrows (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY ←↑↓→) -------------------------------"
-             (buffer-string))))
+             (mistty-test-trim-mode-line 
+              "-UUU:**- F1  test-mode-line   All  (misTTY ←↑↓→) -------------------------------")
+             (mistty-test-trim-mode-line))))
   (mistty-send-key 1 (kbd "ESC"))
 
   (mistty-wait-for-output :str "$ " :cursor-at-end t :start (point-min))
@@ -7439,8 +7441,9 @@ precmd_functions+=(prompt_header)
   (should (eq 'off (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY …) ----------------------------------"
-             (buffer-string))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY …) ----------------------------------")
+             (mistty-test-trim-mode-line))))
 
   (mistty-report-long-running-command 'test nil)
   (should (eq 'prompt (mistty--secondary-mode)))
@@ -7452,8 +7455,9 @@ precmd_functions+=(prompt_header)
 
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------"
-             (buffer-string)))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------")
+             (mistty-test-trim-mode-line)))))
 
 (mistty-deftest mistty-test-mode-line-capture-keyboard (:selected t :type all :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
@@ -7462,8 +7466,9 @@ precmd_functions+=(prompt_header)
       (mistty-capture-keyboard)
     (turtles-with-grab-buffer (:mode-line (selected-window))
       (should (equal
-               "-UUU:**- F1  test-mode-line   All  (misTTY [#]) --------------------------------"
-               (buffer-string))))
+               (mistty-test-trim-mode-line
+                "-UUU:**- F1  test-mode-line   All  (misTTY [#]) --------------------------------")
+               (mistty-test-trim-mode-line))))
     :keys "C-g"))
 
 (mistty-deftest mistty-test-mode-line-prompt-with-fs-map (:selected t :type all :turtles t)
@@ -7475,8 +7480,9 @@ precmd_functions+=(prompt_header)
   
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY >_ ⌨) -------------------------------"
-             (buffer-string))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY >_ ⌨) -------------------------------")
+             (mistty-test-trim-mode-line))))
 
   ;; forbid-edit
   (mistty-send-key 1 (kbd "C-r"))
@@ -7484,8 +7490,9 @@ precmd_functions+=(prompt_header)
   (should (eq 'arrows (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY ←↑↓→ ⌨) -----------------------------"
-             (buffer-string))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY ←↑↓→ ⌨) -----------------------------")
+             (mistty-test-trim-mode-line))))
   (mistty-send-key 1 (kbd "ESC"))
 
   (mistty-wait-for-output :str "$ " :cursor-at-end t :start (point-min))
@@ -7496,8 +7503,9 @@ precmd_functions+=(prompt_header)
   (should (eq 'off (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY … ⌨) --------------------------------"
-             (buffer-string))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY … ⌨) --------------------------------")
+             (mistty-test-trim-mode-line))))
   (mistty-report-long-running-command 'test nil)
   (should (eq 'prompt (mistty--secondary-mode)))
 
@@ -7507,8 +7515,9 @@ precmd_functions+=(prompt_header)
   (mistty-wait-for-output :str "finished")
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------"
-             (buffer-string)))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------")
+             (mistty-test-trim-mode-line)))))
   
 (mistty-deftest mistty-test-mode-line-single-buffer-fs (:selected t :type alacritty :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
@@ -7519,15 +7528,17 @@ precmd_functions+=(prompt_header)
   (should (eq 'full (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY [_] ⌨) ------------------------------"
-             (buffer-string))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY [_] ⌨) ------------------------------")
+             (mistty-test-trim-mode-line))))
 
   (mistty-toggle-keymap)
 
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             "-UUU:**- F1  test-mode-line   All  (misTTY [_]) --------------------------------"
-             (buffer-string)))))
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY [_]) --------------------------------")
+             (mistty-test-trim-mode-line)))))
 
 (mistty-deftest mistty-test-mode-line-split-buffer-fs (:selected t :type eterm :turtles t)
   (let ((work-buffer mistty-work-buffer)

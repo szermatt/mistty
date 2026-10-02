@@ -967,4 +967,23 @@ Kill any other buffer with that name."
         (kill-buffer buf))))
   (rename-buffer name))
 
+(defun mistty-test-trim-mode-line (&optional mode-line)
+  "Standardize the mode-line, ignoring extra spaces and ---.
+
+This is necessary as different version of Emacs have different idea of
+how to display the mode-line nicely. Doing it this way allows capturing
+the mode-line from one version and seeing that in tests.
+
+MODE-LINE is the mode-line string. If nil, the content of the current
+buffer is used."
+  (let ((mode-line (or mode-line (buffer-string))))
+    (if (string-match "\\(.*\\)(\\(.*\\))\\(.*\\)" mode-line)
+        (let ((before (match-string 1 mode-line))
+              (process (match-string 2 mode-line))
+              (after (match-string 3 mode-line)))
+          (concat (replace-regexp-in-string "[ \t]+" " " before)
+                  "(" process ")"
+                  (replace-regexp-in-string "---+" "---" after)))
+      (error "Invalid mode-line: %S" mode-line))))
+
 (provide 'mistty-testing)

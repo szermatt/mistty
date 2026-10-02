@@ -7388,7 +7388,7 @@ precmd_functions+=(prompt_header)
     (mistty-toggle-keymap)
 
     (setq events nil)
-    (execute-kbd-macro (kbd "t p f"))
+    (execute-kbd-macro (kbd "t p"))
     (should (equal '(prompt-t prompt-p) (nreverse events)))
     ;; prompt-map is installed, fullscreen-mode-map is not installed.
 
@@ -7564,3 +7564,14 @@ precmd_functions+=(prompt_header)
       (should (equal
                "-UUU:**- F1  test-mode-line scrollback   All  (misTTY ▼ ) ----------------------"
                (buffer-string))))))
+
+(mistty-deftest mistty-test-read-only-single-buffer-fullscreen (:selected t :type alacritty)
+  (mistty--send-string
+   mistty-proc "printf '\\e[?1049h'; read -p 'FS'; printf '\\e[?1049lPROMPT\\n'")
+  (mistty-send-command)
+  (mistty-wait-for-output :start (point-min) :regexp "^FS")
+  (should mistty-fullscreen)
+
+  (goto-char (1+ mistty-sync-marker))
+  (should (get-text-property (point) 'read-only))
+  (should-error (insert "test") :type 'text-read-only))

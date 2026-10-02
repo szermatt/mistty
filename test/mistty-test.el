@@ -7565,16 +7565,18 @@ precmd_functions+=(prompt_header)
     (delete-other-windows)
     (turtles-with-grab-buffer (:mode-line (selected-window))
       (should (equal
-               "-UUU:%*- F1  test-mode-line   All  (Term/misTTY ▲ ) ----------------------------"
-               (buffer-string))))
+               (mistty-test-trim-mode-line
+                "-UUU:%*- F1  test-mode-line   All  (Term/misTTY ▲ ) ----------------------------")
+               (mistty-test-trim-mode-line))))
 
     ;; work buffer (scrollback)
     (pop-to-buffer mistty-work-buffer)
     (delete-other-windows)
     (turtles-with-grab-buffer (:mode-line (selected-window))
       (should (equal
-               "-UUU:**- F1  test-mode-line scrollback   All  (misTTY ▼ ) ----------------------"
-               (buffer-string))))))
+               (mistty-test-trim-mode-line
+                "-UUU:**- F1  test-mode-line scrollback   All  (misTTY ▼ ) ----------------------")
+               (mistty-test-trim-mode-line))))))
 
 (mistty-deftest mistty-test-read-only-single-buffer-fullscreen (:selected t :type alacritty)
   (mistty--send-string

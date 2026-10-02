@@ -15,10 +15,9 @@ with the native completion or notice the shell autosuggestions. With
 MisTTY you have access to both Emacs and the shell commands and
 editing tools.
 
-Additionally, commands that take over the entire screen
-(:ref:`fullscreen`) such as :command:`less` or :command:`vi` also
-work, temporarily taking over the window, while scrollback remains
-available in another buffer.
+Additionally, commands that take over the entire screen such as
+:command:`less` or :command:`vi` also work, temporarily taking over
+the terminal zone. See :ref:`modes`.
 
 .. only:: builder_html
 

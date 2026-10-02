@@ -30,8 +30,8 @@ editing tools. Like `comint`, MisTTY supports [remote shells with
 TRAMP](https://mistty.readthedocs.io/en/latest/usage.html#tramp).
 
 Additionally, commands that take over the entire screen, such as
-`less` or `vi` also work, temporarily taking over the window, while
-scrollback remains available in another buffer.
+`less` or `vi` also work, temporarily taking over the terminal zone,
+while scrollback remains available.
 
 MisTTY works well with Bash and ZSH, but it is especially well
 suited to running [Fish](https://fishshell.com): you get
@@ -89,6 +89,9 @@ You can install MisTTY:
 - from [MELPA](https://melpa.org/#/getting-started), by typing `M-x package-install mistty`
 - from source, by executing `(package-vc-install "https://github.com/szermatt/mistty")`
 
+Once the package is install, you can, if you want to use alacritty
+instead of eterm, run `M-x mistty-install-dwim` to install the module.
+
 ## USAGE
 
 Type `M-x mistty` to launch a new shell buffer in MisTTY mode, then
@@ -104,15 +107,16 @@ usually a shell, and translated by that program. The rest of the
 buffer is normal, editable, text.
 
 Commands that takes the whole screen such as `less` or `vi` take you
-into terminal mode for the duration of that command. You can still
-access previous commands in the "scrollback" MisTTY buffer by typing
-`C-c C-j`.
+into fullscreen mode for the duration of that command and most keys -
+except for `C-c` and `C-x` are sent to the terminal. You can still
+access previous commands in the scrollback zone by typing `C-c C-j`.
 
 If you ever get into a situation where a command needs you to press
-keys normally sent to Emacs, such as the arrow keys, press `C-c C-q`.
-It'll send all key strokes directly to the terminal until you exit
-the mode by pressing `C-g`. To send a single key to the terminal
-you can also press `C-q <key>` instead.
+keys normally sent to Emacs, press `C-q <key>`.
+
+You can also temporarily switch to the fullscreen mode map using `C-c
+C-k` or switch to a special keyboard capture mode with `C-c C-q` that
+send everything but `C-g` to the terminal.
 
 You will very likely want to send some keys you use often directly
 to the terminal. This is done by binding keys to `mistty-send-key`
@@ -129,16 +133,12 @@ in `mistty-prompt-map`. For example:
          ("M-<down>" . mistty-send-key)
          ("M-<left>" . mistty-send-key)
          ("M-<right>" . mistty-send-key)))
-
-;; This is only needed to build or download the
-;; alacritty module.
-(use-package mistty-install
-  :commands (mistty-install mistty-install-dwim))
 ```
 
-In addition to that, unless you're using Bash, which supports it out
-of the box, you'll also likely want to enable directory tracking [in
-your shell](https://mistty.readthedocs.io/en/latest/shells.html).
+Also, unless the shell you're using does it automatically, you might
+also need to configure your shell to send out directory tracking
+information. For more details, see [Directory
+Tracking](https://mistty.readthedocs.io/en/latest/usage.html#directory-tracking).
 
 See also [the documentation](https://mistty.readthedocs.io/en/latest/)
 for more details on configuring MisTTY .

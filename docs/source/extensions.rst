@@ -92,10 +92,8 @@ mistty-entered-fullscreen-hook
 :code:`mistty-entered-fullscreen-hook` is a normal hook called from
 within a MisTTY work buffer just after switching to fullscreen mode.
 
-In this mode, :code:`mistty-fullscreen` is non-nil and user commands
-run within the terminal buffer, available as
-:code:`mistty-term-buffer`. The work buffer is kept, but usually
-buried until :code:`mistty-toggle-buffers` is called.
+In this mode, :code:`mistty-fullscreen` is non-nil and Emacs commands
+cannot modify the terminal zone.
 
 mistty-left-fullscreen-hook
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -103,8 +101,9 @@ mistty-left-fullscreen-hook
 :code:`mistty-left-fullscreen-hook` is a normal hook called from
 within a MisTTY work buffer just after switching back to normal mode.
 
-In this mode, :code:`mistty-fullscreen` is nil and user commands run
-in the work buffer.
+In this mode, :code:`mistty-fullscreen` is non-nil and Emacs commands
+can modify the terminal zone and MisTTY will attempt to send the
+changes to terminal application.
 
 .. _ext_osc:
 

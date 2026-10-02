@@ -6,14 +6,12 @@ Usage
 Installation
 ------------
 
-To use MisTTY, first install its package,
+To use MisTTY,
 
- - from `MELPA or MELPA Stable
-   <https://melpa.org/#/getting-started>`_, using :kbd:`M-x
-   package-install mistty`
- - from source using :kbd:`M-x package-vc-install https://github.com/szermatt/mistty`
-
-And then launch it with :kbd:`M-x mistty`, as described in :ref:`launching`.
+ 1. install its package from `MELPA or MELPA Stable  <https://melpa.org/#/getting-started>`_, using :kbd:`M-x package-install mistty` or from source using :kbd:`M-x package-vc-install https://github.com/szermatt/mistty`
+ 2. (optional) install the module with :kbd:`M-x mistty-install-dwim`,
+    as described in :ref:`installmod`
+ 3. launch it with :kbd:`M-x mistty`, as described in :ref:`launching`.
 
 You'll likely want to eventually bind that to some shortcut:
 
@@ -22,8 +20,9 @@ You'll likely want to eventually bind that to some shortcut:
     (use-package mistty
       :bind (("C-c s" . mistty)))
 
-and, unless you're using :program:`Bash`, configure directory tracking
-for your shell (:ref:`dirtrack`), but read on for more details.
+Also, unless the shell you're using does it automatically, you might
+also need to configure it to send out directory tracking information,
+see :ref:`dirtrack`.
 
 .. _installmod:
 
@@ -237,15 +236,30 @@ Terminal vs. Scrollback
 MisTTY buffers are divided into two distinct zones, exhibiting
 different behaviors:
 
+::
+
+    ┌──────────────────────┐
+    │                      │
+    │   scrollback zone    │
+    │                      │
+    └──────────────────────┘
+  ┌ ┌──────────────────────┐
+  │ │                      │
+  │ │   terminal zone      │
+  │ │                      │
+  └ └──────────────────────┘
+
 The **scrollback zone**, is where you can see commands that have
-been executed and their output.
+previously been executed and their output, which scrolled out of the
+terminal zone.
 
 The **terminal zone**, marked by a purple line on the left of the
 window, is where you can type command and interact with the
 terminal. In this zone, :kbd:`TAB` triggers the shell completion, if
 available. With some shells, you'll see autosuggestions as you type.
 
-The scrollback zone operates like a standard Emacs buffer, allowing you to modify it freely.
+The scrollback zone operates like a standard Emacs buffer, allowing
+you to modify it freely.
 
 The terminal zone, on the other hand, imposes certain limitations.
 While a shell is attached, you can edit the command you are about to
@@ -256,6 +270,9 @@ The terminal zone is where the magic happens: this is where you can
 use a mix of Emacs and shell key bindings to edit the command
 line. The trickiest part is choosing which key bindings you want Emacs
 to handle and which key bindings you want the shell to handle.
+
+To quickly jump between these two zones you can execute `M-x
+mistty-toggle` usually bound to `C-c C-j`.
 
 By default, Emacs intercepts most key bindings, but a few are sent directly to the terminal:
 
@@ -272,7 +289,7 @@ By default, Emacs intercepts most key bindings, but a few are sent directly to t
 Additionally, :kbd:`C-c C-c` sends the TERM signal to the terminal.
 
 The program connected to the terminal determines the actual effects of
-these shortcuts. While most shells and command-line editing tools
+the shortcuts above. While most shells and command-line editing tools
 support these shortcuts by default, behavior may vary.
 
 .. warning::
@@ -295,13 +312,91 @@ configure it to send to the terminal the shell key bindings that you
 actually use and keep everything else behaving as usual for your Emacs
 configuration.
 
+.. _modes:
+
+Terminal Zone Modes and Keyboard
+--------------------------------
+
 .. index::
    pair: map; mistty-prompt-map
    pair: map; mistty-mode-map
+   pair: map; mistty-fullscreen-mode-map
+   pair: map; mistty-forbid-edit-map
 
-To bind keys only in the terminal zone, bind them to
-``mistty-prompt-map``. To bind keys in both zones, bind them to
-``mistty-mode-map``. Examples are provided below.
+As explained above, the scrollback zone and terminal zone behave
+differently and have different set of keybindings. While the keymap
+`mistty-mode-map` is active in the whole buffer, the terminal zone has
+different maps active at different times, depending on terminal state.
+
+In the initial state, you should see the following tag in the mode
+line ``misTTY >_`` which tells you that you're in the prompt state and
+that, for the most part, normal Emacs editing tools are available.
+Only a few keybindings, documented in the previous section, are sent
+directly to the terminal. This is defined in `mistty-prompt-map`.
+
+If you start a command that takes over the whole screen, such as
+`less` or `vi`, the mode line switches to ``misTTY [_] ⌨``. This tells
+you that the terminal is in the fullscreen state and that normal Emacs
+editing tools are not available. The terminal area functions just like
+a normal terminal and most key sequences - by default, all but the
+ones starting with `C-c` and `C-x` - are sent to the terminal
+application. This is defined in `mistty-fullscreen-mode-map`.
+
+In either of these modes, you can type :kbd:`C-c C-k` or run `M-x
+mistty-toggle-keymap` to switch between the `mistty-prompt-map` and
+`mistty-fullscreen-mode-map`. This way you can use normal Emacs
+shortcuts while in fullscreen mode or send key sequences directly to
+the terminal while in prompt mode.
+
+As you switch between these maps, you'll notice, that the little
+keyboard sign, ``⌨`` appears and disappears from the mode-line. ``⌨``
+indicates that `mistty-fullscreen-mode-map` is active.
+
+.. index::
+   pair: command; mistty-keyboard-capture
+   pair: variable; mistty-exit-keyboard-capture-key
+
+Sometimes, even `mistty-fullscreen-mode-map` is not enough as you want
+to send `C-c` or `C-x` directly to the terminal.
+
+You can do that by prefixing the keys with :kbd:`C-q`, so :kbd:`C-q
+C-c` will send `C-c` to the terminal and :kbd:`C-q C-x` will send
+`C-x`.
+
+If typing :kbd:`C-q` gets tedious, you can switch to the keyboard
+capture mode with `M-x mistty-capture-keyboard` normally bound to
+:kbd:`C-C C-q`. In keyboard capture mode, everything is sent to the
+terminal except for the exit key, :kbd:`C-g` by default. In that
+model, the mode-line shows ``misTTY [#]``.
+
+The exit key can be configured with `M-x configure-option
+mistty-exit-capture-keyboard-key`.
+
+Two additional modes are worth noting:
+
+When, in prompt mode, MisTTY detects a special shell prompt, such as
+i-search or reverse-i-search, the mode line switches to ``misTTY ←↑↓→``.
+This tells you that most Emacs editing tools are not available - only
+those that append or delete text from the end such as `yank` or
+`backward-kill-word`, but most importantly that the arrow keys are
+sent to the terminal. This is configured using `M-x configure-option
+mistty-forbid-edit-regexps` and the keybinding is defined in
+`mistty-forbid-edit-map`. This is described in :ref:`bs`
+
+When, in prompt mode, MisTTY detects an Emacs command that multiple
+commands to execute, the mode-line switches to ``misTTY …`` to signal
+that and the terminal mode behaves temporarily as a normal Emacs
+buffer. This is described in :ref:`longrunning`
+
+
+.. _kbdcfg:
+
+Keyboard Configuration
+----------------------
+
+To configure MisTTY to send a key sequence to the terminal in a
+specific mode, bind these keys in one of the map described above to
+`mistty-send-key`, which forwards the key sequence to the terminal.
 
 The following commands are useful for sending key sequences to the
 current shell or terminal program:
@@ -350,11 +445,11 @@ directly to the terminal. For example, pressing :kbd:`C-q <right>`
 sends a right-arrow key press to the terminal instead of moving the
 cursor.
 
-.. index:: pair: command; mistty-send-key-sequence
+.. index:: pair: command; mistty-capture-keyboard
 
 If further control is needed, try out:
 
-**mistty-send-key-sequence** : command
+**mistty-capture-keyboard** : command
   This command sends all keys you press to the terminal until you
   press :kbd:`C-g`.
 
@@ -373,6 +468,10 @@ If further control is needed, try out:
 
 Navigating the scrollback zone
 ------------------------------
+
+.. index:: pair: command; mistty-toggle
+
+:kbd:`C-c C-j` jumps between the terminal and scrollback zone.
 
 .. index:: pair: command; mistty-end-of-line-goto-cursor
 
@@ -456,30 +555,6 @@ example:
     of the current prompt's output
   - :kbd:`C-M h` or :kbd:`M-x mark-defun`, marks the current prompt
     and its output
-
-.. _fullscreen:
-
-Fullscreen Mode
----------------
-
-MisTTY detects when a program, such as :program:`less` or
-:program:`vi`, requests full-screen mode. In response, it splits the
-MisTTY buffers in two:
-
-- The **terminal buffer**, which displays the program's output and
-  allows you to interact with it. It operates in term-mode.
-
-- The **Scrollback Buffer**, which contains the previous command lines
-  along with their outputs.
-
-.. index:: pair: command; mistty-toggle-buffers
-
-To switch between these buffers, press :kbd:`C-c C-j` or execute
-:kbd:`M-x mistty-toggle-buffers`
-
-When the full-screen program exits, the two buffers are merged back
-together. Please note that the output from the full-screen application
-is not available in the scrollback region.
 
 .. _history:
 
@@ -626,6 +701,8 @@ completes the text *before* the point.
 If you don't like that or don't use a shell that supports
 autosuggestions, you can turn this off with :kbd:`M-x customize-option
 mistty-wrap-capf-functions`
+
+.. _longrunning:
 
 Template Expansion
 ------------------

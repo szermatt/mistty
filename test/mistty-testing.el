@@ -228,6 +228,7 @@ default, the default directory is a temp directory created for the test."
                (mistty-default-terminal-size nil)
                (mistty-terminal-type (quote ,type))
                (mistty-alacritty-term-name "xterm-256color")
+               (mistty-exit-capture-keyboard-key "C-g")
                (mistty-log mistty-test-log))
            (mistty-test-running)
            (ert-with-temp-directory mistty-tmpdir

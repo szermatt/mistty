@@ -22,6 +22,21 @@
 ;;; Code:
 (require 'mistty-log)
 
+(defcustom mistty-exit-capture-keyboard-key "C-g"
+  "Key that ends `mistty-capture-keyboard'.
+
+While it is running, `mistty-capture-keyboard' sends all keys to the
+terminal, all except this specific key or key combination, which exits
+the mode.
+
+It must be a single key or key combination reported by `read-key', not a
+key sequence.
+
+It's also possible to exit keyboard capture with the mouse, clicking
+anywhere, or programatically by calling `mistty-exit-capture-keyboard'."
+  :group `mistty
+  :type 'key)
+
 (defconst mistty-del "\C-h"
   "Sequence to send to the process when backspace is pressed.
 
@@ -439,7 +454,13 @@ It can also be stopped programmatically by calling
   (when mistty--capture-keyboard-active
     (error "Recursive call to mistty-capture-keyboard"))
   (unwind-protect
-      (let ((mistty--capture-keyboard-active t))
+      (let ((mistty--capture-keyboard-active t)
+            (exit-key (kbd mistty-exit-capture-keyboard-key))
+            (prompt (format "Sending all KEYS to terminal... Exit with %s."
+                            mistty-exit-capture-keyboard-key)))
+        (unless (length= exit-key 1)
+          (user-error "mistty-exit-capture-keyboard-key invalid; It must be a single key."))
+        (setq exit-key (aref exit-key 0))
         (mistty-log "capture start hook")
         (run-hooks 'mistty-start-capture-keyboard-hook)
         (catch 'mistty-capture-keyboard
@@ -447,9 +468,9 @@ It can also be stopped programmatically by calling
             (while
                 (and
                  (setq key
-                       (read-key "Sending all KEYS to terminal... Exit with C-g."
+                       (read-key prompt
                                  'inherit-input-method))
-                 (not (eq key ?\C-g)))
+                 (not (eq key exit-key)))
 
               (pcase key
                 ((pred mouse-event-p)

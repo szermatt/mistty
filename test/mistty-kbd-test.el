@@ -85,3 +85,20 @@
       (ert-simulate-keys '(?f ?o ?o down-mouse-1 ?b ?a ?r ?\C-g)
         (mistty-capture-keyboard))
       (should (equal "foo" (buffer-string))))))
+
+(ert-deftest mistty-kbd-capture-keyboard-exit-key  ()
+  (ert-with-test-buffer ()
+    (let ((buf (current-buffer))
+          (mistty-exit-capture-keyboard-key "<f7>"))
+      (setq mistty--send-function (lambda (str key &rest _)
+                                    (with-current-buffer buf
+                                      (insert str))))
+      ;; C-g doesn't end the sequence, but f7 does
+      (ert-simulate-keys (kbd "f o o C-g b a r <f7> q u x")
+        (mistty-capture-keyboard))
+      (should (equal "foo\7bar" (buffer-string))))))
+
+(ert-deftest mistty-kbd-capture-keyboard-exit-key-invalid  ()
+  (let ((mistty-exit-capture-keyboard-key "C-c t")
+        (mistty--send-function #'ignore))
+    (should-error (mistty-capture-keyboard) :type 'user-error)))

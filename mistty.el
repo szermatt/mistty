@@ -650,15 +650,23 @@ This hook can be used to kill the buffer after the shell ended
 successfully. See `mistty-kill-buffer` and
 `mistty-kill-buffer-and-window`.")
 
-(defvar mistty-entered-fullscreen-hook nil
+(defvar mistty-entered-fullscreen-hook
+  '(mistty-keymap-auto)
   "Report that MisTTY just entered fullscreen mode.
 
-At the point this hook is called, `mistty-fullscreen` is non-nil.")
+At the point this hook is called, `mistty-fullscreen` is non-nil.
 
-(defvar mistty-left-fullscreen-hook '(mistty-exit-capture-keyboard)
+The default value reverts the effect of `mistty-toggle-keymap', so the
+keymap switch doesn't look \"sticky\".")
+
+(defvar mistty-left-fullscreen-hook
+  '(mistty-exit-capture-keyboard mistty-keymap-auto)
   "Report that MisTTY just left fullscreen mode.
 
-At the point this hook is called, `mistty-fullscreen` is nil.")
+At the point this hook is called, `mistty-fullscreen` is nil.
+
+The default value reverts the effect of `mistty-toggle-keymap' and
+`mistty-capture-keyboard'.")
 
 (defvar-local mistty-work-buffer nil
   "The main `mistty-mode' buffer.
@@ -4609,6 +4617,18 @@ mode map override."
          mistty-fullscreen-mode-map mistty-prompt-map))
        (_ nil)))))
 
+(defun mistty-keymap-auto ()
+  "Switch back to the default map for the mode.
+
+This switches back to using `mistty-prompt-map' or
+`mistty-fullscreen-mode-map' as appropriate for the current terminal
+mode. This reverts any override set by `mistty-toggle-keymap'."
+  (interactive)
+  (when mistty--secondary-mode-map-override
+    (message "MisTTY keymap: auto")
+    (setq mistty--secondary-mode-map-override nil)
+    (mistty--update-secondary-mode)))
+
 (defun mistty-toggle-keymap (&optional arg)
   "Toggle terminal area keymap between prompt and fullscreen.
 
@@ -4619,15 +4639,15 @@ When called in fullscreen mode, this command toggles `mistty-prompt-map'
 on or off.
 
 When called with a prefix argument, switch back to the default map for
-the mode."
+the mode. This is like calling `mistty-keymap-auto'."
   (interactive "P")
-  (setq mistty--secondary-mode-map-override
-        (if arg
-            (progn
-              (message "MisTTY keymap: auto")
-              nil)
-          (let ((auto-map (mistty--secondary-mode :map))
-                (override mistty--secondary-mode-map-override))
+  (if arg
+      (mistty-keymap-auto)
+
+    ;; the real mistty-toggle-keymap
+    (let ((auto-map (mistty--secondary-mode :map))
+          (override mistty--secondary-mode-map-override))
+      (setq mistty--secondary-mode-map-override
             (cond
              ((and (null override) (eq 'fullscreen-mode-map auto-map))
               (message "MisTTY keymap: prompt (forced)")
@@ -4637,8 +4657,8 @@ the mode."
               'fullscreen-mode-map)
              (t
               (message "MisTTY keymap: auto")
-              nil)))))
-  (mistty--update-secondary-mode))
+              nil))))
+    (mistty--update-secondary-mode)))
 
 (defun mistty-new-buffer-name ()
   "Generate a name for a new MisTTY buffer.

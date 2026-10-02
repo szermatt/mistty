@@ -562,7 +562,7 @@ configuration.
 @geindex map; mistty-prompt-map
 @geindex map; mistty-mode-map
 @geindex map; mistty-fullscreen-mode-map
-@geindex map; mistty-forbid-edit-map
+@geindex map; mistty-special-prompt-map
 
 As explained above, the scrollback zone and terminal zone behave
 differently and have different set of keybindings. While the keymap
@@ -617,8 +617,8 @@ i-search or reverse-i-search, the mode line switches to @code{misTTY ←↑↓�
 This tells you that most Emacs editing tools are not available - only
 those that append or delete text from the end such as @cite{yank} or
 @cite{backward-kill-word}, but most importantly that the arrow keys are
-sent to the terminal. This is configured using @cite{M-x configure-option mistty-forbid-edit-regexps} and the keybinding is defined in
-@cite{mistty-forbid-edit-map}. This is described in @ref{12,,Backward Search}
+sent to the terminal. This is configured using @cite{M-x configure-option mistty-special-prompt-regexps} and the keybinding is defined in
+@cite{mistty-special-prompt-map}. This is described in @ref{12,,Backward Search}
 
 When, in prompt mode, MisTTY detects an Emacs command that multiple
 commands to execute, the mode-line switches to @code{misTTY …} to signal
@@ -869,14 +869,14 @@ in the terminal zone of the MisTTY buffer. For example:
 @subsection Backward Search
 
 
-@geindex map; mistty-forbid-edit-map
-@geindex variable; mistty-forbid-edit-regexps
-@geindex variable; mistty-forbid-edit-map
+@geindex map; mistty-special-prompt-map
+@geindex variable; mistty-special-prompt-regexps
+@geindex variable; mistty-special-prompt-map
 
 Within various shells, pressing @code{C-r} or @code{M-r} activates a
 special backward search mode, where editing options are limited.
 MisTTY identifies this mode using the regular expressions set in
-@code{M-x customize-option mistty-forbid-edit-regexps}.
+@code{M-x customize-option mistty-special-prompt-regexps}.
 
 When this mode is active:
 
@@ -895,7 +895,7 @@ The modeline displays “FE:run” to indicate Forbid Edit mode.
 Arrow keys are sent directly to the terminal, which is beneficial
 for shells like Fish that allow selection from multiple choices. To
 customize this functionality, adjust key bindings in
-@code{mistty-forbid-edit-map}, which extends @code{mistty-prompt-map}
+@code{mistty-special-prompt-map}, which extends @code{mistty-prompt-map}
 in this mode.
 
 @item 
@@ -2500,7 +2500,7 @@ client, add @code{SendEnv TERMCAP} to @code{ssh_config} or to
 
 @quotation
 
-@geindex variable; mistty-forbid-edit-regexps
+@geindex variable; mistty-special-prompt-regexps
 
 These are the terminal sequences that MisTTY sends to a program
 to move the cursor left or right. If you see these printed on the
@@ -2522,7 +2522,7 @@ off with @code{C-g}.
 
 @item 
 Write a regexp that identifies the situation and add it to
-@code{M-x customize-option mistty-forbid-edit-regexps} so MisTTY
+@code{M-x customize-option mistty-special-prompt-regexps} so MisTTY
 knows it should not attempt to move the cursor. The default value
 identifies most shell backward search prompts.
 @end itemize

@@ -3823,11 +3823,11 @@
     (should (mistty--queue-empty-p mistty--queue))
     (should killed)))
 
-(mistty-deftest mistty-test-forbid-edit (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
     (should (equal " ←↑↓→" mode-line-process))
 
     ;; following the cursor is disabled
@@ -3846,14 +3846,14 @@
                (goto-char (point-min))
                (not (search-forward "search:" nil t)))))
 
-    (should (not mistty--forbid-edit))
+    (should (not mistty--special-prompt))
     (should (equal " >_" mode-line-process))))
 
-(mistty-deftest mistty-test-exit-forbid-edit (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-exit-special-prompt (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
 
     ;; C-g
     (let ((this-command 'keyboard-quit))
@@ -3865,10 +3865,10 @@
                (goto-char (point-min))
                (not (search-forward "search:" nil t)))))
 
-    (should (not mistty--forbid-edit))))
+    (should (not mistty--special-prompt))))
 
-(mistty-deftest mistty-test-forbid-edit-map (:shell fish :selected t :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-map (:shell fish :selected t :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo first")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo second")
@@ -3878,7 +3878,7 @@
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
 
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
     (execute-kbd-macro (kbd "e c h"))
     (mistty-wait-for-output
      :test (lambda ()
@@ -3912,15 +3912,15 @@
                    (mistty-test-content
                     :start mistty-sync-marker :show (point))))))
 
-(mistty-deftest mistty-test-forbid-edit-insert (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-insert (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo first")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo second")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
 
     (mistty-send-text "echo")
 
@@ -3943,15 +3943,15 @@
                            "► echo second")
                    (mistty-test-content :show (point))))))
 
-(mistty-deftest mistty-test-forbid-edit-ignore-insert-after-cursor (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-ignore-insert-after-cursor (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo first")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo second")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
 
     (mistty-send-text "echo")
 
@@ -3976,8 +3976,8 @@
                            "► echo first")
                    (mistty-test-content :show (point))))))
 
-(mistty-deftest mistty-test-forbid-edit-ignore-insert-before-cursor (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-ignore-insert-before-cursor (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo first")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo second")
@@ -3985,7 +3985,7 @@
     (mistty-send-key 1 (kbd "C-r"))
 
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
 
     (mistty-send-text "echo")
 
@@ -4003,15 +4003,15 @@
                            "(no matches)")
                    (mistty-test-content :show (point))))))
 
-(mistty-deftest mistty-test-forbid-edit-delete (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-delete (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo first")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo second")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
 
     (mistty-send-text "echo sec")
 
@@ -4031,15 +4031,15 @@
                            "► echo second  ► echo first")
                    (mistty-test-content :show (point))))))
 
-(mistty-deftest mistty-test-forbid-edit-ignore-delete-after-cursor (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-ignore-delete-after-cursor (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo first")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo second")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
 
     (mistty-send-text "echo")
 
@@ -4063,15 +4063,15 @@
                            "► echo second")
                    (mistty-test-content)))))
 
-(mistty-deftest mistty-test-forbid-edit-ignore-delete-before-cursor (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-ignore-delete-before-cursor (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo first")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo second")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-key 1 (kbd "C-r"))
     (mistty-wait-for-output :str "search:" :start (point-min))
-    (should mistty--forbid-edit)
+    (should mistty--special-prompt)
 
     (mistty-send-text "echo")
 
@@ -4094,8 +4094,8 @@
                            "► echo second")
                    (mistty-test-content)))))
 
-(mistty-deftest mistty-test-forbid-edit-search-in-completion (:shell fish :type all)
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt-search-in-completion (:shell fish :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (dotimes (i 4)
       (mistty-send-text (format "function foobar_%s; echo foobar %s; end" i i))
       (mistty-send-and-wait-for-prompt))
@@ -4106,7 +4106,7 @@
       (mistty-wait-for-output :str "foobar_" :start start)
       (mistty-send-key 1 (kbd "C-s"))
       (mistty-wait-for-output :str "search:" :start (point-min))
-      (should mistty--forbid-edit)
+      (should mistty--special-prompt)
 
       (mistty-send-text "2")
 
@@ -4114,12 +4114,12 @@
       (mistty-send-key 2 (kbd "RET"))
 
       (mistty-wait-for-output :str "foobar 2" :start start)
-      (should-not mistty--forbid-edit))))
+      (should-not mistty--special-prompt))))
 
 (mistty-deftest mistty-test-forbid-wrong-position (:shell fish :type all)
   ;; This test tries to confuse MisTTY by having fish
   ;; echo search:.
-  (let ((mistty-forbid-edit-regexps '("^search: ")))
+  (let ((mistty-special-prompt-regexps '("^search: ")))
     (mistty-send-text "echo foobar")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo search:")
@@ -4128,9 +4128,9 @@
     (mistty-run-command
      (mistty-tab-command))
     (mistty-wait-for-output :str "search:")
-    (should-not mistty--forbid-edit)))
+    (should-not mistty--special-prompt)))
 
-(mistty-deftest mistty-test-forbid-edit-i-search-zsh (:shell zsh :type all)
+(mistty-deftest mistty-test-special-prompt-i-search-zsh (:shell zsh :type all)
   (mistty-run-command
    (insert "echo first"))
   (mistty-send-and-wait-for-prompt)
@@ -4143,12 +4143,12 @@
   (mistty-test-narrow (mistty--bol (point)))
   (mistty--send-string mistty-proc "\C-r")
   (mistty-wait-for-output :str "bck-i-search:")
-  (should mistty--forbid-edit)
+  (should mistty--special-prompt)
   (mistty--send-string mistty-proc "thi\C-e time's the charm\n")
   (mistty-wait-for-output :str "third time's the charm")
-  (should-not mistty--forbid-edit))
+  (should-not mistty--special-prompt))
 
-(mistty-deftest mistty-test-forbid-edit-failing-i-search-zsh (:shell zsh :type all)
+(mistty-deftest mistty-test-special-prompt-failing-i-search-zsh (:shell zsh :type all)
   (mistty-run-command
    (insert "echo first"))
   (mistty-send-and-wait-for-prompt)
@@ -4161,10 +4161,10 @@
   (mistty-test-narrow (mistty--bol (point)))
   (mistty--send-string mistty-proc "\C-r")
   (mistty-wait-for-output :str "bck-i-search:")
-  (should mistty--forbid-edit)
+  (should mistty--special-prompt)
   (mistty--send-string mistty-proc "notfound")
   (mistty-wait-for-output :str "failing bck-i-search:")
-  (should mistty--forbid-edit))
+  (should mistty--special-prompt))
 
 (mistty-deftest mistty-test-eof-on-possible-but-outdated-prompt ( :type all)
   (mistty-send-text "p=prompt")
@@ -7084,15 +7084,15 @@ precmd_functions+=(prompt_header)
     (mistty-send-and-wait-for-prompt)
     (should (mistty-on-prompt-p (point)))))
 
-(mistty-deftest mistty-test-forbid-edit-fire-and-forget (:shell zsh :type all)
-  (let ((mistty-forbid-edit-regexps '(".*\nbck-i-search:")))
+(mistty-deftest mistty-test-special-prompt-fire-and-forget (:shell zsh :type all)
+  (let ((mistty-special-prompt-regexps '(".*\nbck-i-search:")))
     (mistty--send-string mistty-proc "\C-r")
     (mistty-wait-for-output
-     :test (lambda () mistty--forbid-edit))
-    (should mistty--forbid-edit)
+     :test (lambda () mistty--special-prompt))
+    (should mistty--special-prompt)
 
     ;; Sending <ESC> has no effect in this situation. There should
-    ;; not be a timeout, however; Since we're in forbid-edit mode
+    ;; not be a timeout, however; Since we're in special-prompt mode
     ;; send-key sends everything fire-and-forget.
     (mistty-send-key 1 (kbd "\e"))
     (mistty-wait-for-output
@@ -7422,10 +7422,10 @@ precmd_functions+=(prompt_header)
               "-UUU:**- F1  test-mode-line   All  (misTTY >_) ---------------------------------")
              (mistty-test-trim-mode-line))))
 
-  ;; forbid-edit
+  ;; special-prompt
   (mistty-send-key 1 (kbd "C-r"))
   (mistty-wait-for-output :str "reverse-i-search")
-  (should (eq 'arrows (mistty--secondary-mode)))
+  (should (eq 'special-prompt (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line 
@@ -7484,10 +7484,10 @@ precmd_functions+=(prompt_header)
               "-UUU:**- F1  test-mode-line   All  (misTTY >_ ⌨) -------------------------------")
              (mistty-test-trim-mode-line))))
 
-  ;; forbid-edit
+  ;; special-prompt
   (mistty-send-key 1 (kbd "C-r"))
   (mistty-wait-for-output :str "reverse-i-search")
-  (should (eq 'arrows (mistty--secondary-mode)))
+  (should (eq 'special-prompt (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line

@@ -71,7 +71,7 @@ FAQ
 
 **What are all those OCOCOCO or ODODODO that appear on the screen?**
 
-     .. index:: pair: variable; mistty-forbid-edit-regexps
+     .. index:: pair: variable; mistty-special-prompt-regexps
 
      These are the terminal sequences that MisTTY sends to a program
      to move the cursor left or right. If you see these printed on the
@@ -87,7 +87,7 @@ FAQ
        off with :kbd:`C-g`.
 
      - Write a regexp that identifies the situation and add it to
-       :kbd:`M-x customize-option mistty-forbid-edit-regexps` so MisTTY
+       :kbd:`M-x customize-option mistty-special-prompt-regexps` so MisTTY
        knows it should not attempt to move the cursor. The default value
        identifies most shell backward search prompts.
 

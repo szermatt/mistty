@@ -214,7 +214,7 @@ Set to 0 to disable truncation."
   "Regexp that signals availability of vertical moves.
 
 MisTTY normally avoids moving vertically, because in many shells
-the up/down arrows navigate through history instead of moving the
+the up/down special-prompt navigate through history instead of moving the
 cursor.
 
 Vertical moves are turned on when a regexp on this list matches
@@ -222,7 +222,10 @@ the beginning of the terminal zone."
   :group 'mistty
   :type '(list regexp))
 
-(defcustom mistty-forbid-edit-regexps
+(define-obsolete-variable-alias
+  'mistty-forbid-edit-prompt-regexps
+  'mistty-special-prompt-regexps "2.1")
+(defcustom mistty-special-prompt-regexps
   '( ;; fish:
     "^search: "
     ;; bash:
@@ -242,7 +245,7 @@ point. They usually start with ^ to detect a specialized prompt.
 While the forbid edit mode is active, the status mode line shows
 \"FE:run\" instead of just \":run\".
 
-`mistty-forbid-edit-map' is the active map in the synced region
+`mistty-special-prompt-map' is the active map in the synced region
 of the buffer as long as one of these regexps matches. By
 default, this means that arrow keys are sent directly to the
 terminal."
@@ -523,14 +526,16 @@ terminal."
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that forwards everything to`mistty-send-last-key'.")
 
-(defvar-keymap mistty-forbid-edit-map
+(define-obsolete-function-alias
+  'mistty-forbid-edit-map 'mistty-special-prompt-map "2.1")
+(defvar-keymap mistty-special-prompt-map
   :doc "Keymap active when line editing is off.
 
 This map is active on the part of `mistty-mode' synced with the
-terminal when of of `mistty-forbid-edit-regexps' has been
+terminal when of of `mistty-special-prompt-regexps' has been
 detected and replay is limited to insert and delete.
 
-In practice, `mistty-forbid-edit-regexps' is used to detect shell
+In practice, `mistty-special-prompt-regexps' is used to detect shell
 search mode, and in such a mode, it's convenient if arrow keys
 are sent directly to the terminal."
   "<up>" #'mistty-send-last-key
@@ -817,10 +822,10 @@ This variable is available in the work buffer.")
 
 Truncation is configured by `mistty-buffer-maximum-size'.")
 
-(defvar-local mistty--forbid-edit nil
+(defvar-local mistty--special-prompt nil
   "Non-nil when normal editing is not available.
 
-This is controlled by `mistty-forbid-edit-regexp'.
+This is controlled by `mistty-special-prompt-regexp'.
 
 When this is set, MisTTY assumes that typing and deletion work,
 but moving the cursor doesn't. This allows replaying some simple
@@ -933,10 +938,10 @@ be ignored if coming from window size.")
           :help "Emacs command executing"
           :map prompt-map
           :button exit-command)
-     (arrows :tag "←↑↓→"
-             :help "Special prompt detected, capturing arrows"
-             :map forbid-edit-map
-             :button menu)
+     (special-prompt :tag "←↑↓→"
+                     :help "Special prompt detected, capturing special-prompt"
+                     :map special-prompt-map
+                     :button menu)
      (full :tag "[_]"
            :help "Fullscreen command running"
            :map fullscreen-mode-map
@@ -1988,17 +1993,17 @@ Also updates prompt and point."
       (mistty-log "Can move vertically: %s" v)
       (setq mistty--can-move-vertically v)))
 
-  ;; Turn mistty-forbid-edit on or off
-  (let ((forbid-edit (mistty--match-forbid-edit-regexp-p)))
+  ;; Turn mistty-special-prompt on or off
+  (let ((special-prompt (mistty--match-special-prompt-regexp-p)))
     (cond
-     ((and forbid-edit (not mistty--forbid-edit))
-      (setq mistty--forbid-edit t)
+     ((and special-prompt (not mistty--special-prompt))
+      (setq mistty--special-prompt t)
       (mistty--update-secondary-mode)
-      (mistty-log "FORBID EDIT on"))
-     ((and (not forbid-edit) mistty--forbid-edit)
-      (setq mistty--forbid-edit nil)
+      (mistty-log "SPECIAL PROMPT detected"))
+     ((and (not special-prompt) mistty--special-prompt)
+      (setq mistty--special-prompt nil)
       (mistty--update-secondary-mode)
-      (mistty-log "FORBID EDIT off"))))
+      (mistty-log "SPECIAL PROMPT done"))))
 
   (unless mistty--active-prompt
     (let ((screen-start (mistty--term-scrolline-at-screen-start)))
@@ -2126,8 +2131,8 @@ For `mistty-simulate-self-insert'."
     (unless (and (symbolp func) (string-prefix-p "mistty-" (symbol-name func)))
       (mistty--run-hook-ignoring-errors func))))
 
-(defun mistty--match-forbid-edit-regexp-p ()
-  "Return t if `mistty-forbid-edit-regexp' matches, nil otherwise.
+(defun mistty--match-special-prompt-regexp-p ()
+  "Return t if `mistty-special-prompt-regexp' matches, nil otherwise.
 
 The region searched is from the line containing the cursor to end
 of buffer. The match must start on the line containing the
@@ -2136,7 +2141,7 @@ cursor to be considered."
     (let* ((pos (mistty-cursor))
            (bol (mistty--bol pos))
            (eol (mistty--eol pos))
-           (regexps mistty-forbid-edit-regexps)
+           (regexps mistty-special-prompt-regexps)
            (match nil))
       (while (and (not match) regexps)
         (save-excursion
@@ -2477,7 +2482,7 @@ KEY in TRANSLATED-KEY. POSITIONAL is not nil if KEY is positionAL.
 This is meant to be bound to `mistty--send-function' for `mistty-mode'
 buffers."
   (mistty--require-proc)
-  (let* ((fire-and-forget (or mistty--forbid-edit
+  (let* ((fire-and-forget (or mistty--special-prompt
                               (string-match "^[[:graph:]]+$" translated-key)))
          (positional (or positional (mistty-positional-p key))))
     (cond
@@ -2661,7 +2666,7 @@ buffers."
         (calling-buffer (current-buffer))
         (term mistty--term)
         (term-buffer mistty-term-buffer)
-        (inhibit-moves mistty--forbid-edit)
+        (inhibit-moves mistty--special-prompt)
         (beg (make-marker))
         (old-end (make-marker))
 
@@ -3434,7 +3439,7 @@ Return the prompt range that was accepted or nil."
         (mistty--cancel-queue mistty--queue))
       (mistty--ignore-foreign-overlays)
       (mistty--inhibit-clear 'noschedule)
-      (when mistty--forbid-edit
+      (when mistty--special-prompt
         (mistty-send-key 1 "\C-g")))))
 
 (defun mistty--post-command-schedule ()
@@ -3561,7 +3566,7 @@ post-command hook."
                    (>= (point) mistty-sync-marker)
                    (process-live-p mistty-proc)
                    (not mistty--inhibit)
-                   (not mistty--forbid-edit))
+                   (not mistty--special-prompt))
           (mistty--enqueue mistty--queue (mistty--cursor-to-point-interaction))))
       (mistty--refresh))))
 
@@ -3669,7 +3674,7 @@ Might modify CS before allowing replay."
     (cl-labels
         ((can-move (from to)
            (and (mistty-on-prompt-p to)
-                (not mistty--forbid-edit)
+                (not mistty--special-prompt)
                 (>= from (point-min))
                 (<= from (point-max))
                 (>= to (point-min))
@@ -4558,7 +4563,7 @@ The ID corresponds to an entry in `mistty--secondary-mode-alist'."
              ((or (not mistty-proc) (not (process-live-p mistty-proc))) 'dead)
              ((eq t mistty-fullscreen) 'full)
              (mistty--inhibit 'off)
-             (mistty--forbid-edit 'arrows)
+             (mistty--special-prompt 'special-prompt)
              (mistty--active-prompt 'prompt)
              ((and mistty-proc (process-live-p mistty-proc)) 'running)
              (t 'running))))
@@ -4596,10 +4601,12 @@ mode map override."
      'keymap
      (pcase map-id
        ('prompt-map mistty-prompt-map)
-       ('forbid-edit-map (make-composed-keymap
-                          mistty-forbid-edit-map mistty-prompt-map))
-       ('fullscreen-mode-map (make-composed-keymap
-                              mistty-fullscreen-mode-map mistty-prompt-map))
+       ('special-prompt-map
+        (make-composed-keymap
+         mistty-special-prompt-map mistty-prompt-map))
+       ('fullscreen-mode-map
+        (make-composed-keymap
+         mistty-fullscreen-mode-map mistty-prompt-map))
        (_ nil)))))
 
 (defun mistty-toggle-keymap (&optional arg)

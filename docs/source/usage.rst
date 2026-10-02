@@ -321,7 +321,7 @@ Terminal Zone Modes and Keyboard
    pair: map; mistty-prompt-map
    pair: map; mistty-mode-map
    pair: map; mistty-fullscreen-mode-map
-   pair: map; mistty-forbid-edit-map
+   pair: map; mistty-special-prompt-map
 
 As explained above, the scrollback zone and terminal zone behave
 differently and have different set of keybindings. While the keymap
@@ -380,8 +380,8 @@ This tells you that most Emacs editing tools are not available - only
 those that append or delete text from the end such as `yank` or
 `backward-kill-word`, but most importantly that the arrow keys are
 sent to the terminal. This is configured using `M-x configure-option
-mistty-forbid-edit-regexps` and the keybinding is defined in
-`mistty-forbid-edit-map`. This is described in :ref:`bs`
+mistty-special-prompt-regexps` and the keybinding is defined in
+`mistty-special-prompt-map`. This is described in :ref:`bs`
 
 When, in prompt mode, MisTTY detects an Emacs command that multiple
 commands to execute, the mode-line switches to ``misTTY …`` to signal
@@ -588,14 +588,14 @@ Backward Search
 ---------------
 
 .. index::
-   pair: map; mistty-forbid-edit-map
-   pair: variable; mistty-forbid-edit-regexps
-   pair: variable; mistty-forbid-edit-map
+   pair: map; mistty-special-prompt-map
+   pair: variable; mistty-special-prompt-regexps
+   pair: variable; mistty-special-prompt-map
 
 Within various shells, pressing :kbd:`C-r` or :kbd:`M-r` activates a
 special backward search mode, where editing options are limited.
 MisTTY identifies this mode using the regular expressions set in
-:kbd:`M-x customize-option mistty-forbid-edit-regexps`.
+:kbd:`M-x customize-option mistty-special-prompt-regexps`.
 
 When this mode is active:
 
@@ -608,7 +608,7 @@ When this mode is active:
 - Arrow keys are sent directly to the terminal, which is beneficial
   for shells like Fish that allow selection from multiple choices. To
   customize this functionality, adjust key bindings in
-  ``mistty-forbid-edit-map``, which extends ``mistty-prompt-map``
+  ``mistty-special-prompt-map``, which extends ``mistty-prompt-map``
   in this mode.
 
 - Pressing :kbd:`C-g` sends a signal to the terminal and typically

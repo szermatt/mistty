@@ -229,7 +229,10 @@ default, the default directory is a temp directory created for the test."
                (mistty-terminal-type (quote ,type))
                (mistty-alacritty-term-name "xterm-256color")
                (mistty-exit-capture-keyboard-key "C-g")
-               (mistty-log mistty-test-log))
+               (mistty-log mistty-test-log)
+               ;; avoid interference with previous tests
+               (this-command nil)
+               (last-command nil))
            (mistty-test-running)
            (ert-with-temp-directory mistty-tmpdir
              (let ((default-directory ,(if cd cd 'mistty-tmpdir)))

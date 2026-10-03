@@ -4603,7 +4603,8 @@ This merges the map configured in `mistty--secondary-mode-alist' with
 The keymap that is installed depends on the secondary mode and secondary
 mode map override."
   (let ((map-id (mistty--secondary-mode-map)))
-    (mistty-log "Install overlay map %s" map-id)
+    (mistty-log "Install overlay map %s [mode: %s]"
+                map-id (mistty--secondary-mode))
     (overlay-put
      mistty--sync-ov
      'keymap
@@ -4622,43 +4623,63 @@ mode map override."
 
 This switches back to using `mistty-prompt-map' or
 `mistty-fullscreen-mode-map' as appropriate for the current terminal
-mode. This reverts any override set by `mistty-toggle-keymap'."
-  (interactive)
-  (when mistty--secondary-mode-map-override
-    (message "MisTTY keymap: auto")
-    (setq mistty--secondary-mode-map-override nil)
-    (mistty--update-secondary-mode)))
+mode. This reverts any override set by `mistty-toggle-keymap'.
 
-(defun mistty-toggle-keymap (&optional arg)
+This is equivalent to calling `mistty-toggle-keymap' with an argument
+\\='auto."
+  (interactive)
+  (mistty-toggle-keymap 'auto))
+
+(defun mistty-toggle-keymap (&optional map)
   "Toggle terminal area keymap between prompt and fullscreen.
 
-When called in prompt mode, this command toggles
+When called interactively, this command toggles
 `mistty-fullscreen-mode-map' on or off.
 
-When called in fullscreen mode, this command toggles `mistty-prompt-map'
-on or off.
+When called with an argument MAP, the behavior depends on the argument
+value:
 
-When called with a prefix argument, switch back to the default map for
-the mode. This is like calling `mistty-keymap-auto'."
-  (interactive "P")
-  (if arg
-      (mistty-keymap-auto)
+If MAP is \\='toggle or nil, toggle the fullscreen map on or off.
+If MAP is \\='auto, switch back to the default.
+If MAP is \\='fullscreen, force the fullscreen map on,
+    `mistty-fullscreen-mode-map'.
+If MAP is \\='prompt, force the prompt map on, `mistty-prompt-map'.
 
-    ;; the real mistty-toggle-keymap
-    (let ((auto-map (mistty--secondary-mode :map))
-          (override mistty--secondary-mode-map-override))
-      (setq mistty--secondary-mode-map-override
-            (cond
-             ((and (null override) (eq 'fullscreen-mode-map auto-map))
-              (message "MisTTY keymap: prompt (forced)")
-              'prompt-map)
-             ((null override)
-              (message "MisTTY keymap: fullscreen (forced)")
-              'fullscreen-mode-map)
-             (t
-              (message "MisTTY keymap: auto")
-              nil))))
-    (mistty--update-secondary-mode)))
+Note that this setting is normally only active until the next terminal
+state changes, as the default value of both
+`mistty-entered-fullscreen-hook' and `mistty-left-fullscreen-hook' call
+`mistty-keymap-auto' to reset the map override."
+  (interactive)
+  (pcase map
+    ('auto
+     (unless (null mistty--secondary-mode-map-override)
+       (message "MisTTY keymap: auto")
+       (setq mistty--secondary-mode-map-override nil)
+       (mistty--update-secondary-mode)))
+    ('fullscreen
+     (unless (eq mistty--secondary-mode-map-override 'fullscreen-mode-map)
+       (message "MisTTY keymap: fullscreen")
+       (setq mistty--secondary-mode-map-override 'fullscreen-mode-map)
+       (mistty--update-secondary-mode)))
+    ('prompt
+     (unless (eq mistty--secondary-mode-map-override 'prompt-map)
+       (message "MisTTY keymap: prompt")
+       (setq mistty--secondary-mode-map-override 'prompt-map)
+       (mistty--update-secondary-mode)))
+    ((or 'toggle (pred null))
+     (let* ((auto (mistty--secondary-mode :map))
+            (current (or mistty--secondary-mode-map-override auto))
+            (goal (if (eq current 'prompt-map)
+                      'fullscreen-mode-map
+                    'prompt-map)))
+       (cond
+        ((eq goal auto)
+         (mistty-toggle-keymap 'auto))
+        ((eq goal 'prompt-map)
+         (mistty-toggle-keymap 'prompt))
+        ((eq goal 'fullscreen-mode-map)
+         (mistty-toggle-keymap 'fullscreen)))))
+    (_ (error "Invalid argument %s" map))))
 
 (defun mistty-new-buffer-name ()
   "Generate a name for a new MisTTY buffer.

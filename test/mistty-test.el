@@ -7412,6 +7412,26 @@ precmd_functions+=(prompt_header)
     ;; prompt-map is installed
   ))
 
+(mistty-deftest mistty-test-toggle-keymap-argument (:type all)
+  (mistty-toggle-keymap 'fullscreen)
+  (should (eq 'fullscreen-mode-map mistty--secondary-mode-map-override))
+
+  (mistty-toggle-keymap 'prompt)
+  (should (eq 'prompt-map mistty--secondary-mode-map-override))
+
+  (mistty-toggle-keymap 'auto)
+  (should (eq 'nil mistty--secondary-mode-map-override))
+
+  (mistty-toggle-keymap 'toggle)
+  (should (eq 'fullscreen-mode-map mistty--secondary-mode-map-override))
+
+  (mistty-toggle-keymap 'toggle)
+  (should (eq nil mistty--secondary-mode-map-override))
+
+  (mistty-toggle-keymap 'prompt)
+  (mistty-toggle-keymap 'toggle)
+  (should (eq 'fullscreen-mode-map mistty--secondary-mode-map-override)))
+
 (mistty-deftest mistty-test-mode-line-prompt (:selected t :type all :turtles t)
   ;; prompt
   (should (eq 'prompt (mistty--secondary-mode)))

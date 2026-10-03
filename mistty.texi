@@ -47,27 +47,34 @@ Copyright @copyright{} 2023-2026, Stephane Zermatten
 
 @c %**start of body
 @anchor{index doc}@anchor{0}
-`MisTTY' is a major mode for @code{Emacs} 29.1 and up that runs
-a shell inside of a buffer, similarly to comint mode. It is built on
-top of @code{eterm}, the terminal emulator built into Emacs, or
-the alacritty@footnote{https://alacritty.org/} library. Check out its
-project page at @indicateurl{https://github.com/szermatt/mistty}.
+`MisTTY' is a terminal application for Emacs 29.1 and up that allows
+editing prompts using Emacs commands, like in the @cite{shell} command,
+but in a full-featured, modern terminal.
 
-@code{M-x mistty} creates a buffer with an interactive shell. (@ref{1,,Launching})
+Terminal support is provided by the alacritty@footnote{https://alacritty.org} library, with the help of an Emacs module.
+Without that module, MisTTY falls back to using the more limited Emacs
+built-in terminal @cite{eterm}. To avoid that install the module with @cite{M-x mistty-install} or @cite{M-x mistty-install-dwim}. For more details, head
+over to @ref{1,,Installation}.
 
-MisTTY feels very much like comint mode: you can move around freely
-and run any Emacs command you want - until you press TAB and end up
-with the native completion or notice the shell autosuggestions. With
-MisTTY you have access to both Emacs and the shell commands and
-editing tools.
+Once installed, @code{M-x mistty} creates a buffer with an interactive
+shell. (@ref{2,,Launching})
 
-Additionally, commands that take over the entire screen such as
-@code{less} or @code{vi} also work, temporarily taking over
-the terminal zone. See @ref{2,,Terminal Zone Modes and Keyboard}.
+In that buffer you can move around freely and run any Emacs command
+you want - until you press TAB and end up with the native completion
+or notice the shell autosuggestions. With MisTTY you have access to
+both Emacs and the shell commands and editing tools.
+
+Additionally, commands that take over the entire screen, such as
+@cite{less} or @cite{vi} also work, temporarily taking over the terminal zone
+and keyboard.
 
 
 MisTTY is known to work on Linux and MacOS. It also supports non-shell
-command-line programs, such as @code{python}.
+command-line programs, such as python.
+
+Special configuration isn’t absolutely needed, as MisTTY tries to
+support supports any command-line programs with a prompt in a
+reasonable way, like python or ipython.
 
 The latest version of this documentation is available at
 @indicateurl{https://mistty.readthedocs.io/en/latest/}.  Once MisTTY is installed,
@@ -92,38 +99,26 @@ If you encounter issues, please take the time to file a bug. (@ref{3,,Reporting 
 @chapter Comparison with other packages
 
 
-MisTTY is a frontend to a terminal emulator, currently either
-@code{eterm}, a pure elisp terminal emulator built into Emacs, or
-@code{alacritty} using a custom module built against the
-alacritty library@footnote{https://github.com/alacritty/alacritty}
+As its core, MisTTY is a frontend to a terminal emulator. Terminal
+emulation is provided by the alacritty library@footnote{https://github.com/alacritty/alacritty}, which emulates xterm
+and has support for modern terminal extensions@footnote{https://alacritty.org/misc-alacritty-escapes.html}.
 
-Its goal is to make it more convenient to use while inside of Emacs
-and better integrate with Emacs itself.
+MisTTY goes beyond plain terminal emulation in Emacs to provide a
+convenient tools for command-line editing. It does its best to make as
+much of Emacs editing capabilities available while on a prompt.
 
-MisTTY has some similarities with coterm@footnote{https://github.com/emacsmirror/coterm}; it offers the same switch
-between full-screen and line mode.
+This idea is similar to @cite{coterm}, which offers the same switch between
+full-screen and line mode.
 
-@code{Coterm}, @code{term.el} and @code{eat} all have a
-line mode, just like @code{comint} does, which allows you to edit
-a command line as a whole before sending it to the shell. While in
-line mode, rendering is done by Emacs and editing commands are Emacs
-commands. In constrast, with MisTTY, all rendering is done by the
-shell through the terminal. This is why native shell completion and
-autosuggestion is available with MisTTY and not in line modes and why
-you can freely mix shell commands with Emacs commands while editing
-the command line.
+@cite{eat} also has a semi-char mode, which is the closest there is to
+MisTTY. In that mode, Emacs movements commands are available. However,
+Emacs commands that modify the buffer, aren’t available to edit the
+command line. In contrast, MisTTY allows Emacs to navigate to and edit
+the whole buffer, then replays changes made to the command-line.
 
-@code{term.el} and @code{eat} also have a char mode, where
-rendering and command execution is handled by the shell, and editing
-with Emacs isn’t available. The difference with MisTTY is then that
-MisTTY makes Emacs editing commands available when possible.
-
-@code{eat} also has a semi-char mode, which is the closest there
-is to MisTTY. In that mode, Emacs movements commands are available.
-However, Emacs commands that modify the buffer, aren’t available to
-edit the command line. In contrast, MisTTY allows Emacs to navigate to
-and edit the whole buffer, then replays changes made to the
-command-line.
+Other terminal emulators are available for Emacs, such as @cite{vterm} and
+@cite{ghostty}, which do terminal emulation well, but don’t offer the deep
+integration with Emacs commands that MisTTY does.
 
 @node Contents,Index,Comparison with other packages,Top
 @anchor{index contents}@anchor{6}
@@ -165,7 +160,7 @@ command-line.
 @end menu
 
 @node Installation,Launching,,Usage
-@anchor{usage id1}@anchor{9}@anchor{usage installation}@anchor{a}
+@anchor{usage id1}@anchor{9}@anchor{usage installation}@anchor{1}
 @subsection Installation
 
 
@@ -181,10 +176,10 @@ install its package from MELPA or MELPA Stable@footnote{https://melpa.org/#/gett
 
 @item 
 (optional) install the module with @code{M-x mistty-install-dwim},
-as described in @ref{b,,Module with Alacritty}
+as described in @ref{a,,Module with Alacritty}
 
 @item 
-launch it with @code{M-x mistty}, as described in @ref{1,,Launching}.
+launch it with @code{M-x mistty}, as described in @ref{2,,Launching}.
 @end enumerate
 @end quotation
 
@@ -197,7 +192,7 @@ You’ll likely want to eventually bind that to some shortcut:
 
 Also, unless the shell you’re using does it automatically, you might
 also need to configure it to send out directory tracking information,
-see @ref{c,,Directory Tracking}.
+see @ref{b,,Directory Tracking}.
 
 @menu
 * Module with Alacritty:: 
@@ -205,7 +200,7 @@ see @ref{c,,Directory Tracking}.
 @end menu
 
 @node Module with Alacritty,,,Installation
-@anchor{usage installmod}@anchor{b}@anchor{usage module-with-alacritty}@anchor{d}
+@anchor{usage installmod}@anchor{a}@anchor{usage module-with-alacritty}@anchor{c}
 @subsubsection Module with Alacritty
 
 
@@ -216,16 +211,16 @@ see @ref{c,,Directory Tracking}.
 @geindex variable; mistty-install-keep-output
 @end quotation
 
-MisTTY recently got support for an alternative terminal emulator,
-@cite{alacritty}, which replaces @cite{eterm}, built into Emacs.
+While MisTTY can fall back to using @cite{eterm}, built into Emacs, for
+terminal emulation, it works better if it can use @cite{alacritty}.
 
 While it takes some efforts to get @cite{alacritty} work, doing so
-addresses some limitations of @cite{eterm}, such as lack of support for
-modern terminal features, and limited unicode support.
+addresses limitations of @cite{eterm}, such as lack of support for modern
+terminal features, and has issues with unicode.
 
-To install the module from Emacs, run @cite{M-x mistty-install} or @cite{M-x mistty-install-dwim}, if you want to let the command choose the best
-option. (You might need to run @cite{M-x load-library mistty-install}
-first.)
+To install the module from Emacs, run @cite{M-x mistty-install} or @cite{M-x mistty-install-dwim}, which automatically choose the best option, that
+is, either downloading the prebuilt module binary from github or
+building it locally from source. (You might need to run @cite{M-x load-library mistty-install} first.)
 
 You’ll need @cite{curl} on your PATH to download anything and Rust
 (@cite{cargo}) to compile from source.
@@ -240,8 +235,10 @@ installation, to see exactly what was done, @code{M-x customize-option
 mistty-install-keep-output}.
 
 If you prefer, you can download the released binary module or the
-released source code from github yourself. They’re included in the
-release assets@footnote{https://github.com/szermatt/mistty/releases}.
+released source code from github yourself. Make sure you download the
+version that corresponds to the installed package and put the file in
+a directory on the @cite{load-path} without renaming them. The binary
+modules are included in the release assets@footnote{https://github.com/szermatt/mistty/releases}.
 
 You can also compile the module locally by following these steps:
 
@@ -326,7 +323,7 @@ terminal emulator you’d like to use using @code{M-x customize-option
 mistty-terminal-type}
 
 @node Launching,Terminal vs Scrollback,Installation,Usage
-@anchor{usage id2}@anchor{e}@anchor{usage launching}@anchor{1}
+@anchor{usage id2}@anchor{d}@anchor{usage launching}@anchor{2}
 @subsection Launching
 
 
@@ -373,7 +370,7 @@ the environment variables
 With a prefix argument, this command asks for a directory for the
 new shell, instead of using the current buffer’s current
 directory. This is particularly useful if you want to run shell
-on a remote host. (@ref{f,,Remote Shells with TRAMP})
+on a remote host. (@ref{e,,Remote Shells with TRAMP})
 
 By default, new buffers are called “*mistty*”, or, if you use
 TRAMP “*mistty@@hostname*”. You can configure this with @code{M-x
@@ -438,18 +435,18 @@ project-kill-buffer-conditions} about MisTTY.
 
 This command creates a new MisTTY buffer connected to another host
 using SSH. This is just a shortcut that uses TRAMP to connect to a
-remote host. (@ref{f,,Remote Shells with TRAMP})
+remote host. (@ref{e,,Remote Shells with TRAMP})
 
 @item mistty-docker: command
 
 This command creates a new MisTTY buffer connected to
 a docker instance. This requires the docker command-line tool to
 be installed. This is just a shortcut that uses TRAMP to connect
-to a remote host. (@ref{f,,Remote Shells with TRAMP})
+to a remote host. (@ref{e,,Remote Shells with TRAMP})
 @end table
 
 @node Terminal vs Scrollback,Terminal Zone Modes and Keyboard,Launching,Usage
-@anchor{usage term-vs-scroll}@anchor{10}@anchor{usage terminal-vs-scrollback}@anchor{11}
+@anchor{usage term-vs-scroll}@anchor{f}@anchor{usage terminal-vs-scrollback}@anchor{10}
 @subsection Terminal vs. Scrollback
 
 
@@ -520,7 +517,7 @@ By default, Emacs intercepts most key bindings, but a few are sent directly to t
 @code{M-n}: Navigates downwards in the command history (equivalent to @code{C-n} in the terminal).
 
 @item 
-@code{M-r}: Invokes reverse command history search (equivalent to @code{C-r} in the terminal). See @ref{12,,Backward Search}.
+@code{M-r}: Invokes reverse command history search (equivalent to @code{C-r} in the terminal). See @ref{11,,Backward Search}.
 
 @item 
 @code{M-.}: Inserts the last argument from command history.
@@ -538,14 +535,14 @@ MisTTY will not function if your shell is configured to use `VI
 mode' by default. Please `disable VI mode' before utilizing
 MisTTY. For instructions on disabling VI mode specifically for
 MisTTY buffers, while preserving it otherwise, consult see
-@ref{13,,Shells}. VI mode must be disabled even if you plan to use VI
+@ref{12,,Shells}. VI mode must be disabled even if you plan to use VI
 commands through Evil.
 
 More generally, MisTTY relies on a set of common keybindings and
 behaviors to communicate with the terminal applications and will
 not behave properly if the application doesn’t understand these or
 interpret them in an unusual way. For a list of these keybindings,
-see @ref{14,,Keybindings used by MisTTY}.
+see @ref{13,,Keybindings used by MisTTY}.
 @end quotation
 @end cartouche
 
@@ -555,7 +552,7 @@ actually use and keep everything else behaving as usual for your Emacs
 configuration.
 
 @node Terminal Zone Modes and Keyboard,Keyboard Configuration,Terminal vs Scrollback,Usage
-@anchor{usage modes}@anchor{2}@anchor{usage terminal-zone-modes-and-keyboard}@anchor{15}
+@anchor{usage modes}@anchor{14}@anchor{usage terminal-zone-modes-and-keyboard}@anchor{15}
 @subsection Terminal Zone Modes and Keyboard
 
 
@@ -618,7 +615,7 @@ This tells you that most Emacs editing tools are not available - only
 those that append or delete text from the end such as @cite{yank} or
 @cite{backward-kill-word}, but most importantly that the arrow keys are
 sent to the terminal. This is configured using @cite{M-x configure-option mistty-special-prompt-regexps} and the keybinding is defined in
-@cite{mistty-special-prompt-map}. This is described in @ref{12,,Backward Search}
+@cite{mistty-special-prompt-map}. This is described in @ref{11,,Backward Search}
 
 When, in prompt mode, MisTTY detects an Emacs command that multiple
 commands to execute, the mode-line switches to @code{misTTY …} to signal
@@ -848,7 +845,7 @@ available in MisTTY using the following shortcuts:
 @code{M-n} moves down command history
 
 @item 
-@code{M-r} triggers a backward search in command history (@ref{12,,Backward Search})
+@code{M-r} triggers a backward search in command history (@ref{11,,Backward Search})
 
 @item 
 @code{M-.} insert the last argument from command history
@@ -865,7 +862,7 @@ in the terminal zone of the MisTTY buffer. For example:
 @end example
 
 @node Backward Search,Colors,Command History,Usage
-@anchor{usage backward-search}@anchor{1e}@anchor{usage bs}@anchor{12}
+@anchor{usage backward-search}@anchor{1e}@anchor{usage bs}@anchor{11}
 @subsection Backward Search
 
 
@@ -1043,7 +1040,7 @@ Please file a bug (@ref{3,,Reporting issues}) if you encounter issues with
 other packages.
 
 @node Directory Tracking,Remote Shells with TRAMP,Template Expansion,Usage
-@anchor{usage directory-tracking}@anchor{27}@anchor{usage dirtrack}@anchor{c}
+@anchor{usage directory-tracking}@anchor{27}@anchor{usage dirtrack}@anchor{b}
 @subsection Directory Tracking
 
 
@@ -1058,10 +1055,10 @@ Emacs about its current directory, as described in @ref{28,,Directory Tracking f
 @code{Bash} out-of-the-box directory tracking also doesn’t work in
 shells you start using @code{ssh} or @code{docker}. For that
 to work, the simplest solution is to start remote shells with
-TRAMP. (@ref{f,,Remote Shells with TRAMP})
+TRAMP. (@ref{e,,Remote Shells with TRAMP})
 
 @node Remote Shells with TRAMP,Directory tracking and TRAMP,Directory Tracking,Usage
-@anchor{usage remote-shells}@anchor{f}@anchor{usage remote-shells-with-tramp}@anchor{2a}
+@anchor{usage remote-shells}@anchor{e}@anchor{usage remote-shells-with-tramp}@anchor{2a}
 @subsection Remote Shells with TRAMP
 
 
@@ -1073,7 +1070,7 @@ the shell with the method, user and host `of that path'.
 @quotation Tip 
 @code{C-u M-x mistty-create} asks for a directory instead of using
 the default one. This makes it possible to open a remote shell on a
-host that no buffer is visiting. See @ref{1,,Launching}.
+host that no buffer is visiting. See @ref{2,,Launching}.
 @end quotation
 @end cartouche
 
@@ -1111,7 +1108,7 @@ on @code{M-x customize-option mistty-buffer-name}.
 @geindex variable; mistty-allow-tramp-path
 @geindex variable; mistty-host-to-tramp-path-alist
 
-Directory tracking (@ref{c,,Directory Tracking}) normally just works in TRAMP
+Directory tracking (@ref{b,,Directory Tracking}) normally just works in TRAMP
 shells started described in the previous section.
 
 This isn’t necessarily true of shells started from a MisTTY buffers,
@@ -1122,7 +1119,7 @@ it is possible to make that work, as described below.
 @quotation Tip 
 The simplest way to connect a host or docker instance you don’t
 want to configure is to just start it as described in
-@ref{f,,Remote Shells with TRAMP} and use @code{Bash} as your shell.
+@ref{e,,Remote Shells with TRAMP} and use @code{Bash} as your shell.
 Everything then just work out of the box, at least for Bash
 4.4 and later. (@ref{2d,,Directory tracking in Bash})
 @end quotation
@@ -1159,7 +1156,7 @@ configure-option mistty-host-to-tramp-path-alist}
 
 That said, if you need more than just SSH to connect to other hosts,
 it might be overall just easier to start remote shells with TRAMP
-(@ref{f,,Remote Shells with TRAMP}) instead of the command line, because directory
+(@ref{e,,Remote Shells with TRAMP}) instead of the command line, because directory
 tracking just works in that case.
 
 If everything fails, if TRAMP is causing you too much trouble and you
@@ -1167,7 +1164,7 @@ just don’t want MisTTY to generate remote paths at all, unset the
 option @code{M-x configure-option mistty-allow-tramp-paths}.
 
 @node Keybindings used by MisTTY,Supported OSC Control Sequences,Directory tracking and TRAMP,Usage
-@anchor{usage keybindings}@anchor{14}@anchor{usage keybindings-used-by-mistty}@anchor{2e}
+@anchor{usage keybindings}@anchor{13}@anchor{usage keybindings-used-by-mistty}@anchor{2e}
 @subsection Keybindings used by MisTTY
 
 
@@ -1212,7 +1209,7 @@ only character insertion and deletion are supported. Thus, while most
 Emacs commands may not function, you can still use simple Emacs
 commands that insert text after the cursor, such as @code{yank} (with no
 special characters), or delete text before the cursor, such as
-@code{backward-kill-word}. For more details, see @ref{12,,Backward Search}
+@code{backward-kill-word}. For more details, see @ref{11,,Backward Search}
 
 @node Supported OSC Control Sequences,,Keybindings used by MisTTY,Usage
 @anchor{usage osc}@anchor{1c}@anchor{usage supported-osc-control-sequences}@anchor{2f}
@@ -1241,7 +1238,7 @@ MisTTY buffer, which can then be referred to in
 @item 
 `OSC 7;file://<hostname>/<path> ST' reports the shell’s current
 directory to Emacs. (on both
-@cite{alacritty} and @cite{eterm}) See @ref{c,,Directory Tracking}
+@cite{alacritty} and @cite{eterm}) See @ref{b,,Directory Tracking}
 
 @item 
 `OSC 8;;<url> ST <text> OSC 8;; ST' makes text clickable. (on both
@@ -1426,7 +1423,7 @@ prompt sections and ignores any extra fields.
 To extend the set of OSC codes supported by MisTTY, see @ref{32,,OSC Sequences}.
 
 @node Shells,Extending MisTTY,Usage,Contents
-@anchor{shells doc}@anchor{33}@anchor{shells id1}@anchor{34}@anchor{shells shells}@anchor{13}
+@anchor{shells doc}@anchor{33}@anchor{shells id1}@anchor{34}@anchor{shells shells}@anchor{12}
 @section Shells
 
 
@@ -1643,7 +1640,7 @@ forward some additional shortcuts to fish:
 @end example
 
 This can also be done by calling @code{use-package} as shown in
-@ref{a,,Installation}.
+@ref{1,,Installation}.
 
 When in reverse history search mode, @code{fish} enters a mode
 that lets you select an option using the arrow keys. To send
@@ -2450,7 +2447,7 @@ If the terminal you’re using is @cite{alacritty} try setting the value
 to @cite{xterm-256color} or @cite{xterm} as these are widely available.
 This is especially convenient when connecting to remote hosts. If
 you want to use @cite{TERM=alacritty} or remote hosts, install the
-terminfo file on these hosts as described in @ref{a,,Installation}.
+terminfo file on these hosts as described in @ref{1,,Installation}.
 
 If the terminal you’re using is @cite{eterm}, @code{TERM} must be
 @cite{eterm} or @cite{eterm-color}, but many hosts don’t support these
@@ -2476,7 +2473,7 @@ To fix this issue, you can do any one of the following:
 @itemize -
 
 @item 
-Connect using TRAMP, as described in @ref{f,,Remote Shells with TRAMP}. TRAMP takes
+Connect using TRAMP, as described in @ref{e,,Remote Shells with TRAMP}. TRAMP takes
 care of setting all necessary environment variables.
 
 @item 
@@ -2527,7 +2524,7 @@ knows it should not attempt to move the cursor. The default value
 identifies most shell backward search prompts.
 @end itemize
 
-See @ref{10,,Terminal vs. Scrollback} for more details.
+See @ref{f,,Terminal vs. Scrollback} for more details.
 @end quotation
 
 `The shell isn’t answering!'
@@ -2575,7 +2572,7 @@ terminal, meaning that it is not fully editable and that some
 shortcuts, such as @code{TAB} are sent directly to the program
 controlling the terminal.
 
-This is covered in depth in @ref{10,,Terminal vs. Scrollback}.
+This is covered in depth in @ref{f,,Terminal vs. Scrollback}.
 
 If you just don’t want to see that line, turn it off with
 @code{M-x customize-option mistty-fring-enabled}
@@ -2636,7 +2633,7 @@ If that’s not possible or if you don’t want to bother, you might
 find it convenient to just disable the generation of TRAMP paths
 using @code{M-x customize-option mistty-allow-tramp-paths}.
 
-For more details, see @ref{c,,Directory Tracking}.
+For more details, see @ref{b,,Directory Tracking}.
 @end quotation
 
 `The buffer is killed when the shell finishes. This didn’t use to happen!'

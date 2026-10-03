@@ -1,85 +1,84 @@
-# MisTTY, a shell/comint alternative with a fully functional terminal
+# MisTTY, a terminal for Emacs with shell/comint behavior
 
 [![CI Status](https://github.com/szermatt/mistty/actions/workflows/CI.yml/badge.svg)](https://github.com/szermatt/mistty/actions/workflows/CI.yml)
 [![Documentation Status](https://readthedocs.org/projects/mistty/badge/?version=latest)](https://mistty.readthedocs.io/en/latest/?badge=latest)
 [![MELPA](https://melpa.org/packages/mistty-badge.svg)](https://melpa.org/#/mistty)
 [![MELPA Stable](https://stable.melpa.org/packages/mistty-badge.svg)](https://stable.melpa.org/#/mistty)
 
-**MisTTY** is a major mode for Emacs 29.1 and up that runs
-a shell inside of a buffer, similarly to comint mode. It is built on
-top of the built-in Emacs terminal emulator, `eterm`.
+**MisTTY** is a terminal application for Emacs 29.1 and up that allows
+editing prompts using Emacs commands, like in the `shell` command, but
+in a full-featured, modern terminal.
 
 > [!NOTE]
 >
-> MisTTY now supports using [alacritty](https://alacritty.org) instead
-> of `eterm` as underlying terminal emulator is now available. To
-> install it, run `M-x mistty-install` or `M-x mistty-install-dwim`.
-> For more details, head over to
+> Terminal support is provided by [alacritty](https://alacritty.org),
+> with the help of an Emacs module. Without that module, MisTTY
+> falls back to using the more limited Emacs built-in terminal `eterm`.
+> To avoid that install the module with `M-x mistty-install` or `M-x
+> mistty-install-dwim`. For more details, head over to
 > https://mistty.readthedocs.io/en/latest/usage.html#module-with-alacritty
-
 
 `M-x mistty` creates a buffer with an interactive shell. See
 [launching](https://mistty.readthedocs.io/en/latest/usage.html#launching)
 for details.
 
-MisTTY feels very much like `comint` mode: you can move around freely
-and run any Emacs command you want - until you press TAB and end up
-with the native completion or notice the shell autosuggestions. With
-MisTTY you have access to both Emacs and the shell commands and
-editing tools. Like `comint`, MisTTY supports [remote shells with
+In that buffer you can move around freely and run any Emacs command
+you want - until you press TAB and end up with the native completion
+or notice the shell autosuggestions. With MisTTY you have access to
+both Emacs and the shell commands and editing tools. Like `comint`,
+MisTTY supports [remote shells with
 TRAMP](https://mistty.readthedocs.io/en/latest/usage.html#tramp).
 
 Additionally, commands that take over the entire screen, such as
-`less` or `vi` also work, temporarily taking over the terminal zone,
-while scrollback remains available.
+`less` or `vi` also work, temporarily taking over the terminal zone
+and keyboard.
 
-MisTTY works well with Bash and ZSH, but it is especially well
-suited to running [Fish](https://fishshell.com): you get
-autosuggestions, completion in full colors. Here's what the end
-result might look like:
+MisTTY works well with Bash and ZSH, but it is especially well suited
+to running [Fish](https://fishshell.com). With Fish, you get
+autosuggestion, completion in full colors, directory tracking with
+OSC7, and prompt detection with OSC133 out of the box. [Other shells
+can be configured to support
+all that](https://mistty.readthedocs.io/en/latest/shells.html)
 
-![screen grab](https://github.com/szermatt/mistty/blob/master/screengrab.gif?raw=true)
+Special configuration isn't absolutely needed, as MisTTY tries to
+support supports any command-line programs with a prompt in a
+reasonable way, like python or ipython.
 
-MisTTY is known to work on Linux and MacOS. It also supports non-shell
-command-line programs, such as python or ipython. MisTTY should work
-with most shells, but it is possible that a shell confuses it,
+It is, however, possible that a shell or prompt command confuses it,
 especially advanced ones. In such a case, please consider [turning on
-OSC133
-sequences](https://mistty.readthedocs.io/en/latest/usage.html#osc133)
+OSC133 support in the
+command](https://mistty.readthedocs.io/en/latest/usage.html#osc133)
 and [filing a bug report](
 https://mistty.readthedocs.io/en/latest/contrib.html#reporting-issues).
 
+![screen grab](https://github.com/szermatt/mistty/blob/master/screengrab.gif?raw=true)
+
+MisTTY is known to work on Linux and MacOS.
+
 ## COMPARISON
 
-MisTTY is a frontend to a terminal emulator, currently either `eterm`,
-a pure elisp terminal emulator built into Emacs, or `alacritty` using
-a custom module built against the [alacritty
-library](https://github.com/alacritty/alacritty).
+As its core, MisTTY is a frontend to a terminal emulator. Terminal
+emulation is provided by [alacritty
+library](https://github.com/alacritty/alacritty), which emulates xterm
+and has [support for modern terminal
+extensions](https://alacritty.org/misc-alacritty-escapes.html).
 
-Its goal is to make it more convenient to use while inside of Emacs
-and better integrate with Emacs itself.
+MisTTY goes beyond plain terminal emulation in Emacs to provide a
+convenient tools for command-line editing. It does its best to make as
+much of Emacs editing capabilities available while on a prompt.
 
-MisTTY has some similarities with `coterm`; it offers the same switch
-between full-screen and line mode.
-
-`Coterm`, `ansi-term` and `eat` all have a line mode, just like
-`comint`. While in line mode, rendering is done by Emacs and editing
-commands are Emacs commands. In constrast, with MisTTY, all rendering
-is done by the shell through the terminal. This is why native shell
-completion and autosuggestion is available with MisTTY and not with
-these other line modes and why you can freely mix shell commands with
-Emacs commands while editing the command line.
-
-`ansi-term` and `eat` also have a char mode, where rendering and
-command execution is handled by the shell, and editing with Emacs
-isn't available. The difference with MisTTY is then that MisTTY makes
-Emacs editing commands available when possible.
+This idea is similar to `coterm`, which offers the same switch between
+full-screen and line mode.
 
 `eat` also has a semi-char mode, which is the closest there is to
 MisTTY. In that mode, Emacs movements commands are available. However,
 Emacs commands that modify the buffer, aren't available to edit the
 command line. In contrast, MisTTY allows Emacs to navigate to and edit
 the whole buffer, then replays changes made to the command-line.
+
+Other terminal emulators are available for Emacs, such as `vterm` and
+`ghostty`, which do terminal emulation well, but don't offer the deep
+integration with Emacs commands that MisTTY does.
 
 ## INSTALLATION
 
@@ -89,8 +88,9 @@ You can install MisTTY:
 - from [MELPA](https://melpa.org/#/getting-started), by typing `M-x package-install mistty`
 - from source, by executing `(package-vc-install "https://github.com/szermatt/mistty")`
 
-Once the package is install, you can, if you want to use alacritty
-instead of eterm, run `M-x mistty-install-dwim` to install the module.
+Once the package is installed, run `M-x mistty-install-dwim` to
+install the module. Without it, MistTTY will be usable, but limited to
+the Emacs built-in terminal emulator.
 
 ## USAGE
 

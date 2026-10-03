@@ -5,6 +5,8 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/doc.yml'
+    branches: # do not trigger on tag push
+      - '**'
 
 jobs:
   doc:

@@ -49,3 +49,6 @@ jobs:
 
     - name: Test the project
       run: 'eldev -DtTQ test -B --ci || eldev -dtT test --ci :failed'
+
+    - name: Make sure the tests compile without errors
+      run: 'eldev compile -s test'

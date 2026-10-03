@@ -27,6 +27,11 @@
 (require 'mistty-accum)
 (require 'mistty-scrolline)
 
+;; These declarations allow compiling without loading the module.
+(eval-when-compile
+  (declare-function mistty-alacritty-vt-clear-scrollback nil (term))
+  (declare-function mistty-alacritty-vt-render-screen nil (term cursor)))
+
 ;;; Code:
 
 (eval-when-compile

@@ -15,6 +15,7 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'mistty-kbd)
+(require 'mistty-term)
 (require 'ert)
 (require 'ert-x)
 
@@ -77,7 +78,7 @@
 (ert-deftest mistty-kbd-capture-keyboard-mouse-event  ()
   (ert-with-test-buffer ()
     (let ((buf (current-buffer)))
-      (setq mistty--send-function (lambda (str key &rest _)
+      (setq mistty--send-function (lambda (str _key &rest _)
                                     (with-current-buffer buf
                                       (insert str))))
       ;; down-mouse-1 must end the sequence and bar should never
@@ -90,7 +91,7 @@
   (ert-with-test-buffer ()
     (let ((buf (current-buffer))
           (mistty-exit-capture-keyboard-key "<f7>"))
-      (setq mistty--send-function (lambda (str key &rest _)
+      (setq mistty--send-function (lambda (str _key &rest _)
                                     (with-current-buffer buf
                                       (insert str))))
       ;; C-g doesn't end the sequence, but f7 does

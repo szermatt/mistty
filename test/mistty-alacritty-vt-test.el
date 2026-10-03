@@ -283,7 +283,7 @@
     (should (equal 'ansi-color-bold (get-text-property (point) 'face)))
 
     (mistty-test-goto "italic")
-    (should (equal (sort '(ansi-color-bold ansi-color-italic) #'value<)
+    (should (equal (sort (list 'ansi-color-bold 'ansi-color-italic) #'value<)
                    (sort (get-text-property (point) 'face) #'value<)))
 
     (mistty-test-goto "underline")
@@ -1164,8 +1164,7 @@
 
 (ert-deftest mistty-alacritty-vt-osc52-update-kill-ring ()
   (let* ((mistty-alacritty-osc52 'only-copy)
-         (term (mistty-alacritty-vt-make-vterm 80 10))
-         (cursor (make-marker)))
+         (term (mistty-alacritty-vt-make-vterm 80 10)))
     (kill-new "initial")
     (mistty-alacritty-vt-process-bytes
      term (vconcat (format "\e]52;c;%s\a" (base64-encode-string "baa1"))))
@@ -1178,8 +1177,7 @@
 
 (ert-deftest mistty-alacritty-vt-osc52-clear ()
   (let* ((mistty-alacritty-osc52 'only-copy)
-         (term (mistty-alacritty-vt-make-vterm 80 10))
-         (cursor (make-marker)))
+         (term (mistty-alacritty-vt-make-vterm 80 10)))
     (kill-new "initial")
     (mistty-alacritty-vt-process-bytes
      term (vconcat (format "\e]52;c;%s\a" (base64-encode-string "baa1"))))

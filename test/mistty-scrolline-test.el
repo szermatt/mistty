@@ -20,7 +20,7 @@
 (require 'ert-x)
 (require 'pcase)
 
-(defconst fakenl (propertize "\n" 'term-line-wrap t)
+(defconst mistty-test-fakenl (propertize "\n" 'term-line-wrap t)
   "A fake newline.")
 
 (defun --word-after ()
@@ -38,9 +38,9 @@
 
 (ert-deftest mistty-scrolline-goto-start ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz")
     (goto-char (point-min))
 
     (save-excursion
@@ -84,14 +84,14 @@
 
 (ert-deftest mistty-scrolline-goto-start-nl-at-eob ()
   (ert-with-test-buffer ()
-    (insert "foo" fakenl "bar\n")
+    (insert "foo" mistty-test-fakenl "bar\n")
     (goto-char (point-max))
     (mistty--goto-scrolline-start)
     (should (equal (point) (point-max)))))
 
 (ert-deftest mistty-scrolline-goto-start-empty-lines ()
   (ert-with-test-buffer ()
-    (insert "foo" fakenl "bar\n\nend")
+    (insert "foo" mistty-test-fakenl "bar\n\nend")
     (goto-char (point-min))
     (save-excursion
       (search-forward "end")
@@ -110,7 +110,7 @@
 
 (ert-deftest mistty-scrolline-start-pos ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def\njkl\n")
+    (insert "abc" mistty-test-fakenl "def\njkl\n")
     (goto-char (point-min))
 
     (save-excursion
@@ -128,9 +128,9 @@
 
 (ert-deftest mistty-scrolline-goto-end ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (save-excursion
@@ -189,14 +189,14 @@
 
 (ert-deftest mistty-scrolline-goto-end-no-nl-at-eob ()
   (ert-with-test-buffer ()
-    (insert "foo" fakenl "bar")
+    (insert "foo" mistty-test-fakenl "bar")
     (search-backward "foo")
     (mistty--goto-scrolline-end)
     (should (equal (point) (point-max)))))
 
 (ert-deftest mistty-scrolline-end-pos ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def\njkl")
+    (insert "abc" mistty-test-fakenl "def\njkl")
     (goto-char (point-min))
 
     (save-excursion
@@ -215,9 +215,9 @@
 
 (ert-deftest mistty-scrolline-range ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz")
     (goto-char (point-min))
 
     (save-excursion
@@ -248,9 +248,9 @@
 
 (ert-deftest mistty-scrolline-move-scrollines-0 ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (save-excursion
@@ -270,9 +270,9 @@
 
 (ert-deftest mistty-scrolline-move-scrollines-forward ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (save-excursion
@@ -307,9 +307,9 @@
 
 (ert-deftest mistty-scrolline-move-scrollines-forward-too-far ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (save-excursion
@@ -329,9 +329,9 @@
 
 (ert-deftest mistty-scrolline-move-scrollines-backward ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (save-excursion
@@ -366,9 +366,9 @@
 
 (ert-deftest mistty-scrolline-move-scrollines-backward-too-far ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (save-excursion
@@ -396,9 +396,9 @@
 
 (ert-deftest mistty-scrolline-count ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (should (equal 0 (mistty--count-scrollines
@@ -453,9 +453,9 @@
 
 (ert-deftest mistty-scrolline-count-backward ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (should (equal 0 (mistty--count-scrollines
@@ -496,9 +496,9 @@
 
 (ert-deftest mistty-scrolline-unwrap-lines-partial ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (should (equal
@@ -516,9 +516,9 @@
 
 (ert-deftest mistty-scrolline-unwrap-lines-full ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (should (equal 6 (mistty--unwrap-lines (point-min) (point-max))))
@@ -530,9 +530,9 @@
 
 (ert-deftest mistty-scrolline-unwrap-lines-backward ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (should (equal 4
@@ -549,12 +549,12 @@
 
 (ert-deftest mistty-scrolline-unwrap-lines-boundaries ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
     (goto-char (point-min))
 
-    ;; beg is on a fakenl; it'll be removed (inclusive)
-    ;; end is also on a fakenl; it won't be removed (exclusive)
+    ;; beg is on a mistty-test-fakenl; it'll be removed (inclusive)
+    ;; end is also on a mistty-test-fakenl; it won't be removed (exclusive)
     (mistty--unwrap-lines
      (save-excursion (search-forward "f")
                      (point))
@@ -567,9 +567,9 @@
 
 (ert-deftest mistty-scrolline-at ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (equal 0 (mistty--scrolline-at-point))
@@ -591,9 +591,9 @@
 
 (ert-deftest mistty-scrolline-at-with-home ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (mistty--update-scrolline (save-excursion
@@ -642,9 +642,9 @@
 
 (ert-deftest mistty-scrolline-find ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (should (equal (point-min) (mistty--find-scrolline 0)))
@@ -664,9 +664,9 @@
 
 (ert-deftest mistty-scrolline-find-with-home ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (mistty--update-scrolline (save-excursion
@@ -691,10 +691,10 @@
 
 (ert-deftest mistty-scrolline-for-each ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
     (insert "\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (let ((capture (list)))
@@ -709,8 +709,8 @@
 
 (ert-deftest mistty-scrolline-for-each-no-final-nl ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr")
     (goto-char (point-min))
 
     (let ((capture (list)))
@@ -723,9 +723,9 @@
 
 (ert-deftest mistty-scrolline-for-each-partial ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (let ((capture (list)))
@@ -745,9 +745,9 @@
 
 (ert-deftest mistty-unwrapped-scrolline-text ()
   (ert-with-test-buffer ()
-    (insert "abc" fakenl "def" fakenl "ghi\n")
-    (insert "jkl" fakenl "mno" fakenl "pqr\n")
-    (insert "stu" fakenl "vwx" fakenl "yz\n")
+    (insert "abc" mistty-test-fakenl "def" mistty-test-fakenl "ghi\n")
+    (insert "jkl" mistty-test-fakenl "mno" mistty-test-fakenl "pqr\n")
+    (insert "stu" mistty-test-fakenl "vwx" mistty-test-fakenl "yz\n")
     (goto-char (point-min))
 
     (search-forward "n")

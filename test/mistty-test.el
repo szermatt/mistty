@@ -1527,9 +1527,7 @@
   (mistty-send-text "echo hello, world")
   (mistty-send-and-wait-for-prompt)
 
-  (let ((bufname (buffer-name))
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
+  (let ((work-buffer mistty-work-buffer)
         (proc mistty-proc))
 
     (should (executable-find "vi"))
@@ -1617,7 +1615,6 @@
 
 (defun mistty-test-call-fullscreen-hooks (value)
   (let ((work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
         (calls (list)))
 
     (add-hook 'mistty-after-process-end-hook
@@ -2237,7 +2234,7 @@
   (ert-with-temp-directory tempdir
     (dotimes (i 10)
       (with-temp-file (format "%sfile%d" tempdir i)))
-    (let (echo-start ls-start)
+    (let (ls-start)
       (mistty--send-string mistty-proc "setopt no_always_last_prompt no_auto_menu no_list_ambiguous")
       (mistty-send-and-wait-for-prompt)
       (mistty--send-string mistty-proc (format "cd '%s'" tempdir))
@@ -3157,8 +3154,7 @@
 (mistty-deftest mistty-test-cursor-skip
     (:shell fish :selected t :turtles t :type all)
   (delete-other-windows)
-  (let ((mistty-skip-empty-spaces t)
-        (win (selected-window)))
+  (let ((mistty-skip-empty-spaces t))
     (mistty-send-text "for i in a b c\necho line $i\nend")
 
     (turtles-with-grab-buffer (:name "initial" :point "<>")
@@ -3188,14 +3184,14 @@
                              "  <>end")
                      (buffer-string))))
 
-    (previous-line)
+    (call-interactively #'previous-line)
     (turtles-with-grab-buffer (:name "initial" :point "<>")
       (should (equal (concat "$ for i in a b c\n"
                              "      <>echo line $i\n"
                              "  end")
                      (buffer-string))))
 
-    (previous-line)
+    (call-interactively #'previous-line)
     (turtles-with-grab-buffer (:name "initial" :point "<>")
       (should (equal (concat "$ <>for i in a b c\n"
                              "      echo line $i\n"
@@ -4779,8 +4775,7 @@
 (mistty-deftest mistty-test-set-terminal-size-and-split-screen-fullscreen
     (:selected t :term-size 'window :type eterm :turtles t)
   (let ((proc mistty-proc)
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer))
+        (work-buffer mistty-work-buffer))
 
     (mistty-set-terminal-size 40 10)
     (delete-other-windows)
@@ -5529,7 +5524,6 @@ function prompt {
   (delete-region (mistty-test-pos "$ echo one")
                  (mistty-test-pos-after "\none\n"))
 
-  (setq start (pos-bol))
   (mistty-send-text "prompt")
   (mistty-send-command)
   (mistty-wait-for-output :str "Prompt: ")
@@ -5812,7 +5806,7 @@ function prompt {
      (should (equal '("*mistty*" "*mistty*<2>" "*mistty*<3>")
                     (mapcar #'buffer-name (mistty-list-live-buffers))))
 
-     (with-current-buffer "*mistty*<2>"
+     (with-current-buffer (get-buffer "*mistty*<2>")
        (process-send-string mistty-proc "exit 1\n")
        (mistty-wait-for-output :str "exited abnormally with code 1"))
      (should (equal '("*mistty*" "*mistty*<3>")
@@ -5905,7 +5899,7 @@ function prompt {
      (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
 
      ;; Kill process *mistty*
-     (with-current-buffer "*mistty*"
+     (with-current-buffer (get-buffer "*mistty*")
        (process-send-string mistty-proc "exit 1\n")
        (mistty-wait-for-output :str "exited abnormally with code 1"))
      (should-not (mistty-live-buffer-p (get-buffer "*mistty*")))
@@ -5939,7 +5933,7 @@ function prompt {
      (should (equal "*mistty*<2>" (buffer-name (window-buffer (selected-window)))))
 
      ;; Kill buffer *mistty*
-     (with-current-buffer "*mistty*"
+     (with-current-buffer (get-buffer "*mistty*")
        (process-send-string mistty-proc "exit 1\n")
        (mistty-wait-for-output :str "exited abnormally with code 1"))
      (should-not (mistty-live-buffer-p (get-buffer "*mistty*")))
@@ -6381,13 +6375,13 @@ function prompt {
       (unless was-enabled
         (global-goto-address-mode -1)))))
 
+(defun mistty--cursor-scrolline ()
+  "Return the scrolline position of the cursor."
+  (with-current-buffer mistty-term-buffer
+    (mistty--scrolline-at (point))))
+
 (mistty-deftest mistty-test-scrolline-after-scrolling
     (:term-size '(79 . 22) :type all :turtles t)
-  (defun mistty--cursor-scrolline ()
-    "Return the scrolline position of the cursor."
-    (with-current-buffer mistty-term-buffer
-      (mistty--scrolline-at (point))))
-
   (save-restriction
     (let (one two)
       (mistty--send-string
@@ -6449,13 +6443,8 @@ function prompt {
 
 (mistty-deftest mistty-test-scrolline-after-scrolling-long-lines
     (:term-size '(79 . 23) :type all :turtles t)
-  (defun mistty--cursor-scrolline ()
-    "Return the scrolline position of the cursor."
-    (with-current-buffer mistty-term-buffer
-      (mistty--scrolline-at (point))))
-  
   (save-restriction
-    (let (one two)
+    (let (one)
       ;; Each line counts double, as it is split by term.
       (mistty--send-string
        mistty-proc
@@ -7248,8 +7237,8 @@ precmd_functions+=(prompt_header)
   (should (equal "hello" (mistty-send-and-capture-command-output))))
 
 (mistty-deftest mistty-test-bracketed-paste-commands (:type alacritty :shell bash)
-  (let ((mistty-bracketed-paste-alist '((self-insert-command . nil)
-                                        (yank . t)))
+  (let ((mistty-bracketed-paste-command-alist '((self-insert-command . nil)
+                                                (yank . t)))
         (mistty-bracketed-paste-default nil))
     ;; This test uses alacritty, because it's much easier to detect
     ;; highlighted (inversed) text. The actual feature isn't specific
@@ -7561,9 +7550,7 @@ precmd_functions+=(prompt_header)
              (mistty-test-trim-mode-line)))))
 
 (mistty-deftest mistty-test-mode-line-split-buffer-fs (:selected t :type eterm :turtles t)
-  (let ((work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
-        (proc mistty-proc))
+  (let ((term-buffer mistty-term-buffer))
     (with-current-buffer mistty-work-buffer 
       (mistty-test-rename-buffer "test-mode-line"))
     

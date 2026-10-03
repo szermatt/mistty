@@ -15,6 +15,7 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'mistty-term-eterm)
+(require 'mistty-testing)
 (require 'ert)
 (require 'ert-x)
 
@@ -153,7 +154,8 @@
 
 (ert-deftest test-mistty-hide-line-wraps ()
   (ert-with-test-buffer ()
-    (let (line1 line2 line3 line4 line5 line6 (mistty-log t))
+    (let ((fakenl (propertize "\n" 'term-line-wrap t))
+          line1 line2 line3 line4 line5 line6 (mistty-log t))
       (insert "abcdef" fakenl)
       (setq line1 (1- (point)))
       (insert "ghijkl\n") ;; not fake

@@ -370,7 +370,7 @@ mistty-reverse-input-decode-map.el to `xterm-function-map'.")
 
 Failures interrupt `mistty-capture-keyboard'.")
 
-(defvar mistty-kbd-end-key-capture-keyboard-hook nil
+(defvar mistty-end-capture-keyboard-hook nil
   "Hooks run when `mistty-capture-keyboard' has ended.")
 
 (defvar-local mistty-bracketed-paste nil

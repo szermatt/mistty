@@ -110,7 +110,7 @@
 
       (mistty--accum-add-processor
        accum '(seq ESC ?=)
-       (lambda (ctx data)
+       (lambda (ctx _data)
          ;; Anything pushed before flush is visible afterwards.
          (mistty--accum-ctx-push-down ctx "-")
          (mistty--accum-ctx-flush ctx)
@@ -239,7 +239,7 @@
 
       (mistty--accum-add-processor
        accum '(seq "aa")
-       (lambda (ctx str)
+       (lambda (ctx _str)
          (mistty--accum-ctx-push-down ctx "oo")
 
          ;; around should be called from flush
@@ -260,7 +260,7 @@
   (mistty-with-test-process (proc)
     (let* ((capture nil) ;; captured data in reverse order
            (accum (mistty--make-accumulator
-                   (lambda (proc data)
+                   (lambda (_proc data)
                      (push data capture)))))
       (set-process-filter proc accum)
 

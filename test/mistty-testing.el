@@ -198,7 +198,7 @@ INIT is a string to append to the shell RC file.
 If SELECTED is non-nil, make sure the buffer is in a selected
 window while BODY is running.
 
-TERM-SIZE specifies either 'window, to track window size or a fixed
+TERM-SIZE specifies either \\='window, to track window size or a fixed
 terminal size, detached from window size, as (cons WIDTH HEIGHT).
 Defaults to 80x24.
 
@@ -362,7 +362,7 @@ default, the default directory is a temp directory created for the test."
       (setenv "ZDOTDIR" orig-zdotdir)
       (setenv "PROMPT_EOL_MARK" orig-prompt-eol-mark))))
 
-(defun mistty-test-setup-fish (tmpdir init term-size)
+(defun mistty-test-setup-fish (_tmpdir init term-size)
   (mistty-exec
    (list
     mistty-test-fish-exe
@@ -858,8 +858,8 @@ This simulates what happens in the command loop."
     (let ((pos (mistty--find-scrolline scrolline)))
       (unless pos
         (error "Scrolline at %s outside of range [%s, %s].<<EOF%sEOF"
-               scrolline mistty--sync-marker-scrolline
-               (mistty--scrolline (point-max))
+               scrolline mistty--scrolline-home-num
+               (mistty--scrolline-at (point-max))
                (mistty-test-content :start mistty-sync-marker)))
       (goto-char pos)
       (string-trim-right (buffer-substring-no-properties (pos-bol) (pos-eol))))))

@@ -67,7 +67,6 @@
   (ert-with-temp-directory tempdir
     (let ((mistty-alacritty-version "2.0.0")
           (mistty-install-keep-output t)
-          (src-dir mistty-install-src-dir)
           (mistty-install-dir tempdir))
       (ignore-error error
         (kill-buffer mistty-install-buffer))
@@ -77,13 +76,13 @@
                         (with-current-buffer mistty-install-buffer
                           (mistty-test-content)))
                (signal err)))
-      (setq output (with-current-buffer mistty-install-buffer
-                     (mistty-test-content)))
-      (should (file-exists-p
-               (expand-file-name (mistty-alacritty-modulename)
-                                 mistty-install-dir)))
-      (should (string-match "Compiling module\.\.\.$" output))
-      (should (string-match "Finished" output)))))
+      (let ((output (with-current-buffer mistty-install-buffer
+                      (mistty-test-content))))
+        (should (file-exists-p
+                 (expand-file-name (mistty-alacritty-modulename)
+                                   mistty-install-dir)))
+        (should (string-match "Compiling module\.\.\.$" output))
+        (should (string-match "Finished" output))))))
 
 (ert-deftest mistty-install-compile-module-no-source ()
   :tags '(:slow)
@@ -98,12 +97,12 @@
       (ignore-error error
         (kill-buffer mistty-install-buffer))
       (should-error (mistty--interactive-compile))
-      (setq output (with-current-buffer mistty-install-buffer
-                     (mistty-test-content)))
-      (should (string-match "compilation failed" output))
-      (should-not (file-exists-p
-                   (expand-file-name (mistty-alacritty-modulename)
-                                     mistty-install-dir))))))
+      (let ((output (with-current-buffer mistty-install-buffer
+                      (mistty-test-content))))
+        (should (string-match "compilation failed" output))
+        (should-not (file-exists-p
+                     (expand-file-name (mistty-alacritty-modulename)
+                                       mistty-install-dir)))))))
 
 (defun mistty-run-test-server (handler-func test-func)
   "Run a test web server for the duration of the test.
@@ -173,8 +172,7 @@ once that function returns."
           (mistty-alacritty-release "v2.0.0")
           (system-type 'darwin)
           (mistty-alacritty-arch "aarch64")
-          (mistty-install-dir install-dir)
-          requested-url)
+          (mistty-install-dir install-dir))
       (ignore-error error
         (kill-buffer mistty-install-buffer))
       (mistty-run-test-server
@@ -293,13 +291,13 @@ once that function returns."
       (mistty-run-test-server
        (lambda (request)
          (with-slots (process headers) request
-           (setq requested-url (cdr (assoc :GET headers)))
-           (if (string= "/alacritty.info" requested-url)
-               (progn
-                 (ws-response-header process 200
-                                     '("Content-Type" . "application/octet-stream"))
-                 (process-send-string process data))
-             (ws-send-404 process "Not Found"))))
+           (let ((requested-url (cdr (assoc :GET headers))))
+             (if (string= "/alacritty.info" requested-url)
+                 (progn
+                   (ws-response-header process 200
+                                       '("Content-Type" . "application/octet-stream"))
+                   (process-send-string process data))
+               (ws-send-404 process "Not Found")))))
        (lambda (address)
          (let ((mistty-install-terminfo-url (concat "http://" address "/alacritty.info"))
                (mistty-install-src-dir "/notfound"))

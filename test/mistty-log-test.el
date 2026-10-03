@@ -58,7 +58,7 @@
 
 (ert-deftest mistty-log-test-start-stop-log-logging-to-messages ()
   (ert-with-test-buffer ()
-    (let ((mistty-log-to-messagse t)
+    (let ((mistty-log-to-messages t)
           (mistty-log nil)
           (mistty-backlog-size 0)
           (mistty-log-buffer nil)

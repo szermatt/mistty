@@ -60,6 +60,9 @@
 
 ;;; Code:
 
+(defconst mistty-version "2.1.1snapshot"
+  "Mistty package version")
+
 ;; Customization:
 (defgroup mistty nil
   "Shell/Comint alternative with a real terminal."
@@ -990,34 +993,44 @@ This is only valid for modes that have a non-nil :map tag.")
   (propertize "⌨" 'display '((height 0.7)))
   "Tag that shows that the fullscreen map is active in modeline")
 
-(defvar mistty--secondary-mode-menu
-  (let ((map (make-sparse-keymap "Mistty")))
-    ;; Note that items are defined in reverse order
+(defun mistty--add-secondary-mode-menu (map)
+  "Add menu items to MAP related to secondary mode and keymaps."
+  ;; Note that items are defined in reverse order
 
-    (define-key
-     map [capture]
-     '(menu-item "Capture Keyboard" mistty-capture-keyboard))
-    (define-key map [separator-1] '(menu-item "--"))
-    (define-key
-     map [fullscreen]
-     '(menu-item
-       "Fullscreen keymap"
-       mistty-toggle-keymap
-       :enable (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
-       :button (:radio . (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
-       :help "mistty-fullscreen-mode-map"))
-    (define-key
-     map [prompt]
-     '(menu-item
-       "Prompt keymap" mistty-toggle-keymap
-       :enable (eq 'fullscreen-mode-map (mistty--secondary-mode-map))
-       :button (:radio . (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map))))
-       :help "mistty-prompt-map"))
+  (define-key
+   map [capture]
+   '(menu-item "Capture Keyboard" mistty-capture-keyboard))
+  (define-key map [separator-1] '(menu-item "--"))
+  (define-key
+   map [fullscreen]
+   '(menu-item
+     "Fullscreen keymap"
+     mistty-toggle-keymap
+     :enable (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
+     :button (:radio . (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
+     :help "mistty-fullscreen-mode-map"))
+  (define-key
+   map [prompt]
+   '(menu-item
+     "Prompt keymap" mistty-toggle-keymap
+     :enable (eq 'fullscreen-mode-map (mistty--secondary-mode-map))
+     :button (:radio . (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map))))
+     :help "mistty-prompt-map")))
+
+(defvar mistty--secondary-mode-menu
+  (let ((map (make-sparse-keymap "MisTTY")))
+    (mistty--add-secondary-mode-menu map)
 
     map))
 
 (defvar mistty-mode-menu
-  (let ((map (copy-keymap mistty--secondary-mode-menu)))
+  (let ((map (make-sparse-keymap "MisTTY")))
+
+    (define-key map [mistty-about] '(menu-item "About" mistty-about))
+    (define-key map [separator-0] '(menu-item "--"))
+
+    ;;(mistty--add-secondary-mode-menu map)
+
     ;; Note that items are defined in reverse order
     ;;
     ;; This extends the menu built in mistty--secondary-mode-menu
@@ -1084,7 +1097,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "M-<down>" #'mistty-send-C-n
   "M-." #'mistty-send-key
 
-  "<menu-bar> <mistty-mode-menu>" (cons "Mistty" mistty-mode-menu))
+  "<menu-bar> <mistty-mode-menu>" (cons "MisTTY" mistty-mode-menu))
 
 (define-derived-mode mistty-mode fundamental-mode "misTTY" "Line-based TTY."
   :interactive nil
@@ -4797,6 +4810,11 @@ This is meant to be bound to `imenu-create-index-function'."
                        prompt-alist)))))))
       `(("Outputs" . ,(nreverse output-alist))
         ("Commands" . ,(nreverse prompt-alist))))))
+
+(defun mistty-about ()
+  (interactive)
+  (message "MisTTY %s module %s"
+           mistty-version (mistty-alacritty-modulename)))
 
 (provide 'mistty)
 

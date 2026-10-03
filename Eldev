@@ -242,8 +242,8 @@ First install Sphinx with:
       (search-forward-regexp "(defconst mistty-version \".*?\"")
       (replace-match (format "(defconst mistty-version \"%s\"" latest)))
     (eldev-with-file-buffer "mistty-alacritty.el"
-      (search-forward-regexp "(defconst mistty-alacritty-version \".*?\"")
-      (replace-match (format "(defconst mistty-alacritty-version \"%s\"" stable))))
+      (search-forward-regexp "(defvar mistty-alacritty-version \".*?\"")
+      (replace-match (format "(defvar mistty-alacritty-version \"%s\"" stable))))
   (mistty-eldev-build-texinfo))
 (add-hook 'eldev-release-preparators #'mistty-release-preparator)
 

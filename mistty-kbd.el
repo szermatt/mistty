@@ -48,16 +48,36 @@ delete key instead of the backspace key.
 If you change this key, remember to change the mapping in
 `mistty-term-key-map' as well")
 
+(defvar mistty-translation-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "ESC") (kbd "<escape>"))
+    (define-key map (kbd "RET") (kbd "<return>")) ;; a.k.a. C-m
+    (define-key map (kbd "TAB") (kbd "<tab>")) ;; a.k.a. C-i
+    (define-key map (kbd "DEL") (kbd "<backspace>"))
+    (define-key map (kbd "<backtab>") (kbd "S-<tab>"))
+
+    map)
+  "Translation applied to input keys by `mistty-send-key'.
+
+This map standardize some terminal-based or historical keyboard
+bindings, such as ESC, RET and <backtab> so that further translation can
+just support the symbol-based key definition and ignore the
+ASCII one.
+
+Note that ESC <char> is translated into M-<char> before the key even
+gets to this keymap.")
+
 (defvar mistty-term-key-map
   (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "<escape>") "\e")
     (define-key map (kbd "<tab>") "\t")
     (define-key map (kbd "<return>") "\C-m")
-    (define-key map (kbd "<backspace>") mistty-del)
+    (define-key map (kbd "<backspace>") "\e[3~")
+    (define-key map (kbd "<delete>") "\C-d")
 
     ;; The following is a reversed copy of xterm-function-map from
     ;; term/xterm. Simulating xterm keys is generally convenient, as
     ;; most command-line tools support xterm.
-    (define-key map (kbd "<delete>") "\e[3~")
     (define-key map (kbd "<down>") "\eOB")
     (define-key map (kbd "<end>") "\eOF")
     (define-key map (kbd "<f10>") "\e[21~")
@@ -361,6 +381,11 @@ This map is used by `mistty-send-key' to convert the key it
 receives into something the commands attached to the terminal
 might understand.
 
+Note that `mistty-translation-keymap' is applied before this map, to
+standardize around the symbol-based representation for ESC, RET or
+<backtab>, so this map doesn't need to worry about historical
+or alternative representations.
+
 The default value of this map was created by applying
 `mistty-reverse-input-decode-map', defined in
 mistty-reverse-input-decode-map.el to `xterm-function-map'.")
@@ -511,34 +536,35 @@ If N is specified, the string is repeated N times."
   (let ((n (or n 1))
         (key (if (stringp key) (vconcat key) key))
         translated-key)
+    ;; Standardize the key events, favoring the symbol-based
+    ;; representation of keys just as ESC, RET and using M-<char>
+    ;; instead of ESC <char>.
     (pcase key
-      ;; First, lookup in mistty-term-key-map to allow overriding
+      ((and `[?\e ,c] (guard (characterp c)))
+       (setq key (vector (logior c #x8000000)))))
+    (setq key (or (lookup-key mistty-translation-keymap key) key))
+
+    (pcase key
+      ;; Lookup in mistty-term-key-map. This happens early to allow
+      ;; overriding keys normally translated by the logic below.
       ((and (guard (and
                     (setq translated-key (lookup-key mistty-term-key-map key))
+                    ;; weed out key prefixes
                     (or (characterp translated-key)
                         (stringp translated-key)))))
        (mistty--repeat-string n (concat translated-key)))
 
-      ;; DEL -> mistty-del; translation is done in code instead of
-      ;; looking up mistty-term-key-map to allow it to change.
-      (`[?\d] (mistty--repeat-string n mistty-del))
+      ;; M-<char> -> ESC-<char>
+      ((and
+        `[,c]
+        (guard (and (equal '(meta) (event-modifiers c))
+                    (numberp c)
+                    (characterp (event-basic-type c)))))
+       (mistty--repeat-string n (format "\e%c" (event-basic-type c))))
 
       ;; A single self-inserted characters
       ((and `[,c] (guard (characterp c)))
        (make-string n (elt key 0)))
-
-      ;; ESC <char>
-      ((and `[?\e ,c] (guard (characterp c)))
-       (mistty--repeat-string n (format "\e%c" c)))
-
-      ;; <escape> -> ESC
-      (`[escape] (mistty--repeat-string n "\e"))
-
-      ;; M-<char>
-      ((and `[,c] (guard (and (numberp c)
-                              (/= 0 (logand c #x8000000))
-                              (characterp (logand c (lognot #x8000000))))))
-       (mistty--repeat-string n (format "\e%c" (logand c (lognot #x8000000)))))
 
      (_
       (error "No known translation for %s; Configure it in mistty-term-key-map"

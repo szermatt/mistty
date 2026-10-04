@@ -38,7 +38,27 @@
 
 (ert-deftest mistty-kbd-translate-key-escape ()
   (should (equal "\e" (mistty-translate-key (kbd "<escape>"))))
-  (should (equal "\e" (mistty-translate-key "\e"))))
+  (should (equal "\e" (mistty-translate-key (kbd "ESC")))))
+
+(ert-deftest mistty-kbd-translate-key-return ()
+  (should (equal "\C-m" (mistty-translate-key (kbd "<return>"))))
+  (should (equal "\C-m" (mistty-translate-key (kbd "RET")))))
+
+(ert-deftest mistty-kbd-translate-key-tab ()
+  (should (equal "\t" (mistty-translate-key (kbd "<tab>"))))
+  (should (equal "\t" (mistty-translate-key (kbd "TAB")))))
+
+(ert-deftest mistty-kbd-translate-key-backspace ()
+  (should (equal "\e[3~" (mistty-translate-key (kbd "<backspace>"))))
+  (should (equal "\e[3~" (mistty-translate-key (kbd "DEL")))))
+
+(ert-deftest mistty-kbd-translate-key-delete ()
+  (should (equal (mistty-translate-key (kbd "C-d"))
+                 (mistty-translate-key (kbd "<delete>")))))
+
+(ert-deftest mistty-kbd-translate-key-backtab ()
+  (should (equal (mistty-translate-key (kbd "S-<tab>"))
+                 (mistty-translate-key (kbd "<backtab>")))))
 
 (ert-deftest mistty-kbd-key-override ()
   (let* ((map (copy-keymap mistty-term-key-map))

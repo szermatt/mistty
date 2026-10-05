@@ -8,6 +8,7 @@ publish = false
 [dependencies]
 alacritty_terminal = "0.26.0"
 emacs = "0.21"
+qwertty-term-input = "0.4.0"
 
 [lib]
 crate-type = ["cdylib"]

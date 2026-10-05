@@ -339,6 +339,10 @@ The function returns the byte sequence appropriate for sending that key
 to the terminal."
   (mistty-alacritty--translate-key key n))
 
+(cl-defmethod mistty--term-list-special-keys ((_type (eql 'alacritty)))
+  "List the basic type of special event types (special keys)."
+  (mistty--list-basic-types-from-map mistty-alacritty--key-map))
+
 (provide 'mistty-term-alacritty)
 
 ;;; mistty-term-alacritty.el ends here

@@ -1452,3 +1452,16 @@
                   "have you any wool?\n"
                   "<>reset.")
                   (mistty-test-content :show screen-top)))))))
+
+(mistty-deftest mistty-alacritty-vt-report-toggle-kkp
+                (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+    ;; turn on the kitty keyboard protocol
+    (should (equal '((kkp t))(mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>1u"))))
+    ;; push some flag
+    (should (equal nil (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>8u"))))
+    (should (equal nil (mistty-alacritty-vt-process-bytes vterm (vconcat "foobar"))))
+    ;; pop the previous flag (8)
+    (should (equal nil (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))))
+    ;; turn off the kitty keyboard protocol
+    (should (equal '((kkp nil)) (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))))))

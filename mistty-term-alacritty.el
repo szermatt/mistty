@@ -330,6 +330,15 @@ Always keep SCROLLINE-LIMIT and below."
     (mistty-alacritty-vt-clear-scrollback
      (mistty--term-alacritty-vterm term))))
 
+(cl-defmethod mistty--term-translate-key ((_term mistty--term-alacritty) key n)
+  "Generate the key byte sequence for TERM.
+
+KEY is an Emacs key event and n the number of repetition for that event.
+
+The function returns the byte sequence appropriate for sending that key
+to the terminal."
+  (mistty-alacritty--translate-key key n))
+
 (provide 'mistty-term-alacritty)
 
 ;;; mistty-term-alacritty.el ends here

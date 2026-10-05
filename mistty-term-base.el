@@ -189,6 +189,14 @@ Always keep SCROLLINE-LIMIT and below.")
 This is in addition to clearing the scrollback that's already copied
 over to the work buffer.")
 
+(cl-defgeneric mistty--term-translate-key (term key n)
+  "Generate the key byte sequence for TERM.
+
+KEY is an Emacs key event and n the number of repetition for that event.
+
+The function returns the byte sequence appropriate for sending that key
+to the terminal.")
+
 (provide 'mistty-term-base)
 
 ;;; mistty-term-base.el ends here

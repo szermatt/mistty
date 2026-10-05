@@ -1105,6 +1105,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   (setq mistty-work-buffer (current-buffer))
 
   (setq mistty--send-function #'mistty--send-for-mistty-mode)
+  (setq mistty--translate-key-function #'mistty--translate-key)
 
   ;; scroll down only when needed. This typically keeps the point at
   ;; the end of the window. This seems to be more in-line with what
@@ -4815,6 +4816,12 @@ This is meant to be bound to `imenu-create-index-function'."
   (interactive)
   (message "MisTTY %s module %s"
            mistty-version (mistty-alacritty-modulename)))
+
+(defun mistty--translate-key (key n)
+  "Return the byte representation for sending KEY N times.
+
+This chooses the correct representation for the current terminal."
+  (mistty--term-translate-key mistty--term key n))
 
 (provide 'mistty)
 

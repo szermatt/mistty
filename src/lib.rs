@@ -1,4 +1,5 @@
 mod gridext;
+mod kbd;
 mod render;
 mod types;
 mod vterm;
@@ -33,6 +34,8 @@ emacs::use_symbols! {
     mod_in_name = false
 )]
 fn init(env: &Env) -> Result<Value<'_>> {
+    kbd::init(env)?;
+
     env.provide("mistty-alacritty-vt")
 }
 

@@ -21,6 +21,7 @@
 ;; terminal is an alacritty terminal (TERM=alacritty).
 
 (require 'cl-lib)
+(require 'seq)
 (require 'mistty-term-base)
 (require 'mistty-alacritty)
 (require 'mistty-term)
@@ -339,14 +340,31 @@ Always keep SCROLLINE-LIMIT and below."
     (mistty-alacritty-vt-clear-scrollback
      (mistty--term-alacritty-vterm term))))
 
-(cl-defmethod mistty--term-translate-key ((_term mistty--term-alacritty) key n)
+(cl-defmethod mistty--term-translate-key ((term mistty--term-alacritty) key n)
   "Generate the key byte sequence for TERM.
 
 KEY is an Emacs key event and n the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal."
-  (mistty--translate-key-default key n mistty-alacritty--key-map))
+  (if (mistty--term-alacritty-kkp term)
+      ;; follow the kitty keyboard protocol
+      (let* ((vterm (mistty--term-alacritty-vterm term))
+             (seq (seq-mapcat
+                    (lambda (ev)
+                      (mistty-alacritty-vt-kitty-key-seq
+                       vterm
+                       ev
+                       (vconcat (event-modifiers ev))
+                       (event-basic-type ev)))
+                    key
+                    'vector)))
+        (if (length= seq 0)
+            nil
+          (mistty--repeat-string n seq)))
+
+    ;; legacy translation
+    (mistty--translate-key-default key n mistty-alacritty--key-map)))
 
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'alacritty)))
   "List the basic type of special event types (special keys)."
@@ -371,6 +389,7 @@ buffer."
            (mistty--with-live-buffer buf
              (setq ansi-osc-window-title title)))
           (`(kkp ,val)
+           (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
            (setf (mistty--term-alacritty-kkp term) val))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf

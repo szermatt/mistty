@@ -1465,3 +1465,55 @@
     (should (equal nil (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))))
     ;; turn off the kitty keyboard protocol
     (should (equal '((kkp nil)) (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))))))
+
+(mistty-deftest mistty-alacritty-vt-kitty-key-seq
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+    ;; turn on the kitty keyboard protocol
+    (should (equal '((kkp t))(mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>1u"))))
+
+    (pcase-dolist
+        (`(,expected ,key)
+         `(("\e[97;5u" "C-a")
+           ("\e[97;3u" "M-a")
+           ("\e[97;2u" "S-a")
+           ("\e[97;6u" "S-C-a")
+           ("\e[97;4u" "S-M-a")
+           ("\e[97;7u" "C-M-a")
+           ("\e[97;9u" "s-a")
+           ("\e[97;10u" "S-s-a")
+           ("\e[13;5u" "C-<return>")
+           ("\e[9;2u" "S-<tab>")
+
+           ;; make sure characters are let through as-is, including
+           ;; non-ascii, uppercase, lowercase and accents.
+           ("h" "h")
+           ("hello" "hello")
+           ("T" "T")
+           ("TERM" "TERM")
+           ("Ο Ορφανός του Κος" "Ο SPC Ορφανός SPC του SPC Κος")
+           ("ゴースの遺子" "ゴースの遺子")
+
+           ;; exceptions: these keys produce the legacy output even
+           ;; when kitty is enabled, at least in the base conversion
+           ;; level we use in this test.
+           ("\15" "<return>")
+           ("\C-?" "<backspace>")
+           ("\t" "<tab>")))
+      (should
+       (equal
+        (encode-coding-string expected 'utf-8)
+        ;; The below converts vector of integers into a unibyte
+        ;; string, like the ones encode-coding-string outputs. This is
+        ;; convenient for testing, but unnecessary in production; just
+        ;; work with vectors.
+        (apply #'unibyte-string
+               (seq-mapcat
+                (lambda (key)
+                  (mistty-alacritty-vt-kitty-key-seq
+                   vterm
+                   key
+                   (vconcat (event-modifiers key))
+                   (event-basic-type key)))
+                (kbd key)
+                'list)))))))

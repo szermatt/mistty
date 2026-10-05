@@ -2518,6 +2518,7 @@ KEY in TRANSLATED-KEY. POSITIONAL is not nil if KEY is positionAL.
 This is meant to be bound to `mistty--send-function' for `mistty-mode'
 buffers."
   (mistty--require-proc)
+  (mistty-log "KEY %s %s" (key-description key) n)
   (let* ((fire-and-forget (or mistty--special-prompt
                               (string-match "^[[:graph:]]+$" translated-key)))
          (positional (or positional (mistty-positional-p key))))

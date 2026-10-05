@@ -272,6 +272,7 @@ version = "2.1.0"
 dependencies = [
  "alacritty_terminal",
  "emacs",
+ "qwertty-term-input",
 ]
 
 [[package]]
@@ -351,6 +352,12 @@ checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "qwertty-term-input"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e340c29e11de01f3a7c7095dc5db2601f23a4d01c2cc506d2a1549187676bdb1"
 
 [[package]]
 name = "redox_syscall"

@@ -9,7 +9,7 @@ use alacritty_terminal::{
     index::Line,
     term::{Osc52, TermMode},
 };
-use emacs::{Env, Result, Value, Vector, defun};
+use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
 use std::{fmt::Debug, ops::RangeBounds};
 
 emacs::plugin_is_GPL_compatible!();
@@ -106,7 +106,13 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTerm, bytes: Vector) -> Result<Va
     }
     term.process_bytes(&v);
 
-    term.handle_events(env)
+    let events = term.handle_events(env)?;
+    let mut result = ().into_lisp(env)?;
+    for event in events.into_iter().rev() {
+        result = env.cons(event, result)?;
+    }
+
+    Ok(result)
 }
 
 /// Return the position of the cursor as (LINE, COLUMN).

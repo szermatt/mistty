@@ -53,7 +53,7 @@ pub struct VTerm {
     /// modify the grid. Such changes don't register as part of
     /// [Term::damage].
     ///
-    /// Always call [VTerm::damaged_lines] and [VTerm::reset_lines]
+    /// Always call [VTerm::damaged_lines] and [VTerm::reset_damage]
     /// instead of the [Term] equivalent.
     extra_damage: BTreeSet<Line>,
 }

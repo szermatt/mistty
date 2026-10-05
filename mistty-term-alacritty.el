@@ -219,7 +219,7 @@ The actual process filter may different from this."
     (mistty-alacritty-resize width height))
   (set-process-window-size (mistty--term-alacritty-proc term) height width))
 
-(cl-defmethod mistty--term-autoresize ((term mistty--term-alacritty) _enable)
+(cl-defmethod mistty--term-autoresize ((_term mistty--term-alacritty) _enable)
   "Ignored as mistty-alacritty-mode buffers don't support auto-resize.")
 
 (cl-defmethod mistty--term-setup-buffer ((_term mistty--term-alacritty) &optional _fullscreen)

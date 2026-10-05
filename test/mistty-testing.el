@@ -21,7 +21,7 @@
 (require 'seq)
 (eval-when-compile
   (require 'cl-lib))
-(require 'turtles)
+(require 'turtles nil 'noerror)
 (require 'color)
 
 (require 'mistty-changeset)
@@ -36,21 +36,22 @@
 (defvar mistty-test-log nil
   "Set to t to enable logging for all tests using mistty-with-test-buffer.")
 
-(turtles-definstance mistty (:width 80 :height 24 :forward '(mistty-test-bash-exe
-                                                             mistty-test-zsh-exe
-                                                             mistty-test-fish-exe
-                                                             mistty-test-log
-                                                             mistty-alacritty-version))
-  "Emacs instance that runs mistty tests."
-  (clear-minibuffer-message)
-  (setq mistty-log-to-messages t)
+(when (eval-when-compile (featurep 'turtles))
+  (turtles-definstance mistty (:width 80 :height 24 :forward '(mistty-test-bash-exe
+                                                               mistty-test-zsh-exe
+                                                               mistty-test-fish-exe
+                                                               mistty-test-log
+                                                               mistty-alacritty-version))
+    "Emacs instance that runs mistty tests."
+    (clear-minibuffer-message)
+    (setq mistty-log-to-messages t)
 
-  ;; Prevent minibuffer window from changing size and interfering with
-  ;; window size tests
-  (setq resize-mini-windows nil)
+    ;; Prevent minibuffer window from changing size and interfering with
+    ;; window size tests
+    (setq resize-mini-windows nil)
 
-  ;; Don't show line number in mode line; useful when testing mode lines
-  (line-number-mode -1))
+    ;; Don't show line number in mode line; useful when testing mode lines
+    (line-number-mode -1)))
 
 (defvar mistty-wait-for-output-timeout-s
   (if noninteractive 10 3)
@@ -101,7 +102,7 @@ Defaults to (point-min).")
 This is handled by `mistty-test-report-issue' and must contain
 the symbol of the expected issues, in order.")
 
-(cl-defmacro mistty-deftest (name (&key shell type selected term-size turtles slow) &body body)
+(cl-defmacro mistty-deftest (name (&key shell type selected term-size turtles slow features) &body body)
   "Declare multi-shell, multi-terminal emulator tests with a mistty buffer.
 
 To select multiple shells, pass a list to the :shell argument containing
@@ -127,7 +128,8 @@ This is a wrapper around `ert-deftest' and `mistty-with-test-buffer'
 that will generate one identical test per shell."
   (declare (indent 2))
   `(progn
-     ,@(let* ((shell (cond ((null shell) '(bash))
+     ,@(let* ((shell (cond ((eq 'none shell) '(nil))
+                           ((null shell) '(bash))
                            ((listp shell) shell)
                            (t (list shell))))
               (multishell (length> shell 1))
@@ -136,26 +138,39 @@ that will generate one identical test per shell."
                           ((listp type) type)
                           (t (list type))))
               (tags (if slow (quote '(:slow)) nil))
-              (multitype (length> type 1)))
+              (multitype (length> type 1))
+              (features (append (if (and (not (null features)) (symbolp features))
+                                    (list features)
+                                  features)
+                                (if turtles '(turtles) nil))))
          (mapcar
           (lambda (arg)
             (let* ((shell (car arg))
                    (type (cadr arg))
                    (shell-name (if (symbolp shell) shell (car shell)))
-                   (shell-init (if (symbolp shell) nil (cdr shell))))
-              `(,(if turtles 'turtles-ert-deftest 'ert-deftest)
-                ,(mistty--testing-test-name
-                  name (when multishell shell-name) (when multitype type))
-                ,(if turtles '(:instance 'mistty) ())
-                :tags
-                ,tags
-                 (mistty-with-test-buffer
-                     (:shell ,shell-name :type ,type
-                             :init ,(if (length> shell-init 1)
-                                        (cons 'concat shell-init)
-                                      (car shell-init))
-                             :selected ,selected :term-size ,term-size)
-                   ,@body))))
+                   (shell-init (if (symbolp shell) nil (cdr shell)))
+                   (test-name (mistty--testing-test-name
+                               name
+                               (when multishell shell-name)
+                               (when multitype type))))
+              (if (null (delq t (mapcar #'featurep features)))
+                  `(,(if turtles 'turtles-ert-deftest 'ert-deftest)
+                    ,test-name
+                    ,(if turtles '(:instance 'mistty) ())
+                    :tags
+                    ,tags
+                    ,(if shell-name
+                         `(mistty-with-test-buffer
+                              (:shell ,shell-name :type ,type
+                                      :init ,(if (length> shell-init 1)
+                                                 (cons 'concat shell-init)
+                                               (car shell-init))
+                                      :selected ,selected :term-size ,term-size)
+                            ,@body)
+                       `(progn ,@body)))
+                ;; feature not available
+                `(ert-deftest ,test-name () (skip-unless nil)))
+              ))
           (mistty--combine shell type)))))
 
 (defun mistty--testing-test-name (name shell type)

@@ -20,7 +20,7 @@
 (defvar term-width) ;; term.el
 (defvar term-height) ;; term.el
 (defvar term-home-marker) ;; term.el
-(require 'turtles)
+(require 'turtles nil 'noerror)
 
 (eval-when-compile
   (require 'cl-lib))
@@ -5186,7 +5186,7 @@
       (should (equal (format "EMACS=%s" emacs-version )
                      (mistty-send-and-capture-command-output))))))
 
-(turtles-ert-deftest mistty-test-change-term-colors/alacritty ( :instance 'mistty)
+(mistty-deftest mistty-test-change-term-colors/alacritty (:turtles t :shell none)
   (unwind-protect
       (progn
         (load-theme 'modus-vivendi 'no-confirm) ;; dark theme
@@ -5195,7 +5195,7 @@
     (dolist (theme custom-enabled-themes)
       (disable-theme theme))))
 
-(turtles-ert-deftest mistty-test-change-term-colors/eterm ( :instance 'mistty)
+(mistty-deftest mistty-test-change-term-colors/eterm (:turtles t :shell none)
   (unwind-protect
       (progn
         (load-theme 'modus-vivendi 'no-confirm) ;; dark theme

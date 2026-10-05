@@ -6,7 +6,7 @@
 (require 'minibuffer)
 (require 'cua-base)
 
-(require 'yasnippet)
+(require 'yasnippet nil 'noerror)
 (require 'tempel nil 'noerror)
 
 (ert-deftest mistty-test-detect-foreign-overlay-cua-rectangle/alacritty ()
@@ -78,7 +78,8 @@
     (should (equal "echo hallo<>"
                    (mistty-test-content :start start :show (point))))))
 
-(mistty-deftest mistty-compat-test-yas-expand (:selected t :type all)
+(mistty-deftest mistty-compat-test-yas-expand
+    (:selected t :type all :features yasnippet)
   (yas-define-snippets
    'mistty-mode
    ;; (KEY TEMPLATE NAME ...)
@@ -95,7 +96,7 @@
   (should (equal "ok" (mistty-send-and-capture-command-output))))
 
 (mistty-deftest mistty-compat-yas-expand-multiline
-    (:selected t: :type all)
+    (:selected t: :type all :features yasnippet)
   (yas-define-snippets
    'mistty-mode
    ;; (KEY TEMPLATE NAME ...)
@@ -112,7 +113,7 @@
   (should (equal "ok" (mistty-send-and-capture-command-output))))
 
 (mistty-deftest mistty-compat-yas-expand-multiline-fish
-    (:shell fish :selected t :type all)
+    (:shell fish :selected t :type all :features yasnippet)
   (yas-define-snippets
    'mistty-mode
    ;; (KEY TEMPLATE NAME ...)
@@ -136,7 +137,7 @@
                  (mistty-test-content :show (point)))))
 
 (mistty-deftest mistty-compat-yas-expand-multiline-fish-insert
-    (:shell fish :selected t :type all)
+    (:shell fish :selected t :type all :features yasnippet)
   (yas-define-snippets
    'mistty-mode
    ;; (KEY TEMPLATE NAME ...)
@@ -298,8 +299,7 @@ that starts with the text currently between START and END."
       (delete-region start end)
       (insert replacement))))
 
-(ert-deftest mistty-compat-test-tempel-smoke ()
-  (skip-unless (featurep 'tempel))
+(mistty-deftest mistty-compat-test-tempel-smoke (:shell none :features tempel)
   ;; This makes sure that the tempel integration works at all
   (ert-with-test-buffer ()
     (let* ((mistty-test-tempel-templates '((test "THIS IS A TEST")))
@@ -307,17 +307,7 @@ that starts with the text currently between START and END."
       (tempel-insert 'test)
       (should (equal "THIS IS A TEST" (mistty-test-content))))))
 
-(ert-deftest mistty-compat-test-tempel-detect-overlays/alacritty ()
-  (skip-unless (featurep 'tempel))
-  (mistty-with-test-buffer (:selected t :type alacritty)
-    (mistty-compat-test-tempel-detect-overlays)))
-
-(ert-deftest mistty-compat-test-tempel-detect-overlays/eterm ()
-  (skip-unless (featurep 'tempel))
-  (mistty-with-test-buffer (:selected t :type eterm)
-    (mistty-compat-test-tempel-detect-overlays)))
-
-(defun mistty-compat-test-tempel-detect-overlays ()
+(mistty-deftest mistty-compat-test-tempel-detect-overlays/alacritty (:type all :selected t :features tempel)
   (let* ((mistty-test-tempel-templates '((test "for " p " in " p "; do " p "; done")))
          (tempel-template-sources (list (lambda () mistty-test-tempel-templates))))
     (keymap-local-set "C-c n" #'tempel-next)
@@ -329,7 +319,7 @@ that starts with the text currently between START and END."
     (mistty-wait-for-output :test (lambda () (not mistty--inhibit)))
     (mistty-wait-for-output :str "for i in a b c; do echo $i; done")))
 
-(turtles-ert-deftest mistty-compat-goto-address-mode/alacritty (:instance 'mistty)
+(mistty-deftest mistty-compat-goto-address-mode/alacritty (:turtles t :shell none)
   (unwind-protect
       (progn
         (global-goto-address-mode)
@@ -338,7 +328,7 @@ that starts with the text currently between START and END."
     (global-goto-address-mode -1)))
 
 
-(turtles-ert-deftest mistty-compat-goto-address-mode/eterm (:instance 'mistty)
+(mistty-deftest mistty-compat-goto-address-mode/eterm (:turtles t :shell none)
   (unwind-protect
       (progn
         (global-goto-address-mode)

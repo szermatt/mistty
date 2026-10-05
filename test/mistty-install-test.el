@@ -18,7 +18,7 @@
 (require 'mistty-alacritty)
 (require 'mistty-install)
 (require 'test/mistty-testing)
-(require 'web-server)
+(require 'web-server nil 'noerror)
 
 (ert-deftest mistty-install-download-module-issues ()
   (skip-unless (executable-find "curl"))
@@ -104,18 +104,20 @@
                      (expand-file-name (mistty-alacritty-modulename)
                                        mistty-install-dir)))))))
 
-(defun mistty-run-test-server (handler-func test-func)
-  "Run a test web server for the duration of the test.
+(declare-function mistty-run-test-server (handler-func test-func))
+(when (eval-when-compile (featurep 'web-server))
+  (defun mistty-run-test-server (handler-func test-func)
+    "Run a test web server for the duration of the test.
 
 This function runs a web server with HANDLER-FUNC as handler, then calls
 TEST-FUNC, passing it the address of the web server and kills the server
 once that function returns."
-  (let ((server (ws-start handler-func t)))
-    (unwind-protect
-        (funcall test-func (format "127.0.0.1:%s" (process-contact (process server) :service)))
-      (ws-stop server))))
+    (let ((server (ws-start handler-func t)))
+      (unwind-protect
+          (funcall test-func (format "127.0.0.1:%s" (process-contact (process server) :service)))
+        (ws-stop server)))))
 
-(ert-deftest mistty-install-download-module ()
+(mistty-deftest mistty-install-download-module (:shell none :features web-server)
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
   (ert-with-temp-directory install-dir
@@ -164,7 +166,7 @@ once that function returns."
              (should (string-match "Downloading module version 2\.0\.0\.\.\." output))
              (should-not (string-match "ERROR" output)))))))))
 
-(ert-deftest mistty-install-download-module-fail ()
+(mistty-deftest mistty-install-download-module-fail (:shell none :features web-server)
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
   (ert-with-temp-directory install-dir
@@ -189,8 +191,7 @@ once that function returns."
              (should (string-match "Downloading module version 2\.0\.0\.\.\." output))
              (should (string-match "ERROR" output)))))))))
 
-(ert-deftest mistty-install-download-source ()
-  :tags '(:slow)
+(mistty-deftest mistty-install-download-source (:shell none :features web-server :slow t)
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
   (ert-with-temp-directory dest-dir
@@ -234,8 +235,7 @@ once that function returns."
              (should (string-match "Compiling module\.\.\.$" output))
              (should (string-match "Finished" output)))))))))
 
-(ert-deftest mistty-install-download-source-failed ()
-  :tags '(:slow)
+(mistty-deftest mistty-install-download-source-failed (:shell none :features web-server :slow t)
   (skip-unless (executable-find "curl"))
   (mistty-test-running)
   (ert-with-temp-directory dest-dir
@@ -275,7 +275,7 @@ once that function returns."
       (let ((default-directory tempdir))
         (should (file-exists-p ".terminfo/"))))))
 
-(ert-deftest mistty-install-terminfo-from-remote-file ()
+(mistty-deftest mistty-install-terminfo-from-remote-file (:shell none :features web-server)
   (skip-unless (>= emacs-major-version 31))
   (mistty-test-running)
   (ert-with-temp-directory tempdir

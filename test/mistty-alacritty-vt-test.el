@@ -17,7 +17,7 @@
 (require 'ert)
 (require 'mistty-alacritty) ; loads mistty-alacritty-vt
 (require 'test/mistty-testing)
-(require 'turtles)
+(require 'turtles nil 'noerror)
 
 (ert-deftest mistty-alacritty-vt-render ()
   (let ((term (mistty-alacritty-vt-make-vterm 20 10))
@@ -177,7 +177,7 @@
            :trim nil
            :show cursor)))))))
 
-(turtles-ert-deftest mistty-alacritty-vt-all-fg-color (:instance 'mistty)
+(mistty-deftest mistty-alacritty-vt-all-fg-color (:turtles t :shell none)
   (ert-with-test-buffer ()
     (let ((term (mistty-alacritty-vt-make-vterm 80 20))
           (colors '((30 40 ansi-color-black)
@@ -214,7 +214,7 @@
                          (mistty-face-colors 'default (nth 2 entry))))
           (forward-line))))))
 
-(turtles-ert-deftest mistty-alacritty-vt-set-all-color (:instance 'mistty)
+(mistty-deftest mistty-alacritty-vt-set-all-color (:turtles t :shell none)
  (ert-with-test-buffer ()
    (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
     (mistty-alacritty-vt-process-bytes term (vconcat "\e[31mred\e[0m, \e[37m\e[42mgreen\e[0m, \e[34mblue\e[0m."))
@@ -246,8 +246,7 @@
        (equal (mistty-colors-at-point)
               (mistty-face-colors 'ansi-color-blue 'default)))))))
 
-
-(turtles-ert-deftest mistty-alacritty-vt-set-24bit-color (:instance 'mistty)
+(mistty-deftest mistty-alacritty-vt-set-24bit-color (:turtles t :shell none)
  (ert-with-test-buffer ()
    (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
     (mistty-alacritty-vt-process-bytes

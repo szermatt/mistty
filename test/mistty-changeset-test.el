@@ -20,7 +20,7 @@
   (require 'cl-lib))
 
 (require 'mistty)
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 (require 'mistty-changeset)
 
 (defun mistty-changeset-test-setup-hook ()

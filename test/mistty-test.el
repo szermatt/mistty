@@ -26,7 +26,7 @@
   (require 'cl-lib))
 
 (require 'mistty)
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 (require 'mistty-changeset)
 (require 'mistty-log)
 (require 'mistty-queue)

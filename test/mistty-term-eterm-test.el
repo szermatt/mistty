@@ -15,7 +15,7 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'mistty-term-eterm)
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 (require 'ert)
 (require 'ert-x)
 

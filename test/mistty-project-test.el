@@ -2,7 +2,7 @@
 
 (require 'mistty)
 (require 'mistty-project)
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 
 (require 'project)
 

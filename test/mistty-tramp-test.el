@@ -22,7 +22,7 @@
 (require 'cl-lib))
 
 (require 'mistty)
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 
 (ert-deftest mistty-tramp-test-shell-start/alacritty ()
   (let* ((tramp-methods (mistty-test-tramp-methods))

@@ -46,7 +46,6 @@
 
 ;;; Test dependencies
 
-(eldev-add-loading-roots 'test "test")
 (eldev-add-extra-dependencies
  '(test emacs)
  ;; Integration with tempel is tested in mistty-compat-test.el

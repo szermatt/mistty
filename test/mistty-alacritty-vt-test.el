@@ -16,7 +16,7 @@
 
 (require 'ert)
 (require 'mistty-alacritty) ; loads mistty-alacritty-vt
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 (require 'turtles)
 
 (ert-deftest mistty-alacritty-vt-render ()

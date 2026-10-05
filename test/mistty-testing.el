@@ -989,4 +989,4 @@ buffer is used."
                   (replace-regexp-in-string "---+" "---" after)))
       (error "Invalid mode-line: %S" mode-line))))
 
-(provide 'mistty-testing)
+(provide 'test/mistty-testing)

@@ -1,7 +1,7 @@
 ;;; Tests compatibility with other packages -*- lexical-binding: t -*-
 
 (require 'mistty)
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 (require 'thingatpt)
 (require 'minibuffer)
 (require 'cua-base)

@@ -19,7 +19,7 @@
 (require 'ert)
 (require 'ert-x)
 
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 
 (ert-deftest mistty-accum-smoke ()
   (mistty-with-test-process (proc)

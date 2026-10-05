@@ -17,7 +17,7 @@
 (require 'ert)
 (require 'mistty-alacritty)
 (require 'mistty-install)
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 (require 'web-server)
 
 (ert-deftest mistty-install-download-module-issues ()

@@ -21,7 +21,7 @@
 (require 'mistty)
 (require 'mistty-osc7)
 
-(require 'mistty-testing)
+(require 'test/mistty-testing)
 
 (mistty-deftest mistty-test-osc7-local-path (:shell zsh :type all)
   (let ((mistty-osc-handlers '(("7" . mistty-osc7))))

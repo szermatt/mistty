@@ -683,10 +683,6 @@ defaulting to 80 x 24."
   "Return the default sentinel for `term-mode' processes."
   #'term-sentinel)
 
-(cl-defmethod mistty--term-filter-func ((_term mistty--term-eterm))
-  "Return the default filter for `term-mode' processes."
-  #'mistty--emulate-terminal)
-
 (cl-defmethod mistty--term-resize ((term mistty--term-eterm) width height)
   "Resize TERM's terminal to WIDTH x HEIGHT."
   (set-process-window-size (mistty--term-eterm-proc term) height width)

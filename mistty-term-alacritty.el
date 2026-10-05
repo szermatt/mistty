@@ -27,11 +27,6 @@
 (require 'mistty-accum)
 (require 'mistty-scrolline)
 
-;; These declarations allow compiling without loading the module.
-(eval-when-compile
-  (declare-function mistty-alacritty-vt-clear-scrollback nil (term))
-  (declare-function mistty-alacritty-vt-render-screen nil (term cursor)))
-
 ;;; Code:
 
 (eval-when-compile
@@ -48,6 +43,12 @@
 
   ;; virtual terminal, from mistty-alacritty-vt module
   vterm
+
+  ;; current terminal width
+  columns
+
+  ;; current terminal height
+  lines
 
   ;; if non-nil, a change before scrolline was detected
   change-before-scrolline
@@ -69,7 +70,9 @@ If WIDTH and HEIGHT are specified, they'll be used as terminal line and
 column count. The default is 80x24."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks))
         (program (car command))
-        (args (cdr command)))
+        (args (cdr command))
+        (width (or width 80))
+        (height (or height 24)))
     (with-current-buffer term-buffer
       (mistty-alacritty-mode)
       (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
@@ -79,14 +82,16 @@ column count. The default is 80x24."
                  (cons (format "EMACS=%s" emacs-version)
                        process-environment)
                process-environment)))
-        (mistty-alacritty-exec name program args width height))
+        (mistty-alacritty--exec name program args width height))
       (let* ((proc (get-buffer-process term-buffer))
              (term (mistty--make-term-alacritty
                     :buf term-buffer
                     :proc proc
-                    :vterm mistty-alacritty--vterm))
+                    :vterm (mistty-alacritty--make-vterm width height)
+                    :lines height
+                    :columns width))
              (accum (mistty--make-accumulator
-                     (mistty--term-filter-func term))))
+                     (mistty--term-alacritty-filter term))))
         (set-process-filter proc accum)
         (process-put proc 'mistty-term term)
 
@@ -148,8 +153,7 @@ column count. The default is 80x24."
          accum
          (lambda (func)
            (if (mistty--term-alacritty-fs term)
-               (let ((mistty-alacritty--inhibit-render))
-                 (funcall func))
+               (funcall func)
 
              (let ((limit (funcall sync-scrolline)))
                (when (mistty--detect-change-before-scrolline
@@ -179,8 +183,7 @@ column count. The default is 80x24."
 
 (cl-defmethod mistty--term-alt-screen-p ((term mistty--term-alacritty))
   "Return non-nil if TERM is showing the alt buffer."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    (mistty-alacritty--alt-screen-p)))
+  (mistty-alacritty-vt-alt-screen-p (mistty--term-alacritty-vterm term)))
 
 (cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-alacritty))
   "Return non-nil prompt detection should be enabled in TERM."
@@ -188,18 +191,15 @@ column count. The default is 80x24."
 
 (cl-defmethod mistty--term-lines ((term mistty--term-alacritty))
   "Return the number of lines in TERM (its height)."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    mistty-alacritty-lines))
+  (mistty--term-alacritty-lines term))
 
 (cl-defmethod mistty--term-columns ((term mistty--term-alacritty))
   "Return the number of columns in TERM (its width)."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    mistty-alacritty-columns))
+  (mistty--term-alacritty-columns term))
 
 (cl-defmethod mistty--term-cursor-linecol ((term mistty--term-alacritty))
   "Return the terminal line and column of the cursor in TERM."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    (mistty-alacritty--cursor-linecol)))
+  (mistty-alacritty-vt-cursor (mistty--term-alacritty-vterm term)))
 
 (cl-defmethod mistty--term-sentinel-func ((_term mistty--term-alacritty))
   "Return the default sentinel of the process.
@@ -207,17 +207,17 @@ column count. The default is 80x24."
 The actual sentinel may different from this."
   #'mistty-alacritty--sentinel)
 
-(cl-defmethod mistty--term-filter-func ((_term mistty--term-alacritty))
-  "Return the default process filter of the process.
-
-The actual process filter may different from this."
-  #'mistty-alacritty--process-filter)
-
 (cl-defmethod mistty--term-resize ((term mistty--term-alacritty) width height)
   "Resize TERM to WIDTH columns and HEIGHT lines."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    (mistty-alacritty-resize width height))
-  (set-process-window-size (mistty--term-alacritty-proc term) height width))
+  (if (or (/= (mistty--term-alacritty-columns term) width)
+          (/= (mistty--term-alacritty-lines term) height))
+      (when-let* ((vterm (mistty--term-alacritty-vterm term))
+                  (proc (mistty--term-alacritty-proc term)))
+        (mistty-log "RESIZE: %s lines %s columns" height width)
+        (mistty-alacritty-vt-resize vterm width height)
+        (setf (mistty--term-alacritty-columns term) width)
+        (setf (mistty--term-alacritty-lines term) height)
+        (set-process-window-size proc height width))))
 
 (cl-defmethod mistty--term-autoresize ((_term mistty--term-alacritty) _enable)
   "Ignored as mistty-alacritty-mode buffers don't support auto-resize.")
@@ -282,13 +282,23 @@ The actual process filter may different from this."
 
   (cons sync-pos sync-scrolline))
 
-(cl-defmethod mistty--term-clear-to-eol ((_term mistty--term-alacritty) pos)
+(cl-defmethod mistty--term-clear-to-eol ((term mistty--term-alacritty) pos)
   "Mark spaces as cleared from POS to the end of the line."
-  (mistty-alacritty--clear-to-eol pos))
+  (let ((vterm (mistty--term-alacritty-vterm term)))
+    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
+      (when (> pos mistty-alacritty--home)
+        (mistty-alacritty-vt-clear-to-eol vterm
+                                          (mistty--count-lines mistty-alacritty--home pos)
+                                          (- pos (mistty--bol pos)))))))
 
-(cl-defmethod mistty--term-cleanup-prompt-sp ((_term mistty--term-alacritty) pos)
+(cl-defmethod mistty--term-cleanup-prompt-sp ((term mistty--term-alacritty) pos)
   "Cleanup the prompt as POS after a prompt-sp hack."
-  (mistty-alacritty--cleanup-prompt-sp pos))
+  (let ((vterm (mistty--term-alacritty-vterm term)))
+    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
+      (when (> pos mistty-alacritty--home)
+        (mistty-alacritty-vt-cleanup-prompt-sp
+         vterm
+         (mistty--count-lines mistty-alacritty--home pos))))))
 
 (cl-defmethod mistty--term-changed ((_term mistty--term-alacritty) _beg _end)
   "Does nothing.")
@@ -338,6 +348,28 @@ to the terminal."
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'alacritty)))
   "List the basic type of special event types (special keys)."
   (mistty--list-basic-types-from-map mistty-alacritty--key-map))
+
+(defun mistty--term-alacritty-filter (term)
+  "Build a filter function for TERM.
+
+The filter updates the vterm and optionally renders to the terminal
+buffer."
+  (lambda (proc str)
+    (mistty-log "RECV %S" str)
+    (let ((vterm (mistty--term-alacritty-vterm term))
+          (buf (mistty--term-alacritty-buf term)))
+      (dolist (ev (mistty-alacritty-vt-process-bytes vterm (vconcat str)))
+        (pcase ev
+          (`(pty-write ,data)
+           (mistty-log "REPLY %S" data)
+           (process-send-string proc data))
+          (`(title ,title)
+           (mistty-log "TITLE %S" title)
+           (mistty--with-live-buffer buf
+             (setq ansi-osc-window-title title)))))
+      (unless (mistty--term-alacritty-fs term)
+        (mistty--with-live-buffer buf
+          (mistty-alacritty--render vterm))))))
 
 (provide 'mistty-term-alacritty)
 

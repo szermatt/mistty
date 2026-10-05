@@ -90,6 +90,7 @@ for some reason."
   (declare-function mistty-alacritty-vt-clear-scrollback nil (term))
   (declare-function mistty-alacritty-vt-cursor nil (term))
   (declare-function mistty-alacritty-vt-enable-scrollback nil (term))
+  (declare-function mistty-alacritty-vt-kitty-key-seq nil (term key mods basic-type))
   (declare-function mistty-alacritty-vt-make-vterm nil (w h))
   (declare-function mistty-alacritty-vt-process-bytes nil (term bytes))
   (declare-function mistty-alacritty-vt-render nil (term cursor))

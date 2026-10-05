@@ -343,7 +343,7 @@ KEY is an Emacs key event and n the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal."
-  (mistty-alacritty--translate-key key n))
+  (mistty--translate-key-default key n mistty-alacritty--key-map))
 
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'alacritty)))
   "List the basic type of special event types (special keys)."

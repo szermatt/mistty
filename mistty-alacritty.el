@@ -435,11 +435,6 @@ This is controlled by the custom variable `mistty-alacritty-term-name'"
    ((shell-command-to-string "infocmp alacritty") "alacritty")
    (t "xterm-256color")))
 
-
-(defun mistty-alacritty--translate-key (key n)
-  "Return the byte sequence for KEY N times appropriate for the terminal."
-  (mistty--translate-key-default key n mistty-alacritty--key-map))
-
 (provide 'mistty-alacritty)
 
 ;;; mistty-alacritty.el ends here

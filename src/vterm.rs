@@ -30,6 +30,7 @@ emacs::use_functions! {
 emacs::use_symbols! {
     pty_write_sym => "pty-write"
     title_sym => "title"
+    kkp_sym => "kkp"
 }
 
 /// Size of the scrollback, in lines. There needs to be enough space
@@ -68,6 +69,7 @@ impl VTerm {
         let mut config = Config::default();
         config.scrolling_history = 0; // call enable_scrollback to re-enable
         config.osc52 = osc52;
+        config.kitty_keyboard = true;
 
         let mut inner = Term::new(config, &VTermDimensions::new(width, height, 0), acc);
         let processor = Processor::new();
@@ -292,6 +294,17 @@ impl VTerm {
         }
 
         Ok(lisp_events)
+    }
+
+    pub fn mode_changes<'a>(&self, env: &'a Env, before: &TermMode) -> Result<Vec<Value<'a>>> {
+        let mut reports = vec![];
+
+        let kkp_on = self.mode().intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
+        if kkp_on != before.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
+            reports.push(env.list((kkp_sym, kkp_on))?);
+        }
+
+        Ok(reports)
     }
 
     // Compare the render count with a value form Emacs side.

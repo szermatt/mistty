@@ -104,10 +104,16 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTerm, bytes: Vector) -> Result<Va
         let b: u8 = val.into_rust()?;
         v.push(b);
     }
+    let before = term.mode().clone();
     term.process_bytes(&v);
 
     let events = term.handle_events(env)?;
+    let mode_changes = term.mode_changes(env, &before)?;
+
     let mut result = ().into_lisp(env)?;
+    for change in mode_changes.into_iter().rev() {
+        result = env.cons(change, result)?;
+    }
     for event in events.into_iter().rev() {
         result = env.cons(event, result)?;
     }

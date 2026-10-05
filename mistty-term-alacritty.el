@@ -219,12 +219,8 @@ The actual process filter may different from this."
     (mistty-alacritty-resize width height))
   (set-process-window-size (mistty--term-alacritty-proc term) height width))
 
-(cl-defmethod mistty--term-autoresize ((term mistty--term-alacritty) enable)
-  "Turn on or off TERM dimension tracking its window dimensions.
-
-If ENABLE is non-nil, enable autoresize, otherwise disable it."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    (mistty-alacritty-auto-resize enable)))
+(cl-defmethod mistty--term-autoresize ((term mistty--term-alacritty) _enable)
+  "Ignored as mistty-alacritty-mode buffers don't support auto-resize.")
 
 (cl-defmethod mistty--term-setup-buffer ((_term mistty--term-alacritty) &optional _fullscreen)
   "Does nothing.")

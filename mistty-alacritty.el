@@ -222,6 +222,149 @@ This immediately follows the scrollback lines.")
 This intercepts all major key bindings and sends them to the terminal.
 Overwrite to recover key bindings.")
 
+(defvar mistty-alacritty--key-map
+  (let ((map (make-sparse-keymap)))
+
+    (define-key map (kbd "<return>") "\r")
+    (define-key map (kbd "C-<return>") "\r")
+    (define-key map (kbd "M-<return>") "\e\r")
+    (define-key map (kbd "S-<return>") "\r")
+    (define-key map (kbd "C-S-<return>") "\r")
+    (define-key map (kbd "M-S-<return>") "\e\r")
+    (define-key map (kbd "C-M-<return>") "\e\r")
+
+    (define-key map (kbd "<escape>") "\e")
+    (define-key map (kbd "C-<escape>") "\e")
+    (define-key map (kbd "M-<escape>") "\e\e")
+    (define-key map (kbd "S-<escape>") "\e")
+    (define-key map (kbd "C-S-<escape>") "\e")
+    (define-key map (kbd "M-S-<escape>") "\e\e")
+    (define-key map (kbd "C-M-<escape>") "\e\e")
+
+    (define-key map (kbd "<backspace>") "\C-?") ; kbs
+    (define-key map (kbd "C-<backspace>") "\x08")
+    (define-key map (kbd "M-<backspace>") "\e\C-?")
+    (define-key map (kbd "S-<backspace>") "\C-?")
+    (define-key map (kbd "C-S-<backspace>") "\x08")
+    (define-key map (kbd "M-S-<backspace>") "\e\C-?")
+    (define-key map (kbd "C-M-<backspace>") "\e\x08")
+
+    (define-key map (kbd "<tab>") "\t")
+    (define-key map (kbd "C-<tab>") "\t")
+    (define-key map (kbd "M-<tab>") "\e\t")
+    (define-key map (kbd "S-<tab>") "\e[Z") ; kcbt
+    (define-key map (kbd "C-S-<tab>") "\e[Z")
+    (define-key map (kbd "M-S-<tab>") "\e\e[Z")
+    (define-key map (kbd "C-M-<tab>") "\e\t")
+
+    (define-key map (kbd "SPC") " ")
+    (define-key map (kbd "C-SPC") "\x00")
+    (define-key map (kbd "M-SPC") "\e ")
+    (define-key map (kbd "S-SPC") " ")
+    (define-key map (kbd "C-S-SPC") "\x00")
+    (define-key map (kbd "M-S-SPC") "\e ")
+    (define-key map (kbd "C-M-SPC") "\e\x00")
+
+    (define-key map (kbd "<clear>") "\eOE") ; kb2
+    (define-key map (kbd "<delete>") "\e[3~") ; kdch1
+    (define-key map (kbd "<down>") "\eOB") ; kcud1
+    (define-key map (kbd "<end>") "\eOF") ; kend
+    (define-key map (kbd "<f10>") "\e[21~") ; kf10
+    (define-key map (kbd "<f11>") "\e[23~") ; kf11
+    (define-key map (kbd "<f12>") "\e[24~") ; kf12
+    (define-key map (kbd "<f13>") "\e[1;2P") ; kf13
+    (define-key map (kbd "<f14>") "\e[1;2Q") ; kf14
+    (define-key map (kbd "<f15>") "\e[1;2R") ; kf15
+    (define-key map (kbd "<f16>") "\e[1;2S") ; kf16
+    (define-key map (kbd "<f17>") "\e[15;2~") ; kf17
+    (define-key map (kbd "<f18>") "\e[17;2~") ; kf18
+    (define-key map (kbd "<f19>") "\e[18;2~") ; kf19
+    (define-key map (kbd "<f1>") "\eOP") ; kf1
+    (define-key map (kbd "<f20>") "\e[19;2~") ; kf20
+    (define-key map (kbd "<f21>") "\e[20;2~") ; kf21
+    (define-key map (kbd "<f22>") "\e[21;2~") ; kf22
+    (define-key map (kbd "<f23>") "\e[23;2~") ; kf23
+    (define-key map (kbd "<f24>") "\e[24;2~") ; kf24
+    (define-key map (kbd "<f25>") "\e[1;5P") ; kf25
+    (define-key map (kbd "<f26>") "\e[1;5Q") ; kf26
+    (define-key map (kbd "<f27>") "\e[1;5R") ; kf27
+    (define-key map (kbd "<f28>") "\e[1;5S") ; kf28
+    (define-key map (kbd "<f29>") "\e[15;5~") ; kf29
+    (define-key map (kbd "<f2>") "\eOQ") ; kf2
+    (define-key map (kbd "<f30>") "\e[17;5~") ; kf30
+    (define-key map (kbd "<f31>") "\e[18;5~") ; kf31
+    (define-key map (kbd "<f32>") "\e[19;5~") ; kf32
+    (define-key map (kbd "<f33>") "\e[20;5~") ; kf33
+    (define-key map (kbd "<f34>") "\e[21;5~") ; kf34
+    (define-key map (kbd "<f35>") "\e[23;5~") ; kf35
+    (define-key map (kbd "<f36>") "\e[24;5~") ; kf36
+    (define-key map (kbd "<f37>") "\e[1;6P") ; kf37
+    (define-key map (kbd "<f38>") "\e[1;6Q") ; kf38
+    (define-key map (kbd "<f39>") "\e[1;6R") ; kf39
+    (define-key map (kbd "<f3>") "\eOR") ; kf3
+    (define-key map (kbd "<f40>") "\e[1;6S") ; kf40
+    (define-key map (kbd "<f41>") "\e[15;6~") ; kf41
+    (define-key map (kbd "<f42>") "\e[17;6~") ; kf42
+    (define-key map (kbd "<f43>") "\e[18;6~") ; kf43
+    (define-key map (kbd "<f44>") "\e[19;6~") ; kf44
+    (define-key map (kbd "<f45>") "\e[20;6~") ; kf45
+    (define-key map (kbd "<f46>") "\e[21;6~") ; kf46
+    (define-key map (kbd "<f47>") "\e[23;6~") ; kf47
+    (define-key map (kbd "<f48>") "\e[24;6~") ; kf48
+    (define-key map (kbd "<f49>") "\e[1;3P") ; kf49
+    (define-key map (kbd "<f4>") "\eOS") ; kf4
+    (define-key map (kbd "<f50>") "\e[1;3Q") ; kf50
+    (define-key map (kbd "<f51>") "\e[1;3R") ; kf51
+    (define-key map (kbd "<f52>") "\e[1;3S") ; kf52
+    (define-key map (kbd "<f53>") "\e[15;3~") ; kf53
+    (define-key map (kbd "<f54>") "\e[17;3~") ; kf54
+    (define-key map (kbd "<f55>") "\e[18;3~") ; kf55
+    (define-key map (kbd "<f56>") "\e[19;3~") ; kf56
+    (define-key map (kbd "<f57>") "\e[20;3~") ; kf57
+    (define-key map (kbd "<f58>") "\e[21;3~") ; kf58
+    (define-key map (kbd "<f59>") "\e[23;3~") ; kf59
+    (define-key map (kbd "<f5>") "\e[15~") ; kf5
+    (define-key map (kbd "<f60>") "\e[24;3~") ; kf60
+    (define-key map (kbd "<f61>") "\e[1;4P") ; kf61
+    (define-key map (kbd "<f62>") "\e[1;4Q") ; kf62
+    (define-key map (kbd "<f63>") "\e[1;4R") ; kf63
+    (define-key map (kbd "<f6>") "\e[17~") ; kf6
+    (define-key map (kbd "<f7>") "\e[18~") ; kf7
+    (define-key map (kbd "<f8>") "\e[19~") ; kf8
+    (define-key map (kbd "<f9>") "\e[20~") ; kf9
+    (define-key map (kbd "<home>") "\eOH") ; khome
+    (define-key map (kbd "<insert>") "\e[2~") ; kich1
+    (define-key map (kbd "<kp-enter>") "\eOM") ; kent
+    (define-key map (kbd "<left>") "\eOD") ; kcub1
+    (define-key map (kbd "<menu>") "\e[1;2S") ; kf16
+    (define-key map (kbd "<next>") "\e[6~") ; knp
+    (define-key map (kbd "<prior>") "\e[5~") ; kpp
+    (define-key map (kbd "<right>") "\eOC") ; kcuf1
+    (define-key map (kbd "<up>") "\eOA") ; kcuu1
+    (define-key map (kbd "S-<delete>") "\e[3;2~") ; kDC
+    (define-key map (kbd "S-<down>") "\e[1;2B") ; kind
+    (define-key map (kbd "S-<end>") "\e[1;2F") ; kEND
+    (define-key map (kbd "S-<home>") "\e[1;2H") ; kHOM
+    (define-key map (kbd "S-<insert>") "\e[2;2~") ; kIC
+    (define-key map (kbd "S-<left>") "\e[1;2D") ; kLFT
+    (define-key map (kbd "S-<next>") "\e[6;2~") ; kNXT
+    (define-key map (kbd "S-<prior>") "\e[5;2~") ; kPRV
+    (define-key map (kbd "S-<right>") "\e[1;2C") ; kRIT
+    (define-key map (kbd "S-<up>") "\e[1;2A") ; kri
+
+    map)
+  "Translate Emacs keys into byte sequences for the terminal.
+
+The key passed to this map are pre-translated using
+`mistty-translation-keymap', mapping ESC, RET TAB and DEL to their
+symbol equivalent, and M-<char> is always used in preference to ESC
+<char>.
+
+The keys is this table are those defined in alacritty terminfo with some
+additions from
+https://sw.kovidgoyal.net/kitty/keyboard-protocol/#legacy-functional-keys
+for the RET ESC DEL TAB and SPC.")
+
 (define-derived-mode mistty-alacritty-mode fundamental-mode "MisTTY/FS"
   "Major mode for Mistty Fullscreen.
 
@@ -234,7 +377,8 @@ process."
   (font-lock-mode -1)
   (jit-lock-mode nil)
 
-  (use-local-map mistty-alacritty-mode-map))
+  (use-local-map mistty-alacritty-mode-map)
+  (setq mistty--translate-key-function #'mistty-alacritty--translate-key))
 
 (defun mistty-alacritty-available-p ()
   "Check whether the module is available.
@@ -464,6 +608,9 @@ sequence."
        vterm
        (mistty--count-lines mistty-alacritty--home pos)))))
 
+(defun mistty-alacritty--translate-key (key n)
+  "Return the byte sequence for KEY N times appropriate for the terminal."
+  (mistty--translate-key-default key n mistty-alacritty--key-map))
 
 (provide 'mistty-alacritty)
 

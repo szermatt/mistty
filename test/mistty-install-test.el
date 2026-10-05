@@ -75,7 +75,7 @@
         (error (message "OUT<<EOF\n%sEOF"
                         (with-current-buffer mistty-install-buffer
                           (mistty-test-content)))
-               (signal err)))
+               (signal err nil)))
       (let ((output (with-current-buffer mistty-install-buffer
                       (mistty-test-content))))
         (should (file-exists-p
@@ -155,7 +155,7 @@ once that function returns."
              (error (message "OUT<<EOF\n%sEOF"
                              (with-current-buffer mistty-install-buffer
                                (mistty-test-content)))
-                    (signal err)))
+                    (signal err nil)))
            (let ((output (with-current-buffer mistty-install-buffer
                            (mistty-test-content))))
              (should (file-exists-p dest))
@@ -228,7 +228,7 @@ once that function returns."
              (error (message "OUT<<EOF\n%sEOF"
                              (with-current-buffer mistty-install-buffer
                                (mistty-test-content)))
-                    (signal err)))
+                    (signal err nil)))
            (should (file-exists-p dest))
            (let ((output (with-current-buffer mistty-install-buffer
                            (mistty-test-content))))
@@ -271,7 +271,7 @@ once that function returns."
         (error (message "OUT<<EOF\n%sEOF"
                         (with-current-buffer mistty-install-buffer
                           (mistty-test-content)))
-               (signal err)))
+               (signal err nil)))
       (let ((default-directory tempdir))
         (should (file-exists-p ".terminfo/"))))))
 
@@ -306,7 +306,7 @@ once that function returns."
              (error (message "OUT<<EOF\n%sEOF"
                              (with-current-buffer mistty-install-buffer
                                (mistty-test-content)))
-                    (signal err)))
+                    (signal err nil)))
       (let ((default-directory tempdir)
             (output (with-current-buffer mistty-install-buffer
                       (mistty-test-content))))

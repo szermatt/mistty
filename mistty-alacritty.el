@@ -187,40 +187,6 @@ This immediately follows the scrollback lines.")
 (defvar-local mistty-alacritty-lines nil
   "Height of the terminal, in lines. Set by `mistty-alacritty-resize'.")
 
-(defvar mistty-alacritty-mode-map
-  (let ((map (make-sparse-keymap))
-        (esc-map (make-sparse-keymap)))
-    ;; This builds a map very similar to term raw-keymap.
-    (dotimes (c 128)
-      (unless (memq c '(?\C-c ?\C-x))
-        (define-key map (make-string 1 c) 'mistty-send-key)))
-    (define-key map "\e" esc-map)
-    (dotimes (c 128)
-      (unless (memq c '(?O ?\[))
-        (define-key esc-map (make-string 1 c) 'mistty-send-key)))
-
-    ;; C-q <any key> sends that key to the terminal unmodified
-    (define-key map "\C-q" '(keymap (t . mistty-send-last-key)))
-
-    (dolist (key '([mouse-2] [up] [down] [right] [left] [C-up] [C-down]
-                   [C-right] [C-left] [delete] [deletechar] [backspace]
-                   [home] [end] [insert] [S-prior] [S-next] [S-insert]
-                   [prior] [next] [?\C-/] [?\C- ] [?\C-\M-/] [?\C-\M- ]))
-      (define-key map key 'mistty-send-key))
-
-    ;; Mirror keybindings from mistty-mode-map, for consistency.
-    (keymap-set map "C-c C-c" #'mistty-send-last-key)
-    (keymap-set map "C-c C-z" #'mistty-send-last-key)
-    (keymap-set map "C-c C-\\" #'mistty-send-last-key)
-    (keymap-set map "C-c C-g" #'mistty-send-last-key)
-    (keymap-set map "C-c C-q" #'mistty-capture-keyboard)
-    ;; TODO: support xterm-paste?
-
-  map)
-  "Keymap of major mode MisTTY Alacritty.
-
-This intercepts all major key bindings and sends them to the terminal.
-Overwrite to recover key bindings.")
 
 (defvar mistty-alacritty--key-map
   (let ((map (make-sparse-keymap)))
@@ -375,10 +341,7 @@ Call `mistty-alacritty-exec' to create the virtual terminal and start the
 process."
   ;; Face is set manually; disable font-lock mode
   (font-lock-mode -1)
-  (jit-lock-mode nil)
-
-  (use-local-map mistty-alacritty-mode-map)
-  (setq mistty--translate-key-function #'mistty-alacritty--translate-key))
+  (jit-lock-mode nil))
 
 (defun mistty-alacritty-available-p ()
   "Check whether the module is available.

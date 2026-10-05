@@ -15,7 +15,7 @@ use alacritty_terminal::{
     },
     vte::ansi::{self, Attr, Color, Handler, NamedPrivateMode, PrivateMode, Processor},
 };
-use emacs::{Env, IntoLisp, Result, Value};
+use emacs::{Env, Result, Value};
 use std::{
     cell::RefCell,
     collections::{BTreeSet, VecDeque},
@@ -237,34 +237,34 @@ impl VTerm {
 
     /// Handle accumulated events using the given `env`.
     ///
-    /// The return value is a list of events that should be handled by
-    /// the caller in lisp format.
-    pub fn handle_events<'a>(&self, env: &'a Env) -> Result<Value<'a>> {
+    /// The return value is a vector of lisp-formatted events that
+    /// should be handled by the caller in lisp format.
+    pub fn handle_events<'a>(&self, env: &'a Env) -> Result<Vec<Value<'a>>> {
         let mut events = self.events.borrow_mut();
-        let mut result = ().into_lisp(env)?;
+        let mut lisp_events = vec![];
         if events.is_empty() {
-            return Ok(result);
+            return Ok(lisp_events);
         }
 
         while let Some(event) = events.pop_front() {
             match event {
                 Event::PtyWrite(data) => {
-                    result = pty_write(env, result, data)?;
+                    lisp_events.push(pty_write(env, data)?);
                 }
                 Event::ColorRequest(index, rgb_to_seq) => {
                     if let Some(named) = render::named_color_for_color_request(index) {
                         if let Some(color) =
                             render::to_emacs_color_rgb(env, Color::Named(named), true)?
                         {
-                            result = pty_write(env, result, rgb_to_seq(color))?;
+                            lisp_events.push(pty_write(env, rgb_to_seq(color))?);
                         }
                     }
                 }
                 Event::Title(title) => {
-                    result = env.cons(env.list((title_sym, title))?, result)?;
+                    lisp_events.push(env.list((title_sym, title))?);
                 }
                 Event::ResetTitle => {
-                    result = env.cons(env.list((title_sym, ""))?, result)?;
+                    lisp_events.push(env.list((title_sym, ""))?);
                 }
 
                 Event::ClipboardStore(clipboard, data) => match clipboard {
@@ -280,7 +280,7 @@ impl VTerm {
                             .and_then(|v| v.into_rust())
                             .unwrap_or(None);
                         if let Some(data) = data {
-                            result = pty_write(env, result, formatter(&data))?;
+                            lisp_events.push(pty_write(env, formatter(&data))?);
                         }
                     }
                     ClipboardType::Selection => {}
@@ -290,9 +290,8 @@ impl VTerm {
                 Event::Wakeup | Event::Bell | Event::Exit | Event::ChildExit(_) => {}
             };
         }
-        result = env.call(nreverse_func, (result,))?;
 
-        Ok(result)
+        Ok(lisp_events)
     }
 
     // Compare the render count with a value form Emacs side.
@@ -406,8 +405,8 @@ fn move_history(grid: &mut Grid<Cell>, history: &mut Vec<Row<Cell>>) {
 }
 
 /// Generate `(pty-write <value>)`
-fn pty_write<'a>(env: &'a Env, result: Value<'a>, data: String) -> Result<Value<'a>> {
-    env.cons(env.list((pty_write_sym, data))?, result)
+fn pty_write<'a>(env: &'a Env, data: String) -> Result<Value<'a>> {
+    env.list((pty_write_sym, data))
 }
 
 /// Set flags on a newly-created or reset grid.

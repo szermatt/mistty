@@ -53,6 +53,9 @@
   ;; if non-nil, a change before scrolline was detected
   change-before-scrolline
 
+  ;; if non-nil, the kitty keyboard protocol is enabled
+  kkp
+
   ;; if non-nil, we are in fullscreen mode
   fs)
 
@@ -366,7 +369,9 @@ buffer."
           (`(title ,title)
            (mistty-log "TITLE %S" title)
            (mistty--with-live-buffer buf
-             (setq ansi-osc-window-title title)))))
+             (setq ansi-osc-window-title title)))
+          (`(kkp ,val)
+           (setf (mistty--term-alacritty-kkp term) val))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))

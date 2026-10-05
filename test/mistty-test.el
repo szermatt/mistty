@@ -1987,7 +1987,7 @@
   (should (equal "ok" (mistty-send-and-capture-command-output)))
   (should (eq t cursor-type)))
 
-(mistty-deftest mistty-test-hide-cursor-fullscreen ( :type all)
+(mistty-deftest mistty-test-hide-cursor-fullscreen (:type eterm)
   (let ((term-buffer mistty-term-buffer)
         (proc mistty-proc))
     (mistty--send-string

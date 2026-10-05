@@ -94,9 +94,6 @@ column number.")
 (cl-defgeneric mistty--term-sentinel-func (term)
   "Return the hardcoded sentinel function of TERM's terminal.")
 
-(cl-defgeneric mistty--term-filter-func (term)
-  "Return the hardcoded filter function of TERM's terminal.")
-
 (defun mistty--term-sentinel (proc msg)
   "Call the hardcoded sentinel function.
 

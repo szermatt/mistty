@@ -160,17 +160,6 @@ terminals."
                  (const "xterm")
                  string))
 
-(defvar mistty-alacritty--inhibit-render nil
-  "Tell the process filter not to update buffer content.
-
-This is meant to be set temporarily, within a let form that calls the
-filter.
-
-The virtual terminal state is still updated when this variable is set.")
-
-(defvar-local mistty-alacritty--vterm nil
-  "Virtual terminal tied to the buffer, from mistty-alacritty-vt.")
-
 (defvar-local mistty-alacritty--cursor nil
   "Marker that tracks the cursor position.
 
@@ -180,13 +169,6 @@ This marker is set by the last rendering operation.")
   "Marker that tracks the position of the top of the screen.
 
 This immediately follows the scrollback lines.")
-
-(defvar-local mistty-alacritty-columns nil
-  "Width of the terminal, in columns. Set by `mistty-alacritty-resize'.")
-
-(defvar-local mistty-alacritty-lines nil
-  "Height of the terminal, in lines. Set by `mistty-alacritty-resize'.")
-
 
 (defvar mistty-alacritty--key-map
   (let ((map (make-sparse-keymap)))
@@ -341,7 +323,11 @@ Call `mistty-alacritty-exec' to create the virtual terminal and start the
 process."
   ;; Face is set manually; disable font-lock mode
   (font-lock-mode -1)
-  (jit-lock-mode nil))
+  (jit-lock-mode nil)
+  (setq mistty-alacritty--cursor (copy-marker (point-min)))
+  (setq mistty-alacritty--home (copy-marker (point-min)))
+  (set-marker-insertion-type mistty-alacritty--home nil)
+  (mistty--init-scrolline mistty-alacritty--home 0))
 
 (defun mistty-alacritty-available-p ()
   "Check whether the module is available.
@@ -349,24 +335,35 @@ process."
 Calling any other function when this one returns nil will fail."
   (featurep 'mistty-alacritty-vt))
 
-(defun mistty-alacritty-exec (name program args width height)
-  "Execute a command inside of an alacritty terminal.
-
-This creates a process NAME that runs PROGRAM with ARGS inside of a
-terminal with the given WIDTH and HEIGHT and displays the result in the
-current buffer. The created process is set as the current buffer's
-process."
+(defun mistty-alacritty--make-vterm (width height)
+  "Create a terminal with the given WIDTH and HEIGHT."
   (unless (mistty-alacritty-available-p)
     (error "Alacritty terminal is unavailable; module '%s' not found"
            (mistty-alacritty-modulename)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm width height)))
+    (mistty-log "MAKE VTERM %s lines, %s colums" height width)
+    (mistty-alacritty-vt-enable-scrollback vterm)
+
+    vterm))
+
+(defun mistty-alacritty--exec (name program args width height)
+  "Execute a command inside and tie it to the current buffer.
+
+The current buffer must be a mistty-alacritty-mode buffer.
+
+This creates a process NAME that runs PROGRAM with ARGS. The created
+process is set as the current buffer's process. A filter should be set
+after making this call as this function sets the filter to t.
+
+The process window size is declared to be WIDTH x HEIGHT.
+
+Returns the process."
   (unless (eq major-mode 'mistty-alacritty-mode)
     (error "Must be called from a mistty-alacritty-mode buffer"))
   (when (get-buffer-process (current-buffer))
     (error "A process is already attached to the buffer"))
   (mistty-log "LAUNCH %s %s" program args)
-  (let ((width (or width 80))
-        (height (or height 24))
-        (process-environment
+  (let ((process-environment
          (nconc
           (list (concat "TERM=" (mistty-alacritty--TERM))
                 (concat "INSIDE_EMACS=" emacs-version))
@@ -375,15 +372,6 @@ process."
 	(inhibit-eol-conversion t)
 	(coding-system-for-read 'binary))
     (jit-lock-mode nil) ;; in case this was turned on by a hook
-    (setq mistty-alacritty--cursor (copy-marker (point-min)))
-    (setq mistty-alacritty--home (copy-marker (point-min)))
-    (set-marker-insertion-type mistty-alacritty--home nil)
-    (mistty--init-scrolline mistty-alacritty--home 0)
-    (setq mistty-alacritty-columns width)
-    (setq mistty-alacritty-lines height)
-    (mistty-log "MAKE VTERM %s lines, %s colums" height width)
-    (setq mistty-alacritty--vterm (mistty-alacritty-vt-make-vterm width height))
-    (mistty-alacritty-vt-enable-scrollback mistty-alacritty--vterm)
     (let ((proc (apply #'start-file-process name (current-buffer)
                        ;; On Android, /bin doesn't exist, and the default shell is
                        ;; found as /system/bin/sh.
@@ -406,98 +394,24 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
       ;; start-file-process doesn't always respect
       ;; coding-system-for-read. Force it.
       (set-process-coding-system proc 'binary (cdr (process-coding-system proc)))
-
-      (goto-char (point-min))
-      (mistty-alacritty-vt-render mistty-alacritty--vterm mistty-alacritty--cursor)
-      (goto-char mistty-alacritty--cursor)
-      (set-marker (process-mark proc) mistty-alacritty--cursor)
       (set-process-sentinel proc #'mistty-alacritty--sentinel)
-      (set-process-filter proc #'mistty-alacritty--process-filter))))
+      (set-process-filter proc t))))
 
-(defun mistty-alacritty-resize (width height)
-  "Resize the terminal and pty to WIDTH x HEIGHT."
-  (if (or (/= mistty-alacritty-columns width) (/= mistty-alacritty-lines height))
-      (when-let* ((vterm mistty-alacritty--vterm)
-                  (proc (get-buffer-process (current-buffer))))
-        (mistty-log "RESIZE: %s lines %s columns" height width)
-        (mistty-alacritty-vt-resize vterm width height)
-        (setq mistty-alacritty-columns width)
-        (setq mistty-alacritty-lines height)
-        (set-process-window-size proc height width))))
-
-(defun mistty-alacritty--alt-screen-p ()
-  "Check whether we're displaying the alt screen buffer.
-
-This function returns non-nil when the alt screen buffer is displayed.
-This mode is called fullscreen in the rest of the code."
-  (mistty-alacritty-vt-alt-screen-p mistty-alacritty--vterm))
-
-(defun mistty-alacritty--cursor-linecol ()
-  "Return cursor terminal line and column number.
-
-The return value is a (cons line column)."
-  (mistty-alacritty-vt-cursor mistty-alacritty--vterm))
-
-(defun mistty-alacritty--cursor-column ()
-  "Return cursor terminal column number."
-  (cdr (mistty-alacritty-vt-cursor mistty-alacritty--vterm)))
-
-(defun mistty-alacritty--cursor-chars ()
-  "Return char index of the cursor within its line.
-
-Do not confuse it with `mistty-alacritty--cursor-column'"
-  (- mistty-alacritty--cursor (save-excursion
-                          (goto-char mistty-alacritty--cursor)
-                          (pos-bol))))
-
-(defun mistty-alacritty--cursor-line ()
-  "Return cursor terminal line number."
-  (car (mistty-alacritty-vt-cursor mistty-alacritty--vterm)))
-
-(defun mistty-alacritty--process-filter (proc str)
-  "Update the terminal state and render the result.
-
-This is meant to be used as process filter so takes the usual argument
-PROC, for the process and STR for the data to send to the terminal."
-  (mistty-log "RECV %S" str)
-  (mistty--with-live-buffer (process-buffer proc)
-    (mistty-alacritty--process-bytes str)
-    (unless mistty-alacritty--inhibit-render
-      (mistty-alacritty--render))))
-
-(defun mistty-alacritty--process-bytes (str)
-  "Send bytes from STR to the virtual terminal to be processed.
-
-The current buffer must have a virtual terminal associated."
-  (when-let* ((vterm mistty-alacritty--vterm)
-              (proc (get-buffer-process (current-buffer))))
-    (dolist (ev (mistty-alacritty-vt-process-bytes vterm (vconcat str)))
-      (pcase ev
-        (`(pty-write ,data)
-         (mistty-log "REPLY %S" data)
-         (process-send-string proc data))
-        (`(title ,title)
-         (mistty-log "TITLE %S" title)
-         (setq ansi-osc-window-title title))))))
-
-(defun mistty-alacritty--render ()
-  "Render the virtual terminal on the current buffer.
-
-The current buffer must have a virtual terminal associated."
-  (when-let* ((vterm mistty-alacritty--vterm))
-    (save-excursion
-      (goto-char mistty-alacritty--home)
-      (pcase-let ((`(,screen-top . ,scrollback-lines)
-                   (mistty-alacritty-vt-render vterm mistty-alacritty--cursor)))
-        (mistty-alacritty-vt-clear-scrollback vterm)
-        (cl-incf mistty--scrolline-home-num scrollback-lines)
-        (mistty-log "RENDER @%s (+%s)"
-                    mistty--scrolline-home-num scrollback-lines)
-        (set-marker mistty-alacritty--home screen-top))
-      (when-let* ((proc (get-buffer-process (current-buffer))))
-        (when (process-live-p proc)
-          (set-marker (process-mark proc) mistty-alacritty--cursor))))
-    (goto-char mistty-alacritty--cursor)))
+(defun mistty-alacritty--render (vterm)
+  "Render the virtual terminal on the current buffer."
+  (save-excursion
+    (goto-char mistty-alacritty--home)
+    (pcase-let ((`(,screen-top . ,scrollback-lines)
+                 (mistty-alacritty-vt-render vterm mistty-alacritty--cursor)))
+      (mistty-alacritty-vt-clear-scrollback vterm)
+      (cl-incf mistty--scrolline-home-num scrollback-lines)
+      (mistty-log "RENDER @%s (+%s)"
+                  mistty--scrolline-home-num scrollback-lines)
+      (set-marker mistty-alacritty--home screen-top))
+    (when-let* ((proc (get-buffer-process (current-buffer))))
+      (when (process-live-p proc)
+        (set-marker (process-mark proc) mistty-alacritty--cursor))))
+  (goto-char mistty-alacritty--cursor))
 
 (defun mistty-alacritty--sentinel (proc msg)
   "Update buffer when PROC has exited.
@@ -521,24 +435,6 @@ This is controlled by the custom variable `mistty-alacritty-term-name'"
    ((shell-command-to-string "infocmp alacritty") "alacritty")
    (t "xterm-256color")))
 
-(defun mistty-alacritty--clear-to-eol (pos)
-  "Mark spaces from POS to the end of the line as clear."
-  (when-let* ((vterm mistty-alacritty--vterm))
-    (when (> pos mistty-alacritty--home)
-      (mistty-alacritty-vt-clear-to-eol vterm
-                               (mistty--count-lines mistty-alacritty--home pos)
-                               (- pos (mistty--bol pos))))))
-
-(defun mistty-alacritty--cleanup-prompt-sp (pos)
-  "Cleanup after the shell using the prompt-sp hack.
-
-POS should be the position where the CR is called in the prompt-sp
-sequence."
-  (when-let* ((vterm mistty-alacritty--vterm))
-    (when (> pos mistty-alacritty--home)
-      (mistty-alacritty-vt-cleanup-prompt-sp
-       vterm
-       (mistty--count-lines mistty-alacritty--home pos)))))
 
 (defun mistty-alacritty--translate-key (key n)
   "Return the byte sequence for KEY N times appropriate for the terminal."

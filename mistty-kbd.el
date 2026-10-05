@@ -175,7 +175,7 @@ It can also be stopped programmatically by calling
             (prompt (format "Sending all KEYS to terminal... Exit with %s."
                             mistty-exit-capture-keyboard-key)))
         (unless (length= exit-key 1)
-          (user-error "mistty-exit-capture-keyboard-key invalid; It must be a single key."))
+          (user-error "Invalid value for mistty-exit-capture-keyboard-key; must be a single key"))
         (setq exit-key (aref exit-key 0))
         (mistty-log "capture start hook")
         (run-hooks 'mistty-start-capture-keyboard-hook)
@@ -212,7 +212,7 @@ Does nothing if there is no running `mistty-capture-keyboard'."
                            (when mistty--capture-keyboard-active
                              (throw 'mistty-capture-keyboard nil))))))
 
-(defun mistty-translate-key (key &optional n)
+(defun mistty-translate-key (key &optional n noerror)
   "Generate string to sent to the terminal for KEY.
 
 This function translates an Emacs key sequence, as returned by
@@ -223,7 +223,10 @@ will hopefully understand.
 The conversion can be configured by modifying
 `mistty-term-key-map'.
 
-If N is specified, the string is repeated N times."
+If N is specified, the string is repeated N times.
+
+If NOERROR is non-nil, return nil if a key is unknown instead of
+failing."
   (let ((n (or n 1))
         (key (if (stringp key) (vconcat key) key)))
     ;; Standardize the key events, favoring the symbol-based
@@ -234,9 +237,12 @@ If N is specified, the string is repeated N times."
        (setq key (vector (logior c #x8000000)))))
     (setq key (or (lookup-key mistty-translation-keymap key) key))
 
-    (funcall mistty--translate-key-function key n)))
+    (or (funcall mistty--translate-key-function key n)
+        (if noerror
+            nil
+          (error "No terminal sequence known for key %S" key)))))
 
-(defun mistty--translate-key-default (key n &optional extra-map noerror)
+(defun mistty--translate-key-default (key n &optional extra-map)
   "Default implementation for `mistty--translate-key-function'.
 
 This function generates a byte sequence for KEY, repeated N times. If
@@ -270,10 +276,7 @@ If NOERROR is non-nil, return nil instead of signaling an error."
       ((and `[,c] (guard (characterp c)))
        (make-string n (elt key 0)))
 
-      (_ (if noerror
-             nil
-           (error "No known translation for %s; Configure it in mistty-term-key-map"
-                  (key-description key)))))))
+      (_ nil))))
 
 (defun mistty--maybe-bracketed-str (str)
   "Prepare STR to be sent, possibly bracketed, to the terminal."
@@ -288,6 +291,19 @@ If NOERROR is non-nil, return nil instead of signaling an error."
 (defun mistty--untabify (str)
   "Replace tabs in STR with spaces."
   (string-replace "\t" (make-string tab-width ? ) str))
+
+(defun mistty--list-basic-types-from-map (map)
+  "Extract a list of basic event types referenced in MAP.
+
+This does not go through sub-maps."
+  (let ((symbols (list)))
+    (map-keymap (lambda (ev _)
+                  (when (and (eventp ev) (symbolp ev))
+                    (when-let* ((type (event-basic-type ev)))
+                      (cl-pushnew type symbols))))
+                map)
+
+    symbols))
 
 (provide 'mistty-kbd)
 

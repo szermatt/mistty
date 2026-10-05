@@ -110,6 +110,11 @@ available and otherwise fallback."
                  (const :tag "eterm (built-in)" eterm)
                  (const :tag "alacritty (module required)" alacritty)))
 
+(defvar mistty-all-terminal-types '(eterm alacritty)
+  "All known terminal types.
+
+These are all the valid values for `mistty-terminal-type'.")
+
 (defcustom mistty-variables-to-copy
   '(default-directory
     ansi-osc-window-title)
@@ -552,39 +557,48 @@ are sent directly to the terminal."
     (keymap-set map "C-c C-j" #'mistty-toggle)
     (keymap-set map "C-c C-q" #'mistty-capture-keyboard)
 
-    ;; Send C-<ascii char> and M-<ascii char> to the terminal,
+    ;; Send C- M- and C-M- <ascii char> to the terminal,
     ;; except for:
-    ;;    C-c, C-x, M-x
+    ;;    C-c, C-x, M-x, ESC-[, ESC-O (used in Emacs terminal input)
     ;;
     ;; C-q is handled specially and sends the following key to the
     ;; terminal, so to really send C-q, send C-q C-q
     (dotimes (c 128)
-      (unless (memq c '(?\C-c ?\C-x))
+      (unless (memq c '(?\C-c ?\C-x ?\C-q))
         (define-key map (make-string 1 c) 'mistty-send-key)))
     (define-key map "\C-q" '(keymap (t . mistty-send-last-key)))
-
-    ;; Send M-<ascii char> and ESC <ascii char> to the terminal
-    ;; To really type ESC, type either ESC ESC or C-q ESC
-    (define-key map (kbd "ESC") esc-map)
     (dotimes (c 128)
-      (unless (memq c '(?x))
+      (unless (memq c '(?x ?\[ ?O))
         (define-key esc-map (make-string 1 c) 'mistty-send-key)))
     (define-key esc-map "\e" 'mistty-send-key)
+    (define-key map (kbd "ESC") esc-map)
 
     ;; Forward all keys for which a specific translation is known in
-    ;; mistty-term-key-map to the terminal.
-    (map-keymap (lambda (ev _)
-                  (when (eventp ev)
-                    (let ((key (vector ev)))
-                      (unless (lookup-key map key)
-                        (define-key map key 'mistty-send-key)))))
-                mistty-term-key-map)
+    ;; mistty-term-key-map to the terminal with common modifier
+    ;; subsets.
+    (dolist (type mistty-all-terminal-types)
+      (dolist (ev (mistty--term-list-special-keys type))
+        (dolist (prefix '("" "S-" "C-" "M-" "C-S-" "M-S-" "C-M-"))
+          (define-key map (kbd (format "%s<%s>" prefix ev)) #'mistty-send-key))))
 
   map)
   "Additional keymap active while fullscreen.
 
 This is in addition to the buffer keymap, `mistty-term-mode-map' for
-eterm terminals and `mistty-mode-map' for alacritty terminals.")
+eterm terminals and `mistty-mode-map' and `mistty-prompt-map' for
+alacritty terminals.
+
+By default, the terminal lets through M-x (but not ESC x) and key
+sequences starting with he prefixes C-c and C-x.
+
+C-q can be used to send these to the terminal. C-c C-q sends C-c and C-q
+C-x sends C-x. C-q C-q sends C-q. If you're tired of typing C-q, type
+C-c C-q, which triggers `mistty-capture-keyboard' for a while.
+
+To liberate keys and have Emacs handle them, bind them to nil or remove
+them from this map.
+
+To add keys to send to the terminal, bind them to `mistty-send-key'.")
 
 (define-minor-mode mistty-fullscreen-mode
   "Minor mode active on the terminal buffer while fullscreen.

@@ -197,6 +197,15 @@ KEY is an Emacs key event and n the number of repetition for that event.
 The function returns the byte sequence appropriate for sending that key
 to the terminal.")
 
+(cl-defgeneric mistty--term-list-special-keys (type)
+  "List special keys (symbols) supported on input for this terminal.
+
+These are the keys `mistty--term-translate-key' should be able to
+translate.
+
+The returned value is a list of symbol; basic types for the special keys
+as returned by `event-basic-type'.")
+
 (provide 'mistty-term-base)
 
 ;;; mistty-term-base.el ends here

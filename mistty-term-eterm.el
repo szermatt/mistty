@@ -793,6 +793,10 @@ The function returns the byte sequence appropriate for sending that key
 to the terminal."
   (mistty--eterm-translate-key key n))
 
+(cl-defmethod mistty--term-list-special-keys ((_type (eql 'eterm)))
+  "List the basic type of special event types (special keys)."
+  (mistty--list-basic-types-from-map mistty--eterm-key-map))
+
 (defun mistty--eterm-translate-key (key n)
   "Translate KEY n times for eterm."
   (mistty--translate-key-default key n mistty--eterm-key-map))

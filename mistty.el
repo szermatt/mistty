@@ -2811,11 +2811,11 @@ buffers."
                (after-move-to-target))
 
              (let* ((distance (mistty--vertical-distance (point) target))
-                    (term-seq (mistty--move-vertically-str distance)))
-               (when (mistty--nonempty-str-p term-seq)
+                    (replay-seq (mistty--move-vertically-seq distance)))
+               (when replay-seq
                  (mistty-log "to target: %s -> %s lines: %s (can-move-vertically=%s)"
                              (point) target distance mistty--can-move-vertically)
-                 (mistty--interact-send interact term-seq)
+                 (mistty--interact-send interact (mistty--translate-replay-seq term replay-seq))
                  (mistty--interact-wait-for-output-then
                   #'move-horizontally
                   :pred (let ((comparison (cond (mistty--can-move-vertically '=)
@@ -2833,14 +2833,14 @@ buffers."
          (move-horizontally ()
            (setq distance (mistty--distance (point) target))
            (mistty-log "to target: %s -> %s distance: %s" (point) target distance)
-           (let ((term-seq (mistty--move-horizontally-str distance)))
-             (when (mistty--nonempty-str-p term-seq)
-               (mistty--interact-send interact term-seq)
-               (mistty--interact-wait-for-output-then
-                #'after-move-to-target
-                :pred (lambda ()
-                        (mistty--update-backstage)
-                        (zerop (mistty--distance (point) target))))))
+           (when-let* ((replay-seq (mistty--move-horizontally-seq distance)))
+             (mistty--interact-send
+              interact (mistty--translate-replay-seq term replay-seq))
+             (mistty--interact-wait-for-output-then
+              #'after-move-to-target
+              :pred (lambda ()
+                      (mistty--update-backstage)
+                      (zerop (mistty--distance (point) target)))))
            (delete-lines))
 
          (after-move-to-target ()
@@ -3100,39 +3100,31 @@ characters, unless the command that created the changeset is in
     (setq mistty--inhibit-refresh nil)
     (mistty--refresh)))
 
-(defun mistty--move-horizontally-str (direction)
-  "Return a key sequence to move horizontally.
+(defun mistty--move-horizontally-seq (direction)
+  "Return a replay sequence to move horizontally.
 
 The absolute value of DIRECTION specifies the number of character
 to move and the sign specifies whether to go right (positive) or
 left (negative)."
   (if (zerop direction)
-      ""
-    (let ((distance (abs direction))
-          (towards-str
-           (if (< direction 0)
-               mistty-left-str
-             mistty-right-str)))
-      (mistty--repeat-string distance towards-str))))
+      nil
+    `((repeat ,(abs direction) ,(if (< direction 0) '(left) '(right))))))
 
-(defun mistty--move-vertically-str (direction)
-  "Return a key sequence to move vertically.
+(defun mistty--move-vertically-seq (direction)
+  "Return a replay sequence to move vertically.
 
 The absolute value of DIRECTION specifies the number of lines
 to move and the sign specifies whether to go down (positive) or
 up (negative)."
   (if (zerop direction)
-      ""
-    (let ((distance (abs direction))
-          (towards-str
-           (if (< direction 0)
-               (if mistty--can-move-vertically
-                   mistty-up-str
-                 (concat "\C-a" mistty-left-str))
-             (if mistty--can-move-vertically
-                 mistty-down-str
-               (concat "\C-e" mistty-right-str)))))
-      (mistty--repeat-string distance towards-str))))
+      nil
+    `((repeat
+      ,(abs direction)
+      ,(cond
+        ((and mistty--can-move-vertically (< direction 0)) '(up))
+        ((and mistty--can-move-vertically (> direction 0)) '(down))
+        ((< direction 0) '(bol left))
+        (t '(eol right)))))))
 
 (defun mistty-next-input (n)
   "Move the point to the Nth next input in the buffer."
@@ -3707,7 +3699,8 @@ Might modify CS before allowing replay."
 
 (defun mistty--cursor-to-point-interaction ()
   "Build a `mistty--interact' to move the cursor to the point."
-  (let ((interact (mistty--make-interact 'cursor-to-point)))
+  (let ((interact (mistty--make-interact 'cursor-to-point))
+        (term mistty--term))
     (cl-labels
         ((can-move (from to)
            (and (mistty-on-prompt-p to)
@@ -3724,11 +3717,12 @@ Might modify CS before allowing replay."
              (unless (can-move from to)
                (mistty--interact-done))
              (let ((distance (mistty--vertical-distance from to)))
-               (let ((term-seq (mistty--move-vertically-str distance)))
-                 (when (mistty--nonempty-str-p term-seq)
+               (let ((replay-seq (mistty--move-vertically-seq distance)))
+                 (when replay-seq
                    (mistty-log "cursor to point: %s -> %s lines: %s (can-move-vertically=%s)"
                                from to distance mistty--can-move-vertically)
-                   (mistty--interact-send interact term-seq)
+                   (mistty--interact-send
+                    interact (mistty--translate-replay-seq term replay-seq))
                    (mistty--interact-wait-for-output-then
                     #'move-horizontally
                     :pred (let ((comparison (cond (mistty--can-move-vertically '=)
@@ -3744,23 +3738,23 @@ Might modify CS before allowing replay."
                  (to (point)))
              (unless (can-move from to)
                (mistty--interact-done))
-             (let* ((distance (mistty--distance from to))
-                    (term-seq (mistty--move-horizontally-str distance)))
-               (when (mistty--nonempty-str-p term-seq)
-                 (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
-                 (mistty--interact-send interact term-seq)
-                 (mistty--interact-wait-for-output-then
-                  (lambda ()
-                    (mistty-log "moved cursor to %s (goal: %s)"
-                                (mistty-cursor) (point))
-                    (mistty--interact-done))
-                  :pred (lambda ()
-                          ;; Ignoring skipped spaces is useful as, with
-                          ;; multiline prompts, it's hard to figure out
-                          ;; where the indentation should be without
-                          ;; understanding the language.
-                          (mistty--same-pos-ignoring-skipped
-                           (mistty-cursor) (point))))))
+             (when-let* ((distance (mistty--distance from to))
+                         (replay-seq (mistty--move-horizontally-seq distance)))
+               (mistty-log "cursor to point: %s -> %s distance: %s" from to distance)
+               (mistty--interact-send
+                interact (mistty--translate-replay-seq term replay-seq))
+               (mistty--interact-wait-for-output-then
+                (lambda ()
+                  (mistty-log "moved cursor to %s (goal: %s)"
+                              (mistty-cursor) (point))
+                  (mistty--interact-done))
+                :pred (lambda ()
+                        ;; Ignoring skipped spaces is useful as, with
+                        ;; multiline prompts, it's hard to figure out
+                        ;; where the indentation should be without
+                        ;; understanding the language.
+                        (mistty--same-pos-ignoring-skipped
+                         (mistty-cursor) (point)))))
              (mistty--interact-done))))
       (setf (mistty--interact-cb interact) #'start))
 

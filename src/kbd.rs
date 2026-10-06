@@ -7,7 +7,7 @@ use qwertty_term_input::{
     key_mods::{Mods, OptionAsAlt},
 };
 
-use emacs::{Env, GlobalRef, Result, Value, Vector, defun};
+use emacs::{Env, GlobalRef, IntoLisp, Result, Value, Vector, defun};
 
 use crate::vterm::VTerm;
 
@@ -47,13 +47,7 @@ pub fn kitty_key_seq<'e>(
 ) -> Result<Value<'e>> {
     match internal_kitty_key_seq(term, orig_key, mods, base_key) {
         None => Ok(nil_sym.bind(env)),
-        Some(vector) => {
-            let lisp_vec = env.make_vector(vector.len(), 0u8)?;
-            for (i, byte) in vector.into_iter().enumerate() {
-                lisp_vec.set(i, byte)?;
-            }
-            Ok(lisp_vec.value())
-        }
+        Some(str) => str.into_lisp(env),
     }
 }
 
@@ -62,7 +56,7 @@ fn internal_kitty_key_seq<'e>(
     orig_key: Value<'_>,
     mods: Vector,
     base_key: Value<'_>,
-) -> Option<Vec<u8>> {
+) -> Option<String> {
     let opts = extract_options(term);
     if opts.kitty_flags.to_bits() == 0 {
         return None;
@@ -108,9 +102,10 @@ fn internal_kitty_key_seq<'e>(
         consumed_mods,
         unshifted_codepoint,
     };
-    let vec = key_encode::encode(&ev, &opts);
 
-    Some(vec)
+    // It's not worth checking the string, as it'll go directly to
+    // Emacs, which is more permissive.
+    Some(unsafe { String::from_utf8_unchecked(key_encode::encode(&ev, &opts)) })
 }
 
 /// Convert terminal modes to key encoding format.

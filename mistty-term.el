@@ -86,18 +86,6 @@ definition, because it doesn't allow editing what's above."
   :group 'mistty
   :type '(list regexp))
 
-(defconst mistty-right-str "\eOC"
-  "Sequence to send to the process when the rightarrow is pressed.")
-
-(defconst mistty-left-str "\eOD"
-  "Sequence to send to the process when the left arrow is pressed.")
-
-(defconst mistty-up-str "\eOA"
-  "Sequence to send to the process when the uparrow is pressed.")
-
-(defconst mistty-down-str "\eOB"
-  "Sequence to send to the process when the left arrow is pressed.")
-
 (defvar-local mistty--term-properties-to-add-alist nil
   "An alist of id to text properties to add to the term buffer.
 

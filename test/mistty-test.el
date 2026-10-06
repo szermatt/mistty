@@ -2784,16 +2784,16 @@
    mistty-proc
    (format "echo \"hello, world%sworld, and the%sthe rest%srest.\""
            (concat
-            (mistty--repeat-string 5 mistty-left-str)
-            "\C-k"
+            (mistty--term-translate-key mistty--term [left] 5)
+            (mistty--term-translate-key mistty--term [?\C-k])
             (mistty--maybe-bracketed-str "\n"))
            (concat
-            (mistty--repeat-string 3 mistty-left-str)
-            "\C-k"
+            (mistty--term-translate-key mistty--term [left] 3)
+            (mistty--term-translate-key mistty--term [?\C-k])
             (mistty--maybe-bracketed-str "\n"))
            (concat
-            (mistty--repeat-string 4 mistty-left-str)
-            "\C-k"
+            (mistty--term-translate-key mistty--term [left] 4)
+            (mistty--term-translate-key mistty--term [?\C-k])
             (mistty--maybe-bracketed-str "\n"))))
   (mistty-wait-for-output :str "rest.")
 
@@ -2894,10 +2894,18 @@
   (mistty--send-string
    mistty-proc
    (format "for i in 1 2 3 4 5 6 deleted%s; do%secho -n line deleted%secho $i deleted%sdone"
-           (concat (mistty--repeat-string 8 mistty-left-str) "\C-k")
+           (concat
+            (mistty--term-translate-key mistty--term [left] 8)
+            (mistty--term-translate-key mistty--term [?\C-k]))
            (mistty--maybe-bracketed-str "\n")
-           (concat (mistty--repeat-string 8 mistty-left-str) "\C-k" (mistty--maybe-bracketed-str "\n"))
-           (concat (mistty--repeat-string 8 mistty-left-str) "\C-k" (mistty--maybe-bracketed-str "\n"))))
+           (concat
+            (mistty--term-translate-key mistty--term [left] 8)
+            (mistty--term-translate-key mistty--term [?\C-k])
+            (mistty--maybe-bracketed-str "\n"))
+           (concat
+            (mistty--term-translate-key mistty--term [left] 8)
+            (mistty--term-translate-key mistty--term [?\C-k])
+            (mistty--maybe-bracketed-str "\n"))))
   (mistty-wait-for-output :str "done" :cursor-at-end t)
 
   (should (equal

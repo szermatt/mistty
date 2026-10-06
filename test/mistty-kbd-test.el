@@ -53,11 +53,10 @@
     (should (equal "\ea" (mistty-translate-key (kbd "\ea") 1)))
     (should (equal "\ea\ea" (mistty-translate-key (kbd "\ea") 2)))
 
-    (should (equal mistty-left-str (mistty-translate-key (kbd "<left>") 1)))
-    (should (equal mistty-right-str (mistty-translate-key (kbd "<right>") 1)))
-
-    (should (equal mistty-up-str (mistty-translate-key (kbd "<up>") 1)))
-    (should (equal mistty-down-str (mistty-translate-key (kbd "<down>") 1)))))
+    (should (equal "\eOD" (mistty-translate-key (kbd "<left>") 1)))
+    (should (equal "\eOC" (mistty-translate-key (kbd "<right>") 1)))
+    (should (equal "\eOA" (mistty-translate-key (kbd "<up>") 1)))
+    (should (equal "\eOB" (mistty-translate-key (kbd "<down>") 1)))))
 
 (ert-deftest mistty-kbd-translate-key-escape ()
   (let ((mistty--translate-key-function #'mistty-test-translate-key))

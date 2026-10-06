@@ -4099,7 +4099,8 @@ are in different buffer."
 (defun mistty-sudo ()
   "Prepend sudo to the current command."
   (interactive)
-  (mistty-send-string "\C-asudo \C-e"))
+  (goto-char (mistty-cursor))
+  (execute-kbd-macro (kbd "C-a sudo SPC C-e")))
 
 (defun mistty-on-prompt-p (pos)
   "Return non-nil if POS is on a prompt.

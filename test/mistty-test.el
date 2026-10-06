@@ -4297,15 +4297,23 @@
     ;; inserting keys quickly.
     ))
 
-(mistty-deftest mistty-test-sudo ( :type all)
+(mistty-deftest mistty-test-sudo (:type all :selected t)
   (mistty-send-text "echo ok")
   (mistty-run-command
    (call-interactively 'mistty-sudo))
   (should (equal "$ sudo echo ok<>" (mistty-test-content :show (point)))))
 
-(mistty-deftest mistty-test-sudo-in-scrollback ( :type all)
-  (mistty-simulate-scrollback-buffer
-   (should-error (call-interactively 'mistty-sudo))))
+(mistty-deftest mistty-test-sudo-in-scrollback (:type all :selected t)
+  (mistty-send-text "echo one")
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-text "echo ok")
+  (mistty-run-command
+   (goto-char (point-min))
+   (search-forward "one"))
+  (mistty-run-command
+   (call-interactively 'mistty-sudo))
+  (should (equal "$ sudo echo ok<>"
+                 (mistty-test-content :start mistty-sync-marker :show (point)))))
 
 (ert-deftest mistty-test-fullscreen-message ()
   (let ((mistty-mode-map (make-sparse-keymap))

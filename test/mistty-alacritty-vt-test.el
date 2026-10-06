@@ -1502,18 +1502,16 @@
            ("\t" "<tab>")))
       (should
        (equal
-        (encode-coding-string expected 'utf-8)
+        expected
         ;; The below converts vector of integers into a unibyte
         ;; string, like the ones encode-coding-string outputs. This is
         ;; convenient for testing, but unnecessary in production; just
         ;; work with vectors.
-        (apply #'unibyte-string
-               (seq-mapcat
-                (lambda (key)
-                  (mistty-alacritty-vt-kitty-key-seq
-                   vterm
-                   key
-                   (vconcat (event-modifiers key))
-                   (event-basic-type key)))
-                (kbd key)
-                'list)))))))
+        (mapconcat
+         (lambda (key)
+           (mistty-alacritty-vt-kitty-key-seq
+            vterm
+            key
+            (vconcat (event-modifiers key))
+            (event-basic-type key)))
+         (kbd key) ""))))))

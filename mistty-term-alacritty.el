@@ -350,7 +350,7 @@ to the terminal."
   (if (mistty--term-alacritty-kkp term)
       ;; follow the kitty keyboard protocol
       (let* ((vterm (mistty--term-alacritty-vterm term))
-             (seq (seq-mapcat
+             (seq (mapconcat
                     (lambda (ev)
                       (mistty-alacritty-vt-kitty-key-seq
                        vterm
@@ -358,7 +358,7 @@ to the terminal."
                        (vconcat (event-modifiers ev))
                        (event-basic-type ev)))
                     key
-                    'vector)))
+                    "")))
         (if (length= seq 0)
             nil
           (mistty--repeat-string n seq)))

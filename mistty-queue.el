@@ -298,14 +298,14 @@ send, in reverse order."
     (while-let ((interact (mistty--queue-interact queue)))
       (pcase-exhaustive
           (unwind-protect
-              (condition-case-unless-debug err
-                  (prog1 (mistty--interact-next interact value)
+              (cl-block nil
+                (mistty-with-errors-logged "Interaction failed"
+                  (let ((ret (mistty--interact-next interact value)))
                     (when-let* ((p (mistty--interact-pending-output interact)))
-                      (push p pending-outputs)))
-                (error
-                 (mistty-log-error "Interaction failed ; giving up" err)
-                 (message "Interaction failed; giving up: %s" err)
-                 'done))
+                      (push p pending-outputs))
+                    (cl-return ret)))
+                ;; this is only reached on error
+                'done)
             (setf (mistty--interact-pending-output interact) nil))
         ;; Move on to the next interact
         ('done

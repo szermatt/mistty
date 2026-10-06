@@ -340,7 +340,7 @@ Always keep SCROLLINE-LIMIT and below."
     (mistty-alacritty-vt-clear-scrollback
      (mistty--term-alacritty-vterm term))))
 
-(cl-defmethod mistty--term-translate-key ((term mistty--term-alacritty) key n)
+(cl-defmethod mistty--term-translate-key ((term mistty--term-alacritty) key &optional n)
   "Generate the key byte sequence for TERM.
 
 KEY is an Emacs key event and n the number of repetition for that event.
@@ -361,10 +361,10 @@ to the terminal."
                     "")))
         (if (length= seq 0)
             nil
-          (mistty--repeat-string n seq)))
+          (mistty--repeat-string (or n 1) seq)))
 
     ;; legacy translation
-    (mistty--translate-key-default key n mistty-alacritty--key-map)))
+    (mistty--translate-key-default key (or n 1) mistty-alacritty--key-map)))
 
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'alacritty)))
   "List the basic type of special event types (special keys)."

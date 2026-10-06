@@ -4838,6 +4838,44 @@ This is meant to be bound to `imenu-create-index-function'."
 This chooses the correct representation for the current terminal."
   (mistty--term-translate-key mistty--term key n))
 
+(defun mistty--translate-replay-seq (term replay-seq)
+  "Translate replay sequence into a terminal sequence.
+
+Replay sequences are written in a mini-language as a list with the
+following elements:
+- str, sent as-is to the terminal
+- (paste <str>) str is escaped with bracketed-paste then sent to the terminal
+- up down left right, sent as arrow keys
+- (up n) (down n) (left n) (right n), sent as arrow keys repeated n times
+- bol (bol n), sent as C-a, repeated n times
+- eol (eol n), sent as C-e, repeated n times
+- kill-line (kill-line n), sent as C-k, repeated n times
+
+The result is a vector of bytes, ready to be sent to the terminal."
+  (mapconcat
+   (lambda (elt)
+     (pcase elt
+       ('bol (mistty--term-translate-key term [?\C-a]))
+       ('eol (mistty--term-translate-key term [?\C-e]))
+       ('kill-line (mistty--term-translate-key term [?\C-k]))
+       ('up (mistty--term-translate-key term [up]))
+       ('down (mistty--term-translate-key term [down]))
+       ('left (mistty--term-translate-key term [left]))
+       ('right (mistty--term-translate-key term [right]))
+       (`(repeat ,n ,seq)
+        (let ((term-seq (mistty--translate-replay-seq term seq)))
+          (if (> n 1)
+              (mapconcat
+               (lambda (_) term-seq)
+               (make-list n nil)
+               "")
+            term-seq)))
+       (`(paste ,str) (mistty--bracketed-str str))
+        ;; todo: support kkp's "Report all keys as escape codes"
+        ((pred stringp) (encode-coding-string elt 'utf-8))
+        (_ (error "Invalid replay-seq element: %S" elt))))
+   replay-seq ""))
+
 (provide 'mistty)
 
 ;;; mistty.el ends here

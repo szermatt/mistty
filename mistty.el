@@ -2896,8 +2896,9 @@ buffers."
                                (marker-position old-end)
                                (marker-position beg))
                    (mistty--interact-send
-                    interact (mistty--repeat-string
-                              (1+ (mistty--distance bol old-end)) "\b"))
+                    interact
+                    (mistty--translate-replay-seq
+                     term `((repeat ,(1+ (mistty--distance bol old-end)) (del)))))
                    (mistty--interact-wait-for-output-then
                     (lambda ()
                       (move-marker old-end (point))
@@ -2919,25 +2920,24 @@ buffers."
                        (point)
                        (marker-position beg)
                        (marker-position old-end))
-           (let ((term-seq
-                  (concat
+           (let ((replay-seq
+                  (append
                    ;; delete
                    (when (> old-length 0)
                      (let ((char-count (mistty--distance beg old-end)))
                        (mistty-log "DELETE %s chars (was %s)" char-count old-length)
-                       (mistty--repeat-string char-count mistty-del)))
+                       `((repeat ,char-count (del)))))
 
                    ;; delete trailing ws
                    (when (> trailing-ws-to-delete 0)
                      (mistty-log "DELETE %s trailing whitespaces with C-k" trailing-ws-to-delete)
-                     (mistty--repeat-string 1 "\C-k"))
+                     `(kill-line))
 
                    ;; insert
                    (when (length> content 0)
                      (mistty-log "INSERT: '%s'" content)
                      (mistty--format-string-for-insert content cs)))))
-             (when (mistty--nonempty-str-p term-seq)
-
+             (when replay-seq
                ;; ignore term-line-wrap and mistty-skip when
                ;; building and running the detector.
                (mistty--remove-text-with-property 'term-line-wrap)
@@ -2951,7 +2951,8 @@ buffers."
                (mistty-log "RE /%s/" inserted-detector-regexp)
                (unless modifications
                  (setq waiting-for-last-change t))
-               (mistty--interact-send interact term-seq)
+               (mistty--interact-send
+                interact (mistty--translate-replay-seq term replay-seq))
                (mistty--interact-wait-for-output-then
                 #'after-insert-and-delete
                 :pred (lambda ()
@@ -3080,7 +3081,7 @@ buffers."
       nil)))
 
 (defun mistty--format-string-for-insert (str cs)
-  "Return the terminal sequence for inserting STR for changeset CS.
+  "Return a replay sequence for inserting STR for changeset CS.
 
 When bracketed paste is enabled, it is used only if STR contains control
 characters, unless the command that created the changeset is in
@@ -3091,8 +3092,8 @@ characters, unless the command that created the changeset is in
                                        mistty-bracketed-paste-command-alist)))
                    (cdr config)
                  mistty-bracketed-paste-default)))
-      (mistty--bracketed-str str)
-    (mistty--untabify str)))
+      `((paste ,str))
+    `(,(mistty--untabify str))))
 
 (defun mistty--refresh-after-changeset ()
   "Refresh the work buffer again if there are not more changesets."
@@ -4839,11 +4840,12 @@ Replay sequences are written in a mini-language as a list with the
 following elements:
 - str, sent as-is to the terminal
 - (paste <str>) str is escaped with bracketed-paste then sent to the terminal
+- (repeat n <seq>) repeat the given sequence n times
 - up down left right, sent as arrow keys
-- (up n) (down n) (left n) (right n), sent as arrow keys repeated n times
-- bol (bol n), sent as C-a, repeated n times
-- eol (eol n), sent as C-e, repeated n times
-- kill-line (kill-line n), sent as C-k, repeated n times
+- bol, eol, sent as C-a and C-e
+- kill-line, sent as C-k
+- bs, backspace
+- del, delete
 
 The result is a vector of bytes, ready to be sent to the terminal."
   (mapconcat
@@ -4856,6 +4858,10 @@ The result is a vector of bytes, ready to be sent to the terminal."
        ('down (mistty--term-translate-key term [down]))
        ('left (mistty--term-translate-key term [left]))
        ('right (mistty--term-translate-key term [right]))
+       ;; This isn't correct if the kitty keyboard protocol is
+       ;; enabled, but it's also the only thing that actually works.
+       ;; TODO: find a way to make this work properly
+       ('del "\b")
        (`(repeat ,n ,seq)
         (let ((term-seq (mistty--translate-replay-seq term seq)))
           (if (> n 1)

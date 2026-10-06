@@ -45,13 +45,13 @@
   (should (equal "ok" (mistty-send-and-capture-command-output
                        (lambda () (execute-kbd-macro (kbd "RET")))))))
 
-(mistty-deftest mistty-test-reconcile-insert (:type all)
+(mistty-deftest mistty-test-reconcile-insert (:type all :shell (bash zsh fish))
   (mistty-run-command
    (insert "echo hello"))
   (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
   (should (equal "hello" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-reconcile-delete (:type all)
+(mistty-deftest mistty-test-reconcile-delete (:type all :shell (bash zsh fish))
   (mistty-send-text "echo hello")
 
   (mistty-run-command
@@ -61,7 +61,7 @@
   (should (equal "$ echo <>lo" (mistty-test-content :show (point))))
   (should (equal "lo" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-reconcile-delete-last-word (:type all)
+(mistty-deftest mistty-test-reconcile-delete-last-word (:type all :shell (bash zsh fish))
   (mistty-send-text "echo hello world")
   (mistty-run-command
    (save-excursion

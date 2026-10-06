@@ -252,16 +252,17 @@ Alone, this function only knows how to deal with M-<char>, control
 characters and self-inserting characters.
 
 If NOERROR is non-nil, return nil instead of signaling an error."
-  (catch 'mistty--return
+  (cl-block nil
     (dolist (map (list mistty-term-key-map extra-map))
       (when map
         (let ((translated-key (lookup-key map key)))
-          (if (and  translated-key
-                    ;; weed out key prefixes
-                    (or (characterp translated-key)
-                        (stringp translated-key)))
-              (throw 'mistty--return
-                     (mistty--repeat-string n (concat translated-key)))))))
+          (if (and translated-key
+                   ;; weed out key prefixes
+                   (or (characterp translated-key)
+                       (stringp translated-key)))
+              (cl-return
+                     (mistty--repeat-string
+                      n (concat translated-key)))))))
 
     (pcase key
       ;; M-<char> -> ESC-<char>

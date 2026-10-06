@@ -780,14 +780,14 @@ Always keep SCROLLINE-LIMIT and below."
             (inhibit-modification-hooks t))
         (delete-region (point-min) term-home-marker)))))
 
-(cl-defmethod mistty--term-translate-key ((_term mistty--term-eterm) key n)
+(cl-defmethod mistty--term-translate-key ((_term mistty--term-eterm) key &optional n)
   "Generate the key byte sequence for TERM.
 
 KEY is an Emacs key event and n the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal."
-  (mistty--eterm-translate-key key n))
+  (mistty--eterm-translate-key key (or n 1)))
 
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'eterm)))
   "List the basic type of special event types (special keys)."

@@ -7595,3 +7595,27 @@ precmd_functions+=(prompt_header)
   (goto-char (1+ mistty-sync-marker))
   (should (get-text-property (point) 'read-only))
   (should-error (insert "test") :type 'text-read-only))
+
+(mistty-deftest mistty-translate-replay-seq (:type all)
+  (pcase-dolist (`(,expected ,replay-seq)
+                 '(("\C-a\C-e\C-k" (bol eol kill-line))
+                   ("\C-a" ((repeat 1 (bol))))
+                   ("\C-e\C-e" ((repeat 2 (eol))))
+                   ("\C-a\C-k\C-a\C-k" ((repeat 2 (bol kill-line))))
+                   ("\eOA\eOB\eOD\eOC" (up down left right))
+                   ("\C-a\eOC\eOC\eOChello\C-e" (bol (repeat 3 (right)) "hello" eol))
+                   ("baa, baa" ("baa" ", baa"))
+                   ("\e[200~insert\e[201~" ((paste "insert")))
+                   ("" nil)))
+    (should (equal expected
+                   (mistty--translate-replay-seq mistty--term replay-seq)))))
+
+(mistty-deftest mistty-translate-replay-seq-kkp (:type alacritty :shell fish)
+  ;; Under alacritty, fish turns on the kitty keyboard protocol, so
+  ;; the output must be different from the previous test.
+  (pcase-dolist (`(,expected ,replay-seq)
+                 '(("\e[97;5u\e[101;5u\e[107;5u" (bol eol kill-line))
+                   ("\e[A\e[B\e[D\e[C" (up down left right))))
+    (should (equal expected
+                   (mistty--translate-replay-seq mistty--term replay-seq)))))
+

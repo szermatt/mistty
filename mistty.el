@@ -2596,7 +2596,8 @@ buffers."
                  (mistty-on-prompt-p (point)))
              (progn
                (setq mistty-goto-cursor-next-time t)
-               (mistty--interact-send interact "\C-a")
+               (mistty--interact-send
+                interact (mistty--term-translate-key mistty--term [?\C-a]))
                (mistty--interact-wait-for-output-then #'mistty--interact-done))
            (beginning-of-line n)
            (mistty--interact-done)))))))
@@ -2649,7 +2650,8 @@ buffers."
                ;; already at what the shell considers eol.
                (mistty-goto-cursor)
                (setq mistty-goto-cursor-next-time t)
-               (mistty--interact-send interact "\C-e")
+               (mistty--interact-send
+                interact (mistty--term-translate-key mistty--term [?\C-e]))
                (mistty--interact-wait-for-output-then #'mistty--interact-done))
            (end-of-line n)
            (mistty--interact-done)))))))

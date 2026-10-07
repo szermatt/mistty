@@ -1503,10 +1503,6 @@
       (should
        (equal
         expected
-        ;; The below converts vector of integers into a unibyte
-        ;; string, like the ones encode-coding-string outputs. This is
-        ;; convenient for testing, but unnecessary in production; just
-        ;; work with vectors.
         (mapconcat
          (lambda (key)
            (mistty-alacritty-vt-kitty-key-seq
@@ -1515,3 +1511,14 @@
             (vconcat (event-modifiers key))
             (event-basic-type key)))
          (kbd key) ""))))))
+
+(mistty-deftest mistty-alacritty-vt-kkp-progressive-enhancements
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+    ;; turn on all flags of the kitty keyboard protocol
+    (should (equal '((kkp t))
+                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>29u"))))
+
+    ;; but only one flag was actually enabled
+    (should (equal '((pty-write "\e[?1u"))
+                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?u"))))))

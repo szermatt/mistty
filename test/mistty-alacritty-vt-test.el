@@ -1483,7 +1483,15 @@
            ("\e[97;9u" "s-a")
            ("\e[97;10u" "S-s-a")
            ("\e[13;5u" "C-<return>")
+           ("\e[109;5u" "C-m")
+           ("\e[106;5u" "C-j")
+           ("\e[46;5u" "C-.")
+           ("\e[47;5u" "C-/")
+           ("\e[64;5u" "C-@")
+           ("\e[105;5u" "C-i") ;; not tab
            ("\e[9;2u" "S-<tab>")
+           ("\e[32;2u" "S-SPC")
+           ("\e[32;5u" "C-SPC")
 
            ;; make sure characters are let through as-is, including
            ;; non-ascii, uppercase, lowercase and accents.
@@ -1499,7 +1507,8 @@
            ;; level we use in this test.
            ("\15" "<return>")
            ("\C-?" "<backspace>")
-           ("\t" "<tab>")))
+           ("\t" "<tab>")
+           (" " "SPC")))
       (should
        (equal
         expected

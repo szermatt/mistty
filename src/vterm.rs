@@ -4,6 +4,7 @@
 
 use crate::gridext::{CellExt, GridExt, RowExt};
 use crate::render;
+use alacritty_terminal::vte::ansi::{KeyboardModes, KeyboardModesApplyBehavior, ModifyOtherKeys};
 use alacritty_terminal::{
     Grid, Term,
     event::{Event, EventListener},
@@ -809,24 +810,43 @@ where
         self.inner.report_keyboard_mode();
     }
 
-    fn push_keyboard_mode(&mut self, mode: ansi::KeyboardModes) {
-        self.inner.push_keyboard_mode(mode);
+    fn set_keyboard_mode(&mut self, mode: KeyboardModes, behavior: KeyboardModesApplyBehavior) {
+        // Kitty Keyboard Protocol progressive enhancements are not supported by MisTTY;
+        // only DISAMBIGUATE_ESC_CODES.
+        //
+        // Reporting events and reporting alternative key cannot be supported, as
+        // the information just isn't available in Emacs.
+        //
+        // Reporting all keys is unsupported, because without event types,
+        // it's just not worth the complexity.
+        self.inner.set_keyboard_mode(
+            if mode.is_empty() {
+                KeyboardModes::empty()
+            } else {
+                KeyboardModes::DISAMBIGUATE_ESC_CODES
+            },
+            behavior,
+        );
+    }
+
+    fn push_keyboard_mode(&mut self, mode: KeyboardModes) {
+        // We only ever "push" the single supported mode. This keeps
+        // the stack functional, even though this isn't doing
+        // anything useful.
+        self.inner.push_keyboard_mode(if mode.is_empty() {
+            KeyboardModes::empty()
+        } else {
+            KeyboardModes::DISAMBIGUATE_ESC_CODES
+        });
     }
 
     fn pop_keyboard_modes(&mut self, to_pop: u16) {
         self.inner.pop_keyboard_modes(to_pop);
     }
 
-    fn set_keyboard_mode(
-        &mut self,
-        mode: ansi::KeyboardModes,
-        behavior: ansi::KeyboardModesApplyBehavior,
-    ) {
-        self.inner.set_keyboard_mode(mode, behavior);
-    }
-
-    fn set_modify_other_keys(&mut self, mode: ansi::ModifyOtherKeys) {
-        self.inner.set_modify_other_keys(mode);
+    fn set_modify_other_keys(&mut self, _mode: ModifyOtherKeys) {
+        // unsupported
+        self.inner.set_modify_other_keys(ModifyOtherKeys::Reset);
     }
 
     fn report_modify_other_keys(&mut self) {

@@ -59,6 +59,7 @@ emacs::use_symbols! {
     foreground_sym => ":foreground"
     background_sym => ":background"
     bold_sym => "bold"
+    extend_sym => ":extend"
     term_line_wrap
     yank_handler
     invisible_sym => "invisible"
@@ -482,6 +483,9 @@ pub fn render_lines<'a>(
                 }
             }
         }
+        if end_col <= last_column {
+            tracker.track_change(pos, &row[end_col]);
+        }
         if indent_end == Some(end_col) {
             tracker.set_toggle(pos, ToggleProperty::Indent, false);
         }
@@ -494,7 +498,6 @@ pub fn render_lines<'a>(
                 **cursor_pos = Some(pos);
             }
         }
-
         // A NL is never clear
         tracker.set_toggle(pos, ToggleProperty::Clear, false);
         if row.is_wrapped() {
@@ -684,7 +687,11 @@ impl PropertyTracker {
                     let hex = to_emacs_color(env, color, false)?;
                     env.call(
                         add_face_text_property,
-                        (start, end, env.list((background_sym, hex))?),
+                        (
+                            start,
+                            end,
+                            env.list((background_sym, hex, extend_sym, true))?,
+                        ),
                     )?;
                 }
                 RenderProperty::Link(hyperlink) => {
@@ -721,7 +728,14 @@ impl PropertyTracker {
                     env.call(add_face_text_property, (start, end, ansi_color_underline))?;
                 }
                 RenderProperty::Toggle(ToggleProperty::Inverse) => {
-                    env.call(add_face_text_property, (start, end, ansi_color_inverse))?;
+                    env.call(
+                        add_face_text_property,
+                        (
+                            start,
+                            end,
+                            env.list((ansi_color_inverse, env.list((extend_sym, true))?))?,
+                        ),
+                    )?;
                 }
                 RenderProperty::Toggle(ToggleProperty::Wrapline) => {
                     env.call(put_text_property, (start, end, term_line_wrap, true))?;

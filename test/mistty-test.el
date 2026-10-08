@@ -7255,7 +7255,8 @@ precmd_functions+=(prompt_header)
 (mistty-deftest mistty-test-bracketed-paste-commands (:type alacritty :shell bash)
   (let ((mistty-bracketed-paste-command-alist '((self-insert-command . nil)
                                                 (yank . t)))
-        (mistty-bracketed-paste-default nil))
+        (mistty-bracketed-paste-default nil)
+        (inverse '(ansi-color-inverse (:extend t))))
     ;; This test uses alacritty, because it's much easier to detect
     ;; highlighted (inversed) text. The actual feature isn't specific
     ;; to any terminal.
@@ -7272,7 +7273,8 @@ precmd_functions+=(prompt_header)
     (mistty-run-command
      (setq this-command 'yank)
      (insert " foo"))
-    (should (equal 'ansi-color-inverse (get-text-property (mistty-test-pos "foo") 'face)))
+    (should (equal inverse
+                   (get-text-property (mistty-test-pos "foo") 'face)))
 
     ;; Insert as an unknown command. Bracketed paste is not used so bash doesn't
     ;; highlight the new word.
@@ -7293,7 +7295,7 @@ precmd_functions+=(prompt_header)
     (mistty-run-command
      (setq this-command 'other-one)
      (insert ";\n echo baz"))
-    (should (equal 'ansi-color-inverse (get-text-property (mistty-test-pos "baz") 'face)))
+    (should (equal inverse (get-text-property (mistty-test-pos "baz") 'face)))
 
     ;; Insert as "self-insert-command" a word containing a newline.
     ;; Bracketed paste is used so bash doesn't highlight the new
@@ -7301,7 +7303,7 @@ precmd_functions+=(prompt_header)
     (mistty-run-command
      (setq this-command 'self-insert-command)
      (insert ";\n echo qux"))
-    (should (equal 'ansi-color-inverse (get-text-property (mistty-test-pos "qux") 'face)))
+    (should (equal inverse (get-text-property (mistty-test-pos "qux") 'face)))
 
     ;; Insert as an unknown command with a different default. Bracketed
     ;; paste is used so bash highlights the new word.
@@ -7309,7 +7311,7 @@ precmd_functions+=(prompt_header)
       (mistty-run-command
        (setq this-command 'other-two)
        (insert " corge"))
-      (should (equal 'ansi-color-inverse (get-text-property (mistty-test-pos "corge") 'face))))))
+      (should (equal inverse (get-text-property (mistty-test-pos "corge") 'face))))))
 
 (mistty-deftest mistty-test-toggle-keymap-in-prompt-mode (:selected t :type all)
   (let ((mistty-prompt-map (make-sparse-keymap "prompt"))

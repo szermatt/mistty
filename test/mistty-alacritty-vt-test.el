@@ -371,6 +371,122 @@
            "a\U0001F7E7[square]!"
           (mistty-test-content :show-property '(face ansi-color-underline))))))))
 
+(mistty-deftest mistty-alacritty-vt-render-right-wide-character-background
+                (:features mistty-alacritty-vt :shell none :turtles t)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+    (mistty-alacritty-vt-process-bytes
+     term (vconcat "\e[45mline1             "
+                   (encode-coding-string "\U0001F7E7" 'utf-8)
+                   "\e[0m\r\nline 2"))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+        (turtles-with-grab-buffer ()
+          (should
+           (equal "line1             \U0001F7E7\nline 2"
+                  (buffer-string)))
+
+          (goto-char (point-min))
+          (let ((line1-end (pos-eol 1))
+                (line2-end (pos-eol 2)))
+            (while (progn
+                     (should (equal (mistty-colors-at-point)
+                                    (mistty-face-colors 'default 'ansi-color-magenta)))
+                     (goto-char (1+ (point)))
+                     (< (point) line1-end)))
+            (goto-char (1+ line1-end))
+            (while (progn
+                     (should (equal (mistty-colors-at-point)
+                                    (mistty-face-colors 'default 'default)))
+                     (goto-char (1+ (point)))
+                     (< (point) line2-end)))))))))
+
+(mistty-deftest mistty-alacritty-vt-render-right-wide-combining-character-background
+                (:features mistty-alacritty-vt :shell none :turtles t)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+    (mistty-alacritty-vt-process-bytes
+     term (vconcat "\e[45mline1             "
+                   (encode-coding-string "\u26a0\ufe0f" 'utf-8)
+                   "\e[0m\r\nline 2"))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+        (turtles-with-grab-buffer ()
+          (should
+           (equal "line1             \u26a0\ufe0f\nline 2"
+                  (buffer-string)))
+
+          (goto-char (point-min))
+          (let ((line1-end (pos-eol 1))
+                (line2-end (pos-eol 2)))
+            (while (progn
+                     (should (equal (mistty-colors-at-point)
+                                    (mistty-face-colors 'default 'ansi-color-magenta)))
+                     (goto-char (1+ (point)))
+                     (< (point) line1-end)))
+            (goto-char (1+ line1-end))
+            (while (progn
+                     (should (equal (mistty-colors-at-point)
+                                    (mistty-face-colors 'default 'default)))
+                     (goto-char (1+ (point)))
+                     (< (point) line2-end)))))))))
+
+
+(mistty-deftest mistty-alacritty-vt-render-right-align-wide-characters
+                (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+    (mistty-alacritty-vt-process-bytes
+     term (vconcat "line1             "
+                   (encode-coding-string "\U0001F7E7..." 'utf-8)
+                   "\r\nline 2"))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+        ;; This test makes sure that the line is wrapped at the right
+        ;; place, exactly after the unicode character, which takes 2
+        ;; columns.
+        (should
+         (equal "line1             \U0001F7E7\n...\nline 2"
+                (mistty-test-content)))))))
+
+(mistty-deftest mistty-alacritty-vt-render-right-align-wide-combining-characters
+                (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+    (mistty-alacritty-vt-process-bytes
+     term (vconcat "line1             "
+                   (encode-coding-string "\u26a0\ufe0f..." 'utf-8)
+                   "\r\nline 2"))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+        ;; This test makes sure that the line is wrapped at the right
+        ;; place, exactly after the (combined) unicode character,
+        ;; which takes 2 columns.
+        (should
+         (equal "line1             \u26a0\ufe0f\n...\nline 2"
+                (mistty-test-content)))))))
+
+(mistty-deftest mistty-alacritty-vt-render-align-wide-combining-character
+                (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 80 24)))
+    (mistty-alacritty-vt-process-bytes
+     term (vconcat "A " (encode-coding-string "\u26a0\ufe0f" 'utf-8) "! Something is wrong.\r\n"))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+
+        (should (equal "A \u26a0\ufe0f! Something is wrong." (mistty-test-content)))
+        (mistty-test-goto " Something")
+        (should (equal '(space :align-to 5) (get-text-property (point) 'display)))))))
+
+(mistty-deftest mistty-alacritty-vt-render-tabs
+                (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+    (mistty-alacritty-vt-process-bytes term (vconcat "<\t> !\r\n"))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+        (should (equal "<       > !" (mistty-test-content)))))))
 
 (mistty-deftest mistty-alacritty-vt-render-unicode-combining-characters (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))

@@ -73,6 +73,15 @@ impl AddAssign<usize> for BufferPos {
     }
 }
 
+impl Sub<BufferPos> for BufferPos {
+    type Output = i32;
+
+    #[inline]
+    fn sub(self, rhs: BufferPos) -> i32 {
+        self.0 - rhs.0
+    }
+}
+
 impl Sub<usize> for BufferPos {
     type Output = BufferPos;
 

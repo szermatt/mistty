@@ -1139,6 +1139,8 @@ This map is active whenever the current buffer is in MisTTY mode."
   (setq mistty-sync-marker (point-max-marker))
   (mistty--init-scrolline mistty-sync-marker 0)
   (setq mistty--sync-ov (make-overlay mistty-sync-marker (point-max) nil nil 'rear-advance))
+  (overlay-put mistty--sync-ov 'wrap-prefix "")
+  (overlay-put mistty--sync-ov 'line-number-disable t)
   (setq mistty--ignored-overlays (list mistty--sync-ov))
   (setq-local beginning-of-defun-function #'mistty-beginning-of-defun)
   (setq-local end-of-defun-function #'mistty-end-of-defun)

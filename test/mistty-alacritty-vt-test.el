@@ -292,7 +292,68 @@
     (should (equal 'ansi-color-underline (get-text-property (point) 'face)))
 
     (mistty-test-goto "inverse")
-    (should (equal 'ansi-color-inverse (get-text-property (point) 'face))))))
+    (should (equal '(ansi-color-inverse (:extend t))
+                   (get-text-property (point) 'face))))))
+
+(mistty-deftest mistty-alacritty-vt-render-line-background
+                (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+    (mistty-alacritty-vt-process-bytes
+     term (vconcat "\e[45mline1---------------\r\n"
+                   "\e[0mline2---------------\r\n"
+                   "\e[7mline3---------------\r\n"
+                   "\e[0mline4---------------\r\n"
+                   ))
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render term cursor)
+          (should
+           (equal (concat "line1---------------\n"
+                          "line2---------------\n"
+                          "line3---------------\n"
+                          "line4---------------"
+                          )
+                  (mistty-test-content)))
+
+          ;; make sure that the different background and colors end
+          ;; properly at the end of the lines.
+
+          ;; line 1: magenta background
+          (goto-char (point-min))
+          (search-forward-regexp "line1-*\n")
+          (should (equal `(:background ,(face-background 'ansi-color-magenta) :extend t)
+                         (get-text-property (match-beginning 0) 'face)))
+          (should-not (text-property-not-all
+                       (match-beginning 0)
+                       (match-end 0)
+                       'face
+                       (get-text-property (match-beginning 0) 'face)))
+
+          ;; line 2: default
+          (search-forward-regexp "line2-*\n")
+          (should-not (text-property-not-all
+                       (match-beginning 0)
+                       (match-end 0)
+                       'face
+                       nil))
+
+          ;; line 3: reverse video
+          (search-forward-regexp "line3-*\n")
+          (should (equal '(ansi-color-inverse (:extend t))
+                         (get-text-property (match-beginning 0) 'face)))
+          (should-not (text-property-not-all
+                       (match-beginning 0)
+                       (match-end 0)
+                       'face
+                       (get-text-property (match-beginning 0) 'face)))
+
+          ;; line 4: default
+          (search-forward-regexp "line4-*\n")
+          (should-not (text-property-not-all
+                       (match-beginning 0)
+                       (match-end 0)
+                       'face
+                       nil))))))
 
 (mistty-deftest mistty-alacritty-vt-render-move-cursor (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
@@ -447,23 +508,6 @@
         ;; columns.
         (should
          (equal "line1             \U0001F7E7\n...\nline 2"
-                (mistty-test-content)))))))
-
-(mistty-deftest mistty-alacritty-vt-render-right-align-wide-combining-characters
-                (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
-    (mistty-alacritty-vt-process-bytes
-     term (vconcat "line1             "
-                   (encode-coding-string "\u26a0\ufe0f..." 'utf-8)
-                   "\r\nline 2"))
-    (ert-with-test-buffer ()
-      (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
-        ;; This test makes sure that the line is wrapped at the right
-        ;; place, exactly after the (combined) unicode character,
-        ;; which takes 2 columns.
-        (should
-         (equal "line1             \u26a0\ufe0f\n...\nline 2"
                 (mistty-test-content)))))))
 
 (mistty-deftest mistty-alacritty-vt-render-align-wide-combining-character

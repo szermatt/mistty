@@ -327,7 +327,10 @@ pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Resul
     let history_scrollines = write_scrollback(env, term)?;
     let screen_top = BufferPos::point(env)?;
 
-    render_screen(env, term, cursor_marker)?;
+    let cursor_line = term.grid().cursor.point.line;
+    let last_written = last_written_line(term.grid()).unwrap_or(Line(0));
+    let last_line = max(last_written, cursor_line);
+    render_internal(env, term, cursor_marker, last_written, last_line)?;
 
     env.cons(screen_top, history_scrollines)
 }
@@ -354,11 +357,20 @@ pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Resul
 /// `save_excursion` if it matters.
 #[defun]
 pub fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
+    let last_line = term.bottommost_line();
+
+    render_internal(env, term, cursor_marker, last_line, last_line)
+}
+
+fn render_internal(
+    env: &Env,
+    term: &mut VTerm,
+    cursor_marker: Value,
+    last_written: Line,
+    last_line: Line,
+) -> Result<()> {
     let damage = term.damaged_lines();
     let mut cursor_pos = None;
-    let cursor_line = term.grid().cursor.point.line;
-    let last_written = last_written_line(term.grid()).unwrap_or(Line(0));
-    let last_line = max(last_written, cursor_line);
     let start = BufferPos::point(env)?;
     if let Some(damaged_lines) = damage
         && term.check_render_count_tag(env.call(get_text_property, (start, mistty_render_tag))?)?

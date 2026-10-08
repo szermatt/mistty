@@ -50,6 +50,9 @@ emacs::use_symbols! {
     ansi_color_yellow
     ansi_osc_hyperlink
     browse_url_data
+    display_sym => "display"
+    space_sym => "space"
+    align_to_sym => ":align-to"
     type_sym => "type"
     default_face => "default"
     cursor_face => "cursor"
@@ -79,6 +82,11 @@ enum RenderProperty {
 
     /// Properties that are either on or off, [Cell::flags].
     Toggle(ToggleProperty),
+
+    /// Create a space wide enough to align to the given column.
+    ///
+    /// Should only be applied to columns containing only a space.
+    AlignTo(Column),
 }
 
 /// Boolean properties, that are either on or off [Cell::flags].
@@ -200,7 +208,9 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
             for (_, cell) in row.iter_to(right_col + 1) {
                 let cell_pos = pos;
                 pos += append_cell_to_string(&cell, &mut as_string);
-                tracker.track_change(cell_pos, &cell);
+                if !cell.is_spacer() {
+                    tracker.track_change(cell_pos, &cell);
+                }
             }
         }
         if !row.is_wrapped() {
@@ -436,10 +446,27 @@ pub fn render_lines<'a>(
         if indent_end.is_some() {
             tracker.set_toggle(pos, ToggleProperty::Indent, true);
         }
+        let mut wide_chars = 0;
         for (col, cell) in row.iter_to(end_col) {
             let cell_pos = pos;
-            pos += append_cell_to_string(cell, &mut as_string);
-            tracker.track_change(cell_pos, cell);
+            if cell.is_spacer() {
+                wide_chars += 1;
+            } else {
+                pos += append_cell_to_string(cell, &mut as_string);
+                if (pos - cell_pos) > 1 {
+                    // Sometimes, with combining characters, Alacritty
+                    // doesn't allocate a spacer as it should, so we
+                    // add a a possibly unnecessary, possibly
+                    // duplicated align display property just in case;
+                    // it doesn't harm.
+                    wide_chars += 1;
+                }
+                tracker.track_change(cell_pos, cell);
+            }
+            if wide_chars > 0 && cell.c.is_whitespace() {
+                tracker.add_align_to(cell_pos, pos, col + 1);
+                wide_chars -= 0;
+            }
             if Some(col) == indent_end {
                 tracker.set_toggle(cell_pos, ToggleProperty::Indent, false);
             }
@@ -609,6 +636,14 @@ impl PropertyTracker {
         }
     }
 
+    /// Replace character with a space with property :align-to col.
+    ///
+    /// This is used as an attempt to recover alignment after a
+    /// double-width character that may not be exactly double-width.
+    fn add_align_to(&mut self, start: BufferPos, end: BufferPos, col: Column) {
+        self.buf.push((RenderProperty::AlignTo(col), start, end));
+    }
+
     /// Set text properties on the current Emacs buffer.
     ///
     /// `end` is the buffer position pointing to the end of the last
@@ -662,6 +697,17 @@ impl PropertyTracker {
                             ansi_osc_hyperlink,
                             browse_url_data,
                             hyperlink.uri(),
+                        ),
+                    )?;
+                }
+                RenderProperty::AlignTo(col) => {
+                    env.call(
+                        put_text_property,
+                        (
+                            start,
+                            end,
+                            display_sym,
+                            env.list((space_sym, align_to_sym, col.0))?,
                         ),
                     )?;
                 }

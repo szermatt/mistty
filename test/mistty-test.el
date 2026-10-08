@@ -7556,7 +7556,7 @@ precmd_functions+=(prompt_header)
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line
-              "-UUU:**- F1  test-mode-line   All  (misTTY [_] ⌨) ------------------------------")
+              "-UUU:**- F1  test-mode-line   Top  (misTTY [_] ⌨) ------------------------------")
              (mistty-test-trim-mode-line))))
 
   (mistty-toggle-keymap)
@@ -7564,7 +7564,7 @@ precmd_functions+=(prompt_header)
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line
-              "-UUU:**- F1  test-mode-line   All  (misTTY [_]) --------------------------------")
+              "-UUU:**- F1  test-mode-line   Top  (misTTY [_]) --------------------------------")
              (mistty-test-trim-mode-line)))))
 
 (mistty-deftest mistty-test-mode-line-split-buffer-fs (:selected t :type eterm :turtles t)

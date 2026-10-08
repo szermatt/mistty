@@ -1537,63 +1537,81 @@
 (mistty-deftest mistty-alacritty-vt-render-screen (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10))
         (cursor (make-marker)))
-    ;; fill the screen and add some lines to scrollback
+    ;; even mostly empty, the whole screen is drawn
     (mistty-alacritty-vt-process-bytes term (vconcat "\r0"))
-    (dotimes (i 15)
-      (mistty-alacritty-vt-process-bytes term (vconcat (format "\r\n%d" (1+ i)))))
     (ert-with-test-buffer ()
-        (mistty-alacritty-vt-render-screen term cursor)
-        (should
-         (equal
-          (concat
-           "6\n"
-           "7\n"
-           "8\n"
-           "9\n"
-           "10\n"
-           "11\n"
-           "12\n"
-           "13\n"
-           "14\n"
-           "15<>\n")
-          (mistty-test-content :trim nil :show cursor)))
+      (mistty-alacritty-vt-render-screen term cursor)
+      (should
+       (equal
+        (concat
+         "0<>\n"
+         "\n"
+         "\n"
+         "\n"
+         "\n"
+         "\n"
+         "\n"
+         "\n"
+         "\n"
+         "\n")
+        (mistty-test-content :trim nil :show cursor)))
 
-        (mistty-alacritty-vt-process-bytes term (vconcat "... and more"))
-        (goto-char (point-min))
-        (mistty-alacritty-vt-render-screen term cursor)
-        (should
-         (equal
-          (concat
-           "6\n"
-           "7\n"
-           "8\n"
-           "9\n"
-           "10\n"
-           "11\n"
-           "12\n"
-           "13\n"
-           "14\n"
-           "15... and more<>\n")
-          (mistty-test-content :trim nil :show cursor)))
+      ;; fill the screen and add some lines to scrollback
+      (dotimes (i 15)
+        (mistty-alacritty-vt-process-bytes term (vconcat (format "\r\n%d" (1+ i)))))
+      (goto-char (point-min))
+      (mistty-alacritty-vt-render-screen term cursor)
+      (should
+       (equal
+        (concat
+         "6\n"
+         "7\n"
+         "8\n"
+         "9\n"
+         "10\n"
+         "11\n"
+         "12\n"
+         "13\n"
+         "14\n"
+         "15<>\n")
+        (mistty-test-content :trim nil :show cursor)))
+
+      (mistty-alacritty-vt-process-bytes term (vconcat "... and more"))
+      (goto-char (point-min))
+      (mistty-alacritty-vt-render-screen term cursor)
+      (should
+       (equal
+        (concat
+         "6\n"
+         "7\n"
+         "8\n"
+         "9\n"
+         "10\n"
+         "11\n"
+         "12\n"
+         "13\n"
+         "14\n"
+         "15... and more<>\n")
+        (mistty-test-content :trim nil :show cursor)))
 
 
-        (mistty-alacritty-vt-process-bytes term (vconcat "\r\n16\r\n17"))
-        (goto-char (point-min))
-        (mistty-alacritty-vt-render-screen term cursor)
-        (should
-         (equal
-          (concat
-           "8\n"
-           "9\n"
-           "10\n"
-           "11\n"
-           "12\n"
-           "13\n"
-           "14\n"
-           "15... and more\n"
-           "16\n"
-           "17<>\n")
-          (mistty-test-content :trim nil :show cursor))))))
+      (mistty-alacritty-vt-process-bytes term (vconcat "\r\n16\r\n17"))
+      (goto-char (point-min))
+      (mistty-alacritty-vt-render-screen term cursor)
+      (should
+       (equal
+        (concat
+         "8\n"
+         "9\n"
+         "10\n"
+         "11\n"
+         "12\n"
+         "13\n"
+         "14\n"
+         "15... and more\n"
+         "16\n"
+         "17<>\n")
+        (mistty-test-content :trim nil :show cursor))))))
 
 (mistty-deftest mistty-alacritty-vt-render-scrollback-after-reset (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24))

@@ -847,6 +847,12 @@ This variable is available in the work buffer.")
 
 Truncation is configured by `mistty-buffer-maximum-size'.")
 
+(defvar-local mistty--check-window-size-timer nil
+  "An idle timer that checks window height on graphical displays.
+
+Since line height isn't fixed on graphical displays, it might be
+necessary to resize the process window depending on its content.")
+
 (defvar-local mistty--special-prompt nil
   "Non-nil when normal editing is not available.
 
@@ -1778,6 +1784,18 @@ terminal region of WORK-BUFFER in sync with TERM-BUFFER."
    (lambda ()
      (mistty--with-live-buffer work-buffer
        (mistty--maybe-truncate-when-idle))))
+
+  (mistty--accum-add-post-processor
+   accum
+   (lambda ()
+     (mistty--with-live-buffer work-buffer
+       (when (and (display-graphic-p)
+                  (eq t mistty-fullscreen)
+                  (not mistty--terminal-size)
+                  (not mistty--check-window-size-timer))
+         (setq mistty--check-window-size-timer
+               (run-with-idle-timer
+                0.6 nil #'mistty--check-window-size work-buffer))))))
 
   (mistty--accum-add-post-processor
    accum
@@ -3830,6 +3848,26 @@ To go back to tracking window size, call
           (if (and (display-graphic-p) (eq t mistty-fullscreen))
               (mistty--set-process-window-size-from-line-height)
             (mistty--set-process-window-size-from-windows)))))))
+
+(defun mistty--check-window-size (work-buffer)
+  "Resize the process window if necessary.
+
+This function is meant to be called from an idle-timer,
+`mistty--check-window-size-timer'."
+  (setq mistty--check-window-size-timer nil)
+  (mistty--with-live-buffer work-buffer
+    (when (and (display-graphic-p)
+               (eq t mistty-fullscreen)
+               (not mistty--terminal-size))
+      (let ((bottom (mistty--blank-end-start)))
+        (when (> bottom mistty-sync-marker)
+          (cl-block nil
+            (dolist (win (get-buffer-window-list work-buffer))
+              (when (and (>= (window-start win) mistty-sync-marker)
+                         (not (pos-visible-in-window-p bottom)))
+                (mistty-log "WINDOW CHECK %s not visible, recomputing height" bottom)
+                (mistty--set-process-window-size-from-line-height)
+                (cl-return)))))))))
 
 (defun mistty--set-process-window-size-from-windows ()
   "Adjust process terminal size based on the windows displaying it."

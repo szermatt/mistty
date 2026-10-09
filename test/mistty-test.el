@@ -4788,6 +4788,41 @@
   (mistty-send-text "echo $(tput cols)x$(tput lines)")
   (should (equal "79x10" (mistty-send-and-capture-command-output))))
 
+(mistty-deftest mistty-test-grow-shrink-terminal
+    (:selected t :term-size 'window :type all)
+
+    (let ((lines (mistty--term-lines mistty--term))
+          (cols  (mistty--term-columns mistty--term)))
+      (mistty-grow-vertically)
+
+      (should (equal (cons cols (1+ lines)) mistty--terminal-size))
+      (should (equal (1+ lines) (mistty--term-lines mistty--term)))
+
+      (mistty-grow-vertically +3)
+      (should (equal (cons cols (+ 4 lines)) mistty--terminal-size))
+      (should (equal (+ 4 lines) (mistty--term-lines mistty--term)))
+
+      (mistty-send-text "echo $(tput cols)x$(tput lines)")
+      (should (equal (format "%ix%i" cols (+ 4 lines))
+                     (mistty-send-and-capture-command-output)))
+      
+      (mistty-grow-vertically -2)
+      (should (equal (cons cols (+ 2 lines)) mistty--terminal-size))
+      (should (equal (+ 2 lines) (mistty--term-lines mistty--term)))
+
+      (mistty-shrink-vertically)
+      (should (equal (cons cols (1+ lines)) mistty--terminal-size))
+      (should (equal (1+ lines) (mistty--term-lines mistty--term)))
+
+      (mistty-fit-to-window)
+      (should (null mistty--terminal-size))
+      (should (equal lines (mistty--term-lines mistty--term)))
+      (should (equal cols (mistty--term-columns mistty--term)))
+
+      (mistty-send-text "echo $(tput cols)x$(tput lines)")
+      (should (equal (format "%ix%i" cols lines)
+                     (mistty-send-and-capture-command-output)))))
+
 (mistty-deftest mistty-test-set-terminal-size-and-split-screen-fullscreen
     (:selected t :term-size 'window :type eterm :turtles t)
   (let ((proc mistty-proc)

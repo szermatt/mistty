@@ -1018,11 +1018,11 @@ This is only valid for modes that have a non-nil :map tag.")
   ;; Note that items are defined in reverse order
 
   (define-key
-   map [capture]
+   map [mistty-capture]
    '(menu-item "Capture Keyboard" mistty-capture-keyboard))
-  (define-key map [separator-1] '(menu-item "--"))
+  (define-key map [mistty-separator-1] '(menu-item "--"))
   (define-key
-   map [fullscreen]
+   map [mistty-fullscreen]
    '(menu-item
      "Fullscreen keymap"
      mistty-toggle-keymap
@@ -1030,7 +1030,7 @@ This is only valid for modes that have a non-nil :map tag.")
      :button (:radio . (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
      :help "mistty-fullscreen-mode-map"))
   (define-key
-   map [prompt]
+   map [mistty-prompt]
    '(menu-item
      "Prompt keymap" mistty-toggle-keymap
      :enable (eq 'fullscreen-mode-map (mistty--secondary-mode-map))
@@ -1046,36 +1046,36 @@ This is only valid for modes that have a non-nil :map tag.")
 (defvar mistty-mode-menu
   (let ((map (make-sparse-keymap "MisTTY")))
 
-    (define-key map [mistty-about] '(menu-item "About" mistty-about))
-    (define-key map [separator-0] '(menu-item "--"))
+    (define-key map [mistty-mistty-about] '(menu-item "About" mistty-about))
+    (define-key map [mistty-separator-0] '(menu-item "--"))
 
     ;;(mistty--add-secondary-mode-menu map)
 
     ;; Note that items are defined in reverse order
     ;;
     ;; This extends the menu built in mistty--secondary-mode-menu
-    (define-key map [separator-2] '(menu-item "--"))
+    (define-key map [mistty-separator-2] '(menu-item "--"))
 
-    (define-key map [create-buf]
+    (define-key map [mistty-create-buf]
                 '(menu-item "New Buffer With Output" mistty-create-buffer-with-output))
-    (define-key map [next-output]
+    (define-key map [mistty-next-output]
                 '(menu-item "Next Output" mistty-next-output))
-    (define-key map [prev-output]
+    (define-key map [mistty-prev-output]
                 '(menu-item "Prev Output" mistty-previous-output))
 
-    (define-key map [separator-3] '(menu-item "--"))
+    (define-key map [mistty-separator-3] '(menu-item "--"))
 
-    (define-key map [exit-command]
+    (define-key map [mistty-exit-command]
                 '(menu-item "Exit Command"
                             mistty-ignore-long-running-command
                             :enable mistty--inhibit))
-    (define-key map [clear]
+    (define-key map [mistty-clear]
                 '(menu-item "Clear" mistty-clear))
-    (define-key map [go-to-scrollback]
+    (define-key map [mistty-go-to-scrollback]
                 '(menu-item "Go to scrollback" mistty-toggle
                             :visible (and (>= (point) mistty-sync-marker)
                                           (> mistty-sync-marker (point-min)))))
-    (define-key map [go-to-terminal]
+    (define-key map [mistty-go-to-terminal]
                 '(menu-item "Go to terminal" mistty-toggle
                             :visible (and mistty-proc
                                           (not (eq 'split mistty-fullscreen))

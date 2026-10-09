@@ -3823,24 +3823,70 @@ To go back to tracking window size, call
 
 (defun mistty--window-size-change (win)
   "Update the process terminal size, reacting to WIN changing size."
-  (when-let* ((buffer (window-buffer win)))
-    (with-current-buffer buffer
-      (when (derived-mode-p 'mistty-mode)
-        (mistty--set-process-window-size-from-windows)))))
+  (mistty-with-errors-logged "window-size-change"
+    (when-let* ((buffer (window-buffer win)))
+      (with-current-buffer buffer
+        (when (and (derived-mode-p 'mistty-mode) (process-live-p mistty-proc))
+          (if (and (display-graphic-p) (eq t mistty-fullscreen))
+              (mistty--set-process-window-size-from-line-height)
+            (mistty--set-process-window-size-from-windows)))))))
 
 (defun mistty--set-process-window-size-from-windows ()
   "Adjust process terminal size based on the windows displaying it."
-  (when (process-live-p mistty-proc)
-    (let* ((adjust-func window-adjust-process-window-size-function)
-           (size (funcall adjust-func mistty-proc
-                          (append
-                           (get-buffer-window-list mistty-work-buffer nil t)
-                           (get-buffer-window-list mistty-term-buffer nil t)))))
-      (when size
-        (let ((width (car size))
-              (height (cdr size)))
-          (mistty-log "set-process-window-size %sx%s" width height)
-          (mistty--set-process-window-size width height))))))
+  (let* ((adjust-func window-adjust-process-window-size-function)
+         (size (funcall adjust-func mistty-proc
+                        (get-buffer-window-list mistty-work-buffer nil t))))
+    (when size
+      (let ((width (car size))
+            (height (cdr size)))
+        (mistty-log "set-process-window-size %sx%s" width height)
+        (mistty--set-process-window-size width height)))))
+
+(defun mistty--set-process-window-size-from-line-height ()
+  "Adjust process terminal height based on actual line height.
+
+This alternative attempts to account for lines containing characters -
+usually emoji - that are taller than normal on a graphical display by
+computing an average line height looking at the actual text size.
+
+This is a compromise. We cannot be exact as line height changes
+dynamically.
+
+If we used only the height proposed by the default algorithm, we would
+make the content of the window systematically a little larger than the
+window.
+
+If we used the maximum line height, we would make the content
+systematically smaller than the window can display."
+  ;; TODO: allow using either min or max to compute window size, since
+  ;; we cannot just use window-adjust-process-window-size-function
+  ;; here.
+  (when-let* ((windows (get-buffer-window-list mistty-work-buffer nil t))
+              (default-size (window-adjust-process-window-size-smallest
+                             mistty-proc windows)))
+    (let* ((win-heights (mapcar
+                         (lambda (win)
+                           (cons win (window-body-height win 'pixelwise)))
+                         windows))
+           (win-and-height (seq-reduce
+                            (lambda (a b) ; min
+                              (if (< (cdr a) (cdr b))
+                                  a
+                                b))
+                            (cdr win-heights)
+                            (car win-heights)))
+           (win (car win-and-height))
+           (win-height (cdr win-and-height))
+           (text-height (cdr (window-text-pixel-size win mistty-sync-marker (point-max))))
+           (line-count (count-lines mistty-sync-marker (point-max)))
+           (avg-line-height (/ (float text-height) (float line-count)))
+           (lines (floor (/ (float win-height) avg-line-height)))
+           (width (car default-size))
+           (default-height (cdr default-size))
+           (height (min default-height lines)))
+        (mistty-log "set-process-window-size %sx%s (default height %s, graphical %s)"
+                    width height default-height lines)
+        (mistty--set-process-window-size width height))))
 
 (defun mistty--set-process-window-size (width height)
   "Set the process terminal size to WIDTH x HEIGHT.

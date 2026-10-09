@@ -1065,6 +1065,23 @@ This is only valid for modes that have a non-nil :map tag.")
 
     (define-key map [mistty-separator-3] '(menu-item "--"))
 
+    (define-key map [mistty-fit-to-window]
+                '(menu-item "Fit Terminal to Window"
+                            mistty-fit-to-window))
+    (define-key map [mistty-grow-vertically]
+                '(menu-item "Grow Terminal Vertically"
+                            mistty-grow-vertically
+                            :visible (eq t mistty-fullscreen)))
+    (define-key map [mistty-shrink-vertically]
+                '(menu-item "Shrink Terminal Vertically"
+                            mistty-shrink-vertically
+                            :visible (eq t mistty-fullscreen)))
+    (define-key map [mistty-set-terminal-size]
+                '(menu-item "Set Terminal Size"
+                            mistty-set-terminal-size))
+
+    (define-key map [mistty-separator-4] '(menu-item "--"))
+
     (define-key map [mistty-exit-command]
                 '(menu-item "Exit Command"
                             mistty-ignore-long-running-command
@@ -1096,6 +1113,9 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-q" #'mistty-capture-keyboard
   "C-c C-k" #'mistty-toggle-keymap
   "C-c C-s" #'mistty-sudo
+  "C-c C-f" #'mistty-fit-to-window
+  "C-c <" #'mistty-shrink-vertically
+  "C-c >" #'mistty-grow-vertically
   "C-e" #'mistty-end-of-line-or-goto-cursor
 
   ;; mistty-send-last-key makes here some globally useful keys
@@ -3845,14 +3865,12 @@ To go back to tracking window size, call
     (when-let* ((buffer (window-buffer win)))
       (with-current-buffer buffer
         (when (and (derived-mode-p 'mistty-mode) (process-live-p mistty-proc))
-          (if (and (display-graphic-p) (eq t mistty-fullscreen))
-              (mistty--set-process-window-size-from-line-height)
-            (mistty--set-process-window-size-from-windows)))))))
+          (mistty--set-process-window-size-from-windows))))))
 
 (defun mistty--check-window-size (work-buffer)
   "Resize the process window if necessary.
 
-This function is meant to be called from an idle-timer,
+This function is meant to be called manually or from the idle-timer,
 `mistty--check-window-size-timer'."
   (setq mistty--check-window-size-timer nil)
   (mistty--with-live-buffer work-buffer
@@ -3870,15 +3888,19 @@ This function is meant to be called from an idle-timer,
                 (cl-return)))))))))
 
 (defun mistty--set-process-window-size-from-windows ()
-  "Adjust process terminal size based on the windows displaying it."
-  (let* ((adjust-func window-adjust-process-window-size-function)
-         (size (funcall adjust-func mistty-proc
-                        (get-buffer-window-list mistty-work-buffer nil t))))
-    (when size
-      (let ((width (car size))
-            (height (cdr size)))
-        (mistty-log "set-process-window-size %sx%s" width height)
-        (mistty--set-process-window-size width height)))))
+  "Adjust process terminal size based on the windows displaying it.
+
+On a graphical display, also take actual line heights into account."
+  (if (and (display-graphic-p) (eq t mistty-fullscreen))
+      (mistty--set-process-window-size-from-line-height)
+    (let* ((adjust-func window-adjust-process-window-size-function)
+           (size (funcall adjust-func mistty-proc
+                          (get-buffer-window-list mistty-work-buffer nil t))))
+      (when size
+        (let ((width (car size))
+              (height (cdr size)))
+          (mistty-log "set-process-window-size %sx%s" width height)
+          (mistty--set-process-window-size width height))))))
 
 (defun mistty--set-process-window-size-from-line-height ()
   "Adjust process terminal height based on actual line height.
@@ -4964,6 +4986,60 @@ The result is a vector of bytes, ready to be sent to the terminal."
         ((pred stringp) (encode-coding-string elt 'utf-8))
         (_ (error "Invalid replay-seq element: %S" elt))))
    replay-seq ""))
+
+(defun mistty-fit-to-window ()
+  "Make sure the terminal size matches window size.
+
+This command has two effect:
+
+- it checks that the terminal size matches the windows and resize it
+  immediately, if necessary. This is useful on a graphical display when
+  the number of lines computed to match window height doesn't match the
+  height of the terminal content anymore, as Emacs changes line height
+  dynamically on a graphical display.
+
+- it turns on automatic window resizing again, like
+  `mistty-terminal-size-track-window."
+  (interactive)
+  (if mistty--terminal-size
+      (mistty-terminal-size-tracks-window)
+    (mistty--set-process-window-size-from-windows))
+  (let ((width (mistty--term-columns mistty--term))
+        (height (mistty--term-lines mistty--term)))
+    (message "Terminal size %i x %i" width height)))
+
+(defun mistty-grow-vertically (&optional delta)
+  "Increase the height of the virtual terminal.
+
+This command switches the terminal to a fixed dimension and increase the
+current size by DELTA. When called interactively DELTA can be provided
+using a command argument.
+
+Call `mistty-fit-to-window' to make the window fit the window again once
+you're done.
+
+If DELTA is negative, the window height is decreased."
+  (interactive "p")
+  (let ((delta (or delta 1))
+        (width (mistty--term-columns mistty--term))
+        (height (mistty--term-lines mistty--term)))
+    (message "Terminal size %i x %i%+i" width height delta)
+    (mistty-log "Terminal size %i x %i%+i" width height delta)
+    (mistty-set-terminal-size width (+ height delta))))
+
+(defun mistty-shrink-vertically (&optional num)
+  "Decrease the height of the virtual terminal.
+
+This command switches the terminal to a fixed dimension and decrease the
+current size by DELTA. When called interactively DELTA can be provided
+using a command argument.
+
+Call `mistty-fit-to-window' to make the window fit the window again once
+you're done.
+
+If DELTA is negative, the window height is increased."
+  (interactive "p")
+  (mistty-grow-vertically (- (or num 1))))
 
 (provide 'mistty)
 

@@ -651,6 +651,50 @@ entry to have support for that, such as `alacritty`, `eterm-color`,
 `xterm-direct`, but some application require additional setting, such
 as setting the environment variable `COLORTERM=truecolor`.
 
+.. _size:
+
+Terminal Size
+-------------
+  .. index::
+     pair: variable; mistty-default-terminal-size
+     pair: command; mistty-fit-to-window
+     pair: command; mistty-set-terminal-size
+     pair: command; mistty-grow-vertically
+     pair: command; mistty-shrink-vertically
+
+MisTTY tracks the size of the windows that display the buffer and
+adapts the terminal size to match.
+
+When in prompt mode, all that really matters is the terminal width and
+you might not notice it.
+
+When in fullscreen mode, with alacritty, both width and height matter.
+
+Unfortunately, on graphical displays, Emacs resizes lines dynamically
+to fit their content. This means that a terminal that was set to 40
+lines to match the window size can suddenly not fit into the window
+anymore, because the terminal currently displays text a script that's
+larger than expected, or, very often emojis.
+
+This is especially annoying on MacOS, where the Apple emojis have
+fixed sizes. Emacs uses the Apple emoji font by default, but you can
+reduce line height issues by `choosing another one
+<http://xahlee.info/emacs/emacs/emacs_set_font_emoji.html>`_.
+
+MisTTY does its best to detect situations where the terminal grows too
+tall for the window and shrink it as needed so the entire screen fits.
+You can also force it to recompute the terminal size at any time with
+`mistty-fit-to-window`, bound to :kbd:`C-c C-f`.
+
+You may also set the size manually with `mistty-grow-vertically`,
+bound to :kbd:`C-c >` and `mistty-shrink-vertically`, bound to
+:kbd:`C-c <` or set a fixed terminal size, on the current terminal
+with `mistty-set-terminal-size` or once and for all on future
+terminals using `M-x customize-option mistty-default-terminal-size`.
+
+Calling `mistty-fit-to-window` on a terminal with a fixed size turns
+on window tracking again for that buffer.
+
 .. _cap:
 
 Completion-at-point

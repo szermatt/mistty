@@ -3893,9 +3893,9 @@ This function is meant to be called manually or from the idle-timer,
 On a graphical display, also take actual line heights into account."
   (if (and (display-graphic-p) (eq t mistty-fullscreen))
       (mistty--set-process-window-size-from-line-height)
-    (let* ((adjust-func window-adjust-process-window-size-function)
-           (size (funcall adjust-func mistty-proc
-                          (get-buffer-window-list mistty-work-buffer nil t))))
+    (let* ((size (window-adjust-process-window-size-smallest
+                  mistty-proc
+                  (get-buffer-window-list mistty-work-buffer nil t))))
       (when size
         (let ((width (car size))
               (height (cdr size)))
@@ -3918,9 +3918,6 @@ window.
 
 If we used the maximum line height, we would make the content
 systematically smaller than the window can display."
-  ;; TODO: allow using either min or max to compute window size, since
-  ;; we cannot just use window-adjust-process-window-size-function
-  ;; here.
   (when-let* ((windows (get-buffer-window-list mistty-work-buffer nil t))
               (default-size (window-adjust-process-window-size-smallest
                              mistty-proc windows)))

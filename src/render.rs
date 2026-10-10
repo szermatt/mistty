@@ -64,7 +64,7 @@ emacs::use_symbols! {
     yank_handler
     invisible_sym => "invisible"
     mistty_clear
-    mistty_render_tag
+    mistty_render_tag_sym
     mistty_skip
     indent_sym => "indent"
     right_prompt_sym => "right-prompt"
@@ -243,13 +243,12 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
 #[defun]
 pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
     let history_scrollines = write_scrollback(env, term)?;
-    let screen_top = BufferPos::point(env)?;
 
-    let mut render = Render::new(env, term);
+    let mut render = Render::init(env, term)?;
     render.render()?;
     render.move_cursor_marker(cursor_marker)?;
 
-    env.cons(screen_top, history_scrollines)
+    env.cons(render.start, history_scrollines)
 }
 
 /// Render the terminal content on the current buffer.
@@ -274,7 +273,7 @@ pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Resul
 /// `save_excursion` if it matters.
 #[defun]
 pub fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
-    let mut render = Render::new(env, term);
+    let mut render = Render::init(env, term)?;
     render.render_screen()?;
     render.move_cursor_marker(cursor_marker)?;
 
@@ -286,33 +285,37 @@ struct Render<'a> {
     env: &'a Env,
     term: &'a mut VTerm,
 
-    /// Cursor position captured while rendering.
+    /// Position of the point at the time the render operation
+    /// started. This remains valid for the whole operation as no
+    /// changes are made before this point.
+    start: BufferPos,
+
+    /// Cursor position that was captured while rendering.
     cursor_pos: Option<BufferPos>,
 }
 
 impl<'a> Render<'a> {
-    fn new(env: &'a Env, term: &'a mut VTerm) -> Self {
-        Self {
+    fn init(env: &'a Env, term: &'a mut VTerm) -> Result<Self> {
+        let start = BufferPos::point(env)?;
+        Ok(Self {
             env,
             term,
+            start,
             cursor_pos: None,
-        }
+        })
     }
 
     /// Render the screen, skipping blank lines at the end (prompt mode).
     fn render(&mut self) -> Result<()> {
-        let cursor_line = self.term.grid().cursor.point.line;
         let last_written = last_written_line(self.term.grid()).unwrap_or(Line(0));
-        let last_line = max(last_written, cursor_line);
-        self.render_internal(last_written, last_line)?;
+        self.render_internal(last_written)?;
 
         Ok(())
     }
 
     /// Render the whole screen (fullscreen mode).
     fn render_screen(&mut self) -> Result<()> {
-        let last_line = self.term.bottommost_line();
-        self.render_internal(last_line, last_line)?;
+        self.render_internal(self.term.bottommost_line())?;
 
         Ok(())
     }
@@ -329,23 +332,26 @@ impl<'a> Render<'a> {
         Ok(())
     }
 
-    fn render_internal(&mut self, last_written: Line, last_line: Line) -> Result<()> {
+    fn render_internal(&mut self, last_line_to_render: Line) -> Result<()> {
         let env = self.env;
+        // Since we always want to render the line the cursor is
+        // on we might need to render lines past
+        // last_line_to_render.
+        let cursor_line = self.term.grid().cursor.point.line;
+        let actual_last_line = max(last_line_to_render, cursor_line);
+
         let damage = self.term.damaged_lines();
-        let start = BufferPos::point(env)?;
-        if let Some(damaged_lines) = damage
-            && self
-                .term
-                .check_render_count_tag(env.call(get_text_property, (start, mistty_render_tag))?)?
+        if let Some(damage) = damage
+            && self.check_tag(env)?
         {
             let mut line_at_point = Line(0);
-            for line in damaged_lines
+            for line in damage
                 .into_iter()
-                .filter(|l| *l <= last_written)
+                .filter(|l| *l <= last_line_to_render)
                 .chain(
-                    // if needed, render missing blank lines from
-                    // last_written to the cursor position
-                    (last_written.0 + 1..=last_line.0)
+                    // Render lines past last_written, as necessary to
+                    // render the cursor line.
+                    (last_line_to_render.0 + 1..=cursor_line.0)
                         .into_iter()
                         .map(|l| Line(l)),
                 )
@@ -358,34 +364,50 @@ impl<'a> Render<'a> {
                 line_at_point = line + 1;
             }
 
-            if last_line < self.term.bottommost_line() {
+            // Trim now unneeded blank lines possibly written in
+            // previous operations, to render the cursor line.
+            if actual_last_line < self.term.bottommost_line() {
                 env.call(
                     delete_region,
                     (
-                        BufferPos::bol(env, last_line + 1 - line_at_point)?,
+                        BufferPos::bol(env, actual_last_line + 1 - line_at_point)?,
                         BufferPos::point_max(env)?,
                     ),
                 )?;
             }
         } else {
-            env.call(
-                delete_region,
-                (BufferPos::point(env)?, BufferPos::point_max(env)?),
-            )?;
-            self.render_lines(Line(0), last_line + 1)?;
+            env.call(delete_region, (self.start, BufferPos::point_max(env)?))?;
+            self.render_lines(Line(0), actual_last_line + 1)?;
         }
-        env.call(
-            put_text_property,
-            (
-                start,
-                start + 1,
-                mistty_render_tag,
-                self.term.inc_render_count(),
-            ),
-        )?;
+        self.write_tag(env)?;
 
         self.term.reset_damage();
 
+        Ok(())
+    }
+
+    /// Check the tag written by the previous operation.
+    ///
+    /// If the tag matches, we'll trust damage information and only
+    /// render the modified lines.
+    fn check_tag(&mut self, env: &Env) -> Result<bool> {
+        self.term.check_render_count_tag(
+            env.call(get_text_property, (self.start, mistty_render_tag_sym))?,
+        )
+    }
+
+    /// Write a tag at the beginning of the rendered region to be used
+    /// by the next operation.
+    fn write_tag(&mut self, env: &Env) -> Result<()> {
+        env.call(
+            put_text_property,
+            (
+                self.start,
+                self.start + 1,
+                mistty_render_tag_sym,
+                self.term.inc_render_count(),
+            ),
+        )?;
         Ok(())
     }
 

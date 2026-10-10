@@ -88,6 +88,10 @@ enum RenderProperty {
     ///
     /// Should only be applied to columns containing only a space.
     AlignTo(Column),
+
+    /// Identifies newlines added to split lines longer than the width
+    /// of the terminal. This is set on the newline characters.
+    Wrapline,
 }
 
 /// Boolean properties, that are either on or off [Cell::flags].
@@ -97,10 +101,6 @@ enum ToggleProperty {
     Bold,
     Italic,
     Underline,
-
-    /// Identifies newlines added to split lines longer than the width
-    /// of the terminal. This is set on the newline characters.
-    Wrapline,
 
     /// Identifies cells that haven't been written to yet.
     Clear,
@@ -120,7 +120,6 @@ impl ToggleProperty {
         ToggleProperty::Italic,
         ToggleProperty::Underline,
         ToggleProperty::Clear,
-        ToggleProperty::Wrapline,
     ];
 
     /// Set of properties relevant when writing in the scrollback area.
@@ -140,11 +139,6 @@ impl ToggleProperty {
 
             // Flags::DIM is handled specially in this code. See comment on vterm::HandlerProxy.
             ToggleProperty::Clear => Some(gridext::is_clear(&flags)),
-
-            // Wrapline is handled specially, as it applies to the
-            // newline following the last column, to the column that's
-            // flagged. Wrapline must be set with set_toggle.
-            ToggleProperty::Wrapline => Some(false),
 
             // Special properties not mapped to a flag.
             ToggleProperty::Indent | ToggleProperty::RightPrompt => None,
@@ -513,7 +507,7 @@ pub fn render_lines<'a>(
         // A NL is never clear
         tracker.set_toggle(pos, ToggleProperty::Clear, false);
         if row.is_wrapped() {
-            tracker.set_toggle(pos, ToggleProperty::Wrapline, true);
+            tracker.add_wrap_line(pos, pos + 1);
         }
         as_string.push('\n');
         pos += 1;
@@ -659,6 +653,11 @@ impl PropertyTracker {
         self.buf.push((RenderProperty::AlignTo(col), start, end));
     }
 
+    /// Mark a newline character as a wrap line.
+    fn add_wrap_line(&mut self, start: BufferPos, end: BufferPos) {
+        self.buf.push((RenderProperty::Wrapline, start, end));
+    }
+
     /// Set text properties on the current Emacs buffer.
     ///
     /// `end` is the buffer position pointing to the end of the last
@@ -749,7 +748,7 @@ impl PropertyTracker {
                         ),
                     )?;
                 }
-                RenderProperty::Toggle(ToggleProperty::Wrapline) => {
+                RenderProperty::Wrapline => {
                     env.call(put_text_property, (start, end, term_line_wrap, true))?;
                     env.call(
                         put_text_property,

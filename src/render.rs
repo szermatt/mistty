@@ -226,6 +226,262 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     return Ok(scrollines);
 }
 
+/// Render the state of the terminal in a way Emacs understands.
+///
+/// Rendering is done in the current buffer in the range from point to
+/// end of buffer (or earlier if narrowing is enabled), starting with
+/// the scrollback lines, then the screen itself.
+///
+/// `cursor_marker` is set to the cursor position.
+///
+/// The point is not conserved. Wrap this call inside a
+/// `save_excursion`.
+///
+/// This function returns the buffer position of the top right corner
+/// of the screen and the number of scrollines before that. Everything
+/// before that position belongs in the scrollback area.
+#[defun]
+pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
+    let history_scrollines = write_scrollback(env, term)?;
+    let screen_top = BufferPos::point(env)?;
+
+    let mut render = Render::new(env, term);
+    render.render()?;
+    render.move_cursor_marker(cursor_marker)?;
+
+    env.cons(screen_top, history_scrollines)
+}
+
+/// Render the terminal content on the current buffer.
+///
+/// This call renders only the terminal content, ignoring the
+/// scrollback area. Call [render] to take the scrollback area into
+/// account.
+///
+/// This call may optimize rendering by only updating the portions of
+/// the terminal that have changed since last call to `render` or
+/// `render_damage. For this to work, the range from point to end of
+/// buffer must contain the unmodified result of the previous call.
+///
+/// Rendering is done in the current buffer in the range START to end
+/// of buffer (or earlier if narrowing is enabled).
+///
+/// `cursor_marker` is set to the cursor position if that position has
+/// changed since last call. If the cursor hasn't moved since last
+/// call, the marker might just be left as it is.
+///
+/// The point is not conserved. Wrap this call inside
+/// `save_excursion` if it matters.
+#[defun]
+pub fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
+    let mut render = Render::new(env, term);
+    render.render_screen()?;
+    render.move_cursor_marker(cursor_marker)?;
+
+    Ok(())
+}
+
+/// Currently active render operation.
+struct Render<'a> {
+    env: &'a Env,
+    term: &'a mut VTerm,
+
+    /// Cursor position captured while rendering.
+    cursor_pos: Option<BufferPos>,
+}
+
+impl<'a> Render<'a> {
+    fn new(env: &'a Env, term: &'a mut VTerm) -> Self {
+        Self {
+            env,
+            term,
+            cursor_pos: None,
+        }
+    }
+
+    /// Render the screen, skipping blank lines at the end (prompt mode).
+    fn render(&mut self) -> Result<()> {
+        let cursor_line = self.term.grid().cursor.point.line;
+        let last_written = last_written_line(self.term.grid()).unwrap_or(Line(0));
+        let last_line = max(last_written, cursor_line);
+        self.render_internal(last_written, last_line)?;
+
+        Ok(())
+    }
+
+    /// Render the whole screen (fullscreen mode).
+    fn render_screen(&mut self) -> Result<()> {
+        let last_line = self.term.bottommost_line();
+        self.render_internal(last_line, last_line)?;
+
+        Ok(())
+    }
+
+    /// Move the given marker to the cursor position.
+    ///
+    /// This should be called at the end, after all rendering is done,
+    /// so that there is an opportunity to store the cursor position.
+    fn move_cursor_marker(&mut self, cursor_marker: Value) -> Result<()> {
+        if let Some(cursor_pos) = &self.cursor_pos {
+            self.env.call(set_marker, (cursor_marker, *cursor_pos))?;
+        }
+
+        Ok(())
+    }
+
+    fn render_internal(&mut self, last_written: Line, last_line: Line) -> Result<()> {
+        let env = self.env;
+        let damage = self.term.damaged_lines();
+        let start = BufferPos::point(env)?;
+        if let Some(damaged_lines) = damage
+            && self
+                .term
+                .check_render_count_tag(env.call(get_text_property, (start, mistty_render_tag))?)?
+        {
+            let mut line_at_point = Line(0);
+            for line in damaged_lines
+                .into_iter()
+                .filter(|l| *l <= last_written)
+                .chain(
+                    // if needed, render missing blank lines from
+                    // last_written to the cursor position
+                    (last_written.0 + 1..=last_line.0)
+                        .into_iter()
+                        .map(|l| Line(l)),
+                )
+            {
+                let line_pos = BufferPos::bol(env, line - line_at_point)?;
+                env.call(goto_char, (line_pos,))?;
+                let next_line_pos = BufferPos::bol(env, Line(1))?;
+                env.call(delete_region, (line_pos, next_line_pos))?;
+                self.render_lines(line, line + 1)?;
+                line_at_point = line + 1;
+            }
+
+            if last_line < self.term.bottommost_line() {
+                env.call(
+                    delete_region,
+                    (
+                        BufferPos::bol(env, last_line + 1 - line_at_point)?,
+                        BufferPos::point_max(env)?,
+                    ),
+                )?;
+            }
+        } else {
+            env.call(
+                delete_region,
+                (BufferPos::point(env)?, BufferPos::point_max(env)?),
+            )?;
+            self.render_lines(Line(0), last_line + 1)?;
+        }
+        env.call(
+            put_text_property,
+            (
+                start,
+                start + 1,
+                mistty_render_tag,
+                self.term.inc_render_count(),
+            ),
+        )?;
+
+        self.term.reset_damage();
+
+        Ok(())
+    }
+
+    /// Render the display or a subset of the display.
+    ///
+    /// Write lines [`beg`, `end`) including the newlines to the
+    /// current buffer at the current position.
+    ///
+    /// If the lines contain `cursor_pos` the function sets the cursor position, as a buffer
+    /// position, otherwise it leaves it alone.
+    pub fn render_lines(&mut self, beg: Line, end: Line) -> Result<()> {
+        let env = self.env;
+        let grid = self.term.grid();
+        let last_column = grid.last_column();
+        let cursor_point = grid.cursor.point;
+        let origin = BufferPos::point(env)?;
+        let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_TERMINAL);
+        let mut as_string = String::with_capacity((end.0 - beg.0) as usize * (last_column.0 + 1));
+        let mut pos = origin;
+        for (line, row) in grid.ranged_iter(beg, end) {
+            let last_written = last_written_cell(row).map(|c| c + 1);
+            let end_col = if line == cursor_point.line
+                && last_written.is_none_or(|v| v < cursor_point.column)
+            {
+                cursor_point.column
+            } else {
+                last_written.unwrap_or(Column(0))
+            };
+            let right_prompt_start = detect_right_prompt(row, last_written);
+            let indent_end = detect_indent(row, end_col, right_prompt_start);
+            if indent_end.is_some() {
+                tracker.set_toggle(pos, ToggleProperty::Indent, true);
+            }
+            let mut wide_chars = 0;
+            for (col, cell) in row.iter_to(end_col) {
+                let cell_pos = pos;
+                if cell.is_spacer() {
+                    wide_chars += 1;
+                } else {
+                    pos += append_cell_to_string(cell, &mut as_string);
+                    if (pos - cell_pos) > 1 {
+                        // Sometimes, with combining characters, Alacritty
+                        // doesn't allocate a spacer as it should, so we
+                        // add a a possibly unnecessary, possibly
+                        // duplicated align display property just in case;
+                        // it doesn't harm.
+                        wide_chars += 1;
+                    }
+                    tracker.track_change(cell_pos, cell);
+                }
+                if wide_chars > 0 && cell.c.is_whitespace() {
+                    tracker.add_align_to(cell_pos, pos, col + 1);
+                    wide_chars -= 0;
+                }
+                if Some(col) == indent_end {
+                    tracker.set_toggle(cell_pos, ToggleProperty::Indent, false);
+                }
+                if Some(col) == right_prompt_start {
+                    tracker.set_toggle(cell_pos, ToggleProperty::RightPrompt, true);
+                }
+
+                // Have we found the cursor? If yes, we now know its
+                // (upcoming) buffer position.
+                if cursor_point.line == line && cursor_point.column == col {
+                    self.cursor_pos = Some(cell_pos);
+                }
+            }
+            if end_col <= last_column {
+                tracker.track_change(pos, &row[end_col]);
+            }
+            if indent_end == Some(end_col) {
+                tracker.set_toggle(pos, ToggleProperty::Indent, false);
+            }
+            if right_prompt_start.is_some() {
+                tracker.set_toggle(pos, ToggleProperty::RightPrompt, false);
+            }
+            // end of line
+            if cursor_point.line == line && cursor_point.column == end_col {
+                self.cursor_pos = Some(pos);
+            }
+            // A NL is never clear
+            tracker.set_toggle(pos, ToggleProperty::Clear, false);
+            if row.is_wrapped() {
+                tracker.add_wrap_line(pos, pos + 1);
+            }
+            as_string.push('\n');
+            pos += 1;
+        }
+
+        env.call(insert, (as_string,))?;
+        tracker.apply(env, pos)?;
+
+        Ok(())
+    }
+}
+
 /// Return the column of the last cell that isn't clear.
 fn last_written_cell(row: &Row<Cell>) -> Option<Column> {
     for (col, cell) in row.iter().rev() {
@@ -300,223 +556,6 @@ fn last_written_line(grid: &Grid<Cell>) -> Option<Line> {
     }
 
     None
-}
-
-/// Render the state of the terminal in a way Emacs understands.
-///
-/// Rendering is done in the current buffer in the range from point to
-/// end of buffer (or earlier if narrowing is enabled), starting with
-/// the scrollback lines, then the screen itself.
-///
-/// `cursor_marker` is set to the cursor position.
-///
-/// The point is not conserved. Wrap this call inside a
-/// `save_excursion`.
-///
-/// This function returns the buffer position of the top right corner
-/// of the screen and the number of scrollines before that. Everything
-/// before that position belongs in the scrollback area.
-#[defun]
-pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
-    let history_scrollines = write_scrollback(env, term)?;
-    let screen_top = BufferPos::point(env)?;
-
-    let cursor_line = term.grid().cursor.point.line;
-    let last_written = last_written_line(term.grid()).unwrap_or(Line(0));
-    let last_line = max(last_written, cursor_line);
-    render_internal(env, term, cursor_marker, last_written, last_line)?;
-
-    env.cons(screen_top, history_scrollines)
-}
-
-/// Render the terminal content on the current buffer.
-///
-/// This call renders only the terminal content, ignoring the
-/// scrollback area. Call [render] to take the scrollback area into
-/// account.
-///
-/// This call may optimize rendering by only updating the portions of
-/// the terminal that have changed since last call to `render` or
-/// `render_damage. For this to work, the range from point to end of
-/// buffer must contain the unmodified result of the previous call.
-///
-/// Rendering is done in the current buffer in the range START to end
-/// of buffer (or earlier if narrowing is enabled).
-///
-/// `cursor_marker` is set to the cursor position if that position has
-/// changed since last call. If the cursor hasn't moved since last
-/// call, the marker might just be left as it is.
-///
-/// The point is not conserved. Wrap this call inside
-/// `save_excursion` if it matters.
-#[defun]
-pub fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
-    let last_line = term.bottommost_line();
-
-    render_internal(env, term, cursor_marker, last_line, last_line)
-}
-
-fn render_internal(
-    env: &Env,
-    term: &mut VTerm,
-    cursor_marker: Value,
-    last_written: Line,
-    last_line: Line,
-) -> Result<()> {
-    let damage = term.damaged_lines();
-    let mut cursor_pos = None;
-    let start = BufferPos::point(env)?;
-    if let Some(damaged_lines) = damage
-        && term.check_render_count_tag(env.call(get_text_property, (start, mistty_render_tag))?)?
-    {
-        let mut line_at_point = Line(0);
-        for line in damaged_lines
-            .into_iter()
-            .filter(|l| *l <= last_written)
-            .chain(
-                // if needed, render missing blank lines from
-                // last_written to the cursor position
-                (last_written.0 + 1..=last_line.0)
-                    .into_iter()
-                    .map(|l| Line(l)),
-            )
-        {
-            let line_pos = BufferPos::bol(env, line - line_at_point)?;
-            env.call(goto_char, (line_pos,))?;
-            let next_line_pos = BufferPos::bol(env, Line(1))?;
-            env.call(delete_region, (line_pos, next_line_pos))?;
-            render_lines(env, term, line, line + 1, Some(&mut cursor_pos))?;
-            line_at_point = line + 1;
-        }
-
-        if last_line < term.bottommost_line() {
-            env.call(
-                delete_region,
-                (
-                    BufferPos::bol(env, last_line + 1 - line_at_point)?,
-                    BufferPos::point_max(env)?,
-                ),
-            )?;
-        }
-    } else {
-        env.call(
-            delete_region,
-            (BufferPos::point(env)?, BufferPos::point_max(env)?),
-        )?;
-        render_lines(env, term, Line(0), last_line + 1, Some(&mut cursor_pos))?;
-    }
-    env.call(
-        put_text_property,
-        (start, start + 1, mistty_render_tag, term.inc_render_count()),
-    )?;
-
-    if let Some(cursor_pos) = cursor_pos {
-        env.call(set_marker, (cursor_marker, cursor_pos))?;
-    }
-
-    term.reset_damage();
-
-    Ok(())
-}
-
-/// Render the display or a subset of the display.
-///
-/// Write lines [`beg`, `end`) including the newlines to the
-/// current buffer at the current position.
-///
-/// If the lines contain `cursor_pos` the function sets the cursor position, as a buffer
-/// position, otherwise it leaves it alone.
-pub fn render_lines<'a>(
-    env: &Env,
-    term: &'a VTerm,
-    beg: Line,
-    end: Line,
-    mut cursor_pos: Option<&mut Option<BufferPos>>,
-) -> Result<()> {
-    let grid = term.grid();
-    let last_column = grid.last_column();
-    let cursor_point = grid.cursor.point;
-    let origin = BufferPos::point(env)?;
-    let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_TERMINAL);
-    let mut as_string = String::with_capacity((end.0 - beg.0) as usize * (last_column.0 + 1));
-    let mut pos = origin;
-    for (line, row) in grid.ranged_iter(beg, end) {
-        let last_written = last_written_cell(row).map(|c| c + 1);
-        let end_col =
-            if line == cursor_point.line && last_written.is_none_or(|v| v < cursor_point.column) {
-                cursor_point.column
-            } else {
-                last_written.unwrap_or(Column(0))
-            };
-        let right_prompt_start = detect_right_prompt(row, last_written);
-        let indent_end = detect_indent(row, end_col, right_prompt_start);
-        if indent_end.is_some() {
-            tracker.set_toggle(pos, ToggleProperty::Indent, true);
-        }
-        let mut wide_chars = 0;
-        for (col, cell) in row.iter_to(end_col) {
-            let cell_pos = pos;
-            if cell.is_spacer() {
-                wide_chars += 1;
-            } else {
-                pos += append_cell_to_string(cell, &mut as_string);
-                if (pos - cell_pos) > 1 {
-                    // Sometimes, with combining characters, Alacritty
-                    // doesn't allocate a spacer as it should, so we
-                    // add a a possibly unnecessary, possibly
-                    // duplicated align display property just in case;
-                    // it doesn't harm.
-                    wide_chars += 1;
-                }
-                tracker.track_change(cell_pos, cell);
-            }
-            if wide_chars > 0 && cell.c.is_whitespace() {
-                tracker.add_align_to(cell_pos, pos, col + 1);
-                wide_chars -= 0;
-            }
-            if Some(col) == indent_end {
-                tracker.set_toggle(cell_pos, ToggleProperty::Indent, false);
-            }
-            if Some(col) == right_prompt_start {
-                tracker.set_toggle(cell_pos, ToggleProperty::RightPrompt, true);
-            }
-
-            // Have we found the cursor? If yes, we now know its
-            // (upcoming) buffer position.
-            if cursor_point.line == line && cursor_point.column == col {
-                if let Some(cursor_pos) = &mut cursor_pos {
-                    **cursor_pos = Some(cell_pos);
-                }
-            }
-        }
-        if end_col <= last_column {
-            tracker.track_change(pos, &row[end_col]);
-        }
-        if indent_end == Some(end_col) {
-            tracker.set_toggle(pos, ToggleProperty::Indent, false);
-        }
-        if right_prompt_start.is_some() {
-            tracker.set_toggle(pos, ToggleProperty::RightPrompt, false);
-        }
-        // end of line
-        if cursor_point.line == line && cursor_point.column == end_col {
-            if let Some(cursor_pos) = &mut cursor_pos {
-                **cursor_pos = Some(pos);
-            }
-        }
-        // A NL is never clear
-        tracker.set_toggle(pos, ToggleProperty::Clear, false);
-        if row.is_wrapped() {
-            tracker.add_wrap_line(pos, pos + 1);
-        }
-        as_string.push('\n');
-        pos += 1;
-    }
-
-    env.call(insert, (as_string,))?;
-    tracker.apply(env, pos)?;
-
-    Ok(())
 }
 
 /// Append the content of a cell to the give string.

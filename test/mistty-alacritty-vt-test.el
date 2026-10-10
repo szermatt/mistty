@@ -773,12 +773,6 @@
         "One for th[\n]e Master\n"
         "and one fo[\n]r the Dame")
        (mistty-test-content :show-property '(term-line-wrap t))))
-      (should (equal
-       (concat
-        "Baa, baa, [\n]black shee[\n]p have you[\n] any wool?[\n] Yes sir, [\n]yes, sir t[\n]hree bags [\n]full!\n"
-        "One for th[\n]e Master\n"
-        "and one fo[\n]r the Dame")
-       (mistty-test-content :show-property '(invisible term-line-wrap))))
 
       ;; an empty yank handler should be set for fake newlines but not
       ;; for real ones.

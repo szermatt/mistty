@@ -62,7 +62,6 @@ emacs::use_symbols! {
     extend_sym => ":extend"
     term_line_wrap
     yank_handler
-    invisible_sym => "invisible"
     mistty_clear
     mistty_render_tag_sym
     mistty_skip
@@ -71,7 +70,7 @@ emacs::use_symbols! {
 }
 
 /// Cell or text properties.
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(Debug)]
 enum RenderProperty {
     /// Foreground color, [Cell::fg].
     Fg(Color),
@@ -819,10 +818,6 @@ impl PropertyTracker {
                             yank_handler,
                             env.list((false, "", false, false))?,
                         ),
-                    )?;
-                    env.call(
-                        put_text_property,
-                        (start, end, invisible_sym, term_line_wrap),
                     )?;
                 }
                 RenderProperty::Toggle(ToggleProperty::Clear) => {

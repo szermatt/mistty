@@ -744,7 +744,7 @@ FULLSCREEN is non-nil in fullscreen mode."
                       (+ sync-pos
                          (- (process-mark proc) source-sync-pos)))
 
-          (mistty--hide-line-wraps sync-pos (point-max) column-count)
+          (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
           (mistty--mark-empty-line-at-eob sync-pos)))
 
       (cons sync-pos sync-scrolline))))
@@ -1235,12 +1235,8 @@ the previous line."
          (- pos bol))))
    0))
 
-(defun mistty--hide-line-wraps (beg end column-count)
-  "Make fake newlines invisible between BEG and END.
-
-They're not really visible. to begin with, since they're at the end of
-the window, but marking them invisible allows `kill-line' to go through
-them, as it should.
+(defun mistty--set-term-line-wrap-yank-handler (beg end column-count)
+  "Set yank handler on fake newlines between BEG and END.
 
 Only the newlines at COLUMN-COUNT are actually modified."
   (save-excursion
@@ -1254,8 +1250,7 @@ Only the newlines at COLUMN-COUNT are actually modified."
                          (current-column))
                        column-count)))
         (add-text-properties
-         (1- (point)) (point)
-         '(invisible term-line-wrap yank-handler (nil "" nil nil)))))))
+         (1- (point)) (point) '(yank-handler (nil "" nil nil)))))))
 
 (defun mistty--mark-empty-line-at-eob (beg)
   "Mark empty lines at EOB with mistty-skip empty-line-at-eob.

@@ -1154,10 +1154,6 @@ This map is active whenever the current buffer is in MisTTY mode."
   (setq-local window-point-insertion-type t)
   (setq-local scroll-margin 0)
 
-  ;; Mistty hides the fake newlines term added and relies on large
-  ;; lines being wrapped for display and proper resizing.
-  (setq-local truncate-lines nil)
-
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
 

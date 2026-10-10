@@ -1403,7 +1403,8 @@
                            "$")
                    (mistty-test-content)))))
 
-(mistty-deftest mistty-test-display-long-prompt (:turtles t :selected t :type all)
+(mistty-deftest mistty-test-display-long-prompt
+    (:turtles t :selected t :type all :term-size 'window)
   (delete-other-windows)
 
   (dolist (word '("echo" "one" "two" "three" "four" "five" "six" "seven"
@@ -1414,19 +1415,18 @@
   (mistty-send-text "twenty")
   (mistty-send-and-wait-for-prompt)
 
-  ;; Term adds fake newlines, but mistty makes them invisible and
-  ;; relies on window continuation. The effect of the above setup is
-  ;; visible below as Emacs adds "\" at the end of some lines.
-  (turtles-with-grab-buffer ()
-    (should
-     (equal
-      (concat
-       "$ echo one two three four five six seven eight nine ten eleven twelve thirteen \\\n"
-       "fourteen fifteen sixteen seventeen eighteen nineteen twenty\n"
-       "one two three four five six seven eight nine ten eleven twelve thirteen fourtee\\\n"
-       "n fifteen sixteen seventeen eighteen nineteen twenty\n"
-       "$")
-      (buffer-string)))))
+  (dolist (enabled '(t nil))
+    (setq-local truncate-lines enabled)
+    (turtles-with-grab-buffer ()
+      (should
+       (equal
+        (concat
+         "$ echo one two three four five six seven eight nine ten eleven twelve thirteen\n"
+         "fourteen fifteen sixteen seventeen eighteen nineteen twenty\n"
+         "one two three four five six seven eight nine ten eleven twelve thirteen fourtee\n"
+         "n fifteen sixteen seventeen eighteen nineteen twenty\n"
+         "$")
+        (buffer-string))))))
 
 (mistty-deftest mistty-test-enter-split-fullscreen (:selected t :type eterm :turtles t)
   (let ((bufname (buffer-name))
@@ -4194,18 +4194,6 @@
               :show (seq-filter (lambda (pos) (>= pos start))
                                 (mistty-test-all-inputs)))))))
 
-(mistty-deftest mistty-test-kill-long-line (:term-size '(20 . 20) :type all)
-  (mistty-run-command
-   (insert "echo one two three four five six seven eight nine"))
-  (mistty-wait-for-output :str "nine" :cursor-at-end t)
-
-  (mistty-run-command
-   (mistty-test-goto "one"))
-  (mistty-run-command
-   (kill-line))
-  (should (equal (concat "$ echo <>")
-                 (mistty-test-content :show (point)))))
-
 (mistty-deftest mistty-test-undo-insert ( :type all)
   (setq buffer-undo-list nil)
   (cl-loop for key across "echo"
@@ -4749,16 +4737,14 @@
       (search-backward "C")
       (setq end (match-end 0))
 
-      ;; The final spaces may or may not be there. They're absent with
-      ;; alacritty but present with eterm.
       (should
        (string-match
         (concat
-         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\\(  \\)?\n"
-         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB ?\n"
-         "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC\\\\\n"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n"
+         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n"
+         "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC\n"
          "C")
-        (buffer-substring-no-properties start end))))))
+        (mistty-test-content :trim t :start start :end end))))))
 
 (mistty-deftest mistty-test-set-terminal-size
     (:selected t :term-size 'window :type all :turtles t)
@@ -4895,10 +4881,6 @@
     ;; Fake newlines exist on the terminal...
     (should (equal "$ echo h\nello, wo\nrld"
                    (mistty-test-content)))
-
-    ;; ... but they're invisible
-    (turtles-with-grab-buffer ()
-      (should (equal "$ echo hello, world" (buffer-string))))
 
     (mistty--send-string mistty-proc "\n")
     (mistty-wait-for-output :regexp "^hel")

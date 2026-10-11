@@ -215,7 +215,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     }
     env.call(insert, (as_string,))?;
     tracker.apply(env, pos)?;
-    if term.scrollback_ends_with_wrapline() {
+    if term.scrollback_ends_with_wrapline().unwrap_or(false) {
         env.call(
             insert,
             (env.call(propertize, ("\n", term_line_wrap, true))?,),
@@ -237,7 +237,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
 /// `save_excursion`.
 ///
 /// This function returns the buffer position of the top right corner
-/// of the screen and the number of scrollines before that. Everything
+/// of the screen and the corresponding absolute scrolline. Everything
 /// before that position belongs in the scrollback area.
 #[defun]
 pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
@@ -247,7 +247,7 @@ pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Resul
     render.render()?;
     render.move_cursor_marker(cursor_marker)?;
 
-    env.cons(render.start, history_scrollines)
+    env.cons(render.start, term.base_scrolline() + history_scrollines)
 }
 
 /// Render the terminal content on the current buffer.

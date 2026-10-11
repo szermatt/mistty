@@ -597,9 +597,9 @@
     (ert-with-test-buffer ()
       (let ((cursor (make-marker))
             (screen-top (copy-marker (point-min))))
-        (pcase-let ((`(,new-top . ,scrollback-lines)
+        (pcase-let ((`(,new-top . ,scrollines)
                      (mistty-alacritty-vt-render vterm cursor)))
-          (should (equal 0 scrollback-lines))
+          (should (equal 0 scrollines))
           (should (equal (point-min) new-top)))
         (should
          (equal
@@ -622,9 +622,9 @@
         ;; the scrollback lines are written before the start
         ;; of the buffer
         (goto-char screen-top)
-        (pcase-let ((`(,new-top . ,scrollback-lines)
+        (pcase-let ((`(,new-top . ,scrollines)
                      (mistty-alacritty-vt-render vterm cursor)))
-          (should (equal 2 scrollback-lines))
+          (should (equal 2 scrollines))
           (should (> new-top screen-top))
           (mistty-alacritty-vt-clear-scrollback vterm)
           (set-marker screen-top new-top))
@@ -650,12 +650,12 @@
         (mistty-alacritty-vt-process-bytes vterm (vconcat "\r\n13"))
         (mistty-alacritty-vt-process-bytes vterm (vconcat "\r\n14"))
 
-        ;; next time, only the additional scrollback lines
-        ;; are written, so 3 lines, not 5.
+        ;; next time, 3 additional scrollback lines
+        ;; are written, so 5 scrollines.
         (goto-char screen-top)
-        (pcase-let ((`(,new-top . ,scrollback-lines)
+        (pcase-let ((`(,new-top . ,scrollines)
                      (mistty-alacritty-vt-render vterm cursor)))
-          (should (equal 3 scrollback-lines))
+          (should (equal 5 scrollines))
           (should (> new-top screen-top))
           (set-marker screen-top new-top))
         (should
@@ -731,10 +731,10 @@
 
 
         (goto-char (point-min))
-        (pcase-let ((`(,new-top . ,scrollback-lines)
+        (pcase-let ((`(,new-top . ,scollines)
                      (mistty-alacritty-vt-render vterm cursor)))
           ;; There's no scrollback to write
-          (should (equal 0 scrollback-lines))
+          (should (equal 0 scollines))
           (should (equal (point-min) new-top)))
         (should
          (equal
@@ -804,9 +804,9 @@
 
     (ert-with-test-buffer ()
       (goto-char (point-min))
-      (pcase-let ((`(,new-top . ,scrollback-lines)
+      (pcase-let ((`(,new-top . ,scollines)
                    (mistty-alacritty-vt-render vterm (make-marker))))
-        (should (equal 3 scrollback-lines))
+        (should (equal 3 scollines))
         (should (equal
                  (concat
                   "Baa, baa, black sheep have you any wool? Yes sir, yes, sir three bags full!\n"
@@ -854,9 +854,9 @@
       (let ((cursor (copy-marker (point-min)))
             (screen-top (copy-marker (point-min))))
         (goto-char screen-top)
-        (pcase-let ((`(,new-top . ,scrollback-lines)
+        (pcase-let ((`(,new-top . ,scollines)
                      (mistty-alacritty-vt-render vterm cursor)))
-          (should (equal 0 scrollback-lines))
+          (should (equal 0 scollines))
           (set-marker screen-top new-top))
         (dotimes (i 4)
           (mistty-alacritty-vt-process-bytes vterm (vconcat (format "\r\n%d" i)))

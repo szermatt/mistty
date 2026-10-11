@@ -117,3 +117,90 @@ impl<'e> IntoLisp<'e> for BufferPos {
         self.0.into_lisp(env)
     }
 }
+
+/// Absolute scrolline number.
+///
+/// When writing a line on a that is larger than the terminal width,
+/// that line will be displayed over several lines on the terminal.
+/// When the terminal is resized, the line is redrawn and may take up
+/// fewer or more lines on the terminal.
+///
+/// In this project, the full, logical line is called a *scrolline*.
+/// The lines displayed on the terminal are called *terminal lines*.
+/// When rendering a large scrolline on a terminal, the terminal will
+/// add *fake newlines*, that is '\n' with the text property
+/// term-line-wrap set. A scrolline ends with a *real newline*, a
+/// '\n' not marked with the text property term-line-wrap.
+///
+/// As the terminal moves down, scrollines enter the scrollback area
+/// and fake newlines are removed, letting Emacs render them normally.
+///
+/// Scrolline numbering is absolute, that is, the number doesn't
+/// change as the buffer is truncated.
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Ord, PartialOrd)]
+pub struct Scrolline(pub usize);
+
+impl fmt::Display for Scrolline {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<usize> for Scrolline {
+    fn from(source: usize) -> Self {
+        Self(source as usize)
+    }
+}
+
+impl Add<usize> for Scrolline {
+    type Output = Scrolline;
+
+    #[inline]
+    fn add(self, rhs: usize) -> Scrolline {
+        Scrolline(self.0 + rhs)
+    }
+}
+
+impl AddAssign<usize> for Scrolline {
+    #[inline]
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
+    }
+}
+
+impl Sub<usize> for Scrolline {
+    type Output = Scrolline;
+
+    #[inline]
+    fn sub(self, rhs: usize) -> Scrolline {
+        Scrolline(self.0 - rhs)
+    }
+}
+
+impl SubAssign<usize> for Scrolline {
+    #[inline]
+    fn sub_assign(&mut self, rhs: usize) {
+        self.0 -= rhs;
+    }
+}
+
+impl PartialOrd<usize> for Scrolline {
+    #[inline]
+    fn partial_cmp(&self, other: &usize) -> Option<Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
+impl PartialEq<usize> for Scrolline {
+    #[inline]
+    fn eq(&self, other: &usize) -> bool {
+        self.0.eq(other)
+    }
+}
+
+impl<'e> IntoLisp<'e> for Scrolline {
+    fn into_lisp(self, env: &'e emacs::Env) -> Result<emacs::Value<'e>> {
+        self.0.into_lisp(env)
+    }
+}

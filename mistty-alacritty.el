@@ -402,12 +402,13 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
   "Render the virtual terminal on the current buffer."
   (save-excursion
     (goto-char mistty-alacritty--home)
-    (pcase-let ((`(,screen-top . ,scrollback-lines)
+    (pcase-let ((`(,screen-top . ,scrollines)
                  (mistty-alacritty-vt-render vterm mistty-alacritty--cursor)))
       (mistty-alacritty-vt-clear-scrollback vterm)
-      (cl-incf mistty--scrolline-home-num scrollback-lines)
       (mistty-log "RENDER @%s (+%s)"
-                  mistty--scrolline-home-num scrollback-lines)
+                  mistty--scrolline-home-num
+                  (- scrollines mistty--scrolline-home-num))
+      (setq mistty--scrolline-home-num scrollines)
       (set-marker mistty-alacritty--home screen-top))
     (when-let* ((proc (get-buffer-process (current-buffer))))
       (when (process-live-p proc)

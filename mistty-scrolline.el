@@ -26,7 +26,7 @@
 ;; When rendering a large scrolline on a terminal, the terminal will
 ;; add *fake newlines*, that is \n with the text property
 ;; term-line-wrap set to t. A scrolline ends with a *real newline*, a
-;; \n not not marked with the text property term-line-wrap.
+;; \n not marked with the text property term-line-wrap.
 ;;
 ;; As the terminal moves down, scrollines enter the scrollback area
 ;; and fake newlines are removed, letting Emacs render them normally.

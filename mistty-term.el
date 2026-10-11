@@ -468,15 +468,6 @@ Detected dead spaces are marked with the text property \\='mistty-skip
                   ;; in case the buffer is accessed before rendering again
                   (put-text-property (point) eol 'mistty-skip 'dead))))))))))
 
-(defun mistty--term-reset-scrolline (scrolline)
-  "Make the screen start at SCROLLINE.
-
-This is useful after a reset, where scrolline have been lost. Generally,
-this allows arbitrarily manipulating the alignment between the work and
-terminal buffers. To avoid issues with prompt locations, it should only
-be used to increase the value of `mistty--scrolline-base'."
-  (setq mistty--scrolline-home-num scrolline))
-
 (defun mistty--term-scrolline-at-screen-start()
   "Scrolline at the top of the screen."
   mistty--scrolline-home-num)

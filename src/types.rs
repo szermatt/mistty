@@ -178,6 +178,15 @@ impl Sub<usize> for Scrolline {
     }
 }
 
+impl Sub<Scrolline> for Scrolline {
+    type Output = usize;
+
+    #[inline]
+    fn sub(self, rhs: Scrolline) -> usize {
+        self.0 - rhs.0
+    }
+}
+
 impl SubAssign<usize> for Scrolline {
     #[inline]
     fn sub_assign(&mut self, rhs: usize) {

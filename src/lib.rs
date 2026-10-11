@@ -4,7 +4,7 @@ mod render;
 mod types;
 mod vterm;
 
-use crate::vterm::VTerm;
+use crate::{types::Scrolline, vterm::VTerm};
 use alacritty_terminal::{
     grid::Dimensions,
     index::Line,
@@ -82,6 +82,23 @@ fn disable_scrollback(term: &mut VTerm) -> Result<()> {
     term.disable_scrollback();
 
     Ok(())
+}
+
+/// Return the terminal line where `scrolline` starts.
+///
+/// May return negative lines, if the scrolline is within scrollback.
+/// May return nil if scrolline is outside the screen and the
+/// scrollback data that's still kept in memory.
+#[defun]
+fn terminal_line_for_scrolline<'a>(
+    env: &'a Env,
+    term: &mut VTerm,
+    scrolline: usize,
+) -> Result<Value<'a>> {
+    match term.terminal_line_for_scrolline(Scrolline(scrolline)) {
+        Some(line) => line.0.into_lisp(env),
+        None => ().into_lisp(env),
+    }
 }
 
 /// Change terminal dimensions

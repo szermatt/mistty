@@ -147,6 +147,36 @@ impl VTerm {
         self.base_scrolline
     }
 
+    /// Scrolline at the top of the screen, `Line(0)`.
+    pub fn screen_top_scrolline(&self) -> Scrolline {
+        self.base_scrolline + self.scrollback_rows().filter(|r| !r.is_wrapped()).count()
+    }
+
+    /// Return the line that currently corresponds to the given
+    /// scrolline.
+    ///
+    /// The returned line may be part of scrollback, with a negative
+    /// index, or part of the screen with an index >= 0.
+    ///
+    /// If there's no corresponding line on the terminal or in the
+    /// history, return None.
+    pub fn terminal_line_for_scrolline(&self, scrolline: Scrolline) -> Option<Line> {
+        if scrolline < self.base_scrolline {
+            return None;
+        }
+        let mut current = self.base_scrolline();
+        for (line, row) in self.all_rows() {
+            if current == scrolline {
+                return Some(line);
+            }
+            if !row.is_wrapped() {
+                current += 1
+            }
+        }
+
+        None
+    }
+
     /// Change terminal size.
     pub fn resize(&mut self, width: usize, height: usize) {
         let history_size = if self.scrollback_enabled {
@@ -171,8 +201,7 @@ impl VTerm {
             }
             Some(v) => v,
         };
-        let new_base =
-            self.base_scrolline + self.scrollback_rows().filter(|r| !r.is_wrapped()).count();
+        let new_base = self.screen_top_scrolline();
 
         self.scrollback.clear();
         self.inner.grid_mut().clear_history();
@@ -233,6 +262,20 @@ impl VTerm {
         } else {
             self.scrollback.last()
         }
+    }
+
+    /// Return all rows, from scrollback to the end of the screen.
+    ///
+    /// Note that negative lines may reference lines in scrollback
+    /// which might not exist in the grid. Positive lines always
+    /// reference existing screen lines.
+    fn all_rows(&self) -> impl Iterator<Item = (Line, &Row<Cell>)> {
+        let start_line = Line(-(self.scrollback_row_count() as i32));
+
+        self.scrollback_rows()
+            .enumerate()
+            .map(move |(i, r)| (start_line + (i as i32), r))
+            .chain(self.grid().screen_iter())
     }
 
     /// Return the last line available in the virtual terminal, that
@@ -1097,6 +1140,200 @@ mod tests {
             term.scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
+        );
+    }
+
+    #[test]
+    fn screen_top_scrolline_empty() {
+        let term = VTerm::new(10, 3, Osc52::Disabled);
+        assert_eq!(Scrolline(0), term.screen_top_scrolline());
+    }
+
+    #[test]
+    fn screen_top_scrolline_with_history() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        // 3 scrollines/5 terminal lines
+        term.process_bytes(b"line 1 is long\r\nline 2\r\nline 3 is long\r\n");
+        // writing 3 terminal lines puts everything above into history
+        term.process_bytes(b"line 4\r\nline 5\r\n");
+        assert_eq!(Scrolline(3), term.screen_top_scrolline());
+        assert_eq!(5, term.scrollback_row_count());
+
+        // 2 more scrollines scroll into history
+        term.process_bytes(b"line 6 is long\r\nline 7");
+        assert_eq!(Scrolline(5), term.screen_top_scrolline());
+        assert_eq!(7, term.scrollback_row_count());
+    }
+
+    #[test]
+    fn screen_top_scrolline_after_clear_scrollback() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        assert_eq!(Scrolline(3), term.screen_top_scrolline());
+
+        term.clear_scrollback();
+        assert_eq!(Scrolline(3), term.base_scrolline());
+        assert_eq!(Scrolline(3), term.screen_top_scrolline());
+
+        term.process_bytes(b"line 6\r\nline 7\r\n");
+        assert_eq!(Scrolline(5), term.screen_top_scrolline());
+    }
+
+    #[test]
+    fn terminal_line_for_scrolline_screen() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.process_bytes(b"line 1\r\nline 2\r\n");
+
+        assert_eq!(
+            Some(Line(0)),
+            term.terminal_line_for_scrolline(Scrolline(0))
+        );
+        assert_eq!(
+            Some(Line(1)),
+            term.terminal_line_for_scrolline(Scrolline(1))
+        );
+        assert_eq!(
+            Some(Line(2)),
+            term.terminal_line_for_scrolline(Scrolline(2))
+        );
+
+        // We're past the end of the screen
+        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(3)));
+    }
+
+    #[test]
+    fn terminal_line_for_scrolline_within_history() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        assert_eq!(Scrolline(3), term.screen_top_scrolline());
+        assert_eq!(
+            Some(Line(-3)),
+            term.terminal_line_for_scrolline(Scrolline(0))
+        );
+        assert_eq!(
+            Some(Line(-2)),
+            term.terminal_line_for_scrolline(Scrolline(1))
+        );
+        assert_eq!(
+            Some(Line(-1)),
+            term.terminal_line_for_scrolline(Scrolline(2))
+        );
+        assert_eq!(
+            Some(Line(0)),
+            term.terminal_line_for_scrolline(Scrolline(3))
+        );
+        assert_eq!(
+            Some(Line(1)),
+            term.terminal_line_for_scrolline(Scrolline(4))
+        );
+        assert_eq!(
+            Some(Line(2)),
+            term.terminal_line_for_scrolline(Scrolline(5))
+        );
+        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(6)));
+    }
+
+    #[test]
+    fn terminal_line_for_scrolline_within_scrollback() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        term.move_history();
+
+        term.process_bytes(b"line 6\r\nline 7\r\n");
+        assert_eq!(Scrolline(5), term.screen_top_scrolline());
+
+        assert_eq!(
+            Some(Line(-5)),
+            term.terminal_line_for_scrolline(Scrolline(0))
+        );
+        assert_eq!(
+            Some(Line(-4)),
+            term.terminal_line_for_scrolline(Scrolline(1))
+        );
+        assert_eq!(
+            Some(Line(-3)),
+            term.terminal_line_for_scrolline(Scrolline(2))
+        );
+        assert_eq!(
+            Some(Line(-2)),
+            term.terminal_line_for_scrolline(Scrolline(3))
+        );
+        assert_eq!(
+            Some(Line(-1)),
+            term.terminal_line_for_scrolline(Scrolline(4))
+        );
+        assert_eq!(
+            Some(Line(0)),
+            term.terminal_line_for_scrolline(Scrolline(5))
+        );
+        assert_eq!(
+            Some(Line(1)),
+            term.terminal_line_for_scrolline(Scrolline(6))
+        );
+        assert_eq!(
+            Some(Line(2)),
+            term.terminal_line_for_scrolline(Scrolline(7))
+        );
+        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(8)));
+    }
+
+    #[test]
+    fn terminal_line_for_scrolline_out_of_bounds() {
+        let mut term = VTerm::new(10, 3, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        term.clear_scrollback();
+
+        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(0)));
+        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(1)));
+        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(2)));
+        assert_eq!(
+            Some(Line(0)),
+            term.terminal_line_for_scrolline(Scrolline(3))
+        );
+    }
+
+    #[test]
+    fn scrolline_with_wrapped_lines() {
+        let mut term = VTerm::new(10, 4, Osc52::Disabled);
+        term.enable_scrollback();
+
+        term.process_bytes(b"A long line....\r\nline 2\r\n");
+
+        assert_eq!(Scrolline(0), term.screen_top_scrolline());
+        assert_eq!(
+            Some(Line(0)),
+            term.terminal_line_for_scrolline(Scrolline(0))
+        );
+        assert_eq!(
+            Some(Line(2)),
+            term.terminal_line_for_scrolline(Scrolline(1))
+        );
+
+        // Put screen content into scrollback, make sure it still works.
+        term.inner.clear_screen(ansi::ClearMode::All);
+        assert_eq!(Scrolline(2), term.screen_top_scrolline());
+        assert_eq!(
+            Some(Line(-3)),
+            term.terminal_line_for_scrolline(Scrolline(0))
+        );
+        assert_eq!(
+            Some(Line(-1)),
+            term.terminal_line_for_scrolline(Scrolline(1))
+        );
+        assert_eq!(
+            Some(Line(0)),
+            term.terminal_line_for_scrolline(Scrolline(2))
         );
     }
 

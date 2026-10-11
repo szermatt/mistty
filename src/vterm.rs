@@ -4,6 +4,7 @@
 
 use crate::gridext::{CellExt, GridExt, RowExt};
 use crate::render;
+use crate::types::Scrolline;
 use alacritty_terminal::vte::ansi::{KeyboardModes, KeyboardModesApplyBehavior, ModifyOtherKeys};
 use alacritty_terminal::{
     Grid, Term,
@@ -47,6 +48,14 @@ pub struct VTerm {
     scrollback_enabled: bool,
     render_count: i32,
 
+    /// Scrolline that corresponds to the first terminal line
+    ///
+    /// This is the scrolline of the first line of scrollback, or, if
+    /// it is empty, grid history or, if it is empty the terminal.
+    ///
+    /// This is incremented by `clear_scrollback`.
+    base_scrolline: Scrolline,
+
     /// Rows of scrollback, taken from the grid. These rows
     /// come before the ones in the current grid, if any.
     scrollback: Vec<Row<Cell>>,
@@ -55,7 +64,7 @@ pub struct VTerm {
     /// modify the grid. Such changes don't register as part of
     /// [Term::damage].
     ///
-    /// Always call [VTerm::damaged_lines] and [VTerm::reset_damage]
+    /// Always call [VTerm::damaged_lines] and [VTerm::_damage]
     /// instead of the [Term] equivalent.
     extra_damage: BTreeSet<Line>,
 }
@@ -84,6 +93,7 @@ impl VTerm {
             events,
             continues_wrapped_line: false,
             scrollback_enabled: false,
+            base_scrolline: Scrolline(0),
             render_count: 0,
             scrollback: vec![],
             extra_damage: BTreeSet::new(),
@@ -131,6 +141,12 @@ impl VTerm {
         }
     }
 
+    /// Scrolline that correspond to the first line in the terminal,
+    /// including history.
+    pub fn base_scrolline(&self) -> Scrolline {
+        self.base_scrolline
+    }
+
     /// Change terminal size.
     pub fn resize(&mut self, width: usize, height: usize) {
         let history_size = if self.scrollback_enabled {
@@ -148,11 +164,21 @@ impl VTerm {
     /// This clears both the scrollback stored in [VTerm] as the
     /// history stored in the grid.
     pub fn clear_scrollback(&mut self) {
-        let wrapped = self.scrollback_ends_with_wrapline();
+        let wrapped = match self.scrollback_ends_with_wrapline() {
+            None => {
+                // Scrollback is already empty
+                return;
+            }
+            Some(v) => v,
+        };
+        let new_base =
+            self.base_scrolline + self.scrollback_rows().filter(|r| !r.is_wrapped()).count();
+
         self.scrollback.clear();
         self.inner.grid_mut().clear_history();
 
         self.continues_wrapped_line = wrapped;
+        self.base_scrolline = new_base;
     }
 
     /// Check whether the last line cleared by the previous call to
@@ -167,10 +193,8 @@ impl VTerm {
     ///
     /// This takes into account the rows from [Self::scrollback] then
     /// the rows from the grid, before line 0.
-    pub fn scrollback_ends_with_wrapline(&self) -> bool {
-        self.last_scrollback_row()
-            .map(|row| row.is_wrapped())
-            .unwrap_or(false)
+    pub fn scrollback_ends_with_wrapline(&self) -> Option<bool> {
+        self.last_scrollback_row().map(|row| row.is_wrapped())
     }
 
     /// Store grid history into [VTerm]'s scrollback buffer.

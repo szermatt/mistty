@@ -1703,3 +1703,19 @@
     ;; but only one flag was actually enabled
     (should (equal '((pty-write "\e[?1u"))
                    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?u"))))))
+
+(mistty-deftest mistty-alacritty-vt-report-mouse
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+    ;; turn on mouse reporting
+    (should (equal '((mouse click))
+                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000h"))))
+    ;; ask also for button events
+    (should (equal '((mouse drag))
+                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1002h"))))
+    ;; ask for all events
+    (should (equal '((mouse motion))
+                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1003h"))))
+
+    ;; deactivate
+    (should (null (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000l"))))))

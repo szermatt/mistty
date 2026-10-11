@@ -33,6 +33,11 @@ emacs::use_symbols! {
     pty_write_sym => "pty-write"
     title_sym => "title"
     kkp_sym => "kkp"
+    mouse_sym => "mouse"
+    click_sym => "click"
+    drag_sym => "drag"
+    motion_sym => "motion"
+    nil_sym => "nil"
 }
 
 /// Size of the scrollback, in lines. There needs to be enough space
@@ -366,10 +371,28 @@ impl VTerm {
 
     pub fn mode_changes<'a>(&self, env: &'a Env, before: &TermMode) -> Result<Vec<Value<'a>>> {
         let mut reports = vec![];
-
-        let kkp_on = self.mode().intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
+        let mode = self.mode();
+        let kkp_on = mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
         if kkp_on != before.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
             reports.push(env.list((kkp_sym, kkp_on))?);
+        }
+
+        let mouse_flags =
+            TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION;
+        let mouse = mode.intersection(mouse_flags);
+        if mouse != before.intersection(mouse_flags) {
+            reports.push(env.list((
+                mouse_sym,
+                if mouse.intersects(TermMode::MOUSE_MOTION) {
+                    motion_sym
+                } else if mouse.intersects(TermMode::MOUSE_DRAG) {
+                    drag_sym
+                } else if mouse.intersects(TermMode::MOUSE_REPORT_CLICK) {
+                    click_sym
+                } else {
+                    nil_sym
+                },
+            ))?);
         }
 
         Ok(reports)

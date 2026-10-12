@@ -1,5 +1,7 @@
 mod gridext;
+mod input;
 mod kbd;
+mod mouse;
 mod render;
 mod types;
 mod vterm;

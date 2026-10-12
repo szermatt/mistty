@@ -83,22 +83,22 @@ for some reason."
 (mistty-alacritty-load)
 
 ;; These declarations allow compiling without loading the module.
-(eval-when-compile
-  (declare-function mistty-alacritty-vt-alt-screen-p nil (term))
-  (declare-function mistty-alacritty-vt-cleanup-prompt-sp nil (term pos))
-  (declare-function mistty-alacritty-vt-clear-to-eol nil (term line col))
-  (declare-function mistty-alacritty-vt-clear-scrollback nil (term))
-  (declare-function mistty-alacritty-vt-cursor nil (term))
-  (declare-function mistty-alacritty-vt-enable-scrollback nil (term))
-  (declare-function mistty-alacritty-vt-kitty-key-seq nil (term key mods basic-type))
-  (declare-function mistty-alacritty-vt-make-vterm nil (w h))
-  (declare-function mistty-alacritty-vt-process-bytes nil (term bytes))
-  (declare-function mistty-alacritty-vt-render nil (term cursor))
-  (declare-function mistty-alacritty-vt-render-screen nil (term cursor))
-  (declare-function mistty-alacritty-vt-resize nil (term w h))
-  (declare-function mistty-alacritty-vt-scrollback-line-count nil (term))
-  (declare-function mistty-alacritty-vt-terminal-line-for-scrolline nil (term scrolline))
-  (declare-function mistty-alacritty-vt-write-scrollback nil (term)))
+(declare-function mistty-alacritty-vt-alt-screen-p nil (term))
+(declare-function mistty-alacritty-vt-cleanup-prompt-sp nil (term pos))
+(declare-function mistty-alacritty-vt-clear-to-eol nil (term line col))
+(declare-function mistty-alacritty-vt-clear-scrollback nil (term))
+(declare-function mistty-alacritty-vt-cursor nil (term))
+(declare-function mistty-alacritty-vt-enable-scrollback nil (term))
+(declare-function mistty-alacritty-vt-kitty-key-seq nil (term key mods basic-type))
+(declare-function mistty-alacritty-vt-make-vterm nil (w h))
+(declare-function mistty-alacritty-vt-mouse-seq nil (term action button mods line column))
+(declare-function mistty-alacritty-vt-process-bytes nil (term bytes))
+(declare-function mistty-alacritty-vt-render nil (term cursor))
+(declare-function mistty-alacritty-vt-render-screen nil (term cursor))
+(declare-function mistty-alacritty-vt-resize nil (term w h))
+(declare-function mistty-alacritty-vt-scrollback-line-count nil (term))
+(declare-function mistty-alacritty-vt-terminal-line-for-scrolline nil (term scrolline))
+(declare-function mistty-alacritty-vt-write-scrollback nil (term))
 
 (defcustom mistty-alacritty-osc52 'only-copy
   "Allow sharing data through clipboard.

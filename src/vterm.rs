@@ -72,6 +72,9 @@ pub struct VTerm {
     /// Always call [VTerm::damaged_lines] and [VTerm::_damage]
     /// instead of the [Term] equivalent.
     extra_damage: BTreeSet<Line>,
+
+    /// State kept for mouse_encode
+    last_cell: Option<(i64, i64)>,
 }
 
 impl VTerm {
@@ -102,10 +105,12 @@ impl VTerm {
             render_count: 0,
             scrollback: vec![],
             extra_damage: BTreeSet::new(),
+            last_cell: None,
         }
     }
 
     /// Current terminal mode.
+    #[inline]
     pub fn mode(&self) -> &TermMode {
         self.inner.mode()
     }
@@ -117,14 +122,28 @@ impl VTerm {
     /// instead go through functions such as [VTerm::scrollback] that
     /// include both the scrollback in [VTerm] as the scrollback in
     /// the grid.
+    #[inline]
     pub fn grid(&self) -> &Grid<Cell> {
         self.inner.grid()
+    }
+
+    /// Terminal column count.
+    #[inline]
+    pub fn columns(&self) -> usize {
+        self.inner.columns()
+    }
+
+    /// Terminal line count.
+    #[inline]
+    pub fn screen_lines(&self) -> usize {
+        self.inner.screen_lines()
     }
 
     /// Return a modifiable reference to the terminal grid.
     ///
     /// If you modify terminal content, remember to register the
     /// modified lines as extra damage.
+    #[inline]
     fn grid_mut(&mut self) -> &mut Grid<Cell> {
         self.inner.grid_mut()
     }
@@ -481,6 +500,11 @@ impl VTerm {
     pub fn reset_damage(&mut self) {
         self.extra_damage.clear();
         self.inner.reset_damage();
+    }
+
+    /// Return state for mouse_encode
+    pub fn last_cell(&mut self) -> &mut Option<(i64, i64)> {
+        &mut self.last_cell
     }
 }
 

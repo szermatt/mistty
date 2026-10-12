@@ -1719,3 +1719,87 @@
 
     ;; deactivate
     (should (null (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000l"))))))
+
+(mistty-deftest mistty-alacritty-vt-mouse-seq-disabled
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+    (should (null (mistty-alacritty-vt-mouse-seq vterm 'press 1 [] 0 0)))))
+
+
+(mistty-deftest mistty-alacritty-vt-mouse-seq-x10
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+    ;; DEC private mode 1000; send clicks
+    (should (equal '((mouse click))
+                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000h"))))
+
+    (pcase-dolist
+        (`(,expected ,action ,button ,mods ,line ,col)
+         `(("\e[M !!" press 1 [] 0 0)
+           ("\e[M!!!" press 2 [] 0 0)
+           ("\e[M\"!!" press 3 [] 0 0)
+           ;; Note that for release, legacy X10 mode always encodes
+           ;; button as 3, '#'.
+           ("\e[M#!!" release 1 [] 0 0)
+           ("\e[M#!!" release 2 [] 0 0)
+           ("\e[M#!!" release 3 [] 0 0)
+
+           ;; coordinates
+           ("\e[M +&" press 1 [] 5 10)
+
+           ;; modifiers
+           ("\e[M$!!" press 1 [shift] 0 0)
+           ("\e[M0!!" press 1 [control] 0 0)
+           ("\e[M(!!" press 1 [meta] 0 0)
+           ("\e[M(!!" press 1 [alt] 0 0)
+           ("\e[M4!!" press 1 [control shift] 0 0)
+
+           ;; out of bounds
+           (nil press 1 [] -1 0)
+           (nil press 1 [] 24 0)
+           (nil press 1 [] 0 80)
+
+           ;; unsupported action or button
+           (nil invalid 1 [] 0 0)
+           (nil press 99 [] 0 0)))
+      (should
+       (equal
+        expected
+        (mistty-alacritty-vt-mouse-seq vterm action button mods line col))))))
+
+(mistty-deftest mistty-alacritty-vt-mouse-seq-sgr
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+
+    ;; DEC private mode 1000; send clicks
+    (should (equal '((mouse click))
+                   (mistty-alacritty-vt-process-bytes
+                    vterm (vconcat "\e[?1000h"))))
+
+    ;; DEC private mode 1006; a different output format.
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1006h"))
+
+    (pcase-dolist
+        (`(,expected ,action ,button ,mods ,line ,col)
+         `(("\e[<0;1;1M" press 1 [] 0 0)
+           ("\e[<1;1;1M" press 2 [] 0 0)
+           ("\e[<2;1;1M" press 3 [] 0 0)
+           ("\e[<64;1;1M" press 4 [] 0 0) ;; wheel down
+           ("\e[<65;1;1M" press 5 [] 0 0) ;; wheel up
+           ("\e[<0;1;1m" release 1 [] 0 0)
+           ("\e[<1;1;1m" release 2 [] 0 0)
+           ("\e[<2;1;1m" release 3 [] 0 0)
+
+           ;; coordinates
+           ("\e[<0;5;3M" press 1 [] 2 4)
+
+           ;; modifiers
+           ("\e[<4;1;1M" press 1 [shift] 0 0)
+           ("\e[<16;1;1M" press 1 [control] 0 0)
+           ("\e[<8;1;1M" press 1 [meta] 0 0)
+           ("\e[<20;1;1M" press 1 [control shift] 0 0)
+           ("\e[<28;1;1M" press 1 [control meta shift] 0 0)))
+      (should
+       (equal
+        expected
+        (mistty-alacritty-vt-mouse-seq vterm action button mods line col))))))

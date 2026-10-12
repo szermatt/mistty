@@ -9,14 +9,9 @@ use qwertty_term_input::{
 
 use emacs::{Env, GlobalRef, IntoLisp, Result, Value, Vector, defun};
 
-use crate::vterm::VTerm;
+use crate::{input, vterm::VTerm};
 
 emacs::use_symbols! {
-    shift_sym => "shift"
-    control_sym => "control"
-    meta_sym => "meta"
-    alt_sym => "alt"
-    super_sym => "super"
     nil_sym => "nil"
 }
 
@@ -61,8 +56,8 @@ fn internal_kitty_key_seq<'e>(
     if opts.kitty_flags.to_bits() == 0 {
         return None;
     }
-    let mods = convert_mods(mods)?;
-    let key = convert_key(base_key);
+    let mods = input::mods_from_lisp(mods)?;
+    let key = key_from_lisp(base_key);
     let mut consumed_mods = Mods::default();
     let oc = orig_key.into_rust::<u32>().ok().and_then(char::from_u32);
     let bc = base_key.into_rust::<u32>().ok().and_then(char::from_u32);
@@ -132,28 +127,8 @@ fn extract_options(term: &VTerm) -> key_encode::Options {
     }
 }
 
-/// Convert lisp mode symbols to key encoding format.
-fn convert_mods(lisp_mods: Vector) -> Option<Mods> {
-    let mut mods = Mods::default();
-    for val in lisp_mods {
-        if val == *shift_sym {
-            mods.shift = true;
-        } else if val == *control_sym {
-            mods.ctrl = true;
-        } else if val == *meta_sym || val == *alt_sym {
-            mods.alt = true;
-        } else if val == *super_sym {
-            mods.super_ = true;
-        } else {
-            return None;
-        }
-    }
-
-    Some(mods)
-}
-
 /// Convert an emacs key to a [Key], if possible.
-fn convert_key(emacs_key: Value<'_>) -> Key {
+fn key_from_lisp(emacs_key: Value<'_>) -> Key {
     if let Ok(num) = emacs_key.into_rust::<u8>()
         && let Some(key) = Key::from_ascii(num)
     {

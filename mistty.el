@@ -1385,7 +1385,6 @@ window."
       (setq mistty-proc proc)
       (setq mistty-work-buffer work-buffer)
       (setq mistty-term-buffer term-buffer)
-      (mistty--term-autoresize mistty--term nil)
       (mistty--term-setup-buffer term nil))
 
     (when proc
@@ -4029,7 +4028,6 @@ splits the buffers into a scrollback buffer and a terminal buffer."
       (mistty--with-live-buffer mistty-term-buffer
         (when split
           (mistty--term-setup-buffer mistty--term t)
-          (mistty--term-autoresize mistty--term t)
           (mistty-fullscreen-mode 1))
         (setq mistty-fullscreen (if split 'split t)))
 

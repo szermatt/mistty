@@ -233,12 +233,6 @@ The actual sentinel may different from this."
         (setf (mistty--term-alacritty-lines term) height)
         (set-process-window-size proc height width))))
 
-(cl-defmethod mistty--term-autoresize ((_term mistty--term-alacritty) _enable)
-  "Ignored as mistty-alacritty-mode buffers don't support auto-resize.")
-
-(cl-defmethod mistty--term-setup-buffer ((_term mistty--term-alacritty) &optional _fullscreen)
-  "Does nothing.")
-
 (cl-defmethod mistty--term-sync
   ((term mistty--term-alacritty) dest-buffer sync-pos sync-scrolline keep-markers
    cursor-marker)
@@ -313,9 +307,6 @@ The actual sentinel may different from this."
         (mistty-alacritty-vt-cleanup-prompt-sp
          vterm
          (mistty--count-lines mistty-alacritty--home pos))))))
-
-(cl-defmethod mistty--term-changed ((_term mistty--term-alacritty) _beg _end)
-  "Does nothing.")
 
 (cl-defmethod mistty--term-truncate-buffer ((term mistty--term-alacritty) scrolline-limit)
   "Truncate the terminal buffer, if necessary.

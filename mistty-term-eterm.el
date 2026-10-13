@@ -691,11 +691,6 @@ defaulting to 80 x 24."
   (with-current-buffer (mistty--term-eterm-buf term)
     (term-reset-size height width)))
 
-(cl-defmethod mistty--term-autoresize ((_term mistty--term-eterm) _enable)
-  "Does nothing.
-
-Autoresize is always enabled.")
-
 (cl-defmethod mistty--term-setup-buffer ((_term mistty--term-eterm) &optional fullscreen)
   "Setup the terminal buffer in normal or fullscreen mode.
 

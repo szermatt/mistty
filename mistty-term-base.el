@@ -112,11 +112,6 @@ This might be different from the sentinel set on PROC."
 (cl-defgeneric mistty--term-resize (term width height)
   "Set the terminal size for TERM to WIDTH x HEIGHT.")
 
-(cl-defgeneric mistty--term-autoresize (term enable)
-  "Enable or disable auto-resizing of TERM based on the buffer windows.
-
-A non-nil value for ENABLE enables autoresize, a nil value disables it.")
-
 (defun mistty--term-is-term-buffer (buffer)
   "Return non-nil if BUFFER is a term buffer."
   (when-let* ((proc (get-buffer-process buffer)))
@@ -125,7 +120,11 @@ A non-nil value for ENABLE enables autoresize, a nil value disables it.")
 (cl-defgeneric mistty--term-setup-buffer (term fullscreen)
   "Prepare TERM's terminal/process buffer for use.
 
-If FULLSCREEN is non-nil, prepare the buffer for fullscreen mode")
+If FULLSCREEN is non-nil, prepare the buffer for fullscreen mode"
+
+  (ignore term fullscreen)
+
+  nil)
 
 (cl-defgeneric mistty--term-sync
     (term dest-buffer sync-pos sync-scrolline keep-markers cursor-marker)
@@ -180,7 +179,11 @@ POS should be the position where the CR is called in the prompt-sp
 sequence.")
 
 (cl-defgeneric mistty--term-changed (term beg end)
-  "Mark the region of TERM between BEG and END as requiring post-processing.")
+  "Mark the region of TERM between BEG and END as requiring post-processing."
+
+  (ignore term beg end)
+
+  nil)
 
 (cl-defgeneric mistty--term-truncate-buffer (term scrolline-limit)
   "Truncate TERM's buffer, if necessary.

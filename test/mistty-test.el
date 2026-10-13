@@ -7978,14 +7978,8 @@ precmd_functions+=(prompt_header)
            (target-posn (posn-at-point target)))
       (should target-posn)
 
-      (mistty--send-string
-       mistty-proc
-       (mistty-test-translate-mouse
-        `(down-mouse-1 ,target-posn 1)))
-      (mistty--send-string
-       mistty-proc
-       (mistty-test-translate-mouse
-        `(mouse-1 ,target-posn 1)))
+      (execute-kbd-macro (vector `(down-mouse-1 ,target-posn 1)
+                                 `(mouse-1 ,target-posn 1)))
 
       (mistty-wait-for-output
        :test (lambda ()
@@ -8016,14 +8010,8 @@ precmd_functions+=(prompt_header)
          (target-posn (posn-at-point target)))
     (should target-posn)
 
-    (mistty--send-string
-     mistty-proc
-     (mistty-test-translate-mouse
-      `(down-mouse-1 ,target-posn 1)))
-    (mistty--send-string
-     mistty-proc
-     (mistty-test-translate-mouse
-      `(mouse-1 ,target-posn 1)))
+    (execute-kbd-macro (vector `(down-mouse-1 ,target-posn 1)
+                               `(mouse-1 ,target-posn 1)))
 
     (mistty-wait-for-output
      :test (lambda ()

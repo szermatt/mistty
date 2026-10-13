@@ -23,19 +23,23 @@ jobs:
           - 31.1
 
     steps:
-    - name: Check out the source code
-      uses: actions/checkout@v4
-
     - name: Install Nix and set up Emacs
       uses: jcs090218/setup-emacs@master
       with:
         version: ${{matrix.emacs_version}}
 
     - name: Install Test dependencies
-      run: nix develop --command true
+      run: |
+        nix profile install nixpkgs/8a2f738d9d1f1d986b5a4cd2fd2061a7127237d7#zsh
+        nix profile install nixpkgs/8a2f738d9d1f1d986b5a4cd2fd2061a7127237d7#fish
+        nix profile install nixpkgs/8a2f738d9d1f1d986b5a4cd2fd2061a7127237d7#vim
+        nix profile install nixpkgs/566e53c2ad750c84f6d31f9ccb9d00f823165550#python311Packages.ipython
 
     - name: Install Eldev
       uses: emacs-eldev/setup-eldev@v1
+
+    - name: Check out the source code
+      uses: actions/checkout@v4
 
     - name: Test the module
       run: 'cargo test'
@@ -44,7 +48,7 @@ jobs:
       run: 'eldev build mistty-alacritty-vt-dev.so'
 
     - name: Test the project
-      run: nix develop --command bash -l -c 'eldev -DtTQ test -B --ci || eldev -dtT test --ci :failed'
+      run: 'eldev -DtTQ test -B --ci || eldev -dtT test --ci :failed'
 
     - name: Make sure the tests compile without errors
-      run: eldev compile -s test
+      run: 'eldev compile -s test'

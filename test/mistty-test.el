@@ -7654,3 +7654,377 @@ precmd_functions+=(prompt_header)
     (should (equal expected
                    (mistty--translate-replay-seq mistty--term replay-seq)))))
 
+(defun mistty-test-translate-mouse (ev)
+  (mistty--term-translate-mouse mistty--term ev mistty-sync-marker))
+
+(mistty-deftest mistty-translate-mouse-clicks-direct-match
+    (:type alacritty :shell fish :selected t :turtles t)
+  (mistty-send-text "echo hello")
+
+  (should (redisplay t)) ;; for posn-at-point
+
+  ;; target is 'o' in echo, line 0, col 5
+  ;; Terminal coords match work buffer coords
+  (let* ((target (mistty-test-pos-after "ech"))
+         (target-posn (posn-at-point target)))
+    (should target-posn)
+
+    ;; press mouse 1
+    (should
+     (equal "\33[<0;6;1M"
+            (mistty-test-translate-mouse
+             `(down-mouse-1 ,target-posn 1))))
+
+
+    ;; release mouse 1
+    (should
+     (equal "\33[<0;6;1m"
+            (mistty-test-translate-mouse
+             `(mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-other-buttons
+    (:type alacritty :shell fish :selected t :turtles t)
+  (mistty-send-text "echo hello")
+
+  (should (redisplay t)) ;; for posn-at-point
+
+  (let* ((target (mistty-test-pos-after "ech"))
+         (target-posn (posn-at-point target)))
+    (should target-posn)
+
+    ;; press mouse 2
+    (should
+     (equal "\33[<1;6;1M"
+            (mistty-test-translate-mouse
+             `(down-mouse-2 ,target-posn 1))))
+
+    ;; release mouse 2
+    (should
+     (equal "\33[<1;6;1m"
+            (mistty-test-translate-mouse
+             `(mouse-2 ,target-posn 1))))
+
+    ;; press mouse 3
+    (should
+     (equal "\33[<2;6;1M"
+            (mistty-test-translate-mouse
+             `(down-mouse-3 ,target-posn 1))))
+
+    ;; release mouse 3
+    (should
+     (equal "\33[<2;6;1m"
+            (mistty-test-translate-mouse
+             `(mouse-3 ,target-posn 1))))
+
+    ;; press mouse 4
+    (should
+     (equal "\33[<64;6;1M"
+            (mistty-test-translate-mouse
+             `(down-mouse-4 ,target-posn 1))))
+
+    ;; release mouse 4
+    (should
+     (equal "\33[<64;6;1m"
+            (mistty-test-translate-mouse
+             `(mouse-4 ,target-posn 1))))
+
+    ;; press mouse 5
+    (should
+     (equal "\33[<65;6;1M"
+            (mistty-test-translate-mouse
+             `(down-mouse-5 ,target-posn 1))))
+
+    ;; release mouse 5
+    (should
+     (equal "\33[<65;6;1m"
+            (mistty-test-translate-mouse
+             `(mouse-5 ,target-posn 1))))
+
+    ;; press mouse 6
+    (should
+     (equal "\33[<66;6;1M"
+            (mistty-test-translate-mouse
+             `(down-mouse-6 ,target-posn 1))))
+
+    ;; release mouse 6
+    (should
+     (equal "\33[<66;6;1m"
+            (mistty-test-translate-mouse
+             `(mouse-6 ,target-posn 1))))
+
+    ;; press mouse 7
+    (should
+     (equal "\33[<67;6;1M"
+            (mistty-test-translate-mouse
+             `(down-mouse-7 ,target-posn 1))))
+
+    ;; release mouse 7
+    (should
+     (equal "\33[<67;6;1m"
+            (mistty-test-translate-mouse
+             `(mouse-7 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-scrolled-partialy
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo hello")
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 10 (mistty--term-lines mistty--term)))
+
+    ;; target the 2nd 'l' in echo, at column 10 line  4
+    (let* ((target (mistty-test-pos-after "hel"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+      (should
+       (equal "\33[<0;11;5M"
+              (mistty-test-translate-mouse
+               `(down-mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-with-win-scroll
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo hello")
+
+    ;; scroll down (2 lines) and right (2 column)
+    (set-window-start (selected-window)
+                      (mistty-test-pos "echo two"))
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 10 (mistty--term-lines mistty--term)))
+
+    ;; target the 2nd 'l' in echo, on terminal at column 10 line 4 on
+    ;; window at column 8 line 2
+    (let* ((target (mistty-test-pos-after "hel"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+      (should
+       (equal "\33[<0;11;5M"
+              (mistty-test-translate-mouse
+               `(down-mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-with-header-line
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "for i in (seq 10)\necho $i")
+
+    (setq header-line-format "This is a header\n, a large one")
+    (should (redisplay t)) ;; for posn-at-point
+
+    ;; target "in" at terminal line 2 column 8.
+    ;; computation must not be thrown off by the header
+    (let* ((target (mistty-test-pos "in (seq"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+      (should
+       (equal "\33[<0;9;3M"
+              (mistty-test-translate-mouse
+               `(down-mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-scrolled-fully
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    ;; fill scrollback
+    (mistty--send-string
+     mistty-proc "for i in (seq 20); echo line $i; end")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo hello")
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 10 (mistty--term-lines mistty--term)))
+
+    ;; target the 2nd 'l' in echo, at column 10
+    ;; on the last line of the terminal, line 9
+    (let* ((target (mistty-test-pos-after "hel"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+      (should
+       (equal "\33[<0;11;10M"
+              (mistty-test-translate-mouse
+               `(down-mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-after-clear
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    ;; fill scrollback
+    (mistty--send-string
+     mistty-proc "for i in (seq 20); echo line $i; end")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "clear")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo two")
+
+    (should (redisplay t)) ;; for posn-at-point
+
+    ;; target "two" at column 7 line 2 of the terminal
+    (let* ((target (mistty-test-pos "two"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+      (should
+       (equal "\33[<0;8;3M"
+              (mistty-test-translate-mouse
+               `(down-mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-past-eol
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (mistty-send-text "for i in a b c\necho $i\nend")
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 10 (mistty--term-lines mistty--term)))
+
+    ;; target is past "echo $i" on line 1
+    (should
+     (equal "\33[<0;16;2M"
+            (mistty-test-translate-mouse
+             `(down-mouse-1 ,(posn-at-x-y 15 1) 1)))))
+
+(mistty-deftest mistty-translate-mouse-clicks-past-eob
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo three")
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 10 (mistty--term-lines mistty--term)))
+    (should (equal 5 (count-lines (window-start) (point))))
+
+    ;; target is past EOB, but still on the terminal
+    (should
+     (equal "\33[<0;11;9M"
+            (mistty-test-translate-mouse
+             `(down-mouse-1 ,(posn-at-x-y 10 8) 1)))))
+
+(mistty-deftest mistty-translate-mouse-clicks-past-eob-scrolled
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    ;; fill scrollback
+    (mistty--send-string
+     mistty-proc "for i in (seq 20); echo line $i; end")
+    (mistty-send-and-wait-for-prompt)
+
+    ;; go back to terminal top
+    (mistty-send-text "clear")
+    (mistty-send-and-wait-for-prompt)
+
+    ;; write something but don't fill the screen
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo two")
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 10 (mistty--term-lines mistty--term)))
+    (should (equal 3 (count-lines (window-start) (point))))
+
+    ;; target is past EOB, but still on the terminal
+    (should
+     (equal "\33[<0;11;9M"
+            (mistty-test-translate-mouse
+             `(down-mouse-1 ,(posn-at-x-y 10 8) 1)))))
+
+(mistty-deftest mistty-translate-mouse-clicks-wide-chars
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (mistty--send-string mistty-proc "echo '✅ OK'")
+    (mistty-wait-for-output :str "OK")
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 10 (mistty--term-lines mistty--term)))
+
+    ;; target is the closing quote after OK, past the wide char, which
+    ;; takes 2 column. It is at column 13.
+    (let* ((target (mistty-test-pos-after "OK"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+      (should
+       (equal "\33[<0;14;1M"
+              (mistty-test-translate-mouse
+               `(down-mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-move-cursor-with-click-prompt
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "for i in (seq 10)\necho $i\n end")
+
+    (should (redisplay t)) ;; for posn-at-point
+
+    ;; target "$i"
+    (let* ((target (mistty-test-pos "$i"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+
+      (mistty--send-string
+       mistty-proc
+       (mistty-test-translate-mouse
+        `(down-mouse-1 ,target-posn 1)))
+      (mistty--send-string
+       mistty-proc
+       (mistty-test-translate-mouse
+        `(mouse-1 ,target-posn 1)))
+
+      (mistty-wait-for-output
+       :test (lambda ()
+               (looking-at-p "$i")))
+
+      (should (equal (concat "$ echo one\n"
+                             "one\n"
+                             "$ for i in (seq 10)\n"
+                             "      echo <>$i\n"
+                             "   end")
+                     (mistty-test-content :show (mistty-cursor))))))
+
+(mistty-deftest mistty-move-cursor-with-click-fullscreen
+    (:type alacritty :selected t :turtles t)
+
+  ;; Start Emacs as a convenient fullscreen app that supports mouse
+  ;; that we know is installed.
+
+  (mistty--send-string
+   mistty-proc
+   (concat (expand-file-name invocation-name invocation-directory)
+           " -nw -Q -eval '(xterm-mouse-mode)'"))
+  (mistty-send-command)
+  (mistty-wait-for-output :str "scratch")
+  (mistty--send-string mistty-proc "This is Emacs!")
+  (mistty-wait-for-output :str "Emacs!")
+  (let* ((target (mistty-test-pos "is Emacs!"))
+         (target-posn (posn-at-point target)))
+    (should target-posn)
+
+    (mistty--send-string
+     mistty-proc
+     (mistty-test-translate-mouse
+      `(down-mouse-1 ,target-posn 1)))
+    (mistty--send-string
+     mistty-proc
+     (mistty-test-translate-mouse
+      `(mouse-1 ,target-posn 1)))
+
+    (mistty-wait-for-output
+     :test (lambda ()
+             (looking-at-p "is Emacs!")))))

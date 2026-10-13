@@ -27,6 +27,7 @@
 (require 'mistty-term)
 (require 'mistty-accum)
 (require 'mistty-scrolline)
+(require 'mistty-util)
 
 ;;; Code:
 
@@ -58,7 +59,14 @@
   kkp
 
   ;; if non-nil, we are in fullscreen mode
-  fs)
+  fs
+
+  ;; callback to send changes to what mouse events should be reported
+  request-report-mouse
+
+  ;; mouse tracking state; the value sent to the last call to
+  ;; request-report-mouse
+  mouse)
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'alacritty)) name command
@@ -67,7 +75,8 @@
    leave-fullscreen
    active-prompt
    after-clear-screen
-   sync-scrolline)
+   sync-scrolline
+   request-report-mouse)
   "Create an alacritty-type terminal with the given NAME and COMMAND.
 
 If WIDTH and HEIGHT are specified, they'll be used as terminal line and
@@ -93,7 +102,8 @@ column count. The default is 80x24."
                     :proc proc
                     :vterm (mistty-alacritty--make-vterm width height)
                     :lines height
-                    :columns width))
+                    :columns width
+                    :request-report-mouse request-report-mouse))
              (accum (mistty--make-accumulator
                      (mistty--term-alacritty-filter term))))
         (set-process-filter proc accum)
@@ -329,7 +339,17 @@ Always keep SCROLLINE-LIMIT and below."
    (ctx '(seq OSC "133;" (let text Pt) ST))
    (mistty--accum-ctx-flush ctx) ;; for accurate cursor pos
    (unless (mistty--term-alacritty-fs term)
-     (mistty-osc133 "133" text))))
+     (mistty-osc133
+      "133" text
+      (lambda (click-events)
+        (cond
+         (click-events
+          (mistty-log "OSC 133 click_events=1")
+          (mistty--accum-ctx-push-down ctx "\e[?1000h\e[?1006h"))
+
+         ((mistty--term-alacritty-mouse term)
+          (mistty-log "OSC 133 click_events=0")
+          (mistty--accum-ctx-push-down ctx "\e[?1000l"))))))))
 
 (cl-defmethod mistty--term-clear-scrollback ((term mistty--term-alacritty))
   "Clear any scrollback still stored in the process buffer or vterm."
@@ -390,10 +410,122 @@ buffer."
              (setq ansi-osc-window-title title)))
           (`(kkp ,val)
            (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
-           (setf (mistty--term-alacritty-kkp term) val))))
+           (setf (mistty--term-alacritty-kkp term) val))
+          (`(mouse ,val)
+           (setf (mistty--term-alacritty-mouse term) val)
+           (funcall (mistty--term-alacritty-request-report-mouse term) val))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))
+
+(cl-defmethod mistty--term-translate-mouse ((term mistty--term-alacritty) ev sync-pos)
+  "Translate a mouse event into an escape sequence or nil.
+
+EV is a mouse event to possible be reported. Which events are sent to
+this function is controlled by the callback request-report-mouse passed
+to `mistty--create-term'.
+
+SYNC-POS is the position at which the terminal is synced. It's only
+guaranteed to correspond to the terminal screen top in fullscreen mode."
+  (mistty-log "MOUSE EVENT: %S" ev)
+  (when-let* ((params (mistty--alacritty-mouse-event-params term ev sync-pos)))
+    (mistty-log "MOUSE EVENT PARAMS: %s" params)
+    (apply #'mistty-alacritty-vt-mouse-seq
+           (mistty--term-alacritty-vterm term) params)))
+
+(defun mistty--alacritty-mouse-event-params (term ev sync-pos)
+  "Convert EV to parameters for `mistty-alacritty-vt-translate-mouse'.
+
+The current buffer is the butter that's going to be used to generate the
+event position. It must contain a subset of the terminal content, with
+scrollines matching the terminal's.
+
+SYNC-POS is the position at which the terminal is synced. It's only
+guaranteed to correspond to the terminal screen top in fullscreen mode.
+
+Return nil if conversion fails."
+  ;; This supports only click and button-down.
+  ;;
+  ;; TODO: add support for mouse wheel, dragging, movements
+  (cl-block nil
+    (let ((posn (event-end ev))
+          (button (pcase (event-basic-type ev)
+                    ('mouse-1 1)
+                    ('mouse-2 2)
+                    ('mouse-3 3)
+                    ('mouse-4 4)
+                    ('mouse-5 5)
+                    ('mouse-6 6)
+                    ('mouse-7 7)
+                    ('mouse-8 8)
+                    ('mouse-9 9)
+                    ('mouse-10 10)
+                    ('mouse-11 11)))
+          (action (let ((s (symbol-name (car ev))))
+                    (cond
+                     ((string-match-p "\\bdown-" s) 'press)
+                     ((string-match-p "\\bmouse-" s) 'release))))
+          (mods (vconcat (event-modifiers ev)))
+          term-x term-y)
+      (unless (and (null (posn-area posn)) ; window body
+                   button action)
+        (cl-return nil))
+
+      ;; Compute the corresponding position in the terminal to fill in
+      ;; term-y and term-y, from the window and buffer positions
+      ;; reported by posn.
+      (let* ((win (posn-window posn))
+             (win-col-row (posn-col-row posn))
+             (win-col (car win-col-row))
+             (win-row (cdr win-col-row))
+             (buffer-pos (posn-point posn)))
+        (setq term-x (+ win-col (window-left-column win)))
+
+        (save-excursion
+          (goto-char buffer-pos)
+          (cond
+           ;; Fullscreen: Conversion is straightforward, since the
+           ;; full terminal is shown, starting at sync-pos. It
+           ;; includes empty lines at the end.
+           ((mistty--term-alacritty-fs term)
+            (setq term-y (mistty--count-lines sync-pos (point))))
+
+           ;; Inside of a prompt: as long as we're within the prompt
+           ;; and not past it, we can transform scrollines to lines
+           ((not (looking-at-p "\n*\\'"))
+            (setq term-y (mistty--alacritty-terminal-line term))
+            (unless term-y
+              (cl-return nil)))
+
+           ;; Past a prompt: we need to go back inside of the prompt
+           ;; to convert scrolline to line, then account for the
+           ;; difference. Also add extra rows at the end for clicks
+           ;; below the end; they might still be on a terminal line.
+           (t
+            (skip-chars-backward "\n")
+            ;; We should now be inside the terminal
+            (setq term-y (mistty--alacritty-terminal-line term))
+            (unless term-y
+              (cl-return nil))
+            (cl-incf term-y (mistty--count-lines (point) buffer-pos))
+            (cl-incf term-y
+                     (- win-row
+                        (cdr (posn-col-row
+                              (posn-at-point buffer-pos)))))))))
+
+      (list action button mods term-x term-y))))
+
+(defun mistty--alacritty-terminal-line (term)
+  "Terminal line that correspond to the point.
+
+Return nil if the current position is not on the terminal."
+  (let* ((start-pos (mistty--scrolline-start-pos))
+         (scrolline (mistty--scrolline-at start-pos)))
+    (when-let* ((start-line
+                 (mistty-alacritty-vt-terminal-line-for-scrolline
+                  (mistty--term-alacritty-vterm term) scrolline)))
+      (+ start-line
+         (mistty--count-lines start-pos (point))))))
 
 (provide 'mistty-term-alacritty)
 

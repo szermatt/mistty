@@ -483,11 +483,13 @@ to call `mistty--term-postprocess'.")
    leave-fullscreen
    active-prompt
    after-clear-screen
-   sync-scrolline)
+   sync-scrolline
+   request-report-mouse)
   "Create an eterm-based terminal called NAME.
 
 COMMAND is run in the terminal and its size is set to WIDTH x HEIGHT,
 defaulting to 80 x 24."
+  (ignore request-report-mouse)
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
       (let* ((mistty-shadowed-term-mode-hook term-mode-hook)
@@ -1214,9 +1216,6 @@ BOL and EOL define the region to look in."
        `(mistty-skip trailing yank-handler (nil "" nil nil))))
 
     pos))
-
-
-
 
 (defun mistty--previous-line-indent ()
   "Return the indentation of the previous line.

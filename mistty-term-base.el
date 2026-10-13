@@ -30,7 +30,8 @@
           leave-fullscreen
           active-prompt
           after-clear-screen
-          sync-scrolline)
+          sync-scrolline
+          request-report-mouse)
   "Create a new term buffer of the given TYPE with name NAME.
 
 The buffer runs COMMAND, a list containing the program to run and its
@@ -55,7 +56,13 @@ ACTIVE-PROMPT should return the active `mistty--prompt'.
 
 AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
 
-SYNC-SCROLLINE-FUNC is a function that return the current sync scrolline.")
+SYNC-SCROLLINE-FUNC is a function that return the current sync scrolline.
+
+REQUEST-REPORT-MOUSE is a function that the terminal can use to request
+which mouse events should be reported `mistty--term-translate-mouse'. It
+takes one argument that is either nil (deactivated), \\='click (press
+and release events), \\='drag (press, release, and mouse movement with
+pointer down), \\='motion (all mouse events).")
 
 (cl-defgeneric mistty--term-buf (term)
   "Return the TERM's terminal or process buffer.")
@@ -202,6 +209,19 @@ translate.
 
 The returned value is a list of symbol; basic types for the special keys
 as returned by `event-basic-type'.")
+
+(cl-defgeneric mistty--term-translate-mouse (term ev sync-pos)
+  "Translate a mouse event into an escape sequence or nil.
+
+EV is a mouse event to possible be reported. Which events are sent to
+this function is controlled by the callback request-report-mouse passed
+to `mistty--create-term'.
+
+SYNC-POS is the position at which the terminal is synced. It's only
+guaranteed to correspond to the terminal screen top in fullscreen mode."
+  (ignore term ev sync-pos)
+
+  nil)
 
 (provide 'mistty-term-base)
 

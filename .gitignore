@@ -13,3 +13,5 @@ mistty.info
 /*.dylib
 /*.dll
 /target
+/result
+/.direnv

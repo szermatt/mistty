@@ -8016,3 +8016,55 @@ precmd_functions+=(prompt_header)
     (mistty-wait-for-output
      :test (lambda ()
              (looking-at-p "is Emacs!")))))
+
+(mistty-deftest mistty-mouse-1-click-moves-to-cursor
+    (:type alacritty :shell fish :selected t :turtles t)
+
+  (mistty-send-text "echo one")
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-text "for i in (seq 10)\necho $i\n end")
+
+  ;; go outside of the terminal zone
+  (mistty-test-goto "echo one")
+
+  (let ((buf (current-buffer))
+        (proc mistty-proc)
+        (left-win (selected-window))
+        (right-win (split-window-horizontally)))
+    (set-window-buffer right-win (scratch-buffer))
+    (set-window-buffer left-win buf)
+    (select-window left-win)
+    (set-buffer buf)
+
+    (should (redisplay t)) ;; for posn-at-point
+
+    ;; target "$i" in the left window
+    (let* ((target-posn (posn-at-point
+                         (mistty-test-pos "$i"))))
+      (should target-posn)
+
+      (select-window right-win)
+      (execute-kbd-macro (vector `(down-mouse-1 ,target-posn 1)
+                                 `(mouse-1 ,target-posn 1))))
+
+    (mistty-wait-for-output
+     :proc mistty-proc
+     :test (lambda ()
+             (with-current-buffer buf
+               (looking-at-p "$i"))))
+
+    ;; clicking should have selected the window
+    (should (eq (selected-window) left-win))
+
+    ;; clicking should have moved the point back into the terminal
+    ;; zone, tracking the cursor, so now point and cursor are both on
+    ;; $i.
+    (should
+     (equal (concat "$ echo one\n"
+                    "one\n"
+                    "$ for i in (seq 10)\n"
+                    "      echo <><1>$i\n"
+                    "   end")
+            (with-current-buffer buf
+              (mistty-test-content
+               :show (list (point) (mistty-cursor))))))))

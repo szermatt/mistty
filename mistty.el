@@ -600,6 +600,36 @@ them from this map.
 
 To add keys to send to the terminal, bind them to `mistty-send-key'.")
 
+(defvar mistty--report-click-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [down-mouse-1] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-2] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-3] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-4] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-5] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-6] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-7] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-8] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-9] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-10] #'mistty-report-mouse-event)
+    (define-key map [down-mouse-11] #'mistty-report-mouse-event)
+    (define-key map [mouse-1] #'mistty-report-mouse-event)
+    (define-key map [mouse-2] #'mistty-report-mouse-event)
+    (define-key map [mouse-3] #'mistty-report-mouse-event)
+    (define-key map [mouse-4] #'mistty-report-mouse-event)
+    (define-key map [mouse-5] #'mistty-report-mouse-event)
+    (define-key map [mouse-6] #'mistty-report-mouse-event)
+    (define-key map [mouse-7] #'mistty-report-mouse-event)
+    (define-key map [mouse-8] #'mistty-report-mouse-event)
+    (define-key map [mouse-9] #'mistty-report-mouse-event)
+    (define-key map [mouse-10] #'mistty-report-mouse-event)
+    (define-key map [mouse-11] #'mistty-report-mouse-event)
+
+    ;; TODO: add wheel up/down, possibly gated by an option
+
+    map)
+  "Map added to the terminal zone to report mouse clicks.")
+
 (define-minor-mode mistty-fullscreen-mode
   "Minor mode active on the terminal buffer while fullscreen.
 
@@ -941,6 +971,16 @@ split buffer fullscreen mode.")
   "Position of the cursor on the work buffer.
 
 This is updated after each refresh.")
+
+(defvar-local mistty--report-mouse nil
+  "Which mouse events to report.
+
+It is either:
+
+- nil, mouse reporting is deactivated.
+- \\='click, report press and release events.
+- \\='drag, report press, release, and mouse movement with pointer down.
+- \\='motion, report all mouse events.")
 
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
@@ -1299,7 +1339,13 @@ window."
                   :sync-scrolline
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
-                      mistty--scrolline-home-num))))
+                      mistty--scrolline-home-num))
+                  :request-report-mouse
+                  (lambda (val)
+                    (mistty-log "Mouse reports: %s" val)
+                    (mistty--with-live-buffer work-buffer
+                      (setq mistty--report-mouse val)
+                      (mistty--update-secondary-mode-map)))))
            (term-buffer (mistty--term-buf term))
            (accum (process-filter (mistty--term-proc term))))
       (mistty--add-toggle-cursor accum work-buffer term-buffer)
@@ -4730,21 +4776,28 @@ This merges the map configured in `mistty--secondary-mode-alist' with
 
 The keymap that is installed depends on the secondary mode and secondary
 mode map override."
-  (let ((map-id (mistty--secondary-mode-map)))
-    (mistty-log "Install overlay map %s [mode: %s]"
-                map-id (mistty--secondary-mode))
+  (let* ((map-id (mistty--secondary-mode-map))
+         (maps (pcase map-id
+                 ('prompt-map (list mistty-prompt-map))
+                 ('special-prompt-map
+                  (list
+                   mistty-special-prompt-map mistty-prompt-map))
+                 ('fullscreen-mode-map
+                  (list
+                   mistty-fullscreen-mode-map mistty-prompt-map))
+                 (_ nil))))
+    (mistty-log "Install overlay map %s [mode: %s, mouse: %s]"
+                map-id (mistty--secondary-mode) mistty--report-mouse)
+    (when mistty--report-mouse
+      (push mistty--report-click-map maps))
+    ;; TODO: add maps for 'drag and 'motion and mouse wheel
+
     (overlay-put
      mistty--sync-ov
      'keymap
-     (pcase map-id
-       ('prompt-map mistty-prompt-map)
-       ('special-prompt-map
-        (make-composed-keymap
-         mistty-special-prompt-map mistty-prompt-map))
-       ('fullscreen-mode-map
-        (make-composed-keymap
-         mistty-fullscreen-mode-map mistty-prompt-map))
-       (_ nil)))))
+     (if (length> maps 1)
+         (make-composed-keymap maps)
+       (car maps)))))
 
 (defun mistty-keymap-auto ()
   "Switch back to the default map for the mode.
@@ -5033,6 +5086,26 @@ you're done.
 If DELTA is negative, the window height is increased."
   (interactive "p")
   (mistty-grow-vertically (- (or num 1))))
+
+(defun mistty-report-mouse-event (ev)
+  "Report mouse event EV to the terminal."
+  (interactive "e")
+  (let* ((posn (event-end ev))
+         (win (posn-window posn))
+         (buf (window-buffer win)))
+    (when (eq 'mouse-1 (event-basic-type ev))
+      (select-window win))
+    (with-current-buffer buf
+      (when (eq buf mistty-work-buffer)
+        (goto-char mistty--cursor)
+        (set-window-point win mistty--cursor)
+        (set-window-parameter win 'mistty--cursor-skip-state nil)
+        (when-let* ((seq (mistty--term-translate-mouse
+                          mistty--term ev mistty-sync-marker))
+                    (proc (mistty--term-proc mistty--term)))
+          (when (process-live-p proc)
+            (mistty-log "MOUSE EVENT SEND: %S" seq)
+            (process-send-string proc seq)))))))
 
 (provide 'mistty)
 

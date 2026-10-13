@@ -7,6 +7,7 @@ emacs::use_symbols! {
     meta_sym => "meta"
     alt_sym => "alt"
     super_sym => "super"
+    hyper_sym => "hyper"
 }
 
 /// Convert lisp mode symbols to key encoding format.
@@ -21,9 +22,12 @@ pub fn mods_from_lisp(lisp_mods: Vector) -> Option<Mods> {
             mods.alt = true;
         } else if val == *super_sym {
             mods.super_ = true;
-        } else {
+        } else if val == *hyper_sym {
+            // Hyper cannot be supported
             return None;
         }
+        // Ignore unknown mods. Emacs reports things like mouse down
+        // that way, but we don't need it.
     }
 
     Some(mods)

@@ -472,7 +472,7 @@ Detected dead spaces are marked with the text property \\='mistty-skip
   "Scrolline at the top of the screen."
   mistty--scrolline-home-num)
 
-(defun mistty-osc133 (_ osc-seq)
+(defun mistty-osc133 (_ osc-seq &optional send-clicks-func)
   "Handle OSC 133 codes.
 
 OSC-SEQ contains the subcode followed optionally by a semi-colon and
@@ -488,7 +488,7 @@ MisTTY supports code A-D:
 Everything else is ignored."
   (when (and (length> osc-seq 0))
     (let ((command-char (aref osc-seq 0)))
-      (mistty-log "OSC 133 %c" command-char)
+      (mistty-log "OSC 133 %s" osc-seq)
       (pcase command-char
         (?A ;; start a new command
          ;; Overwrite any other prompt source.
@@ -497,7 +497,9 @@ Everything else is ignored."
            (mistty-log "Detected %s prompt #%s [%s-]"
                        (mistty--prompt-source prompt)
                        (mistty--prompt-input-id prompt)
-                       (mistty--prompt-start prompt))))
+                       (mistty--prompt-start prompt)))
+         (when (and send-clicks-func (string-match-p ";click_events=1" osc-seq))
+           (funcall send-clicks-func t)))
 
         (?B ;; end of prompt/start of user input
          (when-let* ((prompt (mistty--prompt)))
@@ -522,7 +524,11 @@ Everything else is ignored."
                          (mistty--prompt-source prompt)
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
-             (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point)))))))))
+             (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point))))))
+
+      (when (and send-clicks-func
+                 (not (memq command-char '(?A ?B))))
+        (funcall send-clicks-func nil)))))
 
 (defun mistty-call-term-mode-hook ()
   "Call the functions registered to `term-mode-hook'.

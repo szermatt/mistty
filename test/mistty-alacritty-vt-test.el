@@ -1745,7 +1745,7 @@
            ("\e[M#!!" release 3 [] 0 0)
 
            ;; coordinates
-           ("\e[M +&" press 1 [] 5 10)
+           ("\e[M &+" press 1 [] 5 10)
 
            ;; modifiers
            ("\e[M$!!" press 1 [shift] 0 0)
@@ -1755,9 +1755,9 @@
            ("\e[M4!!" press 1 [control shift] 0 0)
 
            ;; out of bounds
-           (nil press 1 [] -1 0)
-           (nil press 1 [] 24 0)
-           (nil press 1 [] 0 80)
+           (nil press 1 [] 0 -1)
+           (nil press 1 [] 0 24)
+           (nil press 1 [] 80 0)
 
            ;; unsupported action or button
            (nil invalid 1 [] 0 0)
@@ -1791,7 +1791,7 @@
            ("\e[<2;1;1m" release 3 [] 0 0)
 
            ;; coordinates
-           ("\e[<0;5;3M" press 1 [] 2 4)
+           ("\e[<0;3;5M" press 1 [] 2 4)
 
            ;; modifiers
            ("\e[<4;1;1M" press 1 [shift] 0 0)

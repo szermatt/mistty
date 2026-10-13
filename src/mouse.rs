@@ -43,10 +43,10 @@ fn mouse_seq<'a>(
     action: Value<'_>,
     button: i32,
     mods: Vector<'_>,
-    line: i32,
-    column: usize,
+    x: usize,
+    y: i32,
 ) -> Result<Value<'a>> {
-    match mouse_seq_internal(term, action, button, mods, line, column) {
+    match mouse_seq_internal(term, action, button, mods, x, y) {
         None => Ok(().into_lisp(env)?),
         Some(encoded) => Ok(unsafe { String::from_utf8_unchecked(encoded) }.into_lisp(env)?),
     }
@@ -57,8 +57,8 @@ fn mouse_seq_internal(
     action: Value<'_>,
     button: i32,
     mods: Vector,
-    line: i32,
-    column: usize,
+    x: usize,
+    y: i32,
 ) -> Option<Vec<u8>> {
     let options = extract_options(term)?;
     let action = action_from_lisp(action)?;
@@ -69,8 +69,8 @@ fn mouse_seq_internal(
         button: Some(button),
         mods: mods,
         pos: Pos {
-            x: (column as f32) * CELL_WIDTH + CELL_WIDTH / 2.0,
-            y: (line as f32) * CELL_HEIGHT + CELL_HEIGHT / 2.0,
+            x: (x as f32) * CELL_WIDTH + CELL_WIDTH / 2.0,
+            y: (y as f32) * CELL_HEIGHT + CELL_HEIGHT / 2.0,
         },
     };
 

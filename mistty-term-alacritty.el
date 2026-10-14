@@ -409,27 +409,32 @@ buffer."
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))
 
-(cl-defmethod mistty--term-translate-mouse ((term mistty--term-alacritty) ev sync-pos)
+(cl-defmethod mistty--term-translate-mouse ((term mistty--term-alacritty) ev move-posn sync-pos)
   "Translate a mouse event into an escape sequence or nil.
 
 EV is a mouse event to possible be reported. Which events are sent to
 this function is controlled by the callback request-report-mouse passed
 to `mistty--create-term'.
 
+If MOVE-POSN is non-nil, it is the position of the mouse moved after EV
+happened. This is used to report drag events.
+
 SYNC-POS is the position at which the terminal is synced. It's only
 guaranteed to correspond to the terminal screen top in fullscreen mode."
-  (mistty-log "MOUSE EVENT: %S" ev)
-  (when-let* ((params (mistty--alacritty-mouse-event-params term ev sync-pos)))
+  (when-let* ((params (mistty--alacritty-mouse-event-params term ev move-posn sync-pos)))
     (mistty-log "MOUSE EVENT PARAMS: %s" params)
     (apply #'mistty-alacritty-vt-mouse-seq
            (mistty--term-alacritty-vterm term) params)))
 
-(defun mistty--alacritty-mouse-event-params (term ev sync-pos)
+(defun mistty--alacritty-mouse-event-params (term ev move-posn sync-pos)
   "Convert EV to parameters for `mistty-alacritty-vt-translate-mouse'.
 
 The current buffer is the butter that's going to be used to generate the
 event position. It must contain a subset of the terminal content, with
 scrollines matching the terminal's.
+
+If MOVE-POSN is non-nil, it is the position of the mouse moved after EV
+happened. This is used to report drag events.
 
 SYNC-POS is the position at which the terminal is synced. It's only
 guaranteed to correspond to the terminal screen top in fullscreen mode.
@@ -439,84 +444,101 @@ Return nil if conversion fails."
   ;;
   ;; TODO: add support for mouse wheel, dragging, movements
   (cl-block nil
-    (let ((posn (event-end ev))
-          (button (pcase (event-basic-type ev)
-                    ('mouse-1 1)
-                    ('mouse-2 2)
-                    ('mouse-3 3)
-                    ('mouse-4 4)
-                    ('mouse-5 5)
-                    ('mouse-6 6)
-                    ('mouse-7 7)
-                    ('mouse-8 8)
-                    ('mouse-9 9)
-                    ('mouse-10 10)
-                    ('mouse-11 11)))
-          (action (let ((s (symbol-name (car ev))))
-                    (cond
-                     ((string-match-p "\\bdown-" s) 'press)
-                     ((string-match-p "\\bmouse-" s) 'release))))
-          (mods (vconcat (event-modifiers ev)))
-          term-x term-y)
-      (unless (and (null (posn-area posn)) ; window body
+    (let* ((start-posn (event-start ev))
+           (win (posn-window start-posn))
+           (posn (or move-posn (event-end ev) start-posn))
+           (other-win (posn-window posn))
+           (button (pcase (event-basic-type ev)
+                     ('mouse-1 1)
+                     ('mouse-2 2)
+                     ('mouse-3 3)
+                     ('mouse-4 4)
+                     ('mouse-5 5)
+                     ('mouse-6 6)
+                     ('mouse-7 7)
+                     ('mouse-8 8)
+                     ('mouse-9 9)
+                     ('mouse-10 10)
+                     ('mouse-11 11)))
+           (mods (event-modifiers ev))
+           (action (cond
+                    (move-posn 'motion)
+                    ((memq 'down mods) 'press)
+                    (t 'release)))
+           term-x term-y)
+      (unless (and (null (posn-area start-posn)) ; window body
+                   (window-valid-p win)
                    button action)
         (cl-return nil))
 
       ;; Compute the corresponding position in the terminal to fill in
       ;; term-y and term-y, from the window and buffer positions
-      ;; reported by posn.
-      (let* ((win (posn-window posn))
-             (win-col-row (posn-col-row posn))
-             (win-col (car win-col-row))
-             (win-row (cdr win-col-row))
-             (buffer-pos (posn-point posn)))
-        (setq term-x (+ win-col (window-left-column win)))
+      ;; reported by posn. This is done in a way that avoids relying
+      ;; on the lines reported by Emacs, as these don't always account
+      ;; for varying line heights, relying on buffer-pos as much as
+      ;; possible..
+      (let* ((same-window (eq win other-win))
+             (same-window-point (when same-window (posn-point posn)))
 
-        (save-excursion
-          (goto-char buffer-pos)
-          (cond
-           ;; Fullscreen: Conversion is straightforward, since the
-           ;; full terminal is shown, starting at sync-pos. It
-           ;; includes empty lines at the end.
-           ((mistty--term-alacritty-fs term)
-            (setq term-y (mistty--count-lines sync-pos (point))))
+             ;; Build win-x-y to relative to win, even if the
+             ;; coordinates are outside the window.
+             (win-x-y (if same-window
+                          (posn-x-y posn)
+                        (pcase-let* ((`(,start-x ,start-y . _)
+                                     (window-inside-pixel-edges win))
+                                    (`(,other-x ,other-y . _)
+                                     (if (framep other-win)
+                                         '(0 0 0 0)
+                                       (window-inside-pixel-edges other-win)))
+                                    (`(,x . ,y) (posn-x-y posn)))
+                          (cons (+ x other-x (- start-x))
+                                (+ y other-y (- start-y))))))
 
-           ;; Inside of a prompt: as long as we're within the prompt
-           ;; and not past it, we can transform scrollines to lines
-           ((not (looking-at-p "\n*\\'"))
-            (setq term-y (mistty--alacritty-terminal-line term))
-            (unless term-y
-              (cl-return nil)))
+             ;; Buffer-pos is a buffer position inside the terminal
+             ;; zone that's visible on win.
+             (buffer-pos (or same-window-point
+                             (max sync-pos (window-start win))))
 
-           ;; Past a prompt: we need to go back inside of the prompt
-           ;; to convert scrolline to line, then account for the
-           ;; difference. Also add extra rows at the end for clicks
-           ;; below the end; they might still be on a terminal line.
-           (t
-            (skip-chars-backward "\n")
-            ;; We should now be inside the terminal
-            (setq term-y (mistty--alacritty-terminal-line term))
-            (unless term-y
-              (cl-return nil))
-            (cl-incf term-y (mistty--count-lines (point) buffer-pos))
-            (cl-incf term-y
-                     (- win-row
-                        (cdr (posn-col-row
-                              (posn-at-point buffer-pos)))))))))
+             ;; If non-nil, use the y position of buffer-pos.
+             ;; If nil compute y coordinates relative to buffer-pos.
+             (at-buffer-pos-line
+              (when same-window-point
+                (save-excursion
+                  (goto-char same-window-point)
+                  ;; not at buffer end
+                  (not (looking-at-p "\n*\\'"))))))
 
-      (list action button mods term-x term-y))))
+        (setq term-x (+ (/ (car win-x-y) (default-font-width))
+                        (window-left-column win)))
+        (setq term-y (mistty--alacritty-terminal-line-at-pos
+                      term buffer-pos sync-pos))
+        (unless at-buffer-pos-line
+          (cl-incf term-y
+                   (/ (- (cdr win-x-y)
+                         (cdr (posn-x-y
+                               (posn-at-point buffer-pos win))))
+                      (default-line-height)))))
 
-(defun mistty--alacritty-terminal-line (term)
-  "Terminal line that correspond to the point.
+      (list action button (vconcat mods) term-x term-y))))
 
-Return nil if the current position is not on the terminal."
-  (let* ((start-pos (mistty--scrolline-start-pos))
-         (scrolline (mistty--scrolline-at start-pos)))
-    (when-let* ((start-line
-                 (mistty-alacritty-vt-terminal-line-for-scrolline
-                  (mistty--term-alacritty-vterm term) scrolline)))
-      (+ start-line
-         (mistty--count-lines start-pos (point))))))
+(defun mistty--alacritty-terminal-line-at-pos (term buffer-pos sync-pos)
+  "Return the terminal line in TERM that correspond to BUFFER-POS.
+
+SYNC-POS marks the beginning of the terminal zone."
+  (if (mistty--term-alacritty-fs term)
+      ;; Fullscreen: Conversion is straightforward, since the
+      ;; full terminal is shown, starting at sync-pos. It
+      ;; includes empty lines at the end.
+      (mistty--count-lines sync-pos buffer-pos)
+
+    ;; Prompt: Find a scrolline, transform it to terminal line, then
+    ;; account for the difference.
+    (save-excursion
+      (goto-char sync-pos)
+      (when-let* ((line (mistty-alacritty-vt-terminal-line-for-scrolline
+                         (mistty--term-alacritty-vterm term)
+                         (mistty--scrolline-at-point))))
+        (+ line (mistty--count-lines sync-pos buffer-pos))))))
 
 (provide 'mistty-term-alacritty)
 

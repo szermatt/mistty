@@ -7654,8 +7654,8 @@ precmd_functions+=(prompt_header)
     (should (equal expected
                    (mistty--translate-replay-seq mistty--term replay-seq)))))
 
-(defun mistty-test-translate-mouse (ev)
-  (mistty--term-translate-mouse mistty--term ev mistty-sync-marker))
+(defun mistty-test-translate-mouse (ev &optional move-posn)
+  (mistty--term-translate-mouse mistty--term ev move-posn mistty-sync-marker))
 
 (mistty-deftest mistty-translate-mouse-clicks-direct-match
     (:type alacritty :shell fish :selected t :turtles t)
@@ -8068,3 +8068,211 @@ precmd_functions+=(prompt_header)
             (with-current-buffer buf
               (mistty-test-content
                :show (list (point) (mistty-cursor))))))))
+
+(mistty-deftest mistty-mouse-drag-fullscreen-mark
+    (:type alacritty :selected t :turtles t :term-size '(60 . 20))
+  (let ((buf (current-buffer))
+        (proc mistty-proc)
+        y x-start x-end)
+    (delete-other-windows)
+    (mistty--send-string
+     mistty-proc
+     (concat (expand-file-name invocation-name invocation-directory)
+             " -nw -Q -eval '"
+             "(progn "
+             "  (setq initial-scratch-message \"\")"
+             "  (menu-bar-mode -1)"
+             "  (xterm-mouse-mode))'"))
+    (mistty-send-command)
+    (mistty-wait-for-output :str "*scratch*")
+    (mistty--send-string mistty-proc "This is Emacs! Yeah!")
+    (mistty-wait-for-output :str "Emacs!")
+
+    (let ((word-beg-posn (posn-at-point (mistty-test-pos "is Emacs!")))
+          (word-end-posn (posn-at-point (mistty-test-pos-after "is Emacs"))))
+      (should word-beg-posn)
+      (should word-end-posn)
+
+      (ert-simulate-keys (vector `(drag-mouse-1 ,word-beg-posn ,word-end-posn))
+        (mistty-report-mouse-event `(down-mouse-1 ,word-beg-posn)))
+
+      ;; This should have set the mark and moved the pointer.
+      ;; Highlight that with [].
+      (mistty--send-string mistty-proc "]\C-x\C-x[")
+      (mistty-wait-for-output :str "[")
+
+      (turtles-with-grab-buffer (:buf buf)
+        (should (equal "This [is Emacs]! Yeah!"
+                       (mistty-test-content :end (pos-eol))))))))
+
+(mistty-deftest mistty-mouse-drag-fullscreen-window-above
+    (:type alacritty :selected t :turtles t :term-size '(60 . 10))
+  (let ((buf (current-buffer))
+        (proc mistty-proc)
+        y x-start x-end)
+    (mistty--send-string
+     mistty-proc
+     (concat (expand-file-name invocation-name invocation-directory)
+             " -nw -Q -eval '"
+             "(progn "
+             "  (setq initial-scratch-message \"\")"
+             "  (menu-bar-mode -1)"
+             "  (xterm-mouse-mode))'"))
+    (mistty-send-command)
+    (mistty-wait-for-output :str "*scratch*")
+    (mistty--send-string mistty-proc "This is Emacs! Yeah!")
+    (mistty-wait-for-output :str "Emacs!")
+
+    (let (x y)
+      (turtles-with-grab-buffer (:frame t)
+        (goto-char (point-min))
+        (search-forward "Emacs!")
+        (goto-char (match-beginning 0))
+        (setq x (current-column))
+        (setq y (1- (line-number-at-pos))))
+
+      (let ((word-beg-posn (posn-at-point (mistty-test-pos-after "Emacs!")))
+            (intermediate-pos (posn-at-x-y (+ x 1) (- y 1) (selected-frame)))
+            (word-end-posn (posn-at-x-y x (- y 2) (selected-frame))))
+        (should word-beg-posn)
+        (should word-end-posn)
+
+        ;; scroll from inside the window to above the window, in another
+        ;; window. The x axis of the even should still be correct.
+        (ert-simulate-keys (vector
+                            `(mouse-movement ,intermediate-pos)
+                            `(drag-mouse-1 ,word-beg-posn ,word-end-posn))
+          (mistty-report-mouse-event `(down-mouse-1 ,word-beg-posn)))
+
+        ;; This should have set the mark and moved the pointer.
+        ;; Highlight that with [].
+        (mistty--send-string mistty-proc "]\C-x\C-x[")
+        (mistty-wait-for-output :str "[")
+
+        (turtles-with-grab-buffer (:buf buf)
+          (should (equal "This is ]Emacs![ Yeah!"
+                         (mistty-test-content :end (pos-eol)))))))))
+
+(mistty-deftest mistty-mouse-drag-fullscreen-window-same-buffer
+    (:type alacritty :selected t :turtles t :term-size '(60 . 10))
+  (let ((buf (current-buffer))
+        (proc mistty-proc)
+        y x-start x-end)
+    (delete-other-windows)
+    (split-window-vertically)
+
+    (mistty--send-string
+     mistty-proc
+     (concat (expand-file-name invocation-name invocation-directory)
+             " -nw -Q -eval '"
+             "(progn "
+             "  (setq initial-scratch-message \"\")"
+             "  (menu-bar-mode -1)"
+             "  (xterm-mouse-mode))'"))
+    (mistty-send-command)
+    (mistty-wait-for-output :str "*scratch*")
+    (mistty--send-string mistty-proc "This is Emacs! Yeah!\C-mThis buffer has two lines.")
+    (mistty-wait-for-output :str "two lines.")
+
+    (let (x y)
+      (turtles-with-grab-buffer (:frame t)
+        (goto-char (point-min))
+        (search-forward "Emacs!")
+        (goto-char (match-beginning 0))
+        (setq x (current-column))
+        (setq y (1- (line-number-at-pos))))
+
+      (let ((word-beg-posn (posn-at-x-y x y (selected-frame)))
+            (on-menu-pos (posn-at-x-y (+ x 2) (+ y 5) (selected-frame)))
+            (word-end-posn (posn-at-x-y (+ x 5) (+ y 13) (selected-frame))))
+        (should word-beg-posn)
+        (should on-menu-pos)
+        (should word-end-posn)
+
+        ;; scroll from inside the window to below the window, in
+        ;; another window that's showing the same buffer. It should
+        ;; not confuse mistty-report-mouse-event. Everything in the
+        ;; buffer should be selected.
+        (ert-simulate-keys (vector
+                            `(mouse-movement ,on-menu-pos)
+                            `(drag-mouse-1 ,word-beg-posn ,word-end-posn))
+          (mistty-report-mouse-event `(down-mouse-1 ,word-beg-posn)))
+
+        ;; This should have set the mark and moved the pointer.
+        ;; Highlight that with [].
+        (mistty--send-string mistty-proc "]\C-x\C-x[")
+        (mistty-wait-for-output :str "[")
+
+        (turtles-with-grab-buffer (:buf buf)
+          (should (equal "This is [Emacs! Yeah!\nThis buffer has two lines.]"
+                         (mistty-test-content :end (pos-eol 2)))))))))
+
+(mistty-deftest mistty-mouse-drag-fullscreen-window-above-menu
+    (:type alacritty :selected t :turtles t :term-size '(60 . 10))
+  (let ((buf (current-buffer))
+        (proc mistty-proc)
+        y x-start x-end)
+    (delete-other-windows)
+
+    (mistty--send-string
+     mistty-proc
+     (concat (expand-file-name invocation-name invocation-directory)
+             " -nw -Q -eval '"
+             "(progn "
+             "  (setq initial-scratch-message \"\")"
+             "  (menu-bar-mode)" ;; for once we want a menu bar
+             "  (xterm-mouse-mode))'"))
+    (mistty-send-command)
+    (mistty-wait-for-output :str "*scratch*")
+    (mistty--send-string mistty-proc "This is Emacs! Yeah!")
+    (mistty-wait-for-output :str "Yeah!")
+
+    (let (x y)
+      (turtles-with-grab-buffer (:frame t)
+        (goto-char (point-min))
+        (search-forward "Emacs!")
+        (goto-char (match-beginning 0))
+        (setq x (current-column))
+        (setq y (1- (line-number-at-pos))))
+
+      (let ((word-beg-posn (posn-at-x-y x y (selected-frame)))
+            (on-menu-pos (posn-at-x-y (+ x 5) 0 (selected-frame)))
+            (word-end-posn (posn-at-x-y (+ x 5) y (selected-frame))))
+        (should word-beg-posn)
+        (should on-menu-pos)
+        (should word-end-posn)
+
+        ;; on-menu-pos is not in any window. This should not confuse
+        ;; mistty-report-mouse-event.
+        (ert-simulate-keys (vector
+                            `(mouse-movement ,on-menu-pos)
+                            `(drag-mouse-1 ,word-beg-posn ,word-end-posn))
+          (mistty-report-mouse-event `(down-mouse-1 ,word-beg-posn)))
+
+        ;; This should have set the mark and moved the pointer.
+        ;; Highlight that with [].
+        (mistty--send-string mistty-proc "]\C-x\C-x[")
+        (mistty-wait-for-output :str "[")
+
+        (turtles-with-grab-buffer (:buf buf)
+          (goto-char (point-min))
+          (should (equal "This is [Emacs]! Yeah!"
+                         (mistty-test-content :start (pos-bol 2)
+                                              :end (pos-eol 2)))))
+
+
+        ;; if we instead end on the menu, nothing gets selected, but
+        ;; mistty-report-mouse-event doesn't fail either.
+        (ert-simulate-keys (vector
+                            `(mouse-movement ,word-end-posn)
+                            `(drag-mouse-1 ,word-beg-posn ,on-menu-pos))
+          (mistty-report-mouse-event `(down-mouse-1 ,word-beg-posn)))
+
+        (mistty--send-string mistty-proc ">\C-x\C-x<")
+        (mistty-wait-for-output :str ">")
+
+        (turtles-with-grab-buffer (:buf buf)
+          (goto-char (point-min))
+          (should (equal "<>This is [Emacs]! Yeah!"
+                         (mistty-test-content :start (pos-bol 2)
+                                              :end (pos-eol 2)))))))))

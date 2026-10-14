@@ -213,16 +213,19 @@ translate.
 The returned value is a list of symbol; basic types for the special keys
 as returned by `event-basic-type'.")
 
-(cl-defgeneric mistty--term-translate-mouse (term ev sync-pos)
+(cl-defgeneric mistty--term-translate-mouse (term ev move-posn sync-pos)
   "Translate a mouse event into an escape sequence or nil.
 
 EV is a mouse event to possible be reported. Which events are sent to
 this function is controlled by the callback request-report-mouse passed
 to `mistty--create-term'.
 
+If MOVE-POSN is non-nil, it is the position of the mouse moved after EV
+happened. This is used to report drag events.
+
 SYNC-POS is the position at which the terminal is synced. It's only
 guaranteed to correspond to the terminal screen top in fullscreen mode."
-  (ignore term ev sync-pos)
+  (ignore term ev move-posn sync-pos)
 
   nil)
 

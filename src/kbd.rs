@@ -11,6 +11,10 @@ use emacs::{Env, GlobalRef, IntoLisp, Result, Value, Vector, defun};
 
 use crate::{input, vterm::VTerm};
 
+emacs::use_functions! {
+    numberp
+    symbolp
+}
 emacs::use_symbols! {
     nil_sym => "nil"
 }
@@ -40,7 +44,12 @@ pub fn kitty_key_seq<'e>(
     mods: Vector,
     base_key: Value<'_>,
 ) -> Result<Value<'e>> {
-    match internal_kitty_key_seq(term, orig_key, mods, base_key) {
+    match internal_kitty_key_seq(
+        term,
+        EmacsKey::from(orig_key)?,
+        mods,
+        EmacsKey::from(base_key)?,
+    ) {
         None => Ok(nil_sym.bind(env)),
         Some(str) => str.into_lisp(env),
     }
@@ -48,19 +57,21 @@ pub fn kitty_key_seq<'e>(
 
 fn internal_kitty_key_seq<'e>(
     term: &VTerm,
-    orig_key: Value<'_>,
+    orig_key: Option<EmacsKey<'_>>,
     mods: Vector,
-    base_key: Value<'_>,
+    base_key: Option<EmacsKey<'_>>,
 ) -> Option<String> {
+    let orig_key = orig_key?;
+    let base_key = base_key?;
     let opts = extract_options(term);
     if opts.kitty_flags.to_bits() == 0 {
         return None;
     }
     let mods = input::mods_from_lisp(mods)?;
+    let oc = orig_key.as_char();
+    let bc = base_key.as_char();
     let key = key_from_lisp(base_key);
     let mut consumed_mods = Mods::default();
-    let oc = orig_key.into_rust::<u32>().ok().and_then(char::from_u32);
-    let bc = base_key.into_rust::<u32>().ok().and_then(char::from_u32);
     let utf8;
     let unshifted_codepoint;
     match (oc, bc) {
@@ -128,16 +139,22 @@ fn extract_options(term: &VTerm) -> key_encode::Options {
 }
 
 /// Convert an emacs key to a [Key], if possible.
-fn key_from_lisp(emacs_key: Value<'_>) -> Key {
-    if let Ok(num) = emacs_key.into_rust::<u8>()
-        && let Some(key) = Key::from_ascii(num)
-    {
-        return key;
-    }
+fn key_from_lisp(emacs_key: EmacsKey<'_>) -> Key {
+    match emacs_key {
+        EmacsKey::Code(code) => {
+            if code < 128
+                && let Some(key) = Key::from_ascii(code as u8)
+            {
+                return key;
+            }
+        }
 
-    for (key, sym) in PHYSICAL_KEY_MAP.get().expect("call kbd::init()") {
-        if emacs_key == *sym {
-            return *key;
+        EmacsKey::Symbol(value) => {
+            for (key, sym) in PHYSICAL_KEY_MAP.get().expect("call kbd::init()") {
+                if value == *sym {
+                    return *key;
+                }
+            }
         }
     }
 
@@ -210,4 +227,31 @@ pub fn init(env: &'_ Env) -> Result<()> {
     PHYSICAL_KEY_MAP.set(map).unwrap();
 
     Ok(())
+}
+
+/// A key from emacs that can be either a codepoint or a symbol.
+enum EmacsKey<'a> {
+    Code(u32),
+    Symbol(Value<'a>),
+}
+
+impl<'a> EmacsKey<'a> {
+    fn from(val: Value<'a>) -> Result<Option<Self>> {
+        if numberp.bind(val.env).call((val,))?.is_not_nil() {
+            Ok(Some(Self::Code(val.into_rust::<u32>()?)))
+        } else if symbolp.bind(val.env).call((val,))?.is_not_nil() {
+            Ok(Some(Self::Symbol(val)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Convert into a unicode character, if possible.
+    fn as_char(&self) -> Option<char> {
+        if let EmacsKey::Code(code) = self {
+            char::from_u32(*code)
+        } else {
+            None
+        }
+    }
 }

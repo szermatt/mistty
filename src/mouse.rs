@@ -17,6 +17,7 @@ const CELL_HEIGHT: f32 = 18.0;
 emacs::use_symbols! {
     press_sym => "press"
     release_sym => "release"
+    motion_sym => "motion"
 }
 
 /// Translate a mouse event into the appropriate terminal sequence.
@@ -43,7 +44,7 @@ fn mouse_seq<'a>(
     action: Value<'_>,
     button: i32,
     mods: Vector<'_>,
-    x: usize,
+    x: i32,
     y: i32,
 ) -> Result<Value<'a>> {
     match mouse_seq_internal(term, action, button, mods, x, y) {
@@ -57,7 +58,7 @@ fn mouse_seq_internal(
     action: Value<'_>,
     button: i32,
     mods: Vector,
-    x: usize,
+    x: i32,
     y: i32,
 ) -> Option<Vec<u8>> {
     let options = extract_options(term)?;
@@ -119,6 +120,8 @@ fn action_from_lisp(action: Value<'_>) -> Option<Action> {
         Some(Action::Press)
     } else if action == *release_sym {
         Some(Action::Release)
+    } else if action == *motion_sym {
+        Some(Action::Motion)
     } else {
         None
     }

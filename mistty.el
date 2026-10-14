@@ -4788,7 +4788,7 @@ mode map override."
                 map-id (mistty--secondary-mode) mistty--report-mouse)
     (when mistty--report-mouse
       (push mistty--report-click-map maps))
-    ;; TODO: add maps for 'drag and 'motion and mouse wheel
+    ;; TODO: add maps for 'motion and mouse wheel
 
     (overlay-put
      mistty--sync-ov
@@ -5088,22 +5088,67 @@ If DELTA is negative, the window height is increased."
 (defun mistty-report-mouse-event (ev)
   "Report mouse event EV to the terminal."
   (interactive "e")
-  (let* ((posn (event-end ev))
-         (win (posn-window posn))
-         (buf (window-buffer win)))
-    (when (eq 'mouse-1 (event-basic-type ev))
-      (select-window win))
-    (with-current-buffer buf
-      (when (eq buf mistty-work-buffer)
-        (goto-char mistty--cursor)
-        (set-window-point win mistty--cursor)
-        (set-window-parameter win 'mistty--cursor-skip-state nil)
-        (when-let* ((seq (mistty--term-translate-mouse
-                          mistty--term ev mistty-sync-marker))
-                    (proc (mistty--term-proc mistty--term)))
-          (when (process-live-p proc)
-            (mistty-log "MOUSE EVENT SEND: %S" seq)
-            (process-send-string proc seq)))))))
+  (mistty-with-errors-logged "mistty-report-mouse-events"
+    (let* ((posn (event-end ev))
+           (win (posn-window posn))
+           (buf (window-buffer win))
+           (basic-type (event-basic-type ev))
+           (mods (event-modifiers ev)))
+
+      ;; Click selects the window
+      (when (and (eq 'mouse-1 basic-type)
+                 (memq 'down mods))
+        (select-window win))
+
+      (with-current-buffer buf
+        (when (eq buf mistty-work-buffer)
+          (let ((proc (mistty--term-proc mistty--term)))
+            ;; Move point to cursor, if necessary.
+            (goto-char mistty--cursor)
+            (set-window-point win mistty--cursor)
+            (set-window-parameter win 'mistty--cursor-skip-state nil)
+
+            ;; Send mouse event
+            (mistty-log "MOUSE EVENT: %S" ev)
+            (when-let* ((seq (mistty--term-translate-mouse
+                              mistty--term ev nil mistty-sync-marker)))
+              (when (process-live-p proc)
+                (mistty-log "MOUSE EVENT SEND: %S" seq)
+                (process-send-string proc seq)))
+
+            ;; If mouse drag is requested, keep tracking the mouse
+            ;; until the button is released.
+            (when (and (memq basic-type '(mouse-1 mouse-2))
+                       (memq 'down mods)
+                       (memq mistty--report-mouse '(drag motion))
+                       ;; TODO: add separate support for motion and just
+                       ;; check for drag here
+                       (process-live-p proc))
+              (mistty-log "TRACKING MOUSE ON (drag)")
+              (track-mouse
+                (let ((continue t))
+                  (while continue
+                    (pcase (read-event)
+                      (`(mouse-movement ,posn)
+                       (mistty-log "MOUSE MOVE EVENT col,row: %s x,y: %s"
+                                   (posn-col-row posn) (posn-x-y posn))
+                       (when-let* ((seq (mistty--term-translate-mouse
+                                         mistty--term ev posn mistty-sync-marker)))
+                         (mistty-log "MOUSE MOVE EVENT SEND: %S" seq)
+                         (process-send-string proc seq)))
+
+                      ((and (pred mouse-event-p)
+                            `,move-ev
+                            (guard (eq basic-type (event-basic-type move-ev))))
+                       (mistty-log "MOUSE EVENT (drag end): %S" move-ev)
+                       (when-let* ((seq (mistty--term-translate-mouse
+                                         mistty--term move-ev nil mistty-sync-marker)))
+                         (mistty-log "MOUSE EVENT SEND: %S" seq)
+                         (process-send-string proc seq))
+                       (setq continue nil)))))
+                (mistty-log "TRACKING MOUSE OFF (drag)")
+
+                nil))))))))
 
 (provide 'mistty)
 

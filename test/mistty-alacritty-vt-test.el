@@ -1729,23 +1729,27 @@
 (mistty-deftest mistty-alacritty-vt-mouse-seq-x10
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
-    ;; DEC private mode 1000; send clicks
-    (should (equal '((mouse click))
-                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000h"))))
+    ;; Send clicks and drag
+    (should (equal '((mouse drag))
+                   (mistty-alacritty-vt-process-bytes
+                    vterm (vconcat "\e[?1002h"))))
 
     (pcase-dolist
         (`(,expected ,action ,button ,mods ,line ,col)
          `(("\e[M !!" press 1 [] 0 0)
            ("\e[M!!!" press 2 [] 0 0)
            ("\e[M\"!!" press 3 [] 0 0)
-           ;; Note that for release, legacy X10 mode always encodes
-           ;; button as 3, '#'.
            ("\e[M#!!" release 1 [] 0 0)
            ("\e[M#!!" release 2 [] 0 0)
            ("\e[M#!!" release 3 [] 0 0)
 
            ;; coordinates
            ("\e[M &+" press 1 [] 5 10)
+
+           ;; motion (drag), including out-of-bound ones
+           ("\33[M@$*" motion 1 [] 3 9)
+           ("\33[M@p!" motion 1 [] 90 -10)
+           ("\33[M@!8" motion 1 [] -10 25)
 
            ;; modifiers
            ("\e[M$!!" press 1 [shift] 0 0)
@@ -1755,9 +1759,9 @@
            ("\e[M4!!" press 1 [control shift] 0 0)
 
            ;; out of bounds
-           (nil press 1 [] 0 -1)
-           (nil press 1 [] 0 24)
-           (nil press 1 [] 80 0)
+           ("\33[M !!" press 1 [] 0 -1)
+           ("\33[M !8" press 1 [] 0 24)
+           ("\33[M p!" press 1 [] 80 0)
 
            ;; unsupported action or button
            (nil invalid 1 [] 0 0)
@@ -1771,12 +1775,12 @@
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
 
-    ;; DEC private mode 1000; send clicks
-    (should (equal '((mouse click))
+    ;; Send clicks and drag
+    (should (equal '((mouse drag))
                    (mistty-alacritty-vt-process-bytes
-                    vterm (vconcat "\e[?1000h"))))
+                    vterm (vconcat "\e[?1002h"))))
 
-    ;; DEC private mode 1006; a different output format.
+    ;; Select SGR format
     (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1006h"))
 
     (pcase-dolist
@@ -1792,6 +1796,15 @@
 
            ;; coordinates
            ("\e[<0;3;5M" press 1 [] 2 4)
+
+           ;; motion (drag), including out-of-bound ones
+           ("\33[<32;4;10M" motion 1 [] 3 9)
+           ("\33[<32;80;1M" motion 1 [] 90 -10)
+           ("\33[<32;1;24M" motion 1 [] -10 25)
+           ("\33[<33;4;10M" motion 2 [] 3 9)
+           (nil motion 3 [] 3 9)
+           (nil motion 4 [] 3 9)
+           (nil motion 5 [] 3 9)
 
            ;; modifiers
            ("\e[<4;1;1M" press 1 [shift] 0 0)

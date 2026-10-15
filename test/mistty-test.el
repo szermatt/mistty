@@ -8028,7 +8028,6 @@ precmd_functions+=(prompt_header)
   (mistty-test-goto "echo one")
 
   (let ((buf (current-buffer))
-        (proc mistty-proc)
         (left-win (selected-window))
         (right-win (split-window-horizontally)))
     (set-window-buffer right-win (scratch-buffer))
@@ -8071,9 +8070,7 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-mouse-drag-fullscreen-mark
     (:type alacritty :selected t :turtles t :term-size '(60 . 20))
-  (let ((buf (current-buffer))
-        (proc mistty-proc)
-        y x-start x-end)
+  (let ((buf (current-buffer)))
     (delete-other-windows)
     (mistty--send-string
      mistty-proc
@@ -8107,9 +8104,7 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-mouse-drag-fullscreen-window-above
     (:type alacritty :selected t :turtles t :term-size '(60 . 10))
-  (let ((buf (current-buffer))
-        (proc mistty-proc)
-        y x-start x-end)
+  (let ((buf (current-buffer)))
     (mistty--send-string
      mistty-proc
      (concat (expand-file-name invocation-name invocation-directory)
@@ -8155,9 +8150,7 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-mouse-drag-fullscreen-window-same-buffer
     (:type alacritty :selected t :turtles t :term-size '(60 . 10))
-  (let ((buf (current-buffer))
-        (proc mistty-proc)
-        y x-start x-end)
+  (let ((buf (current-buffer)))
     (delete-other-windows)
     (split-window-vertically)
 
@@ -8209,9 +8202,7 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-mouse-drag-fullscreen-window-above-menu
     (:type alacritty :selected t :turtles t :term-size '(60 . 10))
-  (let ((buf (current-buffer))
-        (proc mistty-proc)
-        y x-start x-end)
+  (let ((buf (current-buffer)))
     (delete-other-windows)
 
     (mistty--send-string

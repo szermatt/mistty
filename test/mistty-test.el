@@ -8368,18 +8368,55 @@ precmd_functions+=(prompt_header)
 
     (mistty-send-text "printf '\\e[?1000h'")
     (mistty-send-and-wait-for-prompt)
-    (should (eq 'click mistty--mouse-reporting))
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'click mistty--mouse-reporting-requested))
 
     (mistty-toggle-mouse)
     (should-not mistty--mouse-reporting)
+    (should (eq 'click mistty--mouse-reporting-requested))
 
     (mistty-toggle-mouse)
-    (should (eq 'click mistty--mouse-reporting))
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'click mistty--mouse-reporting-requested))
 
     (mistty-send-text "printf '\\e[?1000l'")
     (mistty-send-and-wait-for-prompt)
     (should-not mistty--mouse-reporting)
+    (should-not mistty--mouse-reporting-requested)
     (should-error (mistty-toggle-mouse) :type 'user-error)))
+
+(mistty-deftest mistty-test-disallow-mouse-reporting (:selected t :type alacritty)
+  (let ((mistty-allow-mouse-reporting nil))
+    (should-error (mistty-toggle-mouse) :type 'user-error)
+
+    (mistty-send-text "printf '\\e[?1000h'")
+    (mistty-send-and-wait-for-prompt)
+    (should-not mistty--mouse-reporting)
+    (should (eq 'click mistty--mouse-reporting-requested))
+
+    (mistty-toggle-mouse)
+    (should (eq t mistty--mouse-reporting))
+
+    ;; Changing the value of mistty--mouse-reporting-requested doesn't
+    ;; clear mistty--mouse-reporting if it was set.
+    (mistty-send-text "printf '\\e[?1002h'")
+    (mistty-send-and-wait-for-prompt)
+    (should (eq 'drag mistty--mouse-reporting-requested))
+    (should (eq t mistty--mouse-reporting))
+
+    (mistty-toggle-mouse)
+    (should-not mistty--mouse-reporting)
+
+    (mistty-toggle-mouse)
+    (should (eq t mistty--mouse-reporting))
+
+    ;; Disabling mouse reporting not only clears
+    ;; mistty--mouse-reporting-requested, but also resets
+    ;; mistty--mouse-reporting if it is set.
+    (mistty-send-text "printf '\\e[?1002l\\e[?1000l'")
+    (mistty-send-and-wait-for-prompt)
+    (should-not mistty--mouse-reporting-requested)
+    (should-not mistty--mouse-reporting)))
 
 (mistty-deftest mistty-test-mode-line-mouse (:selected t :type alacritty :turtles t)
   (mistty-test-rename-buffer "test-mode-line")

@@ -246,6 +246,7 @@ default, the default directory is a temp directory created for the test."
                (mistty-exit-capture-keyboard-key "C-g")
                (mistty-log mistty-test-log)
                (mistty-tag-theme 'unicode)
+               (mistty-allow-mouse-reporting t)
                ;; avoid interference with previous tests
                (this-command nil)
                (last-command nil))

@@ -494,6 +494,18 @@ newlines or other control characters even if this option is nil."
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-allow-mouse-reporting t
+  "Send clicks and mouse position to applications.
+
+If non-nil, MisTTY sends clicks and motions to the application running
+on the terminal if that application requests it.
+
+Set this to nil if you don't want to send mouse information by default.
+Users can still enable it on a case-by-case basis by clicking on the
+mouse in the mode line or calling the command `mistty-toggle-mouse'."
+  :group 'mistty
+  :type 'boolean)
+
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
 
@@ -974,7 +986,13 @@ split buffer fullscreen mode.")
 This is updated after each refresh.")
 
 (defvar-local mistty--mouse-reporting nil
-  "Which mouse events to report.
+  "Whether mouse events should be reported to the terminal.
+
+This is t if mouse reporting was requested by the application, in
+`mistty--mouse-reporting-requested', and is enabled.")
+
+(defvar-local mistty--mouse-reporting-requested nil
+  "Which mouse events were requested by the application.
 
 It is either:
 
@@ -982,11 +1000,6 @@ It is either:
 - \\='click, report press and release events.
 - \\='drag, report press, release, and mouse movement with pointer down.
 - \\='motion, report all mouse events.")
-
-(defvar-local mistty--mouse-reporting-requested nil
-  "Which mouse events requested by the application.
-
-Supports the same values as `mistty--mouse-reporting'.")
 
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
@@ -1471,11 +1484,15 @@ window."
                   :request-report-mouse
                   (lambda (val)
                     (mistty--with-live-buffer work-buffer
-                      (mistty-log "Mouse reporting: %s" val)
-                      (unless (and mistty--mouse-reporting-requested
-                                   (not mistty--mouse-reporting))
-                        (setq mistty--mouse-reporting val))
+                      (unless (eq (null val) (null mistty--mouse-reporting-requested))
+                        (setq mistty--mouse-reporting
+                              (if (and val mistty-allow-mouse-reporting)
+                                  t
+                                nil)))
                       (setq mistty--mouse-reporting-requested val)
+                      (mistty-log "Mouse reporting: %s enabled: %s"
+                                  val mistty--mouse-reporting)
+
                       (mistty--update-secondary-mode)))))
            (term-buffer (mistty--term-buf term))
            (accum (process-filter (mistty--term-proc term))))
@@ -4289,8 +4306,10 @@ Ignores buffers that don't exist."
                       " "
                       (propertize
                        tag
-                       'help-echo (concat
-                                   "Report mouse " (symbol-name mistty--mouse-reporting) "\nmouse-1: "
+                       'help-echo (format
+                                   "Report mouse %s: %s\nmouse-1: %s"
+                                   (symbol-name mistty--mouse-reporting-requested)
+                                   (if mistty--mouse-reporting "ON" "OFF")
                                    (mistty--mode-line-button 'mouse :help))
                        'mouse-face 'mode-line-highlight
                        'local-map (mistty--mode-line-button 'mouse)))))))))))
@@ -5042,7 +5061,7 @@ state changes, as the default value of both
         (progn
           (setq mistty--mouse-reporting nil)
           (message "Mouse reporting OFF"))
-      (setq mistty--mouse-reporting mistty--mouse-reporting-requested)
+      (setq mistty--mouse-reporting t)
       (message "Mouse reporting ON"))
     (mistty--update-secondary-mode)))
 
@@ -5306,7 +5325,8 @@ If DELTA is negative, the window height is increased."
             ;; until the button is released.
             (when (and (memq basic-type '(mouse-1 mouse-2))
                        (memq 'down mods)
-                       (memq mistty--mouse-reporting '(drag motion))
+                       mistty--mouse-reporting
+                       (memq mistty--mouse-reporting-requested '(drag motion))
                        ;; TODO: add separate support for motion and just
                        ;; check for drag here
                        (process-live-p proc))

@@ -995,32 +995,32 @@ Height smaller than that will not be accepted as terminal size and will
 be ignored if coming from window size.")
 
 (defconst mistty--secondary-mode-alist
-   '((dead :tag "×_×"
+   '((dead :tag dead
            :help "Process is dead")
-     (running :tag "…"
+     (running :tag running
               :help "Process running"
               :map prompt-map
               :button menu)
-     (prompt :tag ">_"
+     (prompt :tag prompt
              :help "Prompt detected"
              :map prompt-map
              :button menu)
-     (off :tag "…"
+     (off :tag off
           :help "Emacs command executing"
           :map prompt-map
           :button exit-command)
-     (special-prompt :tag "←↑↓→"
+     (special-prompt :tag special-prompt
                      :help "Special prompt detected, capturing special-prompt"
                      :map special-prompt-map
                      :button menu)
-     (full :tag "[_]"
+     (full :tag full
            :help "Fullscreen command running"
            :map fullscreen-mode-map
            :button menu)
-     (scrollback :tag "▼ "
+     (scrollback :tag scrollback
                  :help "Fullscreen command running in another buffer"
                  :button toggle)
-     (capture :tag "[#]"
+     (capture :tag capture
               :help "Keyboard capture"
               :button exit-capture))
    "Secondary mode ID and map.
@@ -1031,6 +1031,21 @@ when the mode is active.
 
 Secondary mode is detected by `mistty--secondary-mode' and the
 map and mode line installed by `mistty--update-secondary-mode'")
+
+(defconst mistty--tag-alist
+  `((dead . "×_×")
+    (running . "…")
+    (prompt . ">_")
+    (off . "…")
+    (special-prompt . "←↑↓→")
+    (full . "[_]")
+    (scrollback . "▼ ")
+    (split-fullscreen . " ▲ ")
+    (capture . "[#]")
+    (keyboard . ,(propertize "⌨" 'display '((height 0.7)))))
+  "Mode-line tags used by this package.
+
+Tags are accessed using `mistty--tag'")
 
 (defconst mistty--mode-line-button-alist
   `((menu :menu mistty--secondary-mode-menu :help "Show menu")
@@ -1048,10 +1063,6 @@ Entries in this list define buttons whose ID is referenced from
   "Temporarily override the :map tag of `mistty--secondary-mode-alist'.
 
 This is only valid for modes that have a non-nil :map tag.")
-
-(defconst mistty--fullscreen-mode-map-tag
-  (propertize "⌨" 'display '((height 0.7)))
-  "Tag that shows that the fullscreen map is active in modeline")
 
 (defun mistty--add-secondary-mode-menu (map)
   "Add menu items to MAP related to secondary mode and keymaps."
@@ -4123,7 +4134,7 @@ Ignores buffers that don't exist."
                " "
                ;; Display secondary mode
                (propertize
-                (plist-get entry :tag)
+                (mistty--tag (plist-get entry :tag))
                 'help-echo (concat
                             (plist-get entry :help)
                             (when button
@@ -4136,7 +4147,7 @@ Ignores buffers that don't exist."
                  (concat
                   " "
                   (propertize
-                   mistty--fullscreen-mode-map-tag
+                   (mistty--tag 'keyboard)
                    'help-echo (concat
                                "Fullscreen keymap is active\nmouse-1: "
                                (mistty--mode-line-button 'menu :help))
@@ -4151,7 +4162,7 @@ Ignores buffers that don't exist."
        (concat
         "/misTTY"
         (propertize
-         " ▲ "
+         (mistty--tag 'split-fullscreen)
          'help-echo (concat "Fullscreen command running, scrollback in another buffer\n"
                             "mouse-1: Go to scrollback buffer")
          'mouse-face 'mode-line-highlight
@@ -4162,7 +4173,7 @@ Ignores buffers that don't exist."
         (when mistty--capture-keyboard-active
           (let ((entry (alist-get 'capture mistty--secondary-mode-alist)))
             (propertize
-             (plist-get entry :tag)
+             (mistty--tag (plist-get entry :tag))
              'help-echo (concat (plist-get entry :help)
                                 "\nmouse-1: "
                                 (mistty--mode-line-button 'exit-capture :help))
@@ -4172,6 +4183,10 @@ Ignores buffers that don't exist."
       (setq mode-line-process "misTTY:%s"))))
 
   (force-mode-line-update))
+
+(defun mistty--tag (id)
+  "Return a tag to be displayed in the mode line."
+  (alist-get id mistty--tag-alist))
 
 (defun mistty--mode-line-button (id &optional prop)
   "Get the definition of button ID that correspond to PROP.

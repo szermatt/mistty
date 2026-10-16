@@ -8359,3 +8359,59 @@ precmd_functions+=(prompt_header)
     (should-error (mistty--tag 'non-nerd-icons))
     (cl-letf (((symbol-function 'nerd-icons-mdicon) (lambda (&rest _) nil)))
       (should-error (mistty--tag 'bad-nerd-icons)))))
+
+(mistty-deftest mistty-test-toggle-mouse (:selected t :type alacritty)
+  (let ((mistty-prompt-map (make-sparse-keymap "prompt"))
+        (mistty--report-click-map (make-sparse-keymap "mouse"))
+        (events nil))
+    (should-error (mistty-toggle-mouse) :type 'user-error)
+
+    (mistty-send-text "printf '\\e[?1000h'")
+    (mistty-send-and-wait-for-prompt)
+    (should (eq 'click mistty--mouse-reporting))
+
+    (mistty-toggle-mouse)
+    (should-not mistty--mouse-reporting)
+
+    (mistty-toggle-mouse)
+    (should (eq 'click mistty--mouse-reporting))
+
+    (mistty-send-text "printf '\\e[?1000l'")
+    (mistty-send-and-wait-for-prompt)
+    (should-not mistty--mouse-reporting)
+    (should-error (mistty-toggle-mouse) :type 'user-error)))
+
+(mistty-deftest mistty-test-mode-line-mouse (:selected t :type alacritty :turtles t)
+  (mistty-test-rename-buffer "test-mode-line")
+
+  ;; initial state
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY >_) ---------------------------------")
+             (mistty-test-trim-mode-line))))
+
+  ;; mouse reporting requested and enabled
+  (mistty-send-text "printf '\\e[?1000h'")
+  (mistty-send-and-wait-for-prompt)
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY >_ ▮) -------------------------------")
+             (mistty-test-trim-mode-line))))
+
+  ;; mouse reporting requested and disabled
+  (mistty-toggle-mouse)
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY >_ ▯) -------------------------------")
+             (mistty-test-trim-mode-line))))
+
+  ;; mouse reporting re-enabled
+  (mistty-toggle-mouse)
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY >_ ▮) -------------------------------")
+             (mistty-test-trim-mode-line)))))

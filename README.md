@@ -7,7 +7,13 @@
 
 **MisTTY** is a terminal application for Emacs 29.1 and up that allows
 editing prompts using Emacs commands, like in the `shell` command, but
-in a full-featured, modern terminal.
+in a full-featured, modern terminal, with support for, among others:
+
+- 24bit colors
+- hyperlinks with OSC 8
+- mouse clicks and selection
+- the Kitty keyboard protocol
+- reporting the current directory with OSC 7
 
 > [!NOTE]
 >

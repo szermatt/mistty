@@ -627,6 +627,25 @@ When this mode is active:
 - Pressing :kbd:`C-g` sends a signal to the terminal and typically
   exits backward search mode without making a selection.
 
+.. _mouse:
+
+Mouse Support
+-------------
+
+MisTTY can forward mouse clicks and drags to application that request
+it when the current terminal is alacritty.
+
+If the application currently running on the terminal supports the
+mouse, you'll see an icon that looks like ▮ on the mode line - or a
+mouse if you've enabled and configured
+`nerd-icons <https://github.com/rainstormstudio/nerd-icons.el>`_
+
+You can click on that icon or run `M-x mistty-toggle-mouse` or
+:kbd:`C-c C-a` to temporarily turn mouse reporting on or off.
+
+You can set `M-x customize-option mistty-allow-mouse-reporting` to
+turn off mouse reporting by default.
+
 .. _colors:
 
 Colors

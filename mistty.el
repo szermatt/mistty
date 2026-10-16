@@ -973,7 +973,7 @@ split buffer fullscreen mode.")
 
 This is updated after each refresh.")
 
-(defvar-local mistty--report-mouse nil
+(defvar-local mistty--mouse-reporting nil
   "Which mouse events to report.
 
 It is either:
@@ -982,6 +982,11 @@ It is either:
 - \\='click, report press and release events.
 - \\='drag, report press, release, and mouse movement with pointer down.
 - \\='motion, report all mouse events.")
+
+(defvar-local mistty--mouse-reporting-requested nil
+  "Which mouse events requested by the application.
+
+Supports the same values as `mistty--mouse-reporting'.")
 
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
@@ -1045,7 +1050,9 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (split-fullscreen . "fullscreen")
      (capture . "kb capture")
      (keyboard . "[kb]")
-     (keyboard-inactive . "(kb)"))
+     (keyboard-inactive . "(kb)")
+     (mouse . "[mouse]")
+     (mouse-inactive . "(mouse)"))
 
     (ascii
      (dead . "×_×")
@@ -1058,7 +1065,9 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (split-fullscreen . "^=^")
      (capture . "[#]")
      (keyboard . "#")
-     (keyboard-inactive . ""))
+     (keyboard-inactive . "")
+     (mouse . "[M]")
+     (mouse . "(m)n"))
 
     (unicode
      (dead . "×_×")
@@ -1071,7 +1080,9 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (split-fullscreen . "▲ ")
      (capture . "[#]")
      (keyboard . "⌨")
-     (keyboard-inactive . "")))
+     (keyboard-inactive . "")
+     (mouse . "▮")
+     (mouse-inactive . "▯")))
   "Group of mode-line tags used by this package.
 
 The active family can be configured using mistty-tag-theme.")
@@ -1093,7 +1104,9 @@ The active family can be configured using mistty-tag-theme.")
           (split-fullscreen . (nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
           (capture . (nerd-icons-mdicon "nf-md-keyboard_close"))
           (keyboard . (nerd-icons-mdicon "nf-md-keyboard_outline"))
-          (keyboard-inactive . (nerd-icons-mdicon "nf-md-keyboard_off_outline")))))
+          (keyboard-inactive . (nerd-icons-mdicon "nf-md-keyboard_off_outline"))
+          (mouse . (nerd-icons-mdicon "nf-md-mouse"))
+          (mouse-inactive . (nerd-icons-mdicon "nf-md-mouse_off")))))
 
 (defcustom mistty-tag-theme 'unicode
   "Choose the set of tags that appear in the modeline.
@@ -1122,7 +1135,8 @@ here."
     (toggle :command mistty-toggle :help "Go to terminal buffer")
     (exit-command :command mistty-ignore-long-running-command :help "Force exit of emacs command mode")
     (exit-capture :command mistty-exit-capture-keyboard :help "End keyboard capture")
-    (keyboard :command mistty-toggle-keymap :help "Toggle fullscreen keyboard"))
+    (keyboard :command mistty-toggle-keymap :help "Toggle fullscreen keyboard")
+    (mouse :command mistty-toggle-mouse :help "Toggle mouse reporting"))
   "Button available in the mode-line.
 
 Normally accessed using `mistty--mode-line-button'.
@@ -1139,6 +1153,12 @@ This is only valid for modes that have a non-nil :map tag.")
   "Add menu items to MAP related to secondary mode and keymaps."
   ;; Note that items are defined in reverse order
 
+  (define-key
+   map [mistty-mouse]
+   '(menu-item "Mouse reporting"
+               mistty-toggle-mouse
+               :visible mistty--mouse-reporting-requested
+               :button (:toggle . mistty--mouse-reporting)))
   (define-key
    map [mistty-capture]
    '(menu-item "Capture Keyboard" mistty-capture-keyboard))
@@ -1171,7 +1191,7 @@ This is only valid for modes that have a non-nil :map tag.")
     (define-key map [mistty-mistty-about] '(menu-item "About" mistty-about))
     (define-key map [mistty-separator-0] '(menu-item "--"))
 
-    ;;(mistty--add-secondary-mode-menu map)
+    (mistty--add-secondary-mode-menu map)
 
     ;; Note that items are defined in reverse order
     ;;
@@ -1234,6 +1254,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-j" #'mistty-toggle
   "C-c C-q" #'mistty-capture-keyboard
   "C-c C-k" #'mistty-toggle-keymap
+  "C-c C-a" #'mistty-toggle-mouse
   "C-c C-s" #'mistty-sudo
   "C-c C-f" #'mistty-fit-to-window
   "C-c <" #'mistty-shrink-vertically
@@ -1424,10 +1445,13 @@ window."
                       mistty--scrolline-home-num))
                   :request-report-mouse
                   (lambda (val)
-                    (mistty-log "Mouse reports: %s" val)
                     (mistty--with-live-buffer work-buffer
-                      (setq mistty--report-mouse val)
-                      (mistty--update-secondary-mode-map)))))
+                      (mistty-log "Mouse reporting: %s" val)
+                      (unless (and mistty--mouse-reporting-requested
+                                   (not mistty--mouse-reporting))
+                        (setq mistty--mouse-reporting val))
+                      (setq mistty--mouse-reporting-requested val)
+                      (mistty--update-secondary-mode)))))
            (term-buffer (mistty--term-buf term))
            (accum (process-filter (mistty--term-proc term))))
       (mistty--add-toggle-cursor accum work-buffer term-buffer)
@@ -4229,7 +4253,22 @@ Ignores buffers that don't exist."
                                  "Fullscreen keymap is " (if active "active" "inactive") "\nmouse-1: "
                                  (mistty--mode-line-button 'keyboard :help))
                      'mouse-face 'mode-line-highlight
-                     'local-map (mistty--mode-line-button 'keyboard))))))))))
+                     'local-map (mistty--mode-line-button 'keyboard)))))
+
+               ;; Display and toggle mouse reporting
+               (when mistty--mouse-reporting-requested
+                 (let* ((tag (mistty--tag (if mistty--mouse-reporting
+                                              'mouse 'mouse-inactive))))
+                   (when (length> tag 0)
+                     (concat
+                      " "
+                      (propertize
+                       tag
+                       'help-echo (concat
+                                   "Report mouse " (symbol-name mistty--mouse-reporting) "\nmouse-1: "
+                                   (mistty--mode-line-button 'mouse :help))
+                       'mouse-face 'mode-line-highlight
+                       'local-map (mistty--mode-line-button 'mouse)))))))))))
 
   (mistty--with-live-buffer mistty-term-buffer
     (cond
@@ -4894,8 +4933,8 @@ mode map override."
                    mistty-fullscreen-mode-map mistty-prompt-map))
                  (_ nil))))
     (mistty-log "Install overlay map %s [mode: %s, mouse: %s]"
-                map-id (mistty--secondary-mode) mistty--report-mouse)
-    (when mistty--report-mouse
+                map-id (mistty--secondary-mode) mistty--mouse-reporting)
+    (when mistty--mouse-reporting
       (push mistty--report-click-map maps))
     ;; TODO: add maps for 'motion and mouse wheel
 
@@ -4968,6 +5007,19 @@ state changes, as the default value of both
         ((eq goal 'fullscreen-mode-map)
          (mistty-toggle-keymap 'fullscreen)))))
     (_ (error "Invalid argument %s" map))))
+
+(defun mistty-toggle-mouse ()
+  "Toggle mouse reporting on or off."
+  (interactive)
+  (if (not mistty--mouse-reporting-requested)
+      (user-error "Application did not request mouse reporting")
+    (if mistty--mouse-reporting
+        (progn
+          (setq mistty--mouse-reporting nil)
+          (message "Mouse reporting OFF"))
+      (setq mistty--mouse-reporting mistty--mouse-reporting-requested)
+      (message "Mouse reporting ON"))
+    (mistty--update-secondary-mode)))
 
 (defun mistty-new-buffer-name ()
   "Generate a name for a new MisTTY buffer.
@@ -5229,7 +5281,7 @@ If DELTA is negative, the window height is increased."
             ;; until the button is released.
             (when (and (memq basic-type '(mouse-1 mouse-2))
                        (memq 'down mods)
-                       (memq mistty--report-mouse '(drag motion))
+                       (memq mistty--mouse-reporting '(drag motion))
                        ;; TODO: add separate support for motion and just
                        ;; check for drag here
                        (process-live-p proc))

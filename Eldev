@@ -58,7 +58,7 @@
 ;; the build of this project.
 (eldev-add-extra-dependencies '(test emacs) 'turtles)
 (eldev-use-vc-repository
- 'turtles :github "szermatt/turtles" :commit "2.0.1"
+ 'turtles :github "szermatt/turtles" :commit "2.0.2"
  :setup (setq eldev-build-treat-warnings-as-errors nil
               eldev-build-suppress-warnings t)
  :teardown (setq eldev-build-treat-warnings-as-errors t

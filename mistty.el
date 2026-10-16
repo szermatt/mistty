@@ -1032,20 +1032,67 @@ when the mode is active.
 Secondary mode is detected by `mistty--secondary-mode' and the
 map and mode line installed by `mistty--update-secondary-mode'")
 
-(defconst mistty--tag-alist
-  `((dead . "×_×")
-    (running . "…")
-    (prompt . ">_")
-    (off . "…")
-    (special-prompt . "←↑↓→")
-    (full . "[_]")
-    (scrollback . "▼ ")
-    (split-fullscreen . " ▲ ")
-    (capture . "[#]")
-    (keyboard . ,(propertize "⌨" 'display '((height 0.7)))))
-  "Mode-line tags used by this package.
+(defvar mistty-tag-alist-alist
+  `((textual
+     (dead . "dead")
+     (running . "running")
+     (prompt . "prompt")
+     (off . "off")
+     (special-prompt . "prompt!")
+     (full . "fullscreen")
+     (scrollback . "scrollback")
+     (split-fullscreen . "fullscreen")
+     (capture . "kb capture")
+     (keyboard . "[kb]"))
 
-Tags are accessed using `mistty--tag'")
+    (ascii
+     (dead . "×_×")
+     (running . "...")
+     (prompt . ">_")
+     (off . "...")
+     (special-prompt . ">_!")
+     (full . "[_]")
+     (scrollback . "v=v")
+     (split-fullscreen . "^=^")
+     (capture . "[#]")
+     (keyboard . "#"))
+
+    (unicode
+     (dead . "×_×")
+     (running . "…")
+     (prompt . ">_")
+     (off . "…")
+     (special-prompt . "←↑↓→")
+     (full . "[_]")
+     (scrollback . "▼ ")
+     (split-fullscreen . " ▲ ")
+     (capture . "[#]")
+     (keyboard . "⌨" )))
+  "Group of mode-line tags used by this package.
+
+The active family can be configured using mistty-tag-theme.")
+
+(defcustom mistty-tag-theme 'unicode
+  "Choose the set of tags that appear in the modeline.
+
+This option allows you to choose which family of tags, defined in
+`mistty-tag-theme' are used to display the modeline.
+
+This can be used to select your preferred theme as well as to adapt the
+tags to the capabilities of your display and font.
+
+Define your own themes to mistty-tag-alist-alist before selecting them
+here."
+  :group 'mistty
+  :type `(choice ,@(mapcar (lambda (elt) `(const ,(car elt)))
+                           mistty-tag-alist-alist)
+                 (restricted-sexp
+                  :tag "Other tag from mistty-tag-alist-alist"
+                  :match-alternatives
+                  ((lambda (val)
+                     (and (symbolp val)
+                          (assq val mistty-tag-alist-alist))))))
+  :group 'mistty)
 
 (defconst mistty--mode-line-button-alist
   `((menu :menu mistty--secondary-mode-menu :help "Show menu")
@@ -4186,7 +4233,7 @@ Ignores buffers that don't exist."
 
 (defun mistty--tag (id)
   "Return a tag to be displayed in the mode line."
-  (alist-get id mistty--tag-alist))
+  (alist-get id (alist-get mistty-tag-theme mistty-tag-alist-alist)))
 
 (defun mistty--mode-line-button (id &optional prop)
   "Get the definition of button ID that correspond to PROP.

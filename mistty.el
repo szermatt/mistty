@@ -1066,7 +1066,7 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (special-prompt . "←↑↓→")
      (full . "[_]")
      (scrollback . "▼ ")
-     (split-fullscreen . " ▲ ")
+     (split-fullscreen . "▲ ")
      (capture . "[#]")
      (keyboard . "⌨" )))
   "Group of mode-line tags used by this package.
@@ -4226,7 +4226,7 @@ Ignores buffers that don't exist."
       (setq
        mode-line-process
        (concat
-        "/misTTY"
+        "/misTTY "
         (propertize
          (mistty--tag 'split-fullscreen)
          'help-echo (concat "Fullscreen command running, scrollback in another buffer\n"

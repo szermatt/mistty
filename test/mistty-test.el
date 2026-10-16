@@ -3828,17 +3828,17 @@
     (should (mistty--queue-empty-p mistty--queue))
     (should killed)))
 
-(mistty-deftest mistty-test-special-prompt (:shell fish :type all)
-  (let ((mistty-special-prompt-regexps '("^search: ")))
+(mistty-deftest mistty-test-special-prompt (:shell bash :type all)
+  (let ((mistty-special-prompt-regexps '("^(reverse-i-search)")))
     (mistty-send-key 1 (kbd "C-r"))
-    (mistty-wait-for-output :str "search:" :start (point-min))
+    (mistty-wait-for-output :str "i-search" :start (point-min))
     (should mistty--special-prompt)
     (should (equal " ←↑↓→" mode-line-process))
 
     ;; following the cursor is disabled
     (let ((cursor (mistty-cursor)))
       (mistty-run-command
-       (right-char))
+       (goto-char (pos-bol)))
       (should (equal cursor (mistty-cursor)))
       (should (not (equal (point) (mistty-cursor)))))
 
@@ -3849,7 +3849,7 @@
      :test (lambda ()
              (save-excursion
                (goto-char (point-min))
-               (not (search-forward "search:" nil t)))))
+               (not (search-forward "i-search" nil t)))))
 
     (should (not mistty--special-prompt))
     (should (equal " >_" mode-line-process))))

@@ -8262,8 +8262,8 @@ precmd_functions+=(prompt_header)
         (mistty--send-string mistty-proc ">\C-x\C-x<")
         (mistty-wait-for-output :str ">")
 
+        ;; Nothing is actually selected. Note that the actual position
+        ;; of the point changes between Emacs versions.
         (turtles-with-grab-buffer (:buf buf)
           (goto-char (point-min))
-          (should (equal "<>This is [Emacs]! Yeah!"
-                         (mistty-test-content :start (pos-bol 2)
-                                              :end (pos-eol 2)))))))))
+          (should (string-match "<>" (mistty-test-content))))))))

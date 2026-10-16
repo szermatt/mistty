@@ -1044,7 +1044,8 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (scrollback . "scrollback")
      (split-fullscreen . "fullscreen")
      (capture . "kb capture")
-     (keyboard . "[kb]"))
+     (keyboard . "[kb]")
+     (keyboard-inactive . "(kb)"))
 
     (ascii
      (dead . "×_×")
@@ -1056,7 +1057,8 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (scrollback . "v=v")
      (split-fullscreen . "^=^")
      (capture . "[#]")
-     (keyboard . "#"))
+     (keyboard . "#")
+     (keyboard-inactive . ""))
 
     (unicode
      (dead . "×_×")
@@ -1068,7 +1070,8 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (scrollback . "▼ ")
      (split-fullscreen . "▲ ")
      (capture . "[#]")
-     (keyboard . "⌨" )))
+     (keyboard . "⌨")
+     (keyboard-inactive . "")))
   "Group of mode-line tags used by this package.
 
 The active family can be configured using mistty-tag-theme.")
@@ -1089,7 +1092,8 @@ The active family can be configured using mistty-tag-theme.")
           (scrollback . (nerd-icons-mdicon "nf-md-archive"))
           (split-fullscreen . (nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
           (capture . (nerd-icons-mdicon "nf-md-keyboard_close"))
-          (keyboard . (nerd-icons-mdicon "nf-md-keyboard_outline")))))
+          (keyboard . (nerd-icons-mdicon "nf-md-keyboard_outline"))
+          (keyboard-inactive . (nerd-icons-mdicon "nf-md-keyboard_off_outline")))))
 
 (defcustom mistty-tag-theme 'unicode
   "Choose the set of tags that appear in the modeline.
@@ -1117,7 +1121,8 @@ here."
   `((menu :menu mistty--secondary-mode-menu :help "Show menu")
     (toggle :command mistty-toggle :help "Go to terminal buffer")
     (exit-command :command mistty-ignore-long-running-command :help "Force exit of emacs command mode")
-    (exit-capture :command mistty-exit-capture-keyboard :help "End keyboard capture"))
+    (exit-capture :command mistty-exit-capture-keyboard :help "End keyboard capture")
+    (keyboard :command mistty-toggle-keymap :help "Toggle fullscreen keyboard"))
   "Button available in the mode-line.
 
 Normally accessed using `mistty--mode-line-button'.
@@ -4209,16 +4214,22 @@ Ignores buffers that don't exist."
                 'mouse-face (when button 'mode-line-highlight)
                 'local-map (mistty--mode-line-button button))
                 ;; Show whether fullscreen map is active
-               (when (eq 'fullscreen-mode-map (mistty--secondary-mode-map))
-                 (concat
-                  " "
-                  (propertize
-                   (mistty--tag 'keyboard)
-                   'help-echo (concat
-                               "Fullscreen keymap is active\nmouse-1: "
-                               (mistty--mode-line-button 'menu :help))
-                   'mouse-face 'mode-line-highlight
-                   'local-map (mistty--mode-line-button 'menu)))))))))
+               (let* ((active (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
+                      (tag (cond
+                            (active (mistty--tag 'keyboard))
+                            (mistty--secondary-mode-map-override
+                             (mistty--tag 'keyboard-inactive))
+                            (t ""))))
+                 (when (length> tag 0)
+                   (concat
+                    " "
+                    (propertize
+                     tag
+                     'help-echo (concat
+                                 "Fullscreen keymap is " (if active "active" "inactive") "\nmouse-1: "
+                                 (mistty--mode-line-button 'keyboard :help))
+                     'mouse-face 'mode-line-highlight
+                     'local-map (mistty--mode-line-button 'keyboard))))))))))
 
   (mistty--with-live-buffer mistty-term-buffer
     (cond

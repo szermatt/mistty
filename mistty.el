@@ -57,6 +57,7 @@
 (require 'mistty-term-base)
 (require 'mistty-term-alacritty)
 (require 'mistty-term-eterm)
+(require 'nerd-icons nil 'noerror) ;; optional
 
 ;;; Code:
 
@@ -1071,6 +1072,24 @@ map and mode line installed by `mistty--update-secondary-mode'")
   "Group of mode-line tags used by this package.
 
 The active family can be configured using mistty-tag-theme.")
+
+;; optional nerd-icons integration
+(when (featurep 'nerd-icons)
+  (unless (alist-get 'mistty-mode nerd-icons-mode-icon-alist)
+    (setf (alist-get 'mistty-mode nerd-icons-mode-icon-alist)
+          '(nerd-icons-devicon "nf-dev-terminal" :face nerd-icons-purple)))
+
+  (setf (alist-get 'nerd-icons mistty-tag-alist-alist)
+        `((dead . ,(nerd-icons-mdicon "nf-md-robot_dead_outline"))
+          (running . ,(nerd-icons-mdicon "nf-md-robot_happy_outline"))
+          (prompt . ">_")
+          (off . ,(nerd-icons-mdicon "nf-md-robot_outline"))
+          (special-prompt . ,(concat ">_" (nerd-icons-mdicon "nf-md-arrow_all")))
+          (full . ,(nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
+          (scrollback . ,(nerd-icons-mdicon "nf-md-archive"))
+          (split-fullscreen . ,(nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
+          (capture . ,(nerd-icons-mdicon "nf-md-keyboard_close"))
+          (keyboard . ,(nerd-icons-mdicon "nf-md-keyboard_outline")))))
 
 (defcustom mistty-tag-theme 'unicode
   "Choose the set of tags that appear in the modeline.

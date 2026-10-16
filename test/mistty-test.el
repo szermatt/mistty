@@ -7503,6 +7503,41 @@ precmd_functions+=(prompt_header)
               "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------")
              (mistty-test-trim-mode-line)))))
 
+(mistty-deftest mistty-test-mode-line-tag-theme-ascii (:selected t :type all :turtles t)
+  (let ((mistty-tag-theme 'ascii))
+
+    ;; prompt
+    (should (eq 'prompt (mistty--secondary-mode)))
+    (mistty-test-rename-buffer "test-mode-line")
+    (turtles-with-grab-buffer (:mode-line (selected-window))
+      (should (equal
+               (mistty-test-trim-mode-line
+                "-UUU:**- F1  test-mode-line   All  (misTTY >_) ---------------------------------")
+               (mistty-test-trim-mode-line))))
+
+    ;; special-prompt
+    (mistty-send-key 1 (kbd "C-r"))
+    (mistty-wait-for-output :str "reverse-i-search")
+    (should (eq 'special-prompt (mistty--secondary-mode)))
+    (turtles-with-grab-buffer (:mode-line (selected-window))
+      (should (equal
+               (mistty-test-trim-mode-line
+                "-UUU:**- F1  test-mode-line   All  (misTTY >_!) -------------------------------")
+               (mistty-test-trim-mode-line))))
+    (mistty-send-key 1 (kbd "ESC"))
+
+    (mistty-wait-for-output :str "$ " :cursor-at-end t :start (point-min))
+    (should (eq 'prompt (mistty--secondary-mode)))
+
+    ;; long-running command
+    (mistty-report-long-running-command 'test t)
+    (should (eq 'off (mistty--secondary-mode)))
+    (turtles-with-grab-buffer (:mode-line (selected-window))
+      (should (equal
+               (mistty-test-trim-mode-line
+                "-UUU:**- F1  test-mode-line   All  (misTTY ...) --------------------------------")
+               (mistty-test-trim-mode-line))))))
+
 (mistty-deftest mistty-test-mode-line-capture-keyboard (:selected t :type all :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
   

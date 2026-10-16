@@ -245,6 +245,7 @@ default, the default directory is a temp directory created for the test."
                (mistty-alacritty-term-name "xterm-256color")
                (mistty-exit-capture-keyboard-key "C-g")
                (mistty-log mistty-test-log)
+               (mistty-tag-theme 'unicode)
                ;; avoid interference with previous tests
                (this-command nil)
                (last-command nil))

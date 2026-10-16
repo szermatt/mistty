@@ -1080,16 +1080,16 @@ The active family can be configured using mistty-tag-theme.")
           '(nerd-icons-devicon "nf-dev-terminal" :face nerd-icons-purple)))
 
   (setf (alist-get 'nerd-icons mistty-tag-alist-alist)
-        `((dead . ,(nerd-icons-mdicon "nf-md-robot_dead_outline"))
-          (running . ,(nerd-icons-mdicon "nf-md-robot_happy_outline"))
+        `((dead . (nerd-icons-mdicon "nf-md-robot_dead_outline"))
+          (running . (nerd-icons-mdicon "nf-md-robot_happy_outline"))
           (prompt . ">_")
-          (off . ,(nerd-icons-mdicon "nf-md-robot_outline"))
-          (special-prompt . ,(concat ">_" (nerd-icons-mdicon "nf-md-arrow_all")))
-          (full . ,(nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
-          (scrollback . ,(nerd-icons-mdicon "nf-md-archive"))
-          (split-fullscreen . ,(nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
-          (capture . ,(nerd-icons-mdicon "nf-md-keyboard_close"))
-          (keyboard . ,(nerd-icons-mdicon "nf-md-keyboard_outline")))))
+          (off . (nerd-icons-mdicon "nf-md-robot_outline"))
+          (special-prompt . (nerd-icons-mdicon "nf-md-arrow_all"))
+          (full . (nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
+          (scrollback . (nerd-icons-mdicon "nf-md-archive"))
+          (split-fullscreen . (nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
+          (capture . (nerd-icons-mdicon "nf-md-keyboard_close"))
+          (keyboard . (nerd-icons-mdicon "nf-md-keyboard_outline")))))
 
 (defcustom mistty-tag-theme 'unicode
   "Choose the set of tags that appear in the modeline.
@@ -4251,8 +4251,25 @@ Ignores buffers that don't exist."
   (force-mode-line-update))
 
 (defun mistty--tag (id)
-  "Return a tag to be displayed in the mode line."
-  (alist-get id (alist-get mistty-tag-theme mistty-tag-alist-alist)))
+  "Return a tag to be displayed in the mode line.
+
+The tag that is returned depends on the values of `mistty-tag' and
+`mistty-tag-alist-alist'."
+  (let ((theme-alist (alist-get mistty-tag-theme mistty-tag-alist-alist)))
+    (unless theme-alist
+      (error "Invalid value for mistty-tag-theme: %s" mistty-tag-theme))
+
+    (let ((val (alist-get id theme-alist)))
+      (or (when (stringp val) val)
+          (when (and (listp val)
+                     (symbolp (car val))
+                     (string-prefix-p "nerd-icons-" (symbol-name (car val)))
+                     (setq val (eval val))
+                     (stringp val))
+            (setf (alist-get id theme-alist) val)
+            val)
+          (error "Incomplete theme in mistty-tag-alist-alist %s: %s is missing or invalid"
+                 mistty-tag-theme id)))))
 
 (defun mistty--mode-line-button (id &optional prop)
   "Get the definition of button ID that correspond to PROP.

@@ -80,6 +80,14 @@
  :teardown (setq eldev-build-treat-warnings-as-errors t
                  eldev-build-suppress-warnings nil))
 
+(eldev-add-extra-dependencies '(test emacs) 'nerd-icons)
+(eldev-use-vc-repository
+ 'nerd-icons :github "rainstormstudio/nerd-icons.el" :commit "0.1.0"
+ :setup (setq eldev-build-treat-warnings-as-errors nil
+              eldev-build-suppress-warnings t)
+ :teardown (setq eldev-build-treat-warnings-as-errors t
+                 eldev-build-suppress-warnings nil))
+
 ;;; Testing options
 ;;
 ;; The following defines options that allow configuring the version of

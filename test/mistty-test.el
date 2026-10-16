@@ -21,6 +21,7 @@
 (defvar term-height) ;; term.el
 (defvar term-home-marker) ;; term.el
 (require 'turtles nil 'noerror)
+(require 'nerd-icons nil 'noerror)
 
 (eval-when-compile
   (require 'cl-lib))
@@ -8302,3 +8303,59 @@ precmd_functions+=(prompt_header)
         (turtles-with-grab-buffer (:buf buf)
           (goto-char (point-min))
           (should (string-match "<>" (mistty-test-content))))))))
+
+(ert-deftest mistty-test-tag-lookup ()
+  (let ((mistty-tag-alist-alist
+         '((theme-a
+            (dead . "dead-a")
+            (prompt . "prompt-a"))
+           (theme-b
+            (dead . "dead-b")
+            (prompt . "prompt-b")))))
+    (let ((mistty-tag-theme 'theme-a))
+      (should (equal "dead-a" (mistty--tag 'dead)))
+      (should (equal "prompt-a" (mistty--tag 'prompt))))
+    (let ((mistty-tag-theme 'theme-b))
+      (should (equal "dead-b" (mistty--tag 'dead)))
+      (should (equal "prompt-b" (mistty--tag 'prompt))))))
+
+(mistty-deftest mistty-test-tag-nerd-icons (:features nerd-icons :shell none)
+  (let* ((mistty-tag-alist-alist
+          (copy-tree
+           '((nerd-icons
+              (dead . (nerd-icons-mdicon "nf-md-robot_dead_outline"))))))
+         (mistty-tag-theme 'nerd-icons)
+         (expected (nerd-icons-mdicon "nf-md-robot_dead_outline"))
+         (orig-fn (symbol-function 'nerd-icons-mdicon))
+         (eval-count 0))
+    (cl-letf (((symbol-function 'nerd-icons-mdicon)
+               (lambda (&rest args)
+                 (cl-incf eval-count)
+                 (apply orig-fn args))))
+      ;; First call evaluates the nerd-icons form and caches the string
+      (should (equal expected (mistty--tag 'dead)))
+      (should (equal 1 eval-count))
+      (should (equal expected
+                     (alist-get 'dead (alist-get 'nerd-icons mistty-tag-alist-alist))))
+
+      ;; Second call returns the cached string without re-evaluating
+      (should (equal expected (mistty--tag 'dead)))
+      (should (equal 1 eval-count)))))
+
+(ert-deftest mistty-test-tag-invalid-theme ()
+  (let ((mistty-tag-alist-alist '((theme-a (prompt . ">_"))))
+        (mistty-tag-theme 'unknown-theme))
+    (should-error (mistty--tag 'prompt))))
+
+(ert-deftest mistty-test-tag-missing-or-invalid-id ()
+  (let ((mistty-tag-alist-alist
+         '((theme-a
+            (non-string . 42)
+            (non-nerd-icons . (concat "a" "b"))
+            (bad-nerd-icons . (nerd-icons-mdicon "nf-md-robot_outline")))))
+        (mistty-tag-theme 'theme-a))
+    (should-error (mistty--tag 'missing))
+    (should-error (mistty--tag 'non-string))
+    (should-error (mistty--tag 'non-nerd-icons))
+    (cl-letf (((symbol-function 'nerd-icons-mdicon) (lambda (&rest _) nil)))
+      (should-error (mistty--tag 'bad-nerd-icons)))))

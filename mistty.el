@@ -1085,7 +1085,32 @@ map and mode line installed by `mistty--update-secondary-mode'")
      (mouse-inactive . "▯")))
   "Group of mode-line tags used by this package.
 
-The active family can be configured using mistty-tag-theme.")
+The active theme can be configured using mistty-tag-theme.
+
+All themes must define tags for the following ids:
+ - \\='dead, displayed when the terminal command died
+ - \\='running, displayed when there is no prompt
+ - \\='prompt, displayed when a prompt is detected
+ - \\='off, displayed when command is running
+ - \\='special-prompt, displayed when a special prompt is detected
+ - \\='full, displayed in fullscreen mode
+ - \\='scrollback, displayed in the scrollback buffer, when in
+   split-buffer fullscreen mode (eterm only)
+ - \\='capture, displayed while `mistty-capture-keyboard'
+   is running
+ - \\='keyboard, displayed when the fullscreen mode map is active.
+   It can be set to the empty string to display nothing in that
+   case.
+ - \\='keyboard-inactive, displayed when the fullscreen mode map
+   is inactive. It can be set to the empty string to display
+   nothing in that case.
+ - \\='mouse, displayed when mouse reporting is enabled. It can be set to
+   the empty string to display nothing in that case.
+ - \\='mouse-inactive, displayed when mouse reporting was requested
+   but is disabled. It can be set to the empty string to display
+   nothing in that case.
+
+All IDs must be set in all themes. ")
 
 ;; optional nerd-icons integration
 (when (featurep 'nerd-icons)

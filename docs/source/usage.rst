@@ -346,6 +346,15 @@ a normal terminal and most key sequences - by default, all but the
 ones starting with `C-c` and `C-x` - are sent to the terminal
 application. This is defined in `mistty-fullscreen-mode-map`.
 
+.. note::
+   The examples in this section show icons displayed for the default
+   icon theme.  The actual icons displayed in the mode line depend on
+   the icon theme selected with `M-x customize-option mistty-tag-theme`.
+   You can get better-looking icons by installing and configuring
+   `nerd-icons <https://github.com/rainstormstudio/nerd-icons.el>`_
+   and setting `mistty-tag-theme to `'nerd-icons`.
+
+
 In either of these modes, you can type :kbd:`C-c C-k` or run `M-x
 mistty-toggle-keymap` to switch between the `mistty-prompt-map` and
 `mistty-fullscreen-mode-map`. This way you can use normal Emacs

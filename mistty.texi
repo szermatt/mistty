@@ -581,6 +581,17 @@ a normal terminal and most key sequences - by default, all but the
 ones starting with @cite{C-c} and @cite{C-x} - are sent to the terminal
 application. This is defined in @cite{mistty-fullscreen-mode-map}.
 
+@cartouche
+@quotation Note 
+The examples in this section show icons displayed for the default
+icon theme.  The actual icons displayed in the mode line depend on
+the icon theme selected with @cite{M-x customize-option mistty-tag-theme}.
+You can get better-looking icons by installing and configuring
+nerd-icons@footnote{https://github.com/rainstormstudio/nerd-icons.el}
+and setting @cite{mistty-tag-theme to `’nerd-icons}.
+@end quotation
+@end cartouche
+
 In either of these modes, you can type @code{C-c C-k} or run @cite{M-x mistty-toggle-keymap} to switch between the @cite{mistty-prompt-map} and
 @cite{mistty-fullscreen-mode-map}. This way you can use normal Emacs
 shortcuts while in fullscreen mode or send key sequences directly to
@@ -2459,6 +2470,25 @@ Here’s an example of code that would detect
 @anchor{faq doc}@anchor{63}@anchor{faq faq}@anchor{64}
 @section FAQ
 
+
+`The mode line displays weird characters'
+
+@quotation
+
+@geindex variable; mistty-tag-theme
+
+Use @code{M-x customize-option mistty-tag-theme} to check and
+fix the value of @code{mistty-tag-theme}. Be sure to choose a theme
+that matches your display capabilities.
+
+The themes @code{'ascii} and @code{'textual} only use 7bit ASCII
+character and so will always work.
+
+However, if you install and configure nerd-icons@footnote{https://github.com/rainstormstudio/nerd-icons.el}, then
+configure your terminal to use a font that supports nerd font,
+you can then set @code{mistty-tag-theme} to @code{'nerd-icons} to get
+better-looking icons in all environments.
+@end quotation
 
 `The display is all messed up'
 

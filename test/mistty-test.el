@@ -8362,8 +8362,7 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-test-toggle-mouse (:selected t :type alacritty)
   (let ((mistty-prompt-map (make-sparse-keymap "prompt"))
-        (mistty--report-click-map (make-sparse-keymap "mouse"))
-        (events nil))
+        (mistty--report-click-map (make-sparse-keymap "mouse")))
     (should-error (mistty-toggle-mouse) :type 'user-error)
 
     (mistty-send-text "printf '\\e[?1000h'")

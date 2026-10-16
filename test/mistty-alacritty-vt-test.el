@@ -1771,8 +1771,7 @@
         expected
         (mistty-alacritty-vt-mouse-seq vterm action button mods line col))))))
 
-(mistty-deftest mistty-alacritty-vt-mouse-seq-sgr
-    (:features mistty-alacritty-vt :shell none)
+(mistty-deftest mistty-alacritty-vt-mouse-seq-sgr (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
 
     ;; Send clicks and drag

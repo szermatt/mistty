@@ -1,6 +1,23 @@
 FAQ
 ===
 
+**The mode line displays weird characters**
+
+     .. index:: pair: variable; mistty-tag-theme
+
+     Use :kbd:`M-x customize-option mistty-tag-theme` to check and
+     fix the value of ``mistty-tag-theme``. Be sure to choose a theme
+     that matches your display capabilities.
+
+     The themes ``'ascii`` and ``'textual`` only use 7bit ASCII
+     character and so will always work.
+
+     However, if you install and configure `nerd-icons
+     <https://github.com/rainstormstudio/nerd-icons.el>`_, then
+     configure your terminal to use a font that supports nerd font,
+     you can then set ``mistty-tag-theme`` to ``'nerd-icons`` to get
+     better-looking icons in all environments.
+
 **The display is all messed up**
 
      First, check the value of the environment variable :code:`TERM`.

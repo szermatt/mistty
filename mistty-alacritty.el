@@ -400,7 +400,7 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
       (set-process-filter proc t))))
 
 (defun mistty-alacritty--render (vterm)
-  "Render the virtual terminal on the current buffer."
+  "Render the virtual terminal VTERM on the current buffer."
   (save-excursion
     (goto-char mistty-alacritty--home)
     (pcase-let ((`(,screen-top . ,scrollines)

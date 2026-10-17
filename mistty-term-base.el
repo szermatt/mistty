@@ -56,7 +56,7 @@ ACTIVE-PROMPT should return the active `mistty--prompt'.
 
 AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
 
-SYNC-SCROLLINE-FUNC is a function that return the current sync scrolline.
+SYNC-SCROLLINE is a function that returns the current sync scrolline.
 
 REQUEST-REPORT-MOUSE is a function that the terminal can use to request
 which mouse events should be reported `mistty--term-translate-mouse'. It
@@ -128,7 +128,7 @@ If FULLSCREEN is non-nil, prepare the buffer for fullscreen mode"
 
 (cl-defgeneric mistty--term-sync
     (term dest-buffer sync-pos sync-scrolline keep-markers cursor-marker)
-  "Update the content of DEST-BUFFER to match the terminal.
+  "Update the content of DEST-BUFFER to match the terminal TERM.
 
 The buffer from SYNC-POS to EOB is rewritten to match the content of the
 terminal below SYNC-SCROLLINE.
@@ -191,7 +191,7 @@ sequence.")
 Always keep SCROLLINE-LIMIT and below.")
 
 (cl-defgeneric mistty--term-clear-scrollback (term)
-  "Clear any scrollback still stored in the terminal.
+  "Clear any scrollback still stored in the terminal TERM.
 
 This is in addition to clearing the scrollback that's already copied
 over to the work buffer.")
@@ -199,13 +199,13 @@ over to the work buffer.")
 (cl-defgeneric mistty--term-translate-key (term key &optional n)
   "Generate the key byte sequence for TERM.
 
-KEY is an Emacs key event and n the number of repetition for that event.
+KEY is an Emacs key event and N the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal.")
 
 (cl-defgeneric mistty--term-list-special-keys (type)
-  "List special keys (symbols) supported on input for this terminal.
+  "List special keys (symbols) supported on input for terminal TYPE.
 
 These are the keys `mistty--term-translate-key' should be able to
 translate.
@@ -214,11 +214,10 @@ The returned value is a list of symbol; basic types for the special keys
 as returned by `event-basic-type'.")
 
 (cl-defgeneric mistty--term-translate-mouse (term ev move-posn sync-pos)
-  "Translate a mouse event into an escape sequence or nil.
+  "Translate mouse event EV for TERM into an escape sequence or nil.
 
-EV is a mouse event to possible be reported. Which events are sent to
-this function is controlled by the callback request-report-mouse passed
-to `mistty--create-term'.
+Which events are sent to this function is controlled by the callback
+request-report-mouse passed to `mistty--create-term'.
 
 If MOVE-POSN is non-nil, it is the position of the mouse moved after EV
 happened. This is used to report drag events.

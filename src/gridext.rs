@@ -93,6 +93,11 @@ pub trait CellExt {
     /// Return the number of characters in this cell.
     fn char_count(&self) -> usize;
 
+    /// Append cell content to a string.
+    ///
+    /// Returns the numbers of chars added.
+    fn append_content(&self, str: &mut String) -> usize;
+
     /// Check whether a cell is just there as a spacer.
     ///
     /// A spacer is a cell that comes before or after a cell
@@ -121,6 +126,27 @@ impl CellExt for Cell {
         }
 
         1 + self.zerowidth().map(|chars| chars.len()).unwrap_or(0)
+    }
+
+    fn append_content(&self, dest: &mut String) -> usize {
+        if self.is_spacer() {
+            return 0;
+        }
+        if self.c == '\t' {
+            // tabs are already stored in the cells as spaces
+            dest.push(' ');
+        } else {
+            dest.push(self.c);
+        }
+        let mut charcount = 1;
+        if let Some(zerowidth) = self.zerowidth() {
+            charcount += zerowidth.len();
+            for c in zerowidth {
+                dest.push(*c);
+            }
+        }
+
+        charcount
     }
 
     fn is_spacer(&self) -> bool {

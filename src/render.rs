@@ -201,7 +201,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
         if let Some(right_col) = last_written_cell(row) {
             for (_, cell) in row.iter_to(right_col + 1) {
                 let cell_pos = pos;
-                pos += append_cell_to_string(&cell, &mut as_string);
+                pos += cell.append_content(&mut as_string);
                 if !cell.is_spacer() {
                     tracker.track_change(cell_pos, &cell);
                 }
@@ -446,7 +446,7 @@ impl<'a> Render<'a> {
                 if cell.is_spacer() {
                     wide_chars += 1;
                 } else {
-                    pos += append_cell_to_string(cell, &mut as_string);
+                    pos += cell.append_content(&mut as_string);
                     if (pos - cell_pos) > 1 {
                         // Sometimes, with combining characters, Alacritty
                         // doesn't allocate a spacer as it should, so we
@@ -577,34 +577,6 @@ fn last_written_line(grid: &Grid<Cell>) -> Option<Line> {
     }
 
     None
-}
-
-/// Append the content of a cell to the give string.
-///
-/// A cell may contain more than one character, as long as they all
-/// fit into one column. A cell may also contain wide characters. Such
-/// cells are followed or preceded by columns containing spacers
-/// (Alacritty takes care of that)
-///
-/// Returns the number of characters added to `dest`.
-fn append_cell_to_string(cell: &Cell, dest: &mut String) -> usize {
-    if cell.is_spacer() {
-        return 0;
-    }
-    if cell.c == '\t' {
-        // tabs are already stored in the cells as spaces
-        dest.push(' ');
-    } else {
-        dest.push(cell.c);
-    }
-    let mut charcount = 1;
-
-    for c in cell.zerowidth().into_iter().flatten() {
-        charcount += 1;
-        dest.push(*c);
-    }
-
-    charcount
 }
 
 /// Track cell flags and apply them Emacs-side as text properties.

@@ -239,8 +239,9 @@ mistty-install-keep-output}.
 If you prefer, you can download the released binary module or the
 released source code from github yourself. Make sure you download the
 version that corresponds to the installed package and put the file in
-a directory on the @cite{load-path} without renaming them. The binary
-modules are included in the release assets@footnote{https://github.com/szermatt/mistty/releases}.
+a directory on the @cite{load-path} without renaming them. When in doubt,
+check the expected module file name reported by the command
+@code{mistty-about}. The binary modules are included in the release assets@footnote{https://github.com/szermatt/mistty/releases}.
 
 You can also compile the module locally by following these steps:
 
@@ -983,21 +984,21 @@ as setting the environment variable @cite{COLORTERM=truecolor}.
 @geindex command; mistty-set-terminal-size
 @geindex command; mistty-grow-vertically
 @geindex command; mistty-shrink-vertically
+@geindex command; mistty-toggle-size-tracks-window
 @end quotation
 
 MisTTY tracks the size of the windows that display the buffer and
 adapts the terminal size to match.
 
 When in prompt mode, all that really matters is the terminal width and
-you might not notice it.
+you might not notice it. When in fullscreen mode, both width and
+height matter.
 
-When in fullscreen mode, with alacritty, both width and height matter.
-
-Unfortunately, on graphical displays, Emacs resizes lines dynamically
-to fit their content. This means that a terminal that was set to 40
+On graphical displays, Emacs resizes lines dynamically to fit their
+content. This means that a fullscreen terminal that was set to 40
 lines to match the window size can suddenly not fit into the window
-anymore, because the terminal currently displays text a script that’s
-larger than expected, or, very often emojis.
+anymore, because the terminal currently displays text in a script
+that’s larger than expected, or, very often emojis.
 
 This is especially annoying on MacOS, where the Apple emojis have
 fixed sizes. Emacs uses the Apple emoji font by default, but you can
@@ -1005,17 +1006,18 @@ reduce line height issues by choosing another one@footnote{http://xahlee.info/em
 
 MisTTY does its best to detect situations where the terminal grows too
 tall for the window and shrink it as needed so the entire screen fits.
-You can also force it to recompute the terminal size at any time with
-@cite{mistty-fit-to-window}, bound to @code{C-c C-f}.
+You can also force it to recompute the terminal size to fit the
+current window with @code{mistty-fit-to-window}, bound to @code{C-c C-f}.
 
-You may also set the size manually with @cite{mistty-grow-vertically},
-bound to @code{C-c >} and @cite{mistty-shrink-vertically}, bound to
-@code{C-c <} or set a fixed terminal size, on the current terminal
-with @cite{mistty-set-terminal-size} or once and for all on future
-terminals using @cite{M-x customize-option mistty-default-terminal-size}.
+You may prefer to set size manually with @code{mistty-grow-vertically},
+bound to @code{C-c >} and @code{mistty-shrink-vertically}, bound to
+@code{C-c <} or with @code{mistty-set-terminal-size}. If you prefer a
+fixed terminal size, set it once and for all for future terminals
+using @code{M-x customize-option mistty-default-terminal-size}.
 
-Calling @cite{mistty-fit-to-window} on a terminal with a fixed size turns
-on window tracking again for that buffer.
+Calling @code{mistty-toggle-size-track-window} @code{C-c C-t} on a
+terminal with a fixed size turns on window tracking again for that
+buffer.
 
 @node Completion-at-point,Template Expansion,Terminal Size,Usage
 @anchor{usage cap}@anchor{25}@anchor{usage completion-at-point}@anchor{26}

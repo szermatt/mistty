@@ -63,9 +63,10 @@ mistty-install-keep-output`.
 If you prefer, you can download the released binary module or the
 released source code from github yourself. Make sure you download the
 version that corresponds to the installed package and put the file in
-a directory on the `load-path` without renaming them. The binary
-modules are included in the `release assets
-<https://github.com/szermatt/mistty/releases>`_.
+a directory on the `load-path` without renaming them. When in doubt,
+check the expected module file name reported by the command
+``mistty-about``. The binary modules are included in the `release
+assets <https://github.com/szermatt/mistty/releases>`_.
 
 You can also compile the module locally by following these steps:
 

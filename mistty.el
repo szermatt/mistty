@@ -1248,7 +1248,7 @@ This is only valid for modes that have a non-nil :map tag.")
     (define-key map [mistty-size-track-windows]
                 '(menu-item "Terminal Size Tracks Window"
                             mistty-toggle-size-tracks-window
-                            :button (:toggle . (not mistty--terminal-size))))
+                            :button (:toggle . (mistty-terminal-size-tracks-window-p))))
 
     (define-key map [mistty-fit-to-window]
                 '(menu-item "Fit Terminal to Window"
@@ -4008,6 +4008,10 @@ only spaces with ==\'mistty-skip between them."
           (high (max posa posb)))
       (not (text-property-any low high 'mistty-skip nil)))))
 
+(defun mistty-terminal-size-tracks-window-p ()
+  "Checks whether resizing windows will resize the terminal."
+  (null mistty--terminal-size))
+
 (defun mistty-terminal-size-tracks-window ()
   "Set terminal size automatically from the size of the windows.
 
@@ -4034,7 +4038,8 @@ modified manually with `mistty-fit-to-window',
 `mistty-grow-horizontally'.
 
 Programmatically, prefer calling either
-`mistty-terminal-size-tracks-window' or `mistty-set-terminal-size'."
+`mistty-terminal-size-tracks-window' or `mistty-set-terminal-size' after
+checking `mistty-terminal-size-tracks-window-p'."
   (interactive)
   (if mistty--terminal-size
       (progn

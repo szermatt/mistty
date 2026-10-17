@@ -126,7 +126,7 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTerm, bytes: Vector) -> Result<Va
         let b: u8 = val.into_rust()?;
         v.push(b);
     }
-    let before = term.mode().clone();
+    let before = *term.mode();
     term.process_bytes(&v);
 
     let events = term.handle_events(env)?;
@@ -189,13 +189,13 @@ fn cleanup_prompt_sp(env: &Env, term: &mut VTerm, line: i32) -> Result<()> {
 /// Create a `Column` that's guaranteed to be a valid line for the
 /// terminal that is inside the range [0, bottommost_line].
 fn line_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
-    range_check(env, "line", val, 0..=term.bottommost_line().0).map(|c| Line(c))
+    range_check(env, "line", val, 0..=term.bottommost_line().0).map(Line)
 }
 
 /// Create a `Column` that's guaranteed to be a valid line for the
 /// terminal that is inside the range [0, bottommost_line+1].
 pub fn line_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
-    range_check(env, "line", val, 0..=term.grid().screen_lines() as i32).map(|c| Line(c))
+    range_check(env, "line", val, 0..=term.grid().screen_lines() as i32).map(Line)
 }
 
 /// Return a column guaranteed to be within [0, last_column] or

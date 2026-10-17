@@ -190,9 +190,8 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
             env.call(delete_char, (-1,))?;
         }
     }
-    let mut as_string = String::with_capacity(
-        term.scrollback_row_count() as usize * (term.grid().last_column().0 * 2 + 1),
-    );
+    let mut as_string =
+        String::with_capacity(term.scrollback_row_count() * (term.grid().last_column().0 * 2 + 1));
     let origin = BufferPos::point(env)?;
     let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_SCROLLBACK);
     let mut pos = origin;
@@ -203,7 +202,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
                 let cell_pos = pos;
                 pos += cell.append_content(&mut as_string);
                 if !cell.is_spacer() {
-                    tracker.track_change(cell_pos, &cell);
+                    tracker.track_change(cell_pos, cell);
                 }
             }
         }
@@ -222,7 +221,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
         )?;
     }
 
-    return Ok(scrollines);
+    Ok(scrollines)
 }
 
 /// Render the state of the terminal in a way Emacs understands.
@@ -350,9 +349,7 @@ impl<'a> Render<'a> {
                 .chain(
                     // Render lines past last_written, as necessary to
                     // render the cursor line.
-                    (last_line_to_render.0 + 1..=cursor_line.0)
-                        .into_iter()
-                        .map(|l| Line(l)),
+                    (last_line_to_render.0 + 1..=cursor_line.0).map(Line),
                 )
             {
                 let line_pos = BufferPos::bol(env, line - line_at_point)?;
@@ -571,7 +568,7 @@ fn detect_right_prompt(row: &Row<Cell>, last_written: Option<Column>) -> Option<
 /// Return the line containing the last cell that isn't clear.
 fn last_written_line(grid: &Grid<Cell>) -> Option<Line> {
     for (line, row) in grid.screen_iter().rev() {
-        if !last_written_cell(row).is_none() {
+        if last_written_cell(row).is_some() {
             return Some(line);
         }
     }
@@ -934,7 +931,7 @@ fn to_emacs_color(env: &Env, color: Color, fg: bool) -> Result<String> {
 ///
 /// Return None if the code is unsupported.
 fn indexed_to_rgb(code: u8) -> Option<String> {
-    if code >= 16 && code <= 231 {
+    if (16..=231).contains(&code) {
         // [16-231] 6x6x6 color cube
         fn cube6_level(v: u8) -> u8 {
             if v == 0 { 0 } else { v * 40 + 55 }
@@ -942,9 +939,9 @@ fn indexed_to_rgb(code: u8) -> Option<String> {
 
         let mut v = code - 16;
         let red = cube6_level(v / 36);
-        v = v % 36;
+        v %= 36;
         let green = cube6_level(v / 6);
-        v = v % 6;
+        v %= 6;
         let blue = cube6_level(v);
 
         Some(format!("#{red:02x}{green:02x}{blue:02x}"))

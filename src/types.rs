@@ -149,7 +149,7 @@ impl fmt::Display for Scrolline {
 
 impl From<usize> for Scrolline {
     fn from(source: usize) -> Self {
-        Self(source as usize)
+        Self(source)
     }
 }
 

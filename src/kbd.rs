@@ -55,7 +55,7 @@ pub fn kitty_key_seq<'e>(
     }
 }
 
-fn internal_kitty_key_seq<'e>(
+fn internal_kitty_key_seq(
     term: &VTerm,
     orig_key: Option<EmacsKey<'_>>,
     mods: Vector,

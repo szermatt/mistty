@@ -80,7 +80,13 @@
   "Create an alacritty-type terminal with the given NAME and COMMAND.
 
 If WIDTH and HEIGHT are specified, they'll be used as terminal line and
-column count. The default is 80x24."
+column count. The default is 80x24.
+
+ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
+ACTIVE-PROMPT returns the active prompt.
+AFTER-CLEAR-SCREEN is called after the screen is cleared.
+SYNC-SCROLLINE returns the current sync scrolline.
+REQUEST-REPORT-MOUSE controls mouse reporting."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks))
         (program (car command))
         (args (cdr command))
@@ -236,6 +242,11 @@ The actual sentinel may different from this."
 (cl-defmethod mistty--term-sync
   ((term mistty--term-alacritty) dest-buffer sync-pos sync-scrolline keep-markers
    cursor-marker)
+  "Update DEST-BUFFER to match the terminal TERM.
+
+The buffer from SYNC-POS to EOB is rewritten to match TERM's content below
+SYNC-SCROLLINE.  If KEEP-MARKERS is non-nil, keep markers and overlays.
+CURSOR-MARKER is updated to the cursor position."
   (if (mistty--term-alacritty-fs term)
       ;; fullscreen mode, without support for prompts
       (mistty--with-live-buffer dest-buffer
@@ -291,7 +302,7 @@ The actual sentinel may different from this."
   (cons sync-pos sync-scrolline))
 
 (cl-defmethod mistty--term-clear-to-eol ((term mistty--term-alacritty) pos)
-  "Mark spaces as cleared from POS to the end of the line."
+  "Mark spaces in TERM as cleared from POS to the end of the line."
   (let ((vterm (mistty--term-alacritty-vterm term)))
     (mistty--with-live-buffer (mistty--term-alacritty-buf term)
       (when (> pos mistty-alacritty--home)
@@ -300,7 +311,7 @@ The actual sentinel may different from this."
                                           (- pos (mistty--bol pos)))))))
 
 (cl-defmethod mistty--term-cleanup-prompt-sp ((term mistty--term-alacritty) pos)
-  "Cleanup the prompt as POS after a prompt-sp hack."
+  "Cleanup the prompt in TERM at POS after a prompt-sp hack."
   (let ((vterm (mistty--term-alacritty-vterm term)))
     (mistty--with-live-buffer (mistty--term-alacritty-buf term)
       (when (> pos mistty-alacritty--home)
@@ -309,7 +320,7 @@ The actual sentinel may different from this."
          (mistty--count-lines mistty-alacritty--home pos))))))
 
 (cl-defmethod mistty--term-truncate-buffer ((term mistty--term-alacritty) scrolline-limit)
-  "Truncate the terminal buffer, if necessary.
+  "Truncate the terminal buffer of TERM, if necessary.
 
 Always keep SCROLLINE-LIMIT and below."
   (with-current-buffer (mistty--term-alacritty-buf term)
@@ -343,7 +354,7 @@ Always keep SCROLLINE-LIMIT and below."
           (mistty--accum-ctx-push-down ctx "\e[?1000l"))))))))
 
 (cl-defmethod mistty--term-clear-scrollback ((term mistty--term-alacritty))
-  "Clear any scrollback still stored in the process buffer or vterm."
+  "Clear any scrollback still stored in TERM's process buffer or vterm."
   (with-current-buffer (mistty--term-alacritty-buf term)
     (when-let* ((home mistty-alacritty--home))
       (when (> home (point-min))
@@ -354,7 +365,7 @@ Always keep SCROLLINE-LIMIT and below."
 (cl-defmethod mistty--term-translate-key ((term mistty--term-alacritty) key &optional n)
   "Generate the key byte sequence for TERM.
 
-KEY is an Emacs key event and n the number of repetition for that event.
+KEY is an Emacs key event and N the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal."
@@ -410,7 +421,7 @@ buffer."
           (mistty-alacritty--render vterm))))))
 
 (cl-defmethod mistty--term-translate-mouse ((term mistty--term-alacritty) ev move-posn sync-pos)
-  "Translate a mouse event into an escape sequence or nil.
+  "Translate a mouse event for TERM into an escape sequence or nil.
 
 EV is a mouse event to possible be reported. Which events are sent to
 this function is controlled by the callback request-report-mouse passed
@@ -427,7 +438,7 @@ guaranteed to correspond to the terminal screen top in fullscreen mode."
            (mistty--term-alacritty-vterm term) params)))
 
 (defun mistty--alacritty-mouse-event-params (term ev move-posn sync-pos)
-  "Convert EV to parameters for `mistty-alacritty-vt-translate-mouse'.
+  "Convert EV for TERM to parameters for `mistty-alacritty-vt-translate-mouse'.
 
 The current buffer is the butter that's going to be used to generate the
 event position. It must contain a subset of the terminal content, with

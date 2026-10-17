@@ -478,6 +478,8 @@ Detected dead spaces are marked with the text property \\='mistty-skip
 OSC-SEQ contains the subcode followed optionally by a semi-colon and
 arguments (ignored).
 
+If SEND-CLICKS-FUNC is non-nil, it is called when click events are requested.
+
 MisTTY supports code A-D:
 
  - A marks the start of a new command.

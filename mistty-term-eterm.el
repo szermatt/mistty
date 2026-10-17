@@ -488,7 +488,13 @@ to call `mistty--term-postprocess'.")
   "Create an eterm-based terminal called NAME.
 
 COMMAND is run in the terminal and its size is set to WIDTH x HEIGHT,
-defaulting to 80 x 24."
+defaulting to 80 x 24.
+
+ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
+ACTIVE-PROMPT returns the active prompt.
+AFTER-CLEAR-SCREEN is called after the screen is cleared.
+SYNC-SCROLLINE returns the current sync scrolline.
+REQUEST-REPORT-MOUSE controls mouse reporting."
   (ignore request-report-mouse)
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
@@ -705,6 +711,11 @@ FULLSCREEN is non-nil in fullscreen mode."
 (cl-defmethod mistty--term-sync
   ((term mistty--term-eterm) dest-buffer sync-pos sync-scrolline keep-markers
    cursor-marker)
+  "Update DEST-BUFFER to match the terminal TERM.
+
+The buffer from SYNC-POS to EOB is rewritten to match TERM's content below
+SYNC-SCROLLINE.  If KEEP-MARKERS is non-nil, keep markers and overlays.
+CURSOR-MARKER is updated to the cursor position."
   (mistty--with-live-buffer (mistty--term-eterm-buf term)
     (let ((home-marker term-home-marker)
           (home-scrolline (mistty--scrolline-at term-home-marker))
@@ -762,7 +773,7 @@ This is not needed as it's enough to clear the text properties for eterm.")
   (mistty--changed beg end))
 
 (cl-defmethod mistty--term-truncate-buffer ((term mistty--term-eterm) scrolline-limit)
-  "Truncate the terminal buffer, if necessary.
+  "Truncate the terminal buffer of TERM, if necessary.
 
 Always keep SCROLLINE-LIMIT and below."
   (with-current-buffer (mistty--term-eterm-buf term)
@@ -770,7 +781,7 @@ Always keep SCROLLINE-LIMIT and below."
       (mistty--truncate-buffer term-home-marker))))
 
 (cl-defmethod mistty--term-clear-scrollback ((term mistty--term-eterm))
-  "Clear any scrollback still stored in the process buffer or vterm."
+  "Clear any scrollback still stored in TERM's process buffer or vterm."
   (with-current-buffer (mistty--term-eterm-buf term)
     (when (> term-home-marker (point-min))
       (let ((inhibit-read-only t)
@@ -780,7 +791,7 @@ Always keep SCROLLINE-LIMIT and below."
 (cl-defmethod mistty--term-translate-key ((_term mistty--term-eterm) key &optional n)
   "Generate the key byte sequence for TERM.
 
-KEY is an Emacs key event and n the number of repetition for that event.
+KEY is an Emacs key event and N the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal."
@@ -791,7 +802,7 @@ to the terminal."
   (mistty--list-basic-types-from-map mistty--eterm-key-map))
 
 (defun mistty--eterm-translate-key (key n)
-  "Translate KEY n times for eterm."
+  "Translate KEY N times for eterm."
   (mistty--translate-key-default key n mistty--eterm-key-map))
 
 (defun mistty--term-postprocess-changed (accum term)

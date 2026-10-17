@@ -62,7 +62,7 @@
 ;;; Code:
 
 (defconst mistty-version "2.1.1snapshot"
-  "Mistty package version")
+  "Mistty package version.")
 
 ;; Customization:
 (defgroup mistty nil
@@ -601,12 +601,12 @@ This is in addition to the buffer keymap, `mistty-term-mode-map' for
 eterm terminals and `mistty-mode-map' and `mistty-prompt-map' for
 alacritty terminals.
 
-By default, the terminal lets through M-x (but not ESC x) and key
-sequences starting with he prefixes C-c and C-x.
+By default, the terminal lets through \\[execute-extended-command] (but not ESC x) and key
+sequences starting with the prefixes `C-c' and `C-x'.
 
-C-q can be used to send these to the terminal. C-c C-q sends C-c and C-q
-C-x sends C-x. C-q C-q sends C-q. If you're tired of typing C-q, type
-C-c C-q, which triggers `mistty-capture-keyboard' for a while.
+`C-q' can be used to send these to the terminal. `C-c' `C-q' sends `C-c' and
+`C-q' `C-x' sends `C-x'. `C-q' `C-q' sends `C-q'. If you're tired of typing
+`C-q', type `C-c' `C-q', which triggers `mistty-capture-keyboard' for a while.
 
 To liberate keys and have Emacs handle them, bind them to nil or remove
 them from this map.
@@ -1123,7 +1123,7 @@ All themes must define tags for the following ids:
    but is disabled. It can be set to the empty string to display
    nothing in that case.
 
-All IDs must be set in all themes. ")
+All IDs must be set in all themes.")
 
 ;; optional nerd-icons integration
 (when (featurep 'nerd-icons)
@@ -2213,6 +2213,9 @@ Also updates prompt and point."
     (mistty--report-self-inserted-text)))
 
 (defun mistty--post-process-prompts (on-prompt)
+  "Update prompt state after syncing.
+
+If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
   ;; Right after a mistty-send-command, we're waiting for a line
   ;; after mistty--end-prompt that's not part of the old prompt.
   (when mistty--end-prompt
@@ -4090,7 +4093,7 @@ To go back to tracking window size, call
           (mistty--set-process-window-size-from-windows))))))
 
 (defun mistty--check-window-size (work-buffer)
-  "Resize the process window if necessary.
+  "Resize the process window for WORK-BUFFER if necessary.
 
 This function is meant to be called manually or from the idle-timer,
 `mistty--check-window-size-timer'."
@@ -4381,7 +4384,7 @@ Ignores buffers that don't exist."
   (force-mode-line-update))
 
 (defun mistty--tag (id)
-  "Return a tag to be displayed in the mode line.
+  "Return the tag corresponding to ID to be displayed in the mode line.
 
 The tag that is returned depends on the values of `mistty-tag' and
 `mistty-tag-alist-alist'."
@@ -5219,6 +5222,7 @@ This is meant to be bound to `imenu-create-index-function'."
         ("Commands" . ,(nreverse prompt-alist))))))
 
 (defun mistty-about ()
+  "Display MisTTY version and module information."
   (interactive)
   (message "MisTTY %s module %s"
            mistty-version (mistty-alacritty-modulename)))
@@ -5230,7 +5234,7 @@ This chooses the correct representation for the current terminal."
   (mistty--term-translate-key mistty--term key n))
 
 (defun mistty--translate-replay-seq (term replay-seq)
-  "Translate replay sequence into a terminal sequence.
+  "Translate REPLAY-SEQ into a sequence for terminal TERM.
 
 Replay sequences are written in a mini-language as a list with the
 following elements:
@@ -5238,8 +5242,8 @@ following elements:
 - (paste <str>) str is escaped with bracketed-paste then sent to the terminal
 - (repeat n <seq>) repeat the given sequence n times
 - up down left right, sent as arrow keys
-- bol, eol, sent as C-a and C-e
-- kill-line, sent as C-k
+- bol, eol, sent as control-A and control-E
+- `kill-line', sent as control-K
 - bs, backspace
 - del, delete
 
@@ -5315,7 +5319,7 @@ If DELTA is negative, the window height is decreased."
     (mistty-log "Terminal size %i x %i%+i" width height delta)
     (mistty-set-terminal-size width (+ height delta))))
 
-(defun mistty-shrink-vertically (&optional num)
+(defun mistty-shrink-vertically (&optional delta)
   "Decrease the height of the virtual terminal.
 
 This command switches the terminal to a fixed dimension and decrease the
@@ -5327,7 +5331,7 @@ you're done.
 
 If DELTA is negative, the window height is increased."
   (interactive "p")
-  (mistty-grow-vertically (- (or num 1))))
+  (mistty-grow-vertically (- (or delta 1))))
 
 (defun mistty-report-mouse-event (ev)
   "Report mouse event EV to the terminal."

@@ -689,20 +689,20 @@ Terminal Size
      pair: command; mistty-set-terminal-size
      pair: command; mistty-grow-vertically
      pair: command; mistty-shrink-vertically
+     pair: command; mistty-toggle-size-tracks-window
 
 MisTTY tracks the size of the windows that display the buffer and
 adapts the terminal size to match.
 
 When in prompt mode, all that really matters is the terminal width and
-you might not notice it.
+you might not notice it. When in fullscreen mode, both width and
+height matter.
 
-When in fullscreen mode, with alacritty, both width and height matter.
-
-Unfortunately, on graphical displays, Emacs resizes lines dynamically
-to fit their content. This means that a terminal that was set to 40
+On graphical displays, Emacs resizes lines dynamically to fit their
+content. This means that a fullscreen terminal that was set to 40
 lines to match the window size can suddenly not fit into the window
-anymore, because the terminal currently displays text a script that's
-larger than expected, or, very often emojis.
+anymore, because the terminal currently displays text in a script
+that's larger than expected, or, very often emojis.
 
 This is especially annoying on MacOS, where the Apple emojis have
 fixed sizes. Emacs uses the Apple emoji font by default, but you can
@@ -711,17 +711,18 @@ reduce line height issues by `choosing another one
 
 MisTTY does its best to detect situations where the terminal grows too
 tall for the window and shrink it as needed so the entire screen fits.
-You can also force it to recompute the terminal size at any time with
-`mistty-fit-to-window`, bound to :kbd:`C-c C-f`.
+You can also force it to recompute the terminal size to fit the
+current window with ``mistty-fit-to-window``, bound to :kbd:`C-c C-f`.
 
-You may also set the size manually with `mistty-grow-vertically`,
-bound to :kbd:`C-c >` and `mistty-shrink-vertically`, bound to
-:kbd:`C-c <` or set a fixed terminal size, on the current terminal
-with `mistty-set-terminal-size` or once and for all on future
-terminals using `M-x customize-option mistty-default-terminal-size`.
+You may prefer to set size manually with ``mistty-grow-vertically``,
+bound to :kbd:`C-c >` and ``mistty-shrink-vertically``, bound to
+:kbd:`C-c <` or with ``mistty-set-terminal-size``. If you prefer a
+fixed terminal size, set it once and for all for future terminals
+using :kbd:`M-x customize-option mistty-default-terminal-size`.
 
-Calling `mistty-fit-to-window` on a terminal with a fixed size turns
-on window tracking again for that buffer.
+Calling ``mistty-toggle-size-track-window`` :kbd:`C-c C-t` on a
+terminal with a fixed size turns on window tracking again for that
+buffer.
 
 .. _cap:
 

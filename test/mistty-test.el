@@ -4801,7 +4801,7 @@
       (should (equal (cons cols (1+ lines)) mistty--terminal-size))
       (should (equal (1+ lines) (mistty--term-lines mistty--term)))
 
-      (mistty-fit-to-window)
+      (mistty-terminal-size-tracks-window)
       (should (null mistty--terminal-size))
       (should (equal lines (mistty--term-lines mistty--term)))
       (should (equal cols (mistty--term-columns mistty--term)))
@@ -4809,6 +4809,71 @@
       (mistty-send-text "echo $(tput cols)x$(tput lines)")
       (should (equal (format "%ix%i" cols lines)
                      (mistty-send-and-capture-command-output)))))
+
+(mistty-deftest mistty-test-toggle-size-tracks-window
+    (:selected t :term-size 'window :type all :turtles t)
+
+  (should (null mistty--terminal-size))
+  (should (equal 79 (mistty--term-columns mistty--term)))
+  (should (equal 10 (mistty--term-lines mistty--term)))
+
+  (mistty-toggle-size-tracks-window)
+  (should (equal '(79 . 10) mistty--terminal-size))
+
+  (delete-other-windows) ; should not affect terminal size
+  (should (redisplay t))
+  (should (equal 79 (mistty--term-columns mistty--term)))
+  (should (equal 10 (mistty--term-lines mistty--term)))
+
+  (mistty-set-terminal-size 40 5)
+  (should (equal 40 (mistty--term-columns mistty--term)))
+  (should (equal 5 (mistty--term-lines mistty--term)))
+
+  (mistty-toggle-size-tracks-window)
+  (should (null mistty--terminal-size))
+  (should (equal 79 (mistty--term-columns mistty--term)))
+  (should (equal 22 (mistty--term-lines mistty--term)))
+
+  (split-window) ; should affect terminal size
+  (should (redisplay t))
+  (should (equal 79 (mistty--term-columns mistty--term)))
+  (should (equal 10 (mistty--term-lines mistty--term))))
+
+
+(mistty-deftest mistty-test-fit-to-window
+    (:selected t :term-size '(40 . 10) :type all :turtles t)
+
+    (delete-other-windows)
+    
+    (mistty-fit-to-window)
+    (should (equal '(79 . 22) mistty--terminal-size))
+    (should (equal 79 (mistty--term-columns mistty--term)))
+    (should (equal 22 (mistty--term-lines mistty--term)))
+
+    (split-window) ; does not affect terminal size
+    (should (redisplay t))
+    (should (equal '(79 . 22) mistty--terminal-size))
+    (should (equal 79 (mistty--term-columns mistty--term)))
+    (should (equal 22 (mistty--term-lines mistty--term)))
+
+    (mistty-toggle-size-tracks-window)
+    (should (null mistty--terminal-size))
+    (should (equal 79 (mistty--term-columns mistty--term)))
+    (should (equal 10 (mistty--term-lines mistty--term)))
+    
+    (delete-other-windows)
+    (should (redisplay t))
+    (should (equal 79 (mistty--term-columns mistty--term)))
+    (should (equal 22 (mistty--term-lines mistty--term)))
+
+    ;; Forcibly set the wrong window size so that fit-to-window can
+    ;; fix it.
+    (mistty--set-process-window-size 40 10)
+
+    (mistty-fit-to-window)
+    (should (equal 79 (mistty--term-columns mistty--term)))
+    (should (equal 22 (mistty--term-lines mistty--term)))
+    (should (null mistty--terminal-size)))
 
 (mistty-deftest mistty-test-set-terminal-size-and-split-screen-fullscreen
     (:selected t :term-size 'window :type eterm :turtles t)

@@ -1245,6 +1245,11 @@ This is only valid for modes that have a non-nil :map tag.")
 
     (define-key map [mistty-separator-3] '(menu-item "--"))
 
+    (define-key map [mistty-size-track-windows]
+                '(menu-item "Terminal Size Tracks Window"
+                            mistty-toggle-size-tracks-window
+                            :button (:toggle . (not mistty--terminal-size))))
+
     (define-key map [mistty-fit-to-window]
                 '(menu-item "Fit Terminal to Window"
                             mistty-fit-to-window))
@@ -1295,6 +1300,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-a" #'mistty-toggle-mouse
   "C-c C-s" #'mistty-sudo
   "C-c C-f" #'mistty-fit-to-window
+  "C-c C-t" #'mistty-toggle-size-tracks-window
   "C-c <" #'mistty-shrink-vertically
   "C-c >" #'mistty-grow-vertically
   "C-e" #'mistty-end-of-line-or-goto-cursor
@@ -4016,6 +4022,29 @@ This function reverts to the default behavior."
     (mistty--set-process-window-size-from-windows))
   (setq mistty--terminal-size nil))
 
+(defun mistty-toggle-size-tracks-window ()
+  "Enable or disable terminal auto-sizing.
+
+When tracking window size is enabled, MisTTY changes the terminal size
+so that the terminal can be displayed fully in a window.
+
+When no tracking window size, terminal size is fixed, but can be
+modified manually with `mistty-fit-to-window',
+`mistty-set-terminal-size', `mistty-grow-vertically' or
+`mistty-grow-horizontally'.
+
+Programmatically, prefer calling either
+`mistty-terminal-size-tracks-window' or `mistty-set-terminal-size'."
+  (interactive)
+  (if mistty--terminal-size
+      (progn
+        (mistty-terminal-size-tracks-window)
+        (message "Terminal size tracks window: ON"))
+    (let ((w (mistty--term-columns mistty--term))
+          (h (mistty--term-lines mistty--term)))
+      (mistty-set-terminal-size w h)
+      (message "Terminal size %i x %i" w h))))
+
 (defun mistty--check-terminal-size (width height)
   "Make sure that WIDTH and HEIGHT are acceptable term sizes."
   (unless (and width height)
@@ -5239,25 +5268,28 @@ The result is a vector of bytes, ready to be sent to the terminal."
    replay-seq ""))
 
 (defun mistty-fit-to-window ()
-  "Make sure the terminal size matches window size.
+  "Make sure the terminal size matches selected window size.
 
-This command has two effect:
+This command resize the terminal to match the current window.
 
-- it checks that the terminal size matches the windows and resize it
-  immediately, if necessary. This is useful on a graphical display when
-  the number of lines computed to match window height doesn't match the
-  height of the terminal content anymore, as Emacs changes line height
-  dynamically on a graphical display.
-
-- it turns on automatic window resizing again, like
-  `mistty-terminal-size-track-window."
+This is especially useful on a graphical display when the number of
+lines computed to match window height doesn't match the height of the
+terminal content anymore, as Emacs changes line height dynamically on a
+graphical display."
   (interactive)
-  (if mistty--terminal-size
-      (mistty-terminal-size-tracks-window)
-    (mistty--set-process-window-size-from-windows))
-  (let ((width (mistty--term-columns mistty--term))
-        (height (mistty--term-lines mistty--term)))
-    (message "Terminal size %i x %i" width height)))
+  (let ((win (selected-window)))
+    (mistty--set-process-window-size-from-windows (list win))
+    (when (and (eq t mistty-fullscreen) (markerp mistty-sync-marker))
+      (set-window-start win mistty-sync-marker))
+    (let ((width (mistty--term-columns mistty--term))
+          (height (mistty--term-lines mistty--term)))
+      (when mistty--terminal-size
+        (setq mistty--terminal-size (cons width height)))
+      (message "Terminal size %i x %i%s"
+               width height
+               (if mistty--terminal-size
+                   ""
+                 " (Tracks windows: ON)")))))
 
 (defun mistty-grow-vertically (&optional delta)
   "Increase the height of the virtual terminal.
@@ -5336,7 +5368,9 @@ If DELTA is negative, the window height is increased."
               (track-mouse
                 (let ((continue t))
                   (while continue
-                    (pcase (read-event)
+                    ;; We must use read-key and not read-event on
+                    ;; terminals to get mouse event translation.
+                    (pcase (read-key nil 'disable-fallback)
                       (`(mouse-movement ,posn)
                        (mistty-log "MOUSE MOVE EVENT col,row: %s x,y: %s"
                                    (posn-col-row posn) (posn-x-y posn))

@@ -84,10 +84,12 @@ impl VTerm {
         let acc = EventAccumulator {
             events: Rc::clone(&events),
         };
-        let mut config = Config::default();
-        config.scrolling_history = 0; // call enable_scrollback to re-enable
-        config.osc52 = osc52;
-        config.kitty_keyboard = true;
+        let config = Config {
+            scrolling_history: 0, // call enable_scrollback to re-enable
+            osc52,
+            kitty_keyboard: true,
+            ..Default::default()
+        };
 
         let mut inner = Term::new(config, &VTermDimensions::new(width, height, 0), acc);
         let processor = Processor::new();
@@ -346,12 +348,11 @@ impl VTerm {
                     lisp_events.push(pty_write(env, data)?);
                 }
                 Event::ColorRequest(index, rgb_to_seq) => {
-                    if let Some(named) = render::named_color_for_color_request(index) {
-                        if let Some(color) =
+                    if let Some(named) = render::named_color_for_color_request(index)
+                        && let Some(color) =
                             render::to_emacs_color_rgb(env, Color::Named(named), true)?
-                        {
-                            lisp_events.push(pty_write(env, rgb_to_seq(color))?);
-                        }
+                    {
+                        lisp_events.push(pty_write(env, rgb_to_seq(color))?);
                     }
                 }
                 Event::Title(title) => {

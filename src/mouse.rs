@@ -68,7 +68,7 @@ fn mouse_seq_internal(
     let event = Event {
         action,
         button: Some(button),
-        mods: mods,
+        mods,
         pos: Pos {
             x: (x as f32) * CELL_WIDTH + CELL_WIDTH / 2.0,
             y: (y as f32) * CELL_HEIGHT + CELL_HEIGHT / 2.0,

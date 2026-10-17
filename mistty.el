@@ -1193,7 +1193,7 @@ This is only valid for modes that have a non-nil :map tag.")
 
   (define-key
    map [mistty-mouse]
-   '(menu-item "Mouse reporting"
+   '(menu-item "Mouse Reporting"
                mistty-toggle-mouse
                :visible mistty--mouse-reporting-requested
                :button (:toggle . mistty--mouse-reporting)))
@@ -1204,7 +1204,7 @@ This is only valid for modes that have a non-nil :map tag.")
   (define-key
    map [mistty-fullscreen]
    '(menu-item
-     "Fullscreen keymap"
+     "Fullscreen Keymap"
      mistty-toggle-keymap
      :enable (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
      :button (:radio . (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
@@ -1212,7 +1212,7 @@ This is only valid for modes that have a non-nil :map tag.")
   (define-key
    map [mistty-prompt]
    '(menu-item
-     "Prompt keymap" mistty-toggle-keymap
+     "Prompt Keymap" mistty-toggle-keymap
      :enable (eq 'fullscreen-mode-map (mistty--secondary-mode-map))
      :button (:radio . (not (eq 'fullscreen-mode-map (mistty--secondary-mode-map))))
      :help "mistty-prompt-map")))
@@ -1228,22 +1228,6 @@ This is only valid for modes that have a non-nil :map tag.")
 
     (define-key map [mistty-mistty-about] '(menu-item "About" mistty-about))
     (define-key map [mistty-separator-0] '(menu-item "--"))
-
-    (mistty--add-secondary-mode-menu map)
-
-    ;; Note that items are defined in reverse order
-    ;;
-    ;; This extends the menu built in mistty--secondary-mode-menu
-    (define-key map [mistty-separator-2] '(menu-item "--"))
-
-    (define-key map [mistty-create-buf]
-                '(menu-item "New Buffer With Output" mistty-create-buffer-with-output))
-    (define-key map [mistty-next-output]
-                '(menu-item "Next Output" mistty-next-output))
-    (define-key map [mistty-prev-output]
-                '(menu-item "Prev Output" mistty-previous-output))
-
-    (define-key map [mistty-separator-3] '(menu-item "--"))
 
     (define-key map [mistty-size-track-windows]
                 '(menu-item "Terminal Size Tracks Window"
@@ -1265,7 +1249,23 @@ This is only valid for modes that have a non-nil :map tag.")
                 '(menu-item "Set Terminal Size"
                             mistty-set-terminal-size))
 
-    (define-key map [mistty-separator-4] '(menu-item "--"))
+    (define-key map [mistty-separator-1] '(menu-item "--"))
+
+    (mistty--add-secondary-mode-menu map)
+
+    ;; Note that items are defined in reverse order
+    ;;
+    ;; This extends the menu built in mistty--secondary-mode-menu
+    (define-key map [mistty-separator-2] '(menu-item "--"))
+
+    (define-key map [mistty-create-buf]
+                '(menu-item "New Buffer With Output" mistty-create-buffer-with-output))
+    (define-key map [mistty-next-output]
+                '(menu-item "Next Output" mistty-next-output))
+    (define-key map [mistty-prev-output]
+                '(menu-item "Prev Output" mistty-previous-output))
+
+    (define-key map [mistty-separator-3] '(menu-item "--"))
 
     (define-key map [mistty-exit-command]
                 '(menu-item "Exit Command"
@@ -1274,11 +1274,11 @@ This is only valid for modes that have a non-nil :map tag.")
     (define-key map [mistty-clear]
                 '(menu-item "Clear" mistty-clear))
     (define-key map [mistty-go-to-scrollback]
-                '(menu-item "Go to scrollback" mistty-toggle
+                '(menu-item "Go to Scrollback" mistty-toggle
                             :visible (and (>= (point) mistty-sync-marker)
                                           (> mistty-sync-marker (point-min)))))
     (define-key map [mistty-go-to-terminal]
-                '(menu-item "Go to terminal" mistty-toggle
+                '(menu-item "Go to Terminal" mistty-toggle
                             :visible (and mistty-proc
                                           (not (eq 'split mistty-fullscreen))
                                           (< (point) mistty-sync-marker))))

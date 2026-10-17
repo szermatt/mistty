@@ -1448,9 +1448,8 @@ window."
       (setq-local mistty--terminal-size nil)
       (let ((win (or (get-buffer-window (current-buffer))
                      (selected-window))))
-        (setq width (window-max-chars-per-line win))
-        (setq height (floor (with-selected-window win
-                              (window-screen-lines))))))
+        (setq width (mistty--terminal-width-from-window win))
+        (setq height (mistty--terminal-height-from-window win))))
     (let* ((work-buffer (current-buffer))
            (term (mistty--create-term
                   (or mistty-terminal-type
@@ -4072,67 +4071,70 @@ This function is meant to be called manually or from the idle-timer,
             (dolist (win (get-buffer-window-list work-buffer))
               (when (and (>= (window-start win) mistty-sync-marker)
                          (not (pos-visible-in-window-p bottom)))
-                (mistty-log "WINDOW CHECK %s not visible, recomputing height" bottom)
-                (mistty--set-process-window-size-from-line-height)
+                (mistty-log "WINDOW CHECK %s not visible, recomputing" bottom)
+                (mistty--set-process-window-size-from-windows (list win))
                 (cl-return)))))))))
 
-(defun mistty--set-process-window-size-from-windows ()
-  "Adjust process terminal size based on the windows displaying it.
+(defun mistty--set-process-window-size-from-windows (&optional wins)
+  "Adjust process terminal size based on WINS.
 
-On a graphical display, also take actual line heights into account."
-  (if (and (display-graphic-p) (eq t mistty-fullscreen))
-      (mistty--set-process-window-size-from-line-height)
-    (let* ((size (window-adjust-process-window-size-smallest
-                  mistty-proc
-                  (get-buffer-window-list mistty-work-buffer nil t))))
-      (when size
-        (let ((width (car size))
-              (height (cdr size)))
-          (mistty-log "set-process-window-size %sx%s" width height)
-          (mistty--set-process-window-size width height))))))
+WINS default to all the windows displaying `mistty-work-buffer'."
+  (when-let* ((wins (or wins
+                        (get-buffer-window-list
+                         mistty-work-buffer nil t))))
+    (let ((w (mistty--terminal-width-from-window (car wins)))
+          (h (mistty--terminal-height-from-window (car wins))))
+      (dolist (win (cdr wins))
+        (setq w (min w (mistty--terminal-width-from-window win)))
+        (setq h (min h (mistty--terminal-height-from-window win))))
+      (mistty-log "set-process-window-size %sx%s" w h)
+      (mistty--set-process-window-size w h))))
 
-(defun mistty--set-process-window-size-from-line-height ()
-  "Adjust process terminal height based on actual line height.
+(defun mistty--terminal-width-from-window (win)
+  "Figure out how many terminal columns can fit in WIN."
+  (if (display-graphic-p (window-frame win))
+      ;; Sacrifice a column as an attempt to display the terminal
+      ;; content in a sane way, even with double-width characters.
+      ;;
+      ;; On a graphical display, when the last displayed char is a
+      ;; double-width char, such as an emoji, Emacs decides to wrap
+      ;; the line before the double-width character and screws up the
+      ;; terminal display even if when character width is exactly two
+      ;; characters and would fit into the line.
+      (1- (window-max-chars-per-line win))
+    (window-max-chars-per-line win)))
 
-This alternative attempts to account for lines containing characters -
-usually emoji - that are taller than normal on a graphical display by
-computing an average line height looking at the actual text size.
-
-This is a compromise. We cannot be exact as line height changes
-dynamically.
-
-If we used only the height proposed by the default algorithm, we would
-make the content of the window systematically a little larger than the
-window.
-
-If we used the maximum line height, we would make the content
-systematically smaller than the window can display."
-  (when-let* ((windows (get-buffer-window-list mistty-work-buffer nil t))
-              (default-size (window-adjust-process-window-size-smallest
-                             mistty-proc windows)))
-    (let* ((win-heights (mapcar
-                         (lambda (win)
-                           (cons win (window-body-height win 'pixelwise)))
-                         windows))
-           (win-and-height (seq-reduce
-                            (lambda (a b) ; min
-                              (if (< (cdr a) (cdr b))
-                                  a
-                                b))
-                            (cdr win-heights)
-                            (car win-heights)))
-           (win (car win-and-height))
-           (win-height (cdr win-and-height))
-           (text-height (cdr (window-text-pixel-size win mistty-sync-marker (point-max))))
-           (line-count (count-lines mistty-sync-marker (point-max)))
-           (avg-line-height (/ (float text-height) (float line-count)))
-           (lines (floor (/ (float win-height) avg-line-height)))
-           (width (car default-size))
-           (default-height (cdr default-size))
-           (height (min default-height lines)))
-        (mistty-log "set-process-window-size %sx%s (default height %s, graphical %s)"
-                    width height default-height lines)
-        (mistty--set-process-window-size width height))))
+(defun mistty--terminal-height-from-window (win)
+  "Figure out how many terminal lines can fit in WIN."
+  (let ((default-height (with-selected-window win
+                          (floor (window-screen-lines)))))
+    (or (when (display-graphic-p (window-frame win))
+          (with-current-buffer (window-buffer win)
+            (when (and (markerp mistty-sync-marker)
+                       (< mistty-sync-marker (point-max)))
+              ;; Attempt to account for lines containing characters -
+              ;; usually emoji - that are taller than normal on a
+              ;; graphical display by computing an average line height
+              ;; looking at the actual text size.
+              ;;
+              ;; This is a compromise. We cannot be exact as line
+              ;; height changes dynamically on a graphical display.
+              ;;
+              ;; If we used only the height proposed by the default
+              ;; algorithm, we would make the content of the window
+              ;; systematically a little larger than the window.
+              ;;
+              ;; If, on the other hand, we used the maximum line
+              ;; height, we would make the content systematically
+              ;; smaller than the window can display.
+              (let* ((win-height (window-body-height win 'pixelwise))
+                     (text-height (cdr (window-text-pixel-size
+                                        win mistty-sync-marker (point-max))))
+                     (line-count (count-lines mistty-sync-marker (point-max)))
+                     (avg-line-height (/ (float text-height) (float line-count))))
+                (min default-height
+                     (floor (/ (float win-height) avg-line-height)))))))
+        default-height)))
 
 (defun mistty--set-process-window-size (width height)
   "Set the process terminal size to WIDTH x HEIGHT.

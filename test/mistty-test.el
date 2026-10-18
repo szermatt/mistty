@@ -3906,6 +3906,8 @@
                (goto-char (point-min))
                (search-forward-regexp "\\$ echo second *\nsearch: " nil t))))
 
+    ;; A bad handling of mistty--end-prompt could break cursor moves
+    ;; after this.
     (execute-kbd-macro (kbd "RET"))
     (mistty-wait-for-output
      :test (lambda ()
@@ -3914,6 +3916,49 @@
                (not (search-forward "search:" nil t)))))
 
     (should (equal "$ echo second<>"
+                   (mistty-test-content
+                    :start mistty-sync-marker :show (point))))))
+
+(mistty-deftest mistty-test-move-cursor-after-special-prompt (:shell fish :selected t :type all)
+  (let ((mistty-special-prompt-regexps '("^search: ")))
+    (mistty-send-text "echo first")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo second")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo third")
+    (mistty-send-and-wait-for-prompt)
+    (mistty-send-key 1 (kbd "C-r"))
+    (mistty-wait-for-output :str "search:" :start (point-min))
+
+    (should mistty--special-prompt)
+    (execute-kbd-macro (kbd "e c h"))
+    (mistty-wait-for-output
+     :test (lambda ()
+             (save-excursion)
+             (goto-char (point-min))
+             (search-forward "search: ech" nil 'noerror)))
+
+    (should (equal (concat
+                    "search: ech<>\n"
+                    "► echo third  ► echo second  ► echo first")
+                   (mistty-test-content
+                    :start (mistty-test-pos "search:") :show (point))))
+
+    (execute-kbd-macro (kbd "RET"))
+    (mistty-wait-for-output
+     :test (lambda ()
+             (save-excursion
+               (goto-char (point-min))
+               (not (search-forward "search:" nil t)))))
+
+    (should (equal "$ echo third<>"
+                   (mistty-test-content
+                    :start mistty-sync-marker :show (point))))
+
+    (mistty-run-command
+     (goto-char (- (point) 2)))
+
+    (should (equal "$ echo thi<>rd"
                    (mistty-test-content
                     :start mistty-sync-marker :show (point))))))
 

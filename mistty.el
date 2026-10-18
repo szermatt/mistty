@@ -2175,7 +2175,9 @@ Also updates prompt and point."
                            (mistty-on-prompt-p (mistty-cursor))))
 
          (mistty-log "refresh (%s)@%s"
-                     (if on-prompt "complete" "quick")
+                     (if (and on-prompt (not mistty--end-prompt))
+                         "complete"
+                       "quick")
                      mistty--scrolline-home-num)
          (pcase-let* ((`(,sync-pos . ,sync-scrolline)
                        (mistty--term-sync
@@ -2218,6 +2220,11 @@ Also updates prompt and point."
 If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
   ;; Right after a mistty-send-command, we're waiting for a line
   ;; after mistty--end-prompt that's not part of the old prompt.
+  (when (and mistty--end-prompt
+             (or (<= mistty--end-prompt mistty-sync-marker)
+                 (> mistty--end-prompt (point-max))))
+    (setq mistty--end-prompt nil))
+
   (when mistty--end-prompt
     (when-let* ((prompt mistty--active-prompt)
                 (scrolline (mistty--with-live-buffer mistty-term-buffer
@@ -2619,7 +2626,8 @@ SCROLLINE is the scrolline at BEG."
      (mistty--interact send-command (interact)
        (mistty-maybe-realize-possible-prompt)
        (setq mistty-goto-cursor-next-time t)
-       (when (and (mistty-on-prompt-p (point))
+       (when (and (eq 'prompt (mistty--secondary-mode))
+                  (mistty-on-prompt-p (point))
                   (mistty-on-prompt-p (mistty-cursor)))
          (setq mistty--end-prompt (mistty-cursor)))
        (setq mistty--interacted t)

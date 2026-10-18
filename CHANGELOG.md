@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.2.0] - 2026-10-18
+
+### Changed
+
+- Support both modes of `toggle-truncate-lines`. This means that `M-x kill-line` won't cross wrapped lines anymore, but `C-k` might, depending on the shell. ([`04c910a`](https://github.com/szermatt/mistty/commit/04c910a))
+
+### Added
+
+- Support mouse click and drag reporting when using `alacritty`, including `OSC 133;A;click_events=1`, with a clickable mode-line indicator. Documented in [**Mouse Support**](https://mistty.readthedocs.io/en/latest/usage.html#mouse-support). ([`0603d96`](https://github.com/szermatt/mistty/commit/0603d96), [`48ecdfb`](https://github.com/szermatt/mistty/commit/48ecdfb), [`baa298b`](https://github.com/szermatt/mistty/commit/baa298b))
+- Add customizable mode-line tag themes (`mistty-tag-theme`) with optional [**nerd-icons**](https://github.com/rainstormstudio/nerd-icons.el) integration. Mentioned in the [FAQ](https://mistty.readthedocs.io/en/latest/faq.html). ([`2bb4c22`](https://github.com/szermatt/mistty/commit/2bb4c22), [`9392d51`](https://github.com/szermatt/mistty/commit/9392d51), [`411fbaf`](https://github.com/szermatt/mistty/commit/411fbaf))
+- Support the **Kitty Keyboard Protocol** when using `alacritty` ([`b63a7ac`](https://github.com/szermatt/mistty/commit/b63a7ac), [`b68ef2e`](https://github.com/szermatt/mistty/commit/b68ef2e), [`d44315c`](https://github.com/szermatt/mistty/commit/d44315c), [`55ac9d3`](https://github.com/szermatt/mistty/commit/55ac9d3))
+- Control terminal size using (`mistty-fit-to-window`, `mistty-grow-vertically`, `mistty-shrink-vertically`, and `mistty-toggle-track-window`). Documented in [**Terminal Size**](https://mistty.readthedocs.io/en/latest/usage.html#terminal-size). ([`3d479d9`](https://github.com/szermatt/mistty/commit/3d479d9), [`2a385ff`](https://github.com/szermatt/mistty/commit/2a385ff))
+- `mistty-about` displays the version and expected module name ([`86b265a`](https://github.com/szermatt/mistty/commit/86b265a))
+
+### Fixed
+
+- Use correct key sequences for `alacritty`, matching its terminfo ([`85aa3a8`](https://github.com/szermatt/mistty/commit/85aa3a8), [`20821c1`](https://github.com/szermatt/mistty/commit/20821c1))
+- Adapt terminal size for tall characters. Documented in [Terminal Size](https://mistty.readthedocs.io/en/latest/usage.html#terminal-size). ([`66af412`](https://github.com/szermatt/mistty/commit/66af412), [`6dc2134`](https://github.com/szermatt/mistty/commit/6dc2134))
+- Limit width of terminal to avoid issues with wide character at end of line  ([`699a2ce`](https://github.com/szermatt/mistty/commit/699a2ce))
+- Preserve column alignment after wide Unicode characters ([`79488bd`](https://github.com/szermatt/mistty/commit/79488bd))
+- Fix color at the end of lines when using `alacritty` ([`d3e6c2d`](https://github.com/szermatt/mistty/commit/d3e6c2d))
+- Declare module functions in `mistty-term-alacritty.el` to fix byte-compilation without the module installed ([`a016260`](https://github.com/szermatt/mistty/commit/a016260))
+
 ## [2.1.0] - 2026-10-03
 
 _If you are upgrading: please see the [documentation on modes and keyboard mapping](https://mistty.readthedocs.io/en/latest/usage.html#terminal-zone-modes-and-keyboard)._

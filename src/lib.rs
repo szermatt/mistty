@@ -15,6 +15,8 @@ use alacritty_terminal::{
 use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
 use std::{fmt::Debug, ops::RangeBounds};
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 emacs::plugin_is_GPL_compatible!();
 
 emacs::use_functions! {
@@ -39,6 +41,12 @@ fn init(env: &Env) -> Result<Value<'_>> {
     kbd::init(env)?;
 
     env.provide("mistty-alacritty-vt")
+}
+
+// Return the module version
+#[defun]
+fn version() -> Result<String> {
+    Ok(VERSION.to_string())
 }
 
 /// Create a virtual terminal wit the given dimensions WIDTH x HEIGHT.

@@ -62,6 +62,23 @@ provide the feature `mistty-alacritty-vt'."
           mistty-alacritty-arch
           module-file-suffix))
 
+(defun mistty-alacritty-check-version ()
+  "Raise an error unless the right version of the module is loaded.
+
+This check is disabled in development, when the version is set to
+\"dev\"."
+  (interactive)
+  (unless (featurep 'mistty-alacritty-vt)
+    (error "Module %s not loaded yet" (mistty-alacritty-modulename)))
+  (unless (string= mistty-alacritty-version "dev")
+    (let ((module-version (condition-case nil
+                              (mistty-alacritty-vt-version)
+                            ;; version is
+                            (void-function "unspecified"))))
+      (unless (string= mistty-alacritty-version module-version)
+        (error "Incompatibly mistty-alacritty-vt module. You may need to restart Emacs. Expected %s, got %s"
+               mistty-alacritty-version module-version)))))
+
 (defun mistty-alacritty-load ()
   "Attempt to load the module.
 
@@ -71,10 +88,14 @@ returns. Return nil if the module is not found.
 This function might fail if the module is found, but cannot be loaded
 for some reason."
   (cond
-   ((featurep 'mistty-alacritty-vt) t)
+   ((featurep 'mistty-alacritty-vt)
+    (mistty-alacritty-check-version)
+
+    t)
    ((load (mistty-alacritty-modulename) 'noerror 'nomessage)
     (unless (featurep 'mistty-alacritty-vt)
       (error "Module doesn't define feature mistty-alacritty-vt"))
+    (mistty-alacritty-check-version)
 
     t)
    ;; not found
@@ -84,6 +105,7 @@ for some reason."
 
 ;; These declarations allow compiling without loading the module.
 (declare-function mistty-alacritty-vt-alt-screen-p nil (term))
+(declare-function mistty-alacritty-vt-version nil ())
 (declare-function mistty-alacritty-vt-cleanup-prompt-sp nil (term pos))
 (declare-function mistty-alacritty-vt-clear-to-eol nil (term line col))
 (declare-function mistty-alacritty-vt-clear-scrollback nil (term))
@@ -342,6 +364,7 @@ Calling any other function when this one returns nil will fail."
   (unless (mistty-alacritty-available-p)
     (error "Alacritty terminal is unavailable; module '%s' not found"
            (mistty-alacritty-modulename)))
+  (mistty-alacritty-check-version)
   (let ((vterm (mistty-alacritty-vt-make-vterm width height)))
     (mistty-log "MAKE VTERM %s lines, %s colums" height width)
     (mistty-alacritty-vt-enable-scrollback vterm)

@@ -268,7 +268,7 @@ dependencies = [
 
 [[package]]
 name = "mistty-alacritty-vt"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "alacritty_terminal",
  "emacs",

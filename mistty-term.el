@@ -680,15 +680,18 @@ markers point and overlays as it rewrites the text."
       (mistty--with-live-buffer dest-buffer
         (save-restriction
           (widen)
-          (let ((old-point (point))
-                (at-eobp (eobp)))
+          (let ((old-point (when (< (point) dest-pos (point-max))
+                             (point))))
             (goto-char dest-pos)
             (delete-region dest-pos (point-max))
             (insert-buffer-substring source-buffer source-pos)
-            (if (and (not at-eobp)
-                     (>= dest-pos old-point)
-                     (<= dest-pos (point-max)))
-                (goto-char old-point)))))
+            (if old-point
+                ;; old-point was before dest-pos. Restore it.
+                (goto-char old-point)
+              ;; copy point position from source buffer, if possible
+              (goto-char (+ dest-pos
+                            (max 0 (with-current-buffer source-buffer
+                                     (- (point) source-pos)))))))))
 
     ;; Complete but expensive version of sync-buffer that conserves
     ;; markers.

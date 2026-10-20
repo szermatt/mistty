@@ -1126,6 +1126,7 @@ All themes must define tags for the following ids:
 All IDs must be set in all themes.")
 
 ;; optional nerd-icons integration
+(defvar nerd-icons-mode-icon-alist) ;; defined by nerd-icons
 (when (featurep 'nerd-icons)
   (unless (alist-get 'mistty-mode nerd-icons-mode-icon-alist)
     (setf (alist-get 'mistty-mode nerd-icons-mode-icon-alist)

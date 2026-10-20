@@ -8610,24 +8610,25 @@ precmd_functions+=(prompt_header)
     (turtles-with-grab-buffer (:menu t)
       (should
        (equal
-        (concat " MisTTY >\n"
-                "     Clear                        C-c C-l\n"
-                "     Exit Command\n"
-                " ----------------------------------------\n"
-                "     Prev Output                  C-c C-p\n"
-                "     Next Output                  C-c C-n\n"
-                "     New Buffer With Output       C-c C-r\n"
-                " ----------------------------------------\n"
-                " (*) Prompt Keymap                C-c C-k\n"
-                " ( ) Fullscreen Keymap            C-c C-k\n"
-                "     Capture Keyboard             C-c C-q\n"
-                " ----------------------------------------\n"
-                "     Set Terminal Size\n"
-                "     Fit Terminal to Window       C-c C-f\n"
-                " [ ] Terminal Size Tracks Window  C-c C-t\n"
-                " ----------------------------------------\n"
-                "     About")
-              (mistty-test-content))))
+        (mistty-test-trim-menu
+         " MisTTY >\n"
+         "     Clear                        C-c C-l\n"
+         "     Exit Command\n"
+         " ----------------------------------------\n"
+         "     Prev Output                  C-c C-p\n"
+         "     Next Output                  C-c C-n\n"
+         "     New Buffer With Output       C-c C-r\n"
+         " ----------------------------------------\n"
+         " (*) Prompt Keymap                C-c C-k\n"
+         " ( ) Fullscreen Keymap            C-c C-k\n"
+         "     Capture Keyboard             C-c C-q\n"
+         " ----------------------------------------\n"
+         "     Set Terminal Size\n"
+         "     Fit Terminal to Window       C-c C-f\n"
+         " [ ] Terminal Size Tracks Window  C-c C-t\n"
+         " ----------------------------------------\n"
+         "     About")
+        (mistty-test-content))))
 
     ;; close menu
     :keys "C-g"))
@@ -8641,11 +8642,12 @@ precmd_functions+=(prompt_header)
     (turtles-with-grab-buffer (:menu t)
       (should
        (equal
-        (concat " MisTTY >\n"
-                " (*) Prompt Keymap      C-c C-k\n"
-                " ( ) Fullscreen Keymap  C-c C-k\n"
-                " ------------------------------\n"
-                "     Capture Keyboard   C-c C-q")
+        (mistty-test-trim-menu
+         " MisTTY >\n"
+         " (*) Prompt Keymap      C-c C-k\n"
+         " ( ) Fullscreen Keymap  C-c C-k\n"
+         " ------------------------------\n"
+         "     Capture Keyboard   C-c C-q")
         (mistty-test-content))))
 
     ;; close menu
@@ -8659,11 +8661,12 @@ precmd_functions+=(prompt_header)
     (turtles-with-grab-buffer (:menu t)
       (should
        (equal
-        (concat " MisTTY >\n"
-                " ( ) Prompt Keymap      C-c C-k\n"
-                " (*) Fullscreen Keymap  C-c C-k\n"
-                " ------------------------------\n"
-                "     Capture Keyboard   C-c C-q")
+        (mistty-test-trim-menu
+         " MisTTY >\n"
+         " ( ) Prompt Keymap      C-c C-k\n"
+         " (*) Fullscreen Keymap  C-c C-k\n"
+         " ------------------------------\n"
+         "     Capture Keyboard   C-c C-q")
         (mistty-test-content))))
 
     ;; close menu

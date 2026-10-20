@@ -1006,4 +1006,14 @@ buffer is used."
                   (replace-regexp-in-string "---+" "---" after)))
       (error "Invalid mode-line: %S" mode-line))))
 
+(defun mistty-test-trim-menu (&rest lines)
+  "Trim separators in menus as needed.
+
+Different Emacs versions treat separators differently. This function
+accounts for that."
+  (let ((text (apply #'concat lines)))
+    (if (< emacs-major-version 31)
+      (replace-regexp-in-string "---*\n" "--\n" text)
+      text)))
+
 (provide 'test/mistty-testing)

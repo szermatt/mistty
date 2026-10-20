@@ -7237,20 +7237,24 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-test-osc-10-11
     (:selected t :type all :turtles t)
-  (set-face-foreground 'default "#ffff00")
-  (set-face-background 'default "#0000ff")
+    (unwind-protect
+        (progn
+          (set-face-foreground 'default "#00ff00")
+          (set-face-background 'default "#ffff00")
 
-  (mistty--send-string mistty-proc "read -rs -d \\\\ -p $'\\e]10;?\\e\\\\'  fg; ")
-  (mistty--send-string mistty-proc "read -rs -d \\\\ -p $'\\e]11;?\\e\\\\'  bg; ")
-  (mistty-send-and-wait-for-prompt)
+          (mistty--send-string mistty-proc "read -rs -d \\\\ -p $'\\e]10;?\\e\\\\'  fg; ")
+          (mistty--send-string mistty-proc "read -rs -d \\\\ -p $'\\e]11;?\\e\\\\'  bg; ")
+          (mistty-send-and-wait-for-prompt)
 
-  (mistty-send-text "echo $fg | strings")
-  (should (equal "]10;rgb:ffff/ffff/0000"
-                 (mistty-send-and-capture-command-output)))
+          (mistty-send-text "echo $fg | strings")
+          (should (equal "]10;rgb:0000/ffff/0000"
+                         (mistty-send-and-capture-command-output)))
 
-  (mistty-send-text "echo $bg | strings")
-  (should (equal "]11;rgb:0000/0000/ffff"
-                 (mistty-send-and-capture-command-output))))
+          (mistty-send-text "echo $bg | strings")
+          (should (equal "]11;rgb:ffff/ffff/0000"
+                         (mistty-send-and-capture-command-output))))
+      (set-face-foreground 'default nil)
+      (set-face-background 'default nil)))
 
 (ert-deftest mistty-test-mark-scrollines ()
   (ert-with-test-buffer ()

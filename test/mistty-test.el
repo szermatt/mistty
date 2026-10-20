@@ -8633,6 +8633,55 @@ precmd_functions+=(prompt_header)
     ;; close menu
     :keys "C-g"))
 
+(mistty-deftest mistty-test-mode-menu-fullscreen (:selected t :turtles t :type alacritty)
+  (menu-bar-mode)
+
+  ;; make sure there's something in scrollback for "Go To Scrollback"
+  (mistty-send-text "echo scrollback")
+  (mistty-send-and-wait-for-prompt)
+
+  ;; turn terminal fullscreen
+  (mistty--send-string
+   mistty-proc "printf '\\e[?1049h'; read -p 'FS'; printf '\\e[?1049lPROMPT\\n'")
+  (mistty-send-command)
+  (mistty-wait-for-output :start (point-min) :regexp "^FS")
+  (should mistty-fullscreen)
+  (mistty-goto-cursor)
+
+  ;; make sure the menu reflects the current state
+  (redisplay)
+
+  (turtles-interaction
+    :mouse-ev 'mouse-1 (turtles-coords "MisTTY" :menu-bar t)
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (mistty-test-trim-menu
+         " MisTTY >\n"
+         "     Go to Scrollback             C-c C-j\n"
+         "     Clear                        C-c C-l\n"
+         "     Exit Command\n"
+         " ----------------------------------------\n"
+         "     Prev Output                  C-c C-p\n"
+         "     Next Output                  C-c C-n\n"
+         "     New Buffer With Output       C-c C-r\n"
+         " ----------------------------------------\n"
+         " ( ) Prompt Keymap                C-c C-k\n"
+         " (*) Fullscreen Keymap            C-c C-k\n"
+         "     Capture Keyboard             C-c C-q\n"
+         " ----------------------------------------\n"
+         "     Set Terminal Size\n"
+         "     Shrink Terminal Vertically   C-c <\n"
+         "     Grow Terminal Vertically     C-c >\n"
+         "     Fit Terminal to Window       C-c C-f\n"
+         " [ ] Terminal Size Tracks Window  C-c C-t\n"
+         " ----------------------------------------\n"
+         "     About")
+        (mistty-test-content))))
+
+    ;; close menu
+    :keys "C-g"))
+
 (mistty-deftest mistty-test-secondary-mode-menu (:selected t :turtles t :type alacritty)
   ;; The default buffer name is too long; the button wouldn't be visible
   (mistty-test-rename-buffer "test")

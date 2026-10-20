@@ -8603,6 +8603,72 @@ precmd_functions+=(prompt_header)
               "-UUU:**- F1  test-mode-line   All  (misTTY >_ ▮) -------------------------------")
              (mistty-test-trim-mode-line)))))
 
+(mistty-deftest mistty-test-mode-menu (:selected t :turtles t :type alacritty)
+  (menu-bar-mode)
+  (turtles-interaction
+    :mouse-ev 'mouse-1 (turtles-coords "MisTTY" :menu-bar t)
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (concat " MisTTY >\n"
+                "     Clear                        C-c C-l\n"
+                "     Exit Command\n"
+                " ----------------------------------------\n"
+                "     Prev Output                  C-c C-p\n"
+                "     Next Output                  C-c C-n\n"
+                "     New Buffer With Output       C-c C-r\n"
+                " ----------------------------------------\n"
+                " (*) Prompt Keymap                C-c C-k\n"
+                " ( ) Fullscreen Keymap            C-c C-k\n"
+                "     Capture Keyboard             C-c C-q\n"
+                " ----------------------------------------\n"
+                "     Set Terminal Size\n"
+                "     Fit Terminal to Window       C-c C-f\n"
+                " [ ] Terminal Size Tracks Window  C-c C-t\n"
+                " ----------------------------------------\n"
+                "     About")
+              (mistty-test-content))))
+
+    ;; close menu
+    :keys "C-g"))
+
+(mistty-deftest mistty-test-secondary-mode-menu (:selected t :turtles t :type alacritty)
+  ;; The default buffer name is too long; the button wouldn't be visible
+  (mistty-test-rename-buffer "test")
+  (redisplay) ; make sure menu is up-to-date
+  (turtles-interaction
+    :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (concat " MisTTY >\n"
+                " (*) Prompt Keymap      C-c C-k\n"
+                " ( ) Fullscreen Keymap  C-c C-k\n"
+                " ------------------------------\n"
+                "     Capture Keyboard   C-c C-q")
+        (mistty-test-content))))
+
+    ;; close menu
+    :mouse-ev 'up-mouse-1 '(0 . 1))
+
+  (mistty-toggle-keymap)
+  (redisplay) ; make sure menu is up-to-date
+
+  (turtles-interaction
+    :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (concat " MisTTY >\n"
+                " ( ) Prompt Keymap      C-c C-k\n"
+                " (*) Fullscreen Keymap  C-c C-k\n"
+                " ------------------------------\n"
+                "     Capture Keyboard   C-c C-q")
+        (mistty-test-content))))
+
+    ;; close menu
+    :mouse-ev 'up-mouse-1 '(0 . 1)))
+
 (mistty-deftest mistty-test-button-to-toggle-long-running-command (:selected t :type all :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
 

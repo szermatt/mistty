@@ -2175,22 +2175,21 @@ Also updates prompt and point."
          (setq on-prompt (unless mistty-fullscreen
                            (mistty-on-prompt-p (mistty-cursor))))
 
-         (mistty-log "refresh (%s)@%s"
-                     (if (and on-prompt (not mistty--end-prompt))
-                         "complete"
-                       "quick")
-                     mistty--scrolline-home-num)
-         (pcase-let* ((`(,sync-pos . ,sync-scrolline)
-                       (mistty--term-sync
-                        mistty--term
-                        mistty-work-buffer
-                        mistty-sync-marker
-                        mistty--scrolline-home-num
-                        (and on-prompt (not mistty--end-prompt))
-                        mistty--cursor)))
-           (when (or (/= sync-pos mistty-sync-marker)
-                     (/= sync-scrolline mistty--scrolline-home-num))
-             (mistty--set-sync-mark sync-pos sync-scrolline)))
+         (let ((keep-markers (and on-prompt (not mistty--end-prompt))))
+           (mistty-log "refresh (%s)@%s"
+                       (if keep-markers "complete" "quick")
+                       mistty--scrolline-home-num)
+           (pcase-let* ((`(,sync-pos . ,sync-scrolline)
+                         (mistty--term-sync
+                          mistty--term
+                          mistty-work-buffer
+                          mistty-sync-marker
+                          mistty--scrolline-home-num
+                          keep-markers
+                          mistty--cursor)))
+             (when (or (/= sync-pos mistty-sync-marker)
+                       (/= sync-scrolline mistty--scrolline-home-num))
+               (mistty--set-sync-mark sync-pos sync-scrolline))))
 
          (unless mistty-fullscreen
            (mistty--post-process-prompts on-prompt))

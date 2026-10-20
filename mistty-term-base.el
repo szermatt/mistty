@@ -228,6 +228,19 @@ guaranteed to correspond to the terminal screen top in fullscreen mode."
 
   nil)
 
+(cl-defgeneric mistty--term-click-on (term target sync-pos)
+  "Generate a click for TERM on buffer position TARGET.
+
+TARGET is a position in the terminal zone of current buffer, which
+starts at SYNC-POS. Scrollines must be set correctly on the buffer.
+
+SYNC-POS is the position in the current buffer at which the terminal is
+synced. It's only guaranteed to correspond to the terminal screen top in
+fullscreen mode."
+  (ignore term target sync-pos)
+
+  nil)
+
 (provide 'mistty-term-base)
 
 ;;; mistty-term-base.el ends here

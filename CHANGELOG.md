@@ -4,7 +4,7 @@
 
 ### Changed
 
- - mistty checks module version after loading the modle, when creating
+ - mistty checks module version after loading the module, when creating
    a new terminal, or when the elisp code is reloaded
    ([`d435c34`](https://github.com/szermatt/mistty/commit/d435c34))
 

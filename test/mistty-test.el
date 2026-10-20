@@ -8249,6 +8249,42 @@ precmd_functions+=(prompt_header)
         (should (equal "This [is Emacs]! Yeah!"
                        (mistty-test-content :end (pos-eol))))))))
 
+(mistty-deftest mistty-mouse-drag-mark-event-conversion
+    (:type alacritty :selected t :turtles t :term-size '(60 . 20))
+  (let ((buf (current-buffer)))
+    (delete-other-windows)
+    (mistty--send-string
+     mistty-proc
+     (concat (expand-file-name invocation-name invocation-directory)
+             " -nw -Q -eval '"
+             "(progn "
+             "  (setq initial-scratch-message \"\")"
+             "  (menu-bar-mode -1)"
+             "  (xterm-mouse-mode))'"))
+    (mistty-send-command)
+    (mistty-wait-for-output :str "*scratch*")
+    (mistty--send-string mistty-proc "This is Emacs! Yeah!")
+    (mistty-wait-for-output :str "Emacs!")
+
+    ;; Send the even through the terminal, to make sure that event
+    ;; conversion actually happens. When Emacs is running in a
+    ;; terminal, it lets raw mouse event through to read-event. We
+    ;; don't want that. This test makes sure it doesn't happen.
+    (turtles-interaction
+      :mouse-ev-list (turtles-mouse-selection
+                      (turtles-coords "is Emacs" :at 'beginning)
+                      (turtles-coords "is Emacs" :at 'end)
+                      :steps 2))
+
+    ;; The mouse should have set the mark and moved the pointer.
+    ;; Highlight that with [] so we can test it.
+    (mistty--send-string mistty-proc "]\C-x\C-x[")
+    (mistty-wait-for-output :str "[")
+    (turtles-with-grab-buffer (:buf buf)
+      (should
+       (equal "This [is Emacs]! Yeah!"
+              (mistty-test-content :end (pos-eol)))))))
+
 (mistty-deftest mistty-mouse-drag-fullscreen-window-above
     (:type alacritty :selected t :turtles t :term-size '(60 . 10))
   (let ((buf (current-buffer)))

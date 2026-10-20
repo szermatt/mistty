@@ -8598,3 +8598,151 @@ precmd_functions+=(prompt_header)
              (mistty-test-trim-mode-line
               "-UUU:**- F1  test-mode-line   All  (misTTY >_ ▮) -------------------------------")
              (mistty-test-trim-mode-line)))))
+
+(mistty-deftest mistty-test-mode-menu (:selected t :turtles t :type alacritty)
+  (menu-bar-mode)
+  (turtles-interaction
+    :mouse-ev 'mouse-1 (turtles-coords "MisTTY" :menu-bar t)
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (concat " MisTTY >\n"
+                "     Clear                        C-c C-l\n"
+                "     Exit Command\n"
+                " ----------------------------------------\n"
+                "     Prev Output                  C-c C-p\n"
+                "     Next Output                  C-c C-n\n"
+                "     New Buffer With Output       C-c C-r\n"
+                " ----------------------------------------\n"
+                " (*) Prompt Keymap                C-c C-k\n"
+                " ( ) Fullscreen Keymap            C-c C-k\n"
+                "     Capture Keyboard             C-c C-q\n"
+                " ----------------------------------------\n"
+                "     Set Terminal Size\n"
+                "     Fit Terminal to Window       C-c C-f\n"
+                " [ ] Terminal Size Tracks Window  C-c C-t\n"
+                " ----------------------------------------\n"
+                "     About")
+              (mistty-test-content))))))
+
+(mistty-deftest mistty-test-mode-menu-fullscreen (:selected t :turtles t :type alacritty)
+  (menu-bar-mode)
+
+  (mistty--send-string
+   mistty-proc "printf '\\e[?1049h'; read -p 'FS'; printf '\\e[?1049lPROMPT\\n'")
+  (mistty-send-command)
+  (mistty-wait-for-output :start (point-min) :regexp "^FS")
+  (should mistty-fullscreen)
+
+  ;; force redisplay before checking the menu, to make sure it's been
+  ;; updated with the latest value of mistty-fullscreen.
+  (redisplay)
+
+  (turtles-interaction
+    :mouse-ev 'mouse-1 (turtles-coords "MisTTY" :menu-bar t)
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (concat
+         " MisTTY >\n"
+         "     Go to Scrollback             C-c C-j\n"
+         "     Clear                        C-c C-l\n"
+         "     Exit Command\n"
+         " ----------------------------------------\n"
+         "     Prev Output                  C-c C-p\n"
+         "     Next Output                  C-c C-n\n"
+         "     New Buffer With Output       C-c C-r\n"
+         " ----------------------------------------\n"
+         " ( ) Prompt Keymap                C-c C-k\n"
+         " (*) Fullscreen Keymap            C-c C-k\n"
+         "     Capture Keyboard             C-c C-q\n"
+         " ----------------------------------------\n"
+         "     Set Terminal Size\n"
+         "     Shrink Terminal Vertically   C-c <\n"
+         "     Grow Terminal Vertically     C-c >\n"
+         "     Fit Terminal to Window       C-c C-f\n"
+         " [ ] Terminal Size Tracks Window  C-c C-t\n"
+         " ----------------------------------------\n"
+         "     About")
+        (mistty-test-content))))))
+
+(mistty-deftest mistty-test-secondary-mode-menu (:selected t :turtles t :type alacritty)
+  ;; The default buffer name is too long; the button wouldn't be visible
+  (mistty-test-rename-buffer "test")
+  (turtles-interaction
+    :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (concat " MisTTY >\n"
+                " (*) Prompt Keymap      C-c C-k\n"
+                " ( ) Fullscreen Keymap  C-c C-k\n"
+                " ------------------------------\n"
+                "     Capture Keyboard   C-c C-q")
+        (mistty-test-content))))
+    :mouse-ev 'up-mouse-1 '(0 . 0))
+
+  (mistty-toggle-keymap)
+
+  ;; force redisplay before checking the menu, to make sure it's been
+  ;; updated.
+  (redisplay)
+
+  (turtles-interaction
+    :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))
+    (turtles-with-grab-buffer (:menu t)
+      (should
+       (equal
+        (concat " MisTTY >\n"
+                " ( ) Prompt Keymap      C-c C-k\n"
+                " (*) Fullscreen Keymap  C-c C-k\n"
+                " ------------------------------\n"
+                "     Capture Keyboard   C-c C-q")
+        (mistty-test-content))))
+    :mouse-ev 'up-mouse-1 '(0 . 0)))
+
+(mistty-deftest mistty-test-button-to-toggle-long-running-command (:selected t :type all :turtles t)
+  (mistty-test-rename-buffer "test-mode-line")
+
+  (mistty-report-long-running-command 'test t)
+  (should (eq 'off (mistty--secondary-mode)))
+  (turtles-with-grab-buffer (:mode-line (selected-window))
+    (should (equal
+             (mistty-test-trim-mode-line
+              "-UUU:**- F1  test-mode-line   All  (misTTY …) --------------------------------")
+             (mistty-test-trim-mode-line))))
+
+  (turtles-interaction
+    :mouse-ev 'mouse-1 (turtles-coords "…" :mode-line (current-buffer)))
+  (should (eq 'prompt (mistty--secondary-mode))))
+
+(mistty-deftest mistty-test-button-to-toggle-fullscreen-keyboard
+    (:selected t :type alacritty :turtles t)
+
+  (let ((mistty-tag-theme 'textual))
+    (mistty-test-rename-buffer "test-mode-line")
+    (mistty--send-string
+     mistty-proc "printf '\\e[?1049h'; read -p 'FS'\n")
+    (mistty-wait-for-output :start (point-min) :regexp "^FS")
+
+    (should (eq 'full (mistty--secondary-mode)))
+
+    (turtles-interaction
+      (turtles-with-grab-buffer (:mode-line (selected-window))
+        (should (equal
+                 (mistty-test-trim-mode-line
+                  "-UUU:**- F1  test-mode-line   Top  [(misTTY fullscreen [kb])] ------")
+                 (mistty-test-trim-mode-line))))
+
+      :mouse-ev 'mouse-1 (turtles-coords "[kb]" :mode-line (current-buffer))
+
+      (should mistty--secondary-mode-map-override)
+      (turtles-with-grab-buffer (:mode-line (selected-window))
+        (should (equal
+                 (mistty-test-trim-mode-line
+                  "-UUU:**- F1  test-mode-line   Top  [(misTTY fullscreen (kb))] ------")
+                 (mistty-test-trim-mode-line))))
+
+      :mouse-ev 'mouse-1 (turtles-coords "(kb)" :mode-line (current-buffer))
+      (should-not mistty--secondary-mode-map-override))))
+

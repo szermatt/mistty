@@ -8641,9 +8641,8 @@ precmd_functions+=(prompt_header)
   (mistty-wait-for-output :start (point-min) :regexp "^FS")
   (should mistty-fullscreen)
 
-  ;; force an update before checking the menu, to make sure it's been
+  ;; force redisplay before checking the menu, to make sure it's been
   ;; updated with the latest value of mistty-fullscreen.
-  (force-mode-line-update t)
   (redisplay)
 
   (turtles-interaction
@@ -8680,11 +8679,7 @@ precmd_functions+=(prompt_header)
 (mistty-deftest mistty-test-secondary-mode-menu (:selected t :turtles t :type alacritty)
   ;; The default buffer name is too long; the button wouldn't be visible
   (mistty-test-rename-buffer "test")
-
-  ;; make sure menu is up-to-date
-  (force-mode-line-update t)
-  (redisplay)
-
+  (redisplay) ; make sure menu is up-to-date
   (turtles-interaction
     :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))
     (turtles-with-grab-buffer (:menu t)
@@ -8701,10 +8696,7 @@ precmd_functions+=(prompt_header)
     :mouse-ev 'up-mouse-1 '(0 . 1))
 
   (mistty-toggle-keymap)
-
-  ;; make sure menu is up-to-date
-  (force-mode-line-update t)
-  (redisplay)
+  (redisplay) ; make sure menu is up-to-date
 
   (turtles-interaction
     :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))

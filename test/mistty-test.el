@@ -118,7 +118,7 @@
                          "  end")
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-reconcile-replace (:type all)
+(mistty-deftest mistty-test-reconcile-replace (:type all :shell (bash fish zsh))
   (mistty-send-text "echo hello")
   (mistty-run-command
    (goto-char (point-min))
@@ -128,7 +128,8 @@
   (should (equal "$ echo bonjour<>" (mistty-test-content :show (point))))
   (should (equal "bonjour" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-reconcile-replace-with-point-outside-of-change (:type all)
+(mistty-deftest mistty-test-reconcile-replace-with-point-outside-of-change
+    (:type all :shell (bash fish zsh))
   (mistty-send-text "echo hello, hello")
   (mistty-run-command
    (goto-char (point-min))
@@ -139,7 +140,8 @@
   (should (equal "$ <>echo bonjour, bonjour" (mistty-test-content :show (point))))
   (should (equal "bonjour, bonjour" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-reconcile-replace-with-point-after-change (:type all)
+(mistty-deftest mistty-test-reconcile-replace-with-point-after-change
+    (:type all :shell (bash fish zsh))
   (mistty-send-text "echo hello, hello world")
   (mistty-run-command
    (goto-char (point-min))
@@ -150,7 +152,8 @@
   (should (equal "$ echo bonjour, bonjour <>world"
                  (mistty-test-content :show (point)))))
 
-(mistty-deftest mistty-test-reconcile-multiple-replace (:type all)
+(mistty-deftest mistty-test-reconcile-multiple-replace
+    (:type all :shell (bash fish zsh))
   (mistty-send-text "echo boo boo, white goat")
   (mistty-run-command
    (goto-char (point-min))
@@ -165,7 +168,8 @@
   (should (equal "baa baa, black sheep"
                  (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-reconcile-multiple-replace-keep-pointer (:type all)
+(mistty-deftest mistty-test-reconcile-multiple-replace-keep-pointer
+    (:type all :shell (bash fish zsh))
   (mistty-send-text "echo boo boo, black sheep")
 
   (mistty-run-command
@@ -206,7 +210,8 @@
     (should (equal "$ echo hello<>, world"
                    (mistty-test-content :show (point) :start start)))))
 
-(mistty-deftest mistty-test-reconcile-quick-single-char-changes (:type all)
+(mistty-deftest mistty-test-reconcile-quick-single-char-changes
+    (:type all :shell (bash fish zsh))
   (goto-char (mistty-cursor))
 
   ;; nowait lets mistty join the replays together.

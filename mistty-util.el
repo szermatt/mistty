@@ -299,6 +299,12 @@ Return nil if there are no entry."
 
     list))
 
+(defun mistty--string-empty-to-nil (str)
+  "If STR is non-empty, return it, else nil."
+  (if (string-empty-p str)
+      nil
+    str))
+
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

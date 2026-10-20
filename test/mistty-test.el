@@ -8627,7 +8627,10 @@ precmd_functions+=(prompt_header)
                 " [ ] Terminal Size Tracks Window  C-c C-t\n"
                 " ----------------------------------------\n"
                 "     About")
-              (mistty-test-content))))))
+              (mistty-test-content))))
+
+    ;; close menu
+    :keys "C-g"))
 
 (mistty-deftest mistty-test-mode-menu-fullscreen (:selected t :turtles t :type alacritty)
   (menu-bar-mode)
@@ -8668,11 +8671,15 @@ precmd_functions+=(prompt_header)
          " [ ] Terminal Size Tracks Window  C-c C-t\n"
          " ----------------------------------------\n"
          "     About")
-        (mistty-test-content))))))
+        (mistty-test-content))))
+
+    ;; close menu
+    :keys "C-g"))
 
 (mistty-deftest mistty-test-secondary-mode-menu (:selected t :turtles t :type alacritty)
   ;; The default buffer name is too long; the button wouldn't be visible
   (mistty-test-rename-buffer "test")
+  (redisplay) ; make sure menu is up-to-date
   (turtles-interaction
     :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))
     (turtles-with-grab-buffer (:menu t)
@@ -8684,13 +8691,12 @@ precmd_functions+=(prompt_header)
                 " ------------------------------\n"
                 "     Capture Keyboard   C-c C-q")
         (mistty-test-content))))
-    :mouse-ev 'up-mouse-1 '(0 . 0))
+
+    ;; close menu
+    :mouse-ev 'up-mouse-1 '(0 . 1))
 
   (mistty-toggle-keymap)
-
-  ;; force redisplay before checking the menu, to make sure it's been
-  ;; updated.
-  (redisplay)
+  (redisplay) ; make sure menu is up-to-date
 
   (turtles-interaction
     :mouse-ev 'down-mouse-1 (turtles-coords ">_" :mode-line (current-buffer))
@@ -8703,7 +8709,9 @@ precmd_functions+=(prompt_header)
                 " ------------------------------\n"
                 "     Capture Keyboard   C-c C-q")
         (mistty-test-content))))
-    :mouse-ev 'up-mouse-1 '(0 . 0)))
+
+    ;; close menu
+    :mouse-ev 'up-mouse-1 '(0 . 1)))
 
 (mistty-deftest mistty-test-button-to-toggle-long-running-command (:selected t :type all :turtles t)
   (mistty-test-rename-buffer "test-mode-line")

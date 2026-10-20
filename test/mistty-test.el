@@ -1548,7 +1548,7 @@
      (lambda ()
        (not (buffer-local-value 'mistty-fullscreen work-buffer))))
     (mistty-wait-for-output :start (point-min) :str "vi\n$ ")
-    
+
     (with-current-buffer work-buffer
       (should
        (equal
@@ -2123,7 +2123,7 @@
   (ert-with-temp-directory tempdir
     (dotimes (i 10)
       (with-temp-file (format "%sfile%d" tempdir i)))
-    
+
     (let ((mistty--inhibit-fake-nl-cleanup nil) echo-start ls-start)
       (mistty--send-string mistty-proc (format "cd '%s'" tempdir))
       (mistty-send-and-wait-for-prompt)
@@ -4837,7 +4837,7 @@
       (mistty-send-text "echo $(tput cols)x$(tput lines)")
       (should (equal (format "%ix%i" cols (+ 4 lines))
                      (mistty-send-and-capture-command-output)))
-      
+
       (mistty-grow-vertically -2)
       (should (equal (cons cols (+ 2 lines)) mistty--terminal-size))
       (should (equal (+ 2 lines) (mistty--term-lines mistty--term)))
@@ -4890,7 +4890,7 @@
     (:selected t :term-size '(40 . 10) :type all :turtles t)
 
     (delete-other-windows)
-    
+
     (mistty-fit-to-window)
     (should (equal '(79 . 22) mistty--terminal-size))
     (should (equal 79 (mistty--term-columns mistty--term)))
@@ -4906,7 +4906,7 @@
     (should (mistty-terminal-size-tracks-window-p))
     (should (equal 79 (mistty--term-columns mistty--term)))
     (should (equal 10 (mistty--term-lines mistty--term)))
-    
+
     (delete-other-windows)
     (should (redisplay t))
     (should (equal 79 (mistty--term-columns mistty--term)))
@@ -5230,7 +5230,7 @@
                    (error "Process didn't die. Status: %s"
                           (process-status proc))))
       (mistty-wait-for-output :str "Process")
-      ;; eterm prints the process name, alacritty doesn't 
+      ;; eterm prints the process name, alacritty doesn't
       (should (string-match "Process .*?finished"
                      (mistty-test-content
                       :start (mistty--bol (point-max) 0)))))))
@@ -5985,7 +5985,7 @@ function prompt {
 (ert-deftest mistty-command-create-then-cycle/alacritty ()
   (let ((mistty-terminal-type 'alacritty))
     (mistty-command-create-then-cycle)))
-  
+
 (ert-deftest mistty-command-create-then-cycle/eterm ()
   (let ((mistty-terminal-type 'eterm))
     (mistty-command-create-then-cycle)))
@@ -6406,7 +6406,7 @@ function prompt {
 (mistty-deftest mistty-test-right-prompt-kill-multiple-lines
     (:type all :shell ((fish mistty-test-fish-right-prompt)
                              (zsh mistty-test-zsh-right-prompt)))
-  
+
     (mistty--send-string mistty-proc
                          (mistty--maybe-bracketed-str "echo foo\necho bar"))
 
@@ -6793,7 +6793,7 @@ precmd_functions+=(prompt_header)
   "function osc133_prompt { PS1='prompt \033]133;B\007'; };")
 
 (mistty-deftest mistty-osc133-command-for-output
-    (:type all :shell ((zsh mistty-test-zsh-osc133 
+    (:type all :shell ((zsh mistty-test-zsh-osc133
                             mistty-test-zsh-osc133-b)))
   (mistty-send-text "osc133_prompt")
   (setq mistty-test-prompt-re "^prompt ")
@@ -7196,7 +7196,7 @@ precmd_functions+=(prompt_header)
 (mistty-deftest mistty-set-stty-erase-DEL ( :type all)
   (let ((mistty-del "\d"))
     (mistty-send-text "stty -a")
-    
+
     (let ((stty (mistty-send-and-capture-command-output)))
       (should (string-match "erase = ^?" stty)))))
 
@@ -7588,7 +7588,7 @@ precmd_functions+=(prompt_header)
   (should (eq 'special-prompt (mistty--secondary-mode)))
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
-             (mistty-test-trim-mode-line 
+             (mistty-test-trim-mode-line
               "-UUU:**- F1  test-mode-line   All  (misTTY ←↑↓→) -------------------------------")
              (mistty-test-trim-mode-line))))
   (mistty-send-key 1 (kbd "ESC"))
@@ -7656,7 +7656,7 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-test-mode-line-capture-keyboard (:selected t :type all :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
-  
+
   (turtles-with-minibuffer
       (mistty-capture-keyboard)
     (turtles-with-grab-buffer (:mode-line (selected-window))
@@ -7672,7 +7672,7 @@ precmd_functions+=(prompt_header)
   (mistty-test-rename-buffer "test-mode-line")
 
   (mistty-toggle-keymap)
-  
+
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line
@@ -7713,7 +7713,7 @@ precmd_functions+=(prompt_header)
              (mistty-test-trim-mode-line
               "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------")
              (mistty-test-trim-mode-line)))))
-  
+
 (mistty-deftest mistty-test-mode-line-single-buffer-fs (:selected t :type alacritty :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
   (mistty--send-string
@@ -7737,9 +7737,9 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-test-mode-line-split-buffer-fs (:selected t :type eterm :turtles t)
   (let ((term-buffer mistty-term-buffer))
-    (with-current-buffer mistty-work-buffer 
+    (with-current-buffer mistty-work-buffer
       (mistty-test-rename-buffer "test-mode-line"))
-    
+
     (mistty--send-string
      mistty-proc "printf '\\e[?1049h'; read -p 'FS'")
     (mistty-send-command)
@@ -7752,7 +7752,7 @@ precmd_functions+=(prompt_header)
 
     (with-current-buffer mistty-work-buffer
       (should (eq 'split mistty-fullscreen)))
-    
+
     ;; term buffer
     (pop-to-buffer mistty-term-buffer)
     (delete-other-windows)

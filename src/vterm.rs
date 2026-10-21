@@ -2,6 +2,7 @@
 // [alacritty_terminal::term::Term] and
 // [alacritty_terminal::term::Grid].
 
+use crate::damage::GridDamage;
 use crate::gridext::{CellExt, GridExt, RowExt};
 use crate::render;
 use crate::types::Scrolline;
@@ -12,17 +13,13 @@ use alacritty_terminal::{
     grid::{Dimensions, Row},
     index::{Column, Line, Point},
     term::{
-        ClipboardType, Config, Osc52, TermDamage, TermMode,
+        ClipboardType, Config, Osc52, TermMode,
         cell::{Cell, Flags},
     },
     vte::ansi::{self, Attr, Color, Handler, NamedPrivateMode, PrivateMode, Processor},
 };
 use emacs::{Env, Result, Value};
-use std::{
-    cell::RefCell,
-    collections::{BTreeSet, VecDeque},
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 emacs::use_functions! {
     nreverse_func => "nreverse"
@@ -71,7 +68,7 @@ pub(crate) struct VTerm {
     ///
     /// Always call [VTerm::damaged_lines] and [VTerm::_damage]
     /// instead of the [Term] equivalent.
-    extra_damage: BTreeSet<Line>,
+    extra_damage: GridDamage,
 
     /// State kept for mouse_encode
     last_cell: Option<(i64, i64)>,
@@ -106,7 +103,7 @@ impl VTerm {
             base_scrolline: Scrolline(0),
             render_count: 0,
             scrollback: vec![],
-            extra_damage: BTreeSet::new(),
+            extra_damage: GridDamage::new(),
             last_cell: None,
         }
     }
@@ -449,7 +446,7 @@ impl VTerm {
             }
             chars += cell.char_count();
         }
-        self.extra_damage.insert(line);
+        self.extra_damage.add(line);
     }
 
     /// Cleanup after a shell's PROMPT-SP hack.
@@ -470,9 +467,9 @@ impl VTerm {
         }
         blank_trailing(&mut grid[line]);
         if prev_damaged {
-            self.extra_damage.insert(prev_line);
+            self.extra_damage.add(prev_line);
         }
-        self.extra_damage.insert(line);
+        self.extra_damage.add(line);
     }
 
     /// Return the set of lines to refresh, `None` to refresh the whole screen.
@@ -481,23 +478,13 @@ impl VTerm {
     ///
     /// This returns the terminal lines modified since last call to [VTerm::reset_damage].
     pub(crate) fn damaged_lines(&mut self) -> Option<Vec<Line>> {
-        if let TermDamage::Partial(iter) = self.inner.damage() {
-            let mut lines: Vec<Line> = iter.map(|d| Line(d.line as i32)).collect();
-            lines.extend(self.extra_damage.iter());
-            lines.sort_unstable();
-            lines.dedup();
-            // damage is sorted by line, one damage per line.
-
-            Some(lines)
-        } else {
-            None
-        }
+        self.extra_damage.damaged_lines(self.inner.damage())
     }
 
     /// Reset damage, so the next call to [VTerm::damaged_lines]
     /// returns an empty vector.
     pub(crate) fn reset_damage(&mut self) {
-        self.extra_damage.clear();
+        self.extra_damage.reset();
         self.inner.reset_damage();
     }
 

@@ -2281,7 +2281,7 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
       (mistty--mark-prompt-fields prompt prompt-beg)))
 
   (let ((v (and on-prompt
-                (not mistty-allow-mouse-reporting)
+                (not (mistty--can-click-to-move-p))
                 (mistty--can-move-vertically-p))))
     (unless (eq v mistty--can-move-vertically)
       (mistty-log "Can move vertically: %s" v)

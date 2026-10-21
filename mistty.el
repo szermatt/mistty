@@ -506,6 +506,18 @@ mouse in the mode line or calling the command `mistty-toggle-mouse'."
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-allow-click-to-move t
+  "Allow using clicks, when available, to move the cursor on the prompt.
+
+If non-nil, MisTTY sends clicks instead of the arrow keys to
+applications that report supporting it to move the cursor. This may work
+well, or it may cause issues as moving may accidentally press buttons.
+
+Set this to nil if you only want to use the arrow key to move the cursor
+in prompt mode."
+  :group 'mistty
+  :type 'boolean)
+
 (defvar mistty-send-last-key-map '(keymap (t . mistty-send-last-key))
   "Keymap that sends everything to the terminal using `mistty-send-last-key'.")
 
@@ -2934,7 +2946,7 @@ buffers."
 
 (defun mistty--can-click-to-move-p ()
   "Check whether clicking can be used to move the cursor."
-  mistty--mouse-reporting-requested)
+  (and mistty-allow-click-to-move mistty--mouse-reporting-requested))
 
 (defun mistty--replay-interaction (cs)
   "Build a `mistty--interact' of type \\='replay to replay CS.

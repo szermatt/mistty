@@ -22,16 +22,16 @@ emacs::use_functions! {
 /// it. To obtain character count from a string, do
 /// `str.chars().cout`.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Ord, PartialOrd)]
-pub struct BufferPos(pub i32);
+pub(crate) struct BufferPos(pub(crate) i32);
 
 impl BufferPos {
     /// Return the position of the point in the current buffer.
-    pub fn point(env: &Env) -> Result<Self> {
+    pub(crate) fn point(env: &Env) -> Result<Self> {
         Ok(BufferPos(env.call(point_func, [])?.into_rust()?))
     }
 
     /// Return the highest valid position of the point.
-    pub fn point_max(env: &Env) -> Result<Self> {
+    pub(crate) fn point_max(env: &Env) -> Result<Self> {
         Ok(BufferPos(env.call(point_max_func, [])?.into_rust()?))
     }
 
@@ -39,7 +39,7 @@ impl BufferPos {
     ///
     /// `line` is relative to the current buffer, `Line(0)` returns
     /// the beginning of the current line.
-    pub fn bol(env: &Env, line: Line) -> Result<Self> {
+    pub(crate) fn bol(env: &Env, line: Line) -> Result<Self> {
         Ok(BufferPos(
             env.call(pos_bol_func, (line.0 + 1,))?.into_rust()?,
         ))
@@ -139,7 +139,7 @@ impl<'e> IntoLisp<'e> for BufferPos {
 /// change as the buffer is truncated.
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Ord, PartialOrd)]
-pub struct Scrolline(pub usize);
+pub(crate) struct Scrolline(pub(crate) usize);
 
 impl fmt::Display for Scrolline {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

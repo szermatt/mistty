@@ -11,7 +11,7 @@ emacs::use_symbols! {
 }
 
 /// Convert lisp mode symbols to key encoding format.
-pub fn mods_from_lisp(lisp_mods: Vector) -> Option<Mods> {
+pub(crate) fn mods_from_lisp(lisp_mods: Vector) -> Option<Mods> {
     let mut mods = Mods::default();
     for val in lisp_mods {
         if val == *shift_sym {

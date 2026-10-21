@@ -147,7 +147,7 @@ impl ToggleProperty {
 
 /// Clear terminal history.
 #[defun]
-pub fn clear_scrollback(term: &mut VTerm) -> Result<()> {
+pub(crate) fn clear_scrollback(term: &mut VTerm) -> Result<()> {
     term.clear_scrollback();
 
     Ok(())
@@ -171,7 +171,7 @@ fn scrollback_line_count(term: &VTerm) -> Result<usize> {
 ///
 /// If scrollback is disabled on the virtual terminal, this call
 /// always returns 0 and does nothing.
-pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
+pub(crate) fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     if term.scrollback_row_count() == 0 {
         return Ok(0);
     }
@@ -239,7 +239,7 @@ pub fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
 /// of the screen and the corresponding absolute scrolline. Everything
 /// before that position belongs in the scrollback area.
 #[defun]
-pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
+pub(crate) fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
     let history_scrollines = write_scrollback(env, term)?;
 
     let mut render = Render::init(env, term)?;
@@ -270,7 +270,7 @@ pub fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Resul
 /// The point is not conserved. Wrap this call inside
 /// `save_excursion` if it matters.
 #[defun]
-pub fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
+pub(crate) fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
     let mut render = Render::init(env, term)?;
     render.render_screen()?;
     render.move_cursor_marker(cursor_marker)?;
@@ -414,7 +414,7 @@ impl<'a> Render<'a> {
     ///
     /// If the lines contain `cursor_pos` the function sets the cursor position, as a buffer
     /// position, otherwise it leaves it alone.
-    pub fn render_lines(&mut self, beg: Line, end: Line) -> Result<()> {
+    pub(crate) fn render_lines(&mut self, beg: Line, end: Line) -> Result<()> {
         let env = self.env;
         let grid = self.term.grid();
         let last_column = grid.last_column();
@@ -808,7 +808,7 @@ impl PropertyTracker {
 }
 
 /// Convert a color to a Rgb value if possible
-pub fn to_emacs_color_rgb(env: &Env, color: Color, fg: bool) -> Result<Option<Rgb>> {
+pub(crate) fn to_emacs_color_rgb(env: &Env, color: Color, fg: bool) -> Result<Option<Rgb>> {
     let mut color_str = to_emacs_color(env, color, fg)?;
     if color_str == "unspecified-fg" {
         color_str = face_color(env, default_face, true)?;
@@ -825,7 +825,7 @@ pub fn to_emacs_color_rgb(env: &Env, color: Color, fg: bool) -> Result<Option<Rg
 
 /// Transform a color index from a ColorRequest into a NamedColor, if
 /// possible.
-pub fn named_color_for_color_request(index: usize) -> Option<NamedColor> {
+pub(crate) fn named_color_for_color_request(index: usize) -> Option<NamedColor> {
     match index {
         0 => Some(NamedColor::Black),
         1 => Some(NamedColor::Red),

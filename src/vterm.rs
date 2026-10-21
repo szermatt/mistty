@@ -45,7 +45,7 @@ emacs::use_symbols! {
 const SCROLLBACK_SIZE: usize = 100000;
 
 /// Virtual Terminal for MisTTY that keeps its data in memory.
-pub struct VTerm {
+pub(crate) struct VTerm {
     inner: Term<EventAccumulator>,
     processor: Processor,
     events: Rc<RefCell<VecDeque<Event>>>,
@@ -79,7 +79,7 @@ pub struct VTerm {
 
 impl VTerm {
     /// Create a new terminal with the given dimensions
-    pub fn new(width: usize, height: usize, osc52: Osc52) -> Self {
+    pub(crate) fn new(width: usize, height: usize, osc52: Osc52) -> Self {
         let events = Rc::new(RefCell::new(VecDeque::new()));
         let acc = EventAccumulator {
             events: Rc::clone(&events),
@@ -113,7 +113,7 @@ impl VTerm {
 
     /// Current terminal mode.
     #[inline]
-    pub fn mode(&self) -> &TermMode {
+    pub(crate) fn mode(&self) -> &TermMode {
         self.inner.mode()
     }
 
@@ -125,19 +125,19 @@ impl VTerm {
     /// include both the scrollback in [VTerm] as the scrollback in
     /// the grid.
     #[inline]
-    pub fn grid(&self) -> &Grid<Cell> {
+    pub(crate) fn grid(&self) -> &Grid<Cell> {
         self.inner.grid()
     }
 
     /// Terminal column count.
     #[inline]
-    pub fn columns(&self) -> usize {
+    pub(crate) fn columns(&self) -> usize {
         self.inner.columns()
     }
 
     /// Terminal line count.
     #[inline]
-    pub fn screen_lines(&self) -> usize {
+    pub(crate) fn screen_lines(&self) -> usize {
         self.inner.screen_lines()
     }
 
@@ -151,7 +151,7 @@ impl VTerm {
     }
 
     /// Enable scrollback.
-    pub fn enable_scrollback(&mut self) {
+    pub(crate) fn enable_scrollback(&mut self) {
         if !self.scrollback_enabled {
             self.inner.grid_mut().update_history(SCROLLBACK_SIZE);
             self.scrollback_enabled = true;
@@ -159,7 +159,7 @@ impl VTerm {
     }
 
     /// Disable scrollback.
-    pub fn disable_scrollback(&mut self) {
+    pub(crate) fn disable_scrollback(&mut self) {
         if self.scrollback_enabled {
             self.inner.grid_mut().update_history(0);
             self.scrollback.clear();
@@ -169,12 +169,12 @@ impl VTerm {
 
     /// Scrolline that correspond to the first line in the terminal,
     /// including history.
-    pub fn base_scrolline(&self) -> Scrolline {
+    pub(crate) fn base_scrolline(&self) -> Scrolline {
         self.base_scrolline
     }
 
     /// Scrolline at the top of the screen, `Line(0)`.
-    pub fn screen_top_scrolline(&self) -> Scrolline {
+    pub(crate) fn screen_top_scrolline(&self) -> Scrolline {
         self.base_scrolline + self.scrollback_rows().filter(|r| !r.is_wrapped()).count()
     }
 
@@ -186,7 +186,7 @@ impl VTerm {
     ///
     /// If there's no corresponding line on the terminal or in the
     /// history, return None.
-    pub fn terminal_line_for_scrolline(&self, scrolline: Scrolline) -> Option<Line> {
+    pub(crate) fn terminal_line_for_scrolline(&self, scrolline: Scrolline) -> Option<Line> {
         if scrolline < self.base_scrolline {
             return None;
         }
@@ -204,7 +204,7 @@ impl VTerm {
     }
 
     /// Change terminal size.
-    pub fn resize(&mut self, width: usize, height: usize) {
+    pub(crate) fn resize(&mut self, width: usize, height: usize) {
         let history_size = if self.scrollback_enabled {
             SCROLLBACK_SIZE
         } else {
@@ -219,7 +219,7 @@ impl VTerm {
     ///
     /// This clears both the scrollback stored in [VTerm] as the
     /// history stored in the grid.
-    pub fn clear_scrollback(&mut self) {
+    pub(crate) fn clear_scrollback(&mut self) {
         let wrapped = match self.scrollback_ends_with_wrapline() {
             None => {
                 // Scrollback is already empty
@@ -240,7 +240,7 @@ impl VTerm {
     /// [VTerm::clear_scrollback] ended within a line that was
     /// wrapped, the first line scrollback or, if the scrollback is
     /// empty, on the terminal, continues an existing line.
-    pub fn continue_wrapped_line(&self) -> bool {
+    pub(crate) fn continue_wrapped_line(&self) -> bool {
         self.continues_wrapped_line
     }
 
@@ -248,7 +248,7 @@ impl VTerm {
     ///
     /// This takes into account the rows from [Self::scrollback] then
     /// the rows from the grid, before line 0.
-    pub fn scrollback_ends_with_wrapline(&self) -> Option<bool> {
+    pub(crate) fn scrollback_ends_with_wrapline(&self) -> Option<bool> {
         self.last_scrollback_row().map(|row| row.is_wrapped())
     }
 
@@ -263,7 +263,7 @@ impl VTerm {
     }
 
     /// Number of terminal lines in the scrollback.
-    pub fn scrollback_row_count(&self) -> usize {
+    pub(crate) fn scrollback_row_count(&self) -> usize {
         self.scrollback.len() + self.inner.grid().history_size()
     }
 
@@ -272,7 +272,7 @@ impl VTerm {
     /// This returns the rows from [Self::scrollback] then the rows
     /// from the grid, before line 0. There are
     /// [VTerm::scrollback_row_count] rows.
-    pub fn scrollback_rows(&self) -> impl Iterator<Item = &Row<Cell>> {
+    pub(crate) fn scrollback_rows(&self) -> impl Iterator<Item = &Row<Cell>> {
         self.scrollback
             .iter()
             .chain(self.inner.grid().history_iter().map(|(_, row)| row))
@@ -307,24 +307,18 @@ impl VTerm {
     /// Return the last line available in the virtual terminal, that
     /// corresponds to the bottom of the screen.
     #[inline]
-    pub fn bottommost_line(&self) -> Line {
+    pub(crate) fn bottommost_line(&self) -> Line {
         self.inner.grid().bottommost_line()
     }
 
     /// Return the current position of the cursor in the terminal.
     #[inline]
-    pub fn cursor_point(&self) -> Point {
+    pub(crate) fn cursor_point(&self) -> Point {
         self.inner.grid().cursor.point
     }
 
-    /// Return the current position of the cursor in the terminal.
-    #[inline]
-    pub fn last_column(&self) -> Column {
-        self.inner.grid().last_column()
-    }
-
     /// Parse terminal data and update internal state.
-    pub fn process_bytes(&mut self, bytes: &[u8]) {
+    pub(crate) fn process_bytes(&mut self, bytes: &[u8]) {
         self.processor.advance(
             &mut HandlerProxy::new(&mut self.inner, &mut self.scrollback),
             bytes,
@@ -335,7 +329,7 @@ impl VTerm {
     ///
     /// The return value is a vector of lisp-formatted events that
     /// should be handled by the caller in lisp format.
-    pub fn handle_events<'a>(&self, env: &'a Env) -> Result<Vec<Value<'a>>> {
+    pub(crate) fn handle_events<'a>(&self, env: &'a Env) -> Result<Vec<Value<'a>>> {
         let mut events = self.events.borrow_mut();
         let mut lisp_events = vec![];
         if events.is_empty() {
@@ -389,7 +383,11 @@ impl VTerm {
         Ok(lisp_events)
     }
 
-    pub fn mode_changes<'a>(&self, env: &'a Env, before: &TermMode) -> Result<Vec<Value<'a>>> {
+    pub(crate) fn mode_changes<'a>(
+        &self,
+        env: &'a Env,
+        before: &TermMode,
+    ) -> Result<Vec<Value<'a>>> {
         let mut reports = vec![];
         let mode = self.mode();
         let kkp_on = mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
@@ -419,7 +417,7 @@ impl VTerm {
     }
 
     // Compare the render count with a value form Emacs side.
-    pub fn check_render_count_tag(&self, tag_value: Value<'_>) -> Result<bool> {
+    pub(crate) fn check_render_count_tag(&self, tag_value: Value<'_>) -> Result<bool> {
         if !tag_value.is_not_nil() {
             return Ok(false);
         }
@@ -429,7 +427,7 @@ impl VTerm {
     }
 
     // Return a tag that identifies a render operation.
-    pub fn inc_render_count(&mut self) -> i32 {
+    pub(crate) fn inc_render_count(&mut self) -> i32 {
         let mut next = self.render_count + 1;
 
         // keep value inside minimum integer range supported by Emacs
@@ -443,7 +441,7 @@ impl VTerm {
     }
 
     /// Clear the given line from the given char to end of line.
-    pub fn clear_to_eol(&mut self, line: Line, beg_chars: usize) {
+    pub(crate) fn clear_to_eol(&mut self, line: Line, beg_chars: usize) {
         let mut chars = 0;
         for cell in &mut self.grid_mut()[line] {
             if chars >= beg_chars && cell.c == ' ' {
@@ -455,7 +453,7 @@ impl VTerm {
     }
 
     /// Cleanup after a shell's PROMPT-SP hack.
-    pub fn cleanup_prompt_sp(&mut self, line: Line) {
+    pub(crate) fn cleanup_prompt_sp(&mut self, line: Line) {
         if line == Line(0) {
             return;
         }
@@ -482,7 +480,7 @@ impl VTerm {
     /// If there are no changes, return an empty vector.
     ///
     /// This returns the terminal lines modified since last call to [VTerm::reset_damage].
-    pub fn damaged_lines(&mut self) -> Option<Vec<Line>> {
+    pub(crate) fn damaged_lines(&mut self) -> Option<Vec<Line>> {
         if let TermDamage::Partial(iter) = self.inner.damage() {
             let mut lines: Vec<Line> = iter.map(|d| Line(d.line as i32)).collect();
             lines.extend(self.extra_damage.iter());
@@ -498,13 +496,13 @@ impl VTerm {
 
     /// Reset damage, so the next call to [VTerm::damaged_lines]
     /// returns an empty vector.
-    pub fn reset_damage(&mut self) {
+    pub(crate) fn reset_damage(&mut self) {
         self.extra_damage.clear();
         self.inner.reset_damage();
     }
 
     /// Return state for mouse_encode
-    pub fn last_cell(&mut self) -> &mut Option<(i64, i64)> {
+    pub(crate) fn last_cell(&mut self) -> &mut Option<(i64, i64)> {
         &mut self.last_cell
     }
 }
@@ -575,7 +573,7 @@ impl Dimensions for VTermDimensions {
 }
 
 /// Accumulate terminal events and return when needed.
-pub struct EventAccumulator {
+pub(crate) struct EventAccumulator {
     events: Rc<RefCell<VecDeque<Event>>>,
 }
 

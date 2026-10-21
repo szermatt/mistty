@@ -6,7 +6,7 @@ use alacritty_terminal::grid::{Dimensions, Row};
 use alacritty_terminal::index::{Column, Line};
 use alacritty_terminal::term::cell::{Cell, Flags};
 
-pub trait GridExt {
+pub(crate) trait GridExt {
     /// Iterate through all the rows of history.
     ///
     /// Therse are the row that come before the start of the screen,
@@ -42,7 +42,7 @@ impl GridExt for Grid<Cell> {
     }
 }
 
-pub trait RowExt {
+pub(crate) trait RowExt {
     /// Check thether this is a wrapped line.
     ///
     /// A wrapped line continues in the next row.
@@ -84,7 +84,7 @@ impl RowExt for Row<Cell> {
     }
 }
 
-pub trait CellExt {
+pub(crate) trait CellExt {
     /// Check whether a cell is clear (has not been written to).
     ///
     /// See comment on vterm::HandlerProxy
@@ -158,6 +158,6 @@ impl CellExt for Cell {
 /// Check whether a cell is clear (has not been written to).
 ///
 /// See comment on vterm::HandlerProxy}
-pub fn is_clear(flags: &Flags) -> bool {
+pub(crate) fn is_clear(flags: &Flags) -> bool {
     !flags.intersects(Flags::DIM)
 }

@@ -37,7 +37,7 @@ emacs::use_symbols! {
 /// The result is either nil, if the keyboard event cannot be
 /// transformed, or a vector of bytes to send to the terminal.
 #[defun]
-pub fn kitty_key_seq<'e>(
+pub(crate) fn kitty_key_seq<'e>(
     term: &mut VTerm,
     env: &'e Env,
     orig_key: Value<'_>,
@@ -219,7 +219,7 @@ const PHYSICAL_KEY_VEC: &[(Key, &str)] = &[
 /// Initialize key map.
 ///
 /// This must be called during module initialization.
-pub fn init(env: &'_ Env) -> Result<()> {
+pub(crate) fn init(env: &'_ Env) -> Result<()> {
     let mut map = vec![];
     for (key, name) in PHYSICAL_KEY_VEC {
         map.push((*key, env.intern(name)?.make_global_ref()));

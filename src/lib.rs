@@ -8,14 +8,13 @@ mod vterm;
 
 use crate::{types::Scrolline, vterm::VTerm};
 use alacritty_terminal::{
-    grid::Dimensions,
     index::Line,
     term::{Osc52, TermMode},
 };
 use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
 use std::{fmt::Debug, ops::RangeBounds};
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 emacs::plugin_is_GPL_compatible!();
 
@@ -200,15 +199,9 @@ fn line_range_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
     range_check(env, "line", val, 0..=term.bottommost_line().0).map(Line)
 }
 
-/// Create a `Column` that's guaranteed to be a valid line for the
-/// terminal that is inside the range [0, bottommost_line+1].
-pub fn line_range_boundary_check(env: &Env, val: i32, term: &VTerm) -> Result<Line> {
-    range_check(env, "line", val, 0..=term.grid().screen_lines() as i32).map(Line)
-}
-
 /// Return a column guaranteed to be within [0, last_column] or
 /// throw an error
-pub fn range_check<T>(env: &Env, typename: &'static str, val: i32, range: T) -> Result<i32>
+pub(crate) fn range_check<T>(env: &Env, typename: &'static str, val: i32, range: T) -> Result<i32>
 where
     T: RangeBounds<i32> + Debug,
 {

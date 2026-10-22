@@ -1,6 +1,6 @@
 use crate::{input, vterm::VTerm};
 use alacritty_terminal::term::TermMode;
-use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
+use emacs::{Value, Vector};
 use qwertty_term_input::{
     mouse::{Action, Button},
     mouse_encode::{self, Event, MouseEvent, MouseFormat, Pos, Size},
@@ -21,39 +21,7 @@ emacs::use_symbols! {
 }
 
 /// Translate a mouse event into the appropriate terminal sequence.
-///
-/// `action` is a symbol, either `press` or `release`
-///
-/// button is a number between 1 and 11, corresponding to the mouse
-/// button that is pressed, as reported by emacs `mouse-1`, `mouse-2`,
-/// and so on. `wheel-down` is 4, `wheel-up` is 5, `wheel-left` is 6,
-/// `wheel-right` is 7.
-///
-/// mods is a vector of symbols that correspond to the key modifiers
-/// pressed down during the event.
-///
-/// line and column are coordinates within the terminal - they may point
-/// to a position outside the terminal.
-///
-/// Returns either nil, if nothing should be sent for that event, or a
-/// string containing a terminal sequence to send to the process.
-#[defun]
-fn mouse_seq<'a>(
-    term: &mut VTerm,
-    env: &'a Env,
-    action: Value<'_>,
-    button: i32,
-    mods: Vector<'_>,
-    x: i32,
-    y: i32,
-) -> Result<Value<'a>> {
-    match mouse_seq_internal(term, action, button, mods, x, y) {
-        None => Ok(().into_lisp(env)?),
-        Some(encoded) => Ok(unsafe { String::from_utf8_unchecked(encoded) }.into_lisp(env)?),
-    }
-}
-
-fn mouse_seq_internal(
+pub(crate) fn mouse_seq(
     term: &mut VTerm,
     action: Value<'_>,
     button: i32,

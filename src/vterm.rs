@@ -42,10 +42,50 @@ emacs::use_symbols! {
 /// to keep scrollback between calls to `write_scrollback`, to not lose data.
 const SCROLLBACK_SIZE: usize = 100000;
 
+pub(crate) struct VTermProcessor {
+    processor: Processor,
+    prompt_detector: PromptDetector,
+}
+
+impl VTermProcessor {
+    pub(crate) fn new() -> Self {
+        Self {
+            processor: Processor::new(),
+            prompt_detector: PromptDetector::new(),
+        }
+    }
+
+    /// Take a prompt detected in a previous call to [process_bytes].
+    pub(crate) fn take_prompt(&mut self) -> Option<Prompt> {
+        self.prompt_detector.take()
+    }
+
+    /// Update the terminal and processor state from the given teminal
+    /// sequence.
+    pub(crate) fn process_bytes(&mut self, vterm: &mut VTerm, bytes: &[u8]) {
+        if let Some(pos) = self
+            .prompt_detector
+            .detect_prompt_sp(vterm.columns(), bytes)
+        {
+            self.process_bytes_internal(vterm, &bytes[0..pos]);
+            self.prompt_detector.handle_prompt_sp(vterm);
+            self.process_bytes(vterm, &bytes[pos..]);
+        } else {
+            self.process_bytes_internal(vterm, bytes);
+        }
+    }
+
+    fn process_bytes_internal(&mut self, vterm: &mut VTerm, bytes: &[u8]) {
+        if bytes.len() == 0 {
+            return;
+        }
+        self.processor.advance(&mut HandlerProxy::new(vterm), bytes);
+    }
+}
+
 /// Virtual Terminal for MisTTY that keeps its data in memory.
 pub(crate) struct VTerm {
     inner: Term<EventAccumulator>,
-    processor: Processor,
     events: Rc<RefCell<VecDeque<Event>>>,
     continues_wrapped_line: bool,
     scrollback_enabled: bool,
@@ -73,8 +113,6 @@ pub(crate) struct VTerm {
 
     /// State kept for mouse_encode
     last_cell: Option<(i64, i64)>,
-
-    prompt_detector: PromptDetector,
 }
 
 impl VTerm {
@@ -92,14 +130,12 @@ impl VTerm {
         };
 
         let mut inner = Term::new(config, &VTermDimensions::new(width, height, 0), acc);
-        let processor = Processor::new();
 
         // See comment on HandlerProxy
         init_grid(inner.grid_mut());
 
         Self {
             inner,
-            processor,
             events,
             continues_wrapped_line: false,
             scrollback_enabled: false,
@@ -108,7 +144,6 @@ impl VTerm {
             scrollback: vec![],
             extra_damage: GridDamage::new(),
             last_cell: None,
-            prompt_detector: PromptDetector::new(),
         }
     }
 
@@ -145,7 +180,7 @@ impl VTerm {
     /// Return a modifiable reference to the terminal grid.
     /// modified lines as extra damage.
     #[inline]
-    fn grid_mut(&mut self) -> &mut Grid<Cell> {
+    pub(crate) fn grid_mut(&mut self) -> &mut Grid<Cell> {
         self.inner.grid_mut()
     }
 
@@ -175,6 +210,14 @@ impl VTerm {
     /// Scrolline at the top of the screen, `Line(0)`.
     pub(crate) fn screen_top_scrolline(&self) -> Scrolline {
         self.base_scrolline + self.scrollback_rows().filter(|r| !r.is_wrapped()).count()
+    }
+
+    /// Scrolline that correspond to the line the cursor is on.
+    pub(crate) fn scrolline_at_cursor(&self) -> Scrolline {
+        self.screen_top_scrolline()
+            + self
+                .grid()
+                .count_scrollines(Line(0), self.grid().cursor.point.line)
     }
 
     /// Return the line that currently corresponds to the given
@@ -316,34 +359,6 @@ impl VTerm {
         self.inner.grid().cursor.point
     }
 
-    /// Parse terminal data and update internal state.
-    pub(crate) fn process_bytes(&mut self, bytes: &[u8]) {
-        if let Some(pos) = self
-            .prompt_detector
-            .detect_prompt_sp(self.inner.columns(), bytes)
-        {
-            self.process_bytes_internal(&bytes[0..pos]);
-            self.prompt_detector.handle_prompt_sp(
-                self.screen_top_scrolline(),
-                self.inner.grid_mut(),
-                &mut self.extra_damage,
-            );
-            self.process_bytes(&bytes[pos..]);
-        } else {
-            self.process_bytes_internal(bytes);
-        }
-    }
-
-    fn process_bytes_internal(&mut self, bytes: &[u8]) {
-        if bytes.len() == 0 {
-            return;
-        }
-        self.processor.advance(
-            &mut HandlerProxy::new(&mut self.inner, &mut self.scrollback),
-            bytes,
-        );
-    }
-
     /// Handle accumulated events using the given `env`.
     ///
     /// The return value is a vector of lisp-formatted events that
@@ -400,11 +415,6 @@ impl VTerm {
         }
 
         Ok(lisp_events)
-    }
-
-    /// Take a prompt to report to the lisp side.
-    pub(crate) fn take_prompt(&mut self) -> Option<Prompt> {
-        self.prompt_detector.take()
     }
 
     /// Report changes to [TermMode] to the lisp side.
@@ -491,6 +501,10 @@ impl VTerm {
     pub(crate) fn reset_damage(&mut self) {
         self.extra_damage.reset();
         self.inner.reset_damage();
+    }
+
+    pub(crate) fn add_damage(&mut self, line: Line) {
+        self.extra_damage.add(line);
     }
 
     /// Return state for mouse_encode
@@ -581,26 +595,22 @@ impl EventListener for EventAccumulator {
 ///
 /// This does mean that DIM cannot be supported. This would
 /// require allocating a separate flag for that.
-struct HandlerProxy<'a, T> {
-    inner: &'a mut Term<T>,
-    scrollback: &'a mut Vec<Row<Cell>>,
+struct HandlerProxy<'a> {
+    vterm: &'a mut VTerm,
 }
 
-impl<'a, T> HandlerProxy<'a, T> {
-    fn new(inner: &'a mut Term<T>, scrollback: &'a mut Vec<Row<Cell>>) -> Self {
-        Self { inner, scrollback }
+impl<'a> HandlerProxy<'a> {
+    fn new(vterm: &'a mut VTerm) -> Self {
+        Self { vterm }
     }
 }
 
-impl<'a, T> Handler for HandlerProxy<'a, T>
-where
-    T: EventListener,
-{
+impl<'a> Handler for HandlerProxy<'a> {
     fn terminal_attribute(&mut self, attr: Attr) {
         match attr {
             Attr::Reset => {
-                self.inner.terminal_attribute(attr);
-                self.inner
+                self.vterm.inner.terminal_attribute(attr);
+                self.vterm
                     .grid_mut()
                     .cursor
                     .template
@@ -609,10 +619,10 @@ where
             }
             Attr::Dim => {}
             Attr::CancelBoldDim => {
-                self.inner.terminal_attribute(Attr::CancelBold);
+                self.vterm.inner.terminal_attribute(Attr::CancelBold);
             }
             _ => {
-                self.inner.terminal_attribute(attr);
+                self.vterm.inner.terminal_attribute(attr);
             }
         }
     }
@@ -623,143 +633,143 @@ where
     // of the vte crate, it needs to be delegated here, too.
 
     fn set_title(&mut self, title: Option<String>) {
-        self.inner.set_title(title);
+        self.vterm.inner.set_title(title);
     }
 
     fn set_cursor_style(&mut self, s: Option<ansi::CursorStyle>) {
-        self.inner.set_cursor_style(s);
+        self.vterm.inner.set_cursor_style(s);
     }
 
     fn set_cursor_shape(&mut self, shape: ansi::CursorShape) {
-        self.inner.set_cursor_shape(shape);
+        self.vterm.inner.set_cursor_shape(shape);
     }
 
     fn input(&mut self, c: char) {
-        self.inner.input(c);
+        self.vterm.inner.input(c);
     }
 
     fn goto(&mut self, line: i32, col: usize) {
-        self.inner.goto(line, col);
+        self.vterm.inner.goto(line, col);
     }
 
     fn goto_line(&mut self, line: i32) {
-        self.inner.goto_line(line);
+        self.vterm.inner.goto_line(line);
     }
 
     fn goto_col(&mut self, col: usize) {
-        self.inner.goto_col(col);
+        self.vterm.inner.goto_col(col);
     }
 
     fn insert_blank(&mut self, n: usize) {
-        self.inner.insert_blank(n);
+        self.vterm.inner.insert_blank(n);
     }
 
     fn move_up(&mut self, n: usize) {
-        self.inner.move_up(n);
+        self.vterm.inner.move_up(n);
     }
 
     fn move_down(&mut self, n: usize) {
-        self.inner.move_down(n);
+        self.vterm.inner.move_down(n);
     }
 
     fn identify_terminal(&mut self, intermediate: Option<char>) {
-        self.inner.identify_terminal(intermediate);
+        self.vterm.inner.identify_terminal(intermediate);
     }
 
     fn device_status(&mut self, n: usize) {
-        self.inner.device_status(n);
+        self.vterm.inner.device_status(n);
     }
 
     fn move_forward(&mut self, col: usize) {
-        self.inner.move_forward(col);
+        self.vterm.inner.move_forward(col);
     }
 
     fn move_backward(&mut self, col: usize) {
-        self.inner.move_backward(col);
+        self.vterm.inner.move_backward(col);
     }
 
     fn move_down_and_cr(&mut self, row: usize) {
-        self.inner.move_down_and_cr(row);
+        self.vterm.inner.move_down_and_cr(row);
     }
 
     fn move_up_and_cr(&mut self, row: usize) {
-        self.inner.move_up_and_cr(row);
+        self.vterm.inner.move_up_and_cr(row);
     }
 
     fn put_tab(&mut self, count: u16) {
-        self.inner.put_tab(count);
+        self.vterm.inner.put_tab(count);
     }
 
     fn backspace(&mut self) {
-        self.inner.backspace();
+        self.vterm.inner.backspace();
     }
 
     fn carriage_return(&mut self) {
-        self.inner.carriage_return();
+        self.vterm.inner.carriage_return();
     }
 
     fn linefeed(&mut self) {
-        self.inner.linefeed();
+        self.vterm.inner.linefeed();
     }
 
     fn bell(&mut self) {
-        self.inner.bell();
+        self.vterm.inner.bell();
     }
 
     fn substitute(&mut self) {
-        self.inner.substitute();
+        self.vterm.inner.substitute();
     }
 
     fn newline(&mut self) {
-        self.inner.newline();
+        self.vterm.inner.newline();
     }
 
     fn set_horizontal_tabstop(&mut self) {
-        self.inner.set_horizontal_tabstop();
+        self.vterm.inner.set_horizontal_tabstop();
     }
 
     fn scroll_up(&mut self, n: usize) {
-        self.inner.scroll_up(n);
+        self.vterm.inner.scroll_up(n);
     }
 
     fn scroll_down(&mut self, n: usize) {
-        self.inner.scroll_down(n);
+        self.vterm.inner.scroll_down(n);
     }
 
     fn insert_blank_lines(&mut self, n: usize) {
-        self.inner.insert_blank_lines(n);
+        self.vterm.inner.insert_blank_lines(n);
     }
 
     fn delete_lines(&mut self, n: usize) {
-        self.inner.delete_lines(n);
+        self.vterm.inner.delete_lines(n);
     }
 
     fn erase_chars(&mut self, n: usize) {
-        self.inner.erase_chars(n);
+        self.vterm.inner.erase_chars(n);
     }
 
     fn delete_chars(&mut self, n: usize) {
-        self.inner.delete_chars(n);
+        self.vterm.inner.delete_chars(n);
     }
 
     fn move_backward_tabs(&mut self, count: u16) {
-        self.inner.move_backward_tabs(count);
+        self.vterm.inner.move_backward_tabs(count);
     }
 
     fn move_forward_tabs(&mut self, count: u16) {
-        self.inner.move_forward_tabs(count);
+        self.vterm.inner.move_forward_tabs(count);
     }
 
     fn save_cursor_position(&mut self) {
-        self.inner.save_cursor_position();
+        self.vterm.inner.save_cursor_position();
     }
 
     fn restore_cursor_position(&mut self) {
-        self.inner.restore_cursor_position();
+        self.vterm.inner.restore_cursor_position();
     }
 
     fn clear_line(&mut self, mode: ansi::LineClearMode) {
-        self.inner.clear_line(mode);
+        self.vterm.inner.clear_line(mode);
     }
 
     fn clear_screen(&mut self, mode: ansi::ClearMode) {
@@ -770,138 +780,140 @@ where
                 // mistty-allow-clearing-scrollback.
             }
             _ => {
-                self.inner.clear_screen(mode);
+                self.vterm.inner.clear_screen(mode);
             }
         }
     }
 
     fn clear_tabs(&mut self, mode: ansi::TabulationClearMode) {
-        self.inner.clear_tabs(mode);
+        self.vterm.inner.clear_tabs(mode);
     }
 
     fn set_tabs(&mut self, interval: u16) {
-        self.inner.set_tabs(interval);
+        self.vterm.inner.set_tabs(interval);
     }
 
     fn reset_state(&mut self) {
         // The scrollback should resist a reset for MisTTY. A reset of
         // the scrollback, if desired, can be done elisp-side with
         // mistty-allow-clearing-scrollback.
-        self.inner.clear_screen(ansi::ClearMode::All);
-        move_history(self.inner.grid_mut(), self.scrollback);
+        self.vterm.inner.clear_screen(ansi::ClearMode::All);
+        move_history(self.vterm.inner.grid_mut(), &mut self.vterm.scrollback);
 
-        self.inner.reset_state();
-        init_grid(self.inner.grid_mut());
+        self.vterm.inner.reset_state();
+        init_grid(self.vterm.inner.grid_mut());
     }
 
     fn reverse_index(&mut self) {
-        self.inner.reverse_index();
+        self.vterm.inner.reverse_index();
     }
 
     fn set_mode(&mut self, mode: ansi::Mode) {
-        self.inner.set_mode(mode);
+        self.vterm.inner.set_mode(mode);
     }
 
     fn unset_mode(&mut self, mode: ansi::Mode) {
-        self.inner.unset_mode(mode);
+        self.vterm.inner.unset_mode(mode);
     }
 
     fn report_mode(&mut self, mode: ansi::Mode) {
-        self.inner.report_mode(mode);
+        self.vterm.inner.report_mode(mode);
     }
 
     fn set_private_mode(&mut self, mode: PrivateMode) {
         match mode {
             PrivateMode::Named(NamedPrivateMode::SwapScreenAndSetRestoreCursor) => {
-                if !self.inner.mode().contains(TermMode::ALT_SCREEN) {
-                    move_history(self.inner.grid_mut(), self.scrollback);
+                if !self.vterm.inner.mode().contains(TermMode::ALT_SCREEN) {
+                    move_history(self.vterm.inner.grid_mut(), &mut self.vterm.scrollback);
                 }
-                self.inner.set_private_mode(mode);
+                self.vterm.inner.set_private_mode(mode);
             }
             _ => {
-                self.inner.set_private_mode(mode);
+                self.vterm.inner.set_private_mode(mode);
             }
         }
     }
 
     fn unset_private_mode(&mut self, mode: PrivateMode) {
-        self.inner.unset_private_mode(mode);
+        self.vterm.inner.unset_private_mode(mode);
     }
 
     fn report_private_mode(&mut self, mode: PrivateMode) {
-        self.inner.report_private_mode(mode);
+        self.vterm.inner.report_private_mode(mode);
     }
 
     fn set_scrolling_region(&mut self, top: usize, bottom: Option<usize>) {
-        self.inner.set_scrolling_region(top, bottom);
+        self.vterm.inner.set_scrolling_region(top, bottom);
     }
 
     fn set_keypad_application_mode(&mut self) {
-        self.inner.set_keypad_application_mode();
+        self.vterm.inner.set_keypad_application_mode();
     }
 
     fn unset_keypad_application_mode(&mut self) {
-        self.inner.unset_keypad_application_mode();
+        self.vterm.inner.unset_keypad_application_mode();
     }
 
     fn set_active_charset(&mut self, index: ansi::CharsetIndex) {
-        self.inner.set_active_charset(index);
+        self.vterm.inner.set_active_charset(index);
     }
 
     fn configure_charset(&mut self, index: ansi::CharsetIndex, charset: ansi::StandardCharset) {
-        self.inner.configure_charset(index, charset);
+        self.vterm.inner.configure_charset(index, charset);
     }
 
     fn set_color(&mut self, index: usize, color: ansi::Rgb) {
-        self.inner.set_color(index, color);
+        self.vterm.inner.set_color(index, color);
     }
 
     fn dynamic_color_sequence(&mut self, prefix: String, index: usize, terminator: &str) {
-        self.inner.dynamic_color_sequence(prefix, index, terminator);
+        self.vterm
+            .inner
+            .dynamic_color_sequence(prefix, index, terminator);
     }
 
     fn reset_color(&mut self, index: usize) {
-        self.inner.reset_color(index);
+        self.vterm.inner.reset_color(index);
     }
 
     fn clipboard_store(&mut self, clipboard: u8, base64: &[u8]) {
-        self.inner.clipboard_store(clipboard, base64);
+        self.vterm.inner.clipboard_store(clipboard, base64);
     }
 
     fn clipboard_load(&mut self, clipboard: u8, terminator: &str) {
-        self.inner.clipboard_load(clipboard, terminator);
+        self.vterm.inner.clipboard_load(clipboard, terminator);
     }
 
     fn decaln(&mut self) {
-        self.inner.decaln();
+        self.vterm.inner.decaln();
     }
 
     fn push_title(&mut self) {
-        self.inner.push_title();
+        self.vterm.inner.push_title();
     }
 
     fn pop_title(&mut self) {
-        self.inner.pop_title();
+        self.vterm.inner.pop_title();
     }
 
     fn text_area_size_pixels(&mut self) {
-        self.inner.text_area_size_pixels();
+        self.vterm.inner.text_area_size_pixels();
     }
 
     fn text_area_size_chars(&mut self) {
-        self.inner.text_area_size_chars();
+        self.vterm.inner.text_area_size_chars();
     }
 
     fn set_hyperlink(&mut self, hyperlink: Option<ansi::Hyperlink>) {
-        self.inner.set_hyperlink(hyperlink);
+        self.vterm.inner.set_hyperlink(hyperlink);
     }
 
     fn set_mouse_cursor_icon(&mut self, icon: ansi::cursor_icon::CursorIcon) {
-        self.inner.set_mouse_cursor_icon(icon);
+        self.vterm.inner.set_mouse_cursor_icon(icon);
     }
 
     fn report_keyboard_mode(&mut self) {
-        self.inner.report_keyboard_mode();
+        self.vterm.inner.report_keyboard_mode();
     }
 
     fn set_keyboard_mode(&mut self, mode: KeyboardModes, behavior: KeyboardModesApplyBehavior) {
@@ -913,7 +925,7 @@ where
         //
         // Reporting all keys is unsupported, because without event types,
         // it's just not worth the complexity.
-        self.inner.set_keyboard_mode(
+        self.vterm.inner.set_keyboard_mode(
             if mode.is_empty() {
                 KeyboardModes::empty()
             } else {
@@ -927,7 +939,7 @@ where
         // We only ever "push" the single supported mode. This keeps
         // the stack functional, even though this isn't doing
         // anything useful.
-        self.inner.push_keyboard_mode(if mode.is_empty() {
+        self.vterm.inner.push_keyboard_mode(if mode.is_empty() {
             KeyboardModes::empty()
         } else {
             KeyboardModes::DISAMBIGUATE_ESC_CODES
@@ -935,20 +947,22 @@ where
     }
 
     fn pop_keyboard_modes(&mut self, to_pop: u16) {
-        self.inner.pop_keyboard_modes(to_pop);
+        self.vterm.inner.pop_keyboard_modes(to_pop);
     }
 
     fn set_modify_other_keys(&mut self, _mode: ModifyOtherKeys) {
         // unsupported
-        self.inner.set_modify_other_keys(ModifyOtherKeys::Reset);
+        self.vterm
+            .inner
+            .set_modify_other_keys(ModifyOtherKeys::Reset);
     }
 
     fn report_modify_other_keys(&mut self) {
-        self.inner.report_modify_other_keys();
+        self.vterm.inner.report_modify_other_keys();
     }
 
     fn set_scp(&mut self, char_path: ansi::ScpCharPath, update_mode: ansi::ScpUpdateMode) {
-        self.inner.set_scp(char_path, update_mode);
+        self.vterm.inner.set_scp(char_path, update_mode);
     }
 }
 
@@ -969,203 +983,240 @@ mod tests {
 
     #[test]
     fn disabled_scrollback() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.disable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.disable_scrollback();
 
         // fill and scroll terminal
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        VTermProcessor::new().process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
 
         // scrollback remains empty
-        assert_eq!(0, term.scrollback_row_count());
-        assert_eq!(0, term.scrollback_rows().count());
-        assert!(term.last_scrollback_row().is_none());
+        assert_eq!(0, vterm.scrollback_row_count());
+        assert_eq!(0, vterm.scrollback_rows().count());
+        assert!(vterm.last_scrollback_row().is_none());
     }
 
     #[test]
     fn scrollback_from_grid() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
         // fill and scroll terminal
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        VTermProcessor::new().process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
 
         // the first three lines are no included into history
-        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
-            term.scrollback_rows()
+            vterm
+                .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
         assert_eq!(
-            row_to_string(term.last_scrollback_row().expect("last_row")),
+            row_to_string(vterm.last_scrollback_row().expect("last_row")),
             "line 3"
         );
     }
 
     #[test]
     fn scrollback_after_move() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
         // fill and scroll terminal, putting 3 rows into history
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        term.move_history();
+        VTermProcessor::new().process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        vterm.move_history();
 
         // grid history is empty
-        assert_eq!(0, term.grid().history_size());
+        assert_eq!(0, vterm.grid().history_size());
 
         // the three lines are still available in VTerm.scrollback
-        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
-            term.scrollback_rows()
+            vterm
+                .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
         assert_eq!(
-            row_to_string(term.last_scrollback_row().expect("last_row")),
+            row_to_string(vterm.last_scrollback_row().expect("last_row")),
             "line 3"
         );
     }
 
     #[test]
     fn scrollback_merged() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
+
+        let mut processor = VTermProcessor::new();
 
         // fill and scroll terminal, putting 3 rows into history
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        term.move_history();
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        vterm.move_history();
 
-        term.process_bytes(b"line 6\r\nline 7\r\n");
-        assert_eq!(2, term.grid().history_size());
+        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        assert_eq!(2, vterm.grid().history_size());
 
         // 3 rows are in VTerm.scrollback, 2 in grid history
-        assert_eq!(5, term.scrollback_row_count());
+        assert_eq!(5, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3", "line 4", "line 5"],
-            term.scrollback_rows()
+            vterm
+                .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
         assert_eq!(
-            row_to_string(term.last_scrollback_row().expect("last_row")),
+            row_to_string(vterm.last_scrollback_row().expect("last_row")),
             "line 5"
         );
     }
 
     #[test]
     fn scrollback_append() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        term.move_history();
+        let mut processor = VTermProcessor::new();
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        vterm.move_history();
 
-        term.process_bytes(b"line 6\r\nline 7\r\n");
-        assert_eq!(2, term.grid().history_size());
+        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        assert_eq!(2, vterm.grid().history_size());
 
-        term.move_history();
+        vterm.move_history();
 
         // Everything is now in VTerm::scrollback; make sure it was
         // handled properly.
 
-        assert_eq!(5, term.scrollback_row_count());
+        assert_eq!(5, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3", "line 4", "line 5"],
-            term.scrollback_rows()
+            vterm
+                .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
         assert_eq!(
-            row_to_string(term.last_scrollback_row().expect("last_row")),
+            row_to_string(vterm.last_scrollback_row().expect("last_row")),
             "line 5"
         );
     }
 
     #[test]
     fn clear_scrollback() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        term.move_history();
+        let mut processor = VTermProcessor::new();
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        vterm.move_history();
 
-        term.process_bytes(b"line 6\r\nline 7\r\n");
-        assert_eq!(2, term.grid().history_size());
+        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        assert_eq!(2, vterm.grid().history_size());
 
         // this should clear both the scrollback in VTerm::scrollback and the grid history
-        term.clear_scrollback();
+        vterm.clear_scrollback();
 
-        assert_eq!(0, term.grid().history_size());
-        assert_eq!(0, term.scrollback_row_count());
+        assert_eq!(0, vterm.grid().history_size());
+        assert_eq!(0, vterm.scrollback_row_count());
     }
 
     #[test]
     fn ignore_clear_scrollback() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        assert_eq!(3, term.grid().history_size());
+        let mut processor = VTermProcessor::new();
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        assert_eq!(3, vterm.grid().history_size());
 
-        handler(&mut term).clear_screen(ansi::ClearMode::Saved);
-        assert_eq!(3, term.grid().history_size());
+        HandlerProxy::new(&mut vterm).clear_screen(ansi::ClearMode::Saved);
+        assert_eq!(3, vterm.grid().history_size());
     }
 
     #[test]
     fn reset_fills_scrollback() {
-        let mut term = VTerm::new(10, 6, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 6, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3");
+        let mut processor = VTermProcessor::new();
+        processor.process_bytes(&mut vterm, b"line 1\r\nline 2\r\nline 3");
 
         // scrollback is initially empty
-        assert_eq!(0, term.scrollback_row_count());
-        assert_eq!(0, term.scrollback_rows().count());
+        assert_eq!(0, vterm.scrollback_row_count());
+        assert_eq!(0, vterm.scrollback_rows().count());
 
         // reset clears the screen (among other things) and store
         // the screen content into scrollback.
-        handler(&mut term).reset_state();
+        HandlerProxy::new(&mut vterm).reset_state();
 
         // the three screen lines are now in scrollback
-        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
-            term.scrollback_rows()
+            vterm
+                .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
         assert_eq!(
-            row_to_string(term.last_scrollback_row().expect("last_row")),
+            row_to_string(vterm.last_scrollback_row().expect("last_row")),
             "line 3"
         );
 
         // the screen is clear
-        assert_eq!(0, term.grid().history_size());
-        for line in 0..=term.bottommost_line().0 {
-            assert!(term.grid()[Line(line)].is_clear());
+        assert_eq!(0, vterm.grid().history_size());
+        for line in 0..=vterm.bottommost_line().0 {
+            assert!(vterm.grid()[Line(line)].is_clear());
         }
     }
 
     #[test]
     fn save_scrollback_before_switching_to_alt_buf() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        assert_eq!(3, term.scrollback_row_count());
+        let mut processor = VTermProcessor::new();
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        assert_eq!(3, vterm.scrollback_row_count());
 
-        handler(&mut term).set_private_mode(PrivateMode::Named(
+        HandlerProxy::new(&mut vterm).set_private_mode(PrivateMode::Named(
             NamedPrivateMode::SwapScreenAndSetRestoreCursor,
         ));
 
         // scrollback is still available, even after the swap
-        assert_eq!(3, term.scrollback_row_count());
+        assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
-            term.scrollback_rows()
+            vterm
+                .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
@@ -1173,201 +1224,214 @@ mod tests {
 
     #[test]
     fn screen_top_scrolline_empty() {
-        let term = VTerm::new(10, 3, Osc52::Disabled);
-        assert_eq!(Scrolline(0), term.screen_top_scrolline());
+        let vterm = VTerm::new(10, 3, Osc52::Disabled);
+        assert_eq!(Scrolline(0), vterm.screen_top_scrolline());
     }
 
     #[test]
     fn screen_top_scrolline_with_history() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
+
+        let mut processor = VTermProcessor::new();
 
         // 3 scrollines/5 terminal lines
-        term.process_bytes(b"line 1 is long\r\nline 2\r\nline 3 is long\r\n");
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1 is long\r\nline 2\r\nline 3 is long\r\n",
+        );
         // writing 3 terminal lines puts everything above into history
-        term.process_bytes(b"line 4\r\nline 5\r\n");
-        assert_eq!(Scrolline(3), term.screen_top_scrolline());
-        assert_eq!(5, term.scrollback_row_count());
+        processor.process_bytes(&mut vterm, b"line 4\r\nline 5\r\n");
+        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
+        assert_eq!(5, vterm.scrollback_row_count());
 
         // 2 more scrollines scroll into history
-        term.process_bytes(b"line 6 is long\r\nline 7");
-        assert_eq!(Scrolline(5), term.screen_top_scrolline());
-        assert_eq!(7, term.scrollback_row_count());
+        processor.process_bytes(&mut vterm, b"line 6 is long\r\nline 7");
+        assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
+        assert_eq!(7, vterm.scrollback_row_count());
     }
 
     #[test]
     fn screen_top_scrolline_after_clear_scrollback() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        assert_eq!(Scrolline(3), term.screen_top_scrolline());
+        let mut processor = VTermProcessor::new();
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
 
-        term.clear_scrollback();
-        assert_eq!(Scrolline(3), term.base_scrolline());
-        assert_eq!(Scrolline(3), term.screen_top_scrolline());
+        vterm.clear_scrollback();
+        assert_eq!(Scrolline(3), vterm.base_scrolline());
+        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
 
-        term.process_bytes(b"line 6\r\nline 7\r\n");
-        assert_eq!(Scrolline(5), term.screen_top_scrolline());
+        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
     }
 
     #[test]
     fn terminal_line_for_scrolline_screen() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.process_bytes(b"line 1\r\nline 2\r\n");
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        VTermProcessor::new().process_bytes(&mut vterm, b"line 1\r\nline 2\r\n");
 
         assert_eq!(
             Some(Line(0)),
-            term.terminal_line_for_scrolline(Scrolline(0))
+            vterm.terminal_line_for_scrolline(Scrolline(0))
         );
         assert_eq!(
             Some(Line(1)),
-            term.terminal_line_for_scrolline(Scrolline(1))
+            vterm.terminal_line_for_scrolline(Scrolline(1))
         );
         assert_eq!(
             Some(Line(2)),
-            term.terminal_line_for_scrolline(Scrolline(2))
+            vterm.terminal_line_for_scrolline(Scrolline(2))
         );
 
         // We're past the end of the screen
-        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(3)));
+        assert_eq!(None, vterm.terminal_line_for_scrolline(Scrolline(3)));
     }
 
     #[test]
     fn terminal_line_for_scrolline_within_history() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        VTermProcessor::new().process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
 
-        assert_eq!(Scrolline(3), term.screen_top_scrolline());
+        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
         assert_eq!(
             Some(Line(-3)),
-            term.terminal_line_for_scrolline(Scrolline(0))
+            vterm.terminal_line_for_scrolline(Scrolline(0))
         );
         assert_eq!(
             Some(Line(-2)),
-            term.terminal_line_for_scrolline(Scrolline(1))
+            vterm.terminal_line_for_scrolline(Scrolline(1))
         );
         assert_eq!(
             Some(Line(-1)),
-            term.terminal_line_for_scrolline(Scrolline(2))
+            vterm.terminal_line_for_scrolline(Scrolline(2))
         );
         assert_eq!(
             Some(Line(0)),
-            term.terminal_line_for_scrolline(Scrolline(3))
+            vterm.terminal_line_for_scrolline(Scrolline(3))
         );
         assert_eq!(
             Some(Line(1)),
-            term.terminal_line_for_scrolline(Scrolline(4))
+            vterm.terminal_line_for_scrolline(Scrolline(4))
         );
         assert_eq!(
             Some(Line(2)),
-            term.terminal_line_for_scrolline(Scrolline(5))
+            vterm.terminal_line_for_scrolline(Scrolline(5))
         );
-        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(6)));
+        assert_eq!(None, vterm.terminal_line_for_scrolline(Scrolline(6)));
     }
 
     #[test]
     fn terminal_line_for_scrolline_within_scrollback() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        term.move_history();
+        let mut processor = VTermProcessor::new();
+        processor.process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        vterm.move_history();
 
-        term.process_bytes(b"line 6\r\nline 7\r\n");
-        assert_eq!(Scrolline(5), term.screen_top_scrolline());
+        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
 
         assert_eq!(
             Some(Line(-5)),
-            term.terminal_line_for_scrolline(Scrolline(0))
+            vterm.terminal_line_for_scrolline(Scrolline(0))
         );
         assert_eq!(
             Some(Line(-4)),
-            term.terminal_line_for_scrolline(Scrolline(1))
+            vterm.terminal_line_for_scrolline(Scrolline(1))
         );
         assert_eq!(
             Some(Line(-3)),
-            term.terminal_line_for_scrolline(Scrolline(2))
+            vterm.terminal_line_for_scrolline(Scrolline(2))
         );
         assert_eq!(
             Some(Line(-2)),
-            term.terminal_line_for_scrolline(Scrolline(3))
+            vterm.terminal_line_for_scrolline(Scrolline(3))
         );
         assert_eq!(
             Some(Line(-1)),
-            term.terminal_line_for_scrolline(Scrolline(4))
+            vterm.terminal_line_for_scrolline(Scrolline(4))
         );
         assert_eq!(
             Some(Line(0)),
-            term.terminal_line_for_scrolline(Scrolline(5))
+            vterm.terminal_line_for_scrolline(Scrolline(5))
         );
         assert_eq!(
             Some(Line(1)),
-            term.terminal_line_for_scrolline(Scrolline(6))
+            vterm.terminal_line_for_scrolline(Scrolline(6))
         );
         assert_eq!(
             Some(Line(2)),
-            term.terminal_line_for_scrolline(Scrolline(7))
+            vterm.terminal_line_for_scrolline(Scrolline(7))
         );
-        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(8)));
+        assert_eq!(None, vterm.terminal_line_for_scrolline(Scrolline(8)));
     }
 
     #[test]
     fn terminal_line_for_scrolline_out_of_bounds() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        term.clear_scrollback();
+        VTermProcessor::new().process_bytes(
+            &mut vterm,
+            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
+        );
+        vterm.clear_scrollback();
 
-        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(0)));
-        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(1)));
-        assert_eq!(None, term.terminal_line_for_scrolline(Scrolline(2)));
+        assert_eq!(None, vterm.terminal_line_for_scrolline(Scrolline(0)));
+        assert_eq!(None, vterm.terminal_line_for_scrolline(Scrolline(1)));
+        assert_eq!(None, vterm.terminal_line_for_scrolline(Scrolline(2)));
         assert_eq!(
             Some(Line(0)),
-            term.terminal_line_for_scrolline(Scrolline(3))
+            vterm.terminal_line_for_scrolline(Scrolline(3))
         );
     }
 
     #[test]
     fn scrolline_with_wrapped_lines() {
-        let mut term = VTerm::new(10, 4, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut vterm = VTerm::new(10, 4, Osc52::Disabled);
+        vterm.enable_scrollback();
 
-        term.process_bytes(b"A long line....\r\nline 2\r\n");
+        VTermProcessor::new().process_bytes(&mut vterm, b"A long line....\r\nline 2\r\n");
 
-        assert_eq!(Scrolline(0), term.screen_top_scrolline());
+        assert_eq!(Scrolline(0), vterm.screen_top_scrolline());
         assert_eq!(
             Some(Line(0)),
-            term.terminal_line_for_scrolline(Scrolline(0))
+            vterm.terminal_line_for_scrolline(Scrolline(0))
         );
         assert_eq!(
             Some(Line(2)),
-            term.terminal_line_for_scrolline(Scrolline(1))
+            vterm.terminal_line_for_scrolline(Scrolline(1))
         );
 
         // Put screen content into scrollback, make sure it still works.
-        term.inner.clear_screen(ansi::ClearMode::All);
-        assert_eq!(Scrolline(2), term.screen_top_scrolline());
+        vterm.inner.clear_screen(ansi::ClearMode::All);
+        assert_eq!(Scrolline(2), vterm.screen_top_scrolline());
         assert_eq!(
             Some(Line(-3)),
-            term.terminal_line_for_scrolline(Scrolline(0))
+            vterm.terminal_line_for_scrolline(Scrolline(0))
         );
         assert_eq!(
             Some(Line(-1)),
-            term.terminal_line_for_scrolline(Scrolline(1))
+            vterm.terminal_line_for_scrolline(Scrolline(1))
         );
         assert_eq!(
             Some(Line(0)),
-            term.terminal_line_for_scrolline(Scrolline(2))
+            vterm.terminal_line_for_scrolline(Scrolline(2))
         );
-    }
-
-    /// --- test utilities
-
-    fn handler<'a>(term: &'a mut VTerm) -> HandlerProxy<'a, EventAccumulator> {
-        HandlerProxy::new(&mut term.inner, &mut term.scrollback)
     }
 }

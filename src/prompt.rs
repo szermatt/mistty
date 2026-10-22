@@ -1,16 +1,10 @@
+use crate::{gridext::RowExt, types::Scrolline, vterm::VTerm};
 use alacritty_terminal::{
-    Grid,
     grid::{Dimensions, Row},
     index::{Column, Line},
     term::cell::{Cell, Flags},
 };
 use emacs::{IntoLisp, Result, Value};
-
-use crate::{
-    damage::GridDamage,
-    gridext::{GridExt, RowExt},
-    types::Scrolline,
-};
 
 emacs::use_symbols! {
     prompt_sym => "prompt"
@@ -119,17 +113,12 @@ impl PromptDetector {
     //
     // The cursor should should be at the position where the CR is
     // called in the prompt-sp sequence.
-    pub(crate) fn handle_prompt_sp(
-        &mut self,
-        screen_top_scrolline: Scrolline,
-        grid: &mut Grid<Cell>,
-        damage: &mut GridDamage,
-    ) {
-        cleanup_prompt_sp(grid, damage);
+    pub(crate) fn handle_prompt_sp(&mut self, vterm: &mut VTerm) {
+        cleanup_prompt_sp(vterm);
 
         self.captured = Some(Prompt {
             source: PromptSource::PromptSp,
-            start: screen_top_scrolline + grid.count_scrollines(Line(0), grid.cursor.point.line),
+            start: vterm.scrolline_at_cursor(),
         });
     }
 }
@@ -138,7 +127,8 @@ impl PromptDetector {
 ///
 /// This change marks the spaces issued by the hack as blank, so as not to
 /// confuse the display.
-pub(crate) fn cleanup_prompt_sp(grid: &mut Grid<Cell>, damage: &mut GridDamage) {
+pub(crate) fn cleanup_prompt_sp(vterm: &mut VTerm) {
+    let grid = vterm.grid_mut();
     let cursor_line = grid.cursor.point.line;
     if cursor_line == Line(0) {
         return;
@@ -146,19 +136,24 @@ pub(crate) fn cleanup_prompt_sp(grid: &mut Grid<Cell>, damage: &mut GridDamage) 
 
     let cursor_col = grid.cursor.point.column;
     let last_column = grid.last_column();
+    let mut damaged_prev_line = false;
+    let prev_line: Line = cursor_line - 1;
     if cursor_col != last_column {
-        let prev_line: Line = cursor_line - 1;
         let prev_row = &mut grid[prev_line];
         if prev_row.is_wrapped() {
             prev_row[last_column].flags.remove(Flags::WRAPLINE);
             blank_trailing(prev_row);
-            damage.add(prev_line);
+            damaged_prev_line = true;
         }
     }
 
     let row = &mut grid[cursor_line];
     blank_trailing(row);
-    damage.add(cursor_line);
+
+    vterm.add_damage(cursor_line);
+    if damaged_prev_line {
+        vterm.add_damage(prev_line);
+    }
 }
 
 fn blank_trailing(row: &mut Row<Cell>) {
@@ -176,17 +171,23 @@ fn blank_trailing(row: &mut Row<Cell>) {
 mod tests {
     use super::*;
     use crate::testing;
-    use crate::vterm::VTerm;
+    use crate::vterm::{VTerm, VTermProcessor};
     use alacritty_terminal::term::Osc52;
 
     struct Fixture {
         vterm: VTerm,
+        processor: VTermProcessor,
     }
 
     impl Fixture {
         fn setup() -> anyhow::Result<Self> {
             let vterm = VTerm::new(20, 10, Osc52::Disabled);
-            Ok(Self { vterm })
+            let processor = VTermProcessor::new();
+            Ok(Self { vterm, processor })
+        }
+
+        fn process_bytes(&mut self, bytes: &[u8]) {
+            self.processor.process_bytes(&mut self.vterm, bytes);
         }
 
         fn row_to_string(&self, line: Line) -> String {
@@ -197,9 +198,7 @@ mod tests {
     #[test]
     fn detect_prompt_sp_full_line() -> anyhow::Result<()> {
         let mut fixture = Fixture::setup()?;
-        fixture
-            .vterm
-            .process_bytes("text\r\n⏎                   \r$ ".as_bytes());
+        fixture.process_bytes("text\r\n⏎                   \r$ ".as_bytes());
 
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
         assert_eq!(
@@ -207,7 +206,7 @@ mod tests {
                 source: PromptSource::PromptSp,
                 start: Scrolline(1)
             }),
-            fixture.vterm.take_prompt()
+            fixture.processor.take_prompt()
         );
         Ok(())
     }
@@ -215,9 +214,7 @@ mod tests {
     #[test]
     fn detect_prompt_sp_split_line() -> anyhow::Result<()> {
         let mut fixture = Fixture::setup()?;
-        fixture
-            .vterm
-            .process_bytes("text⏎                   \r$ ".as_bytes());
+        fixture.process_bytes("text⏎                   \r$ ".as_bytes());
 
         assert_eq!("text⏎", fixture.row_to_string(Line(0)));
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
@@ -226,7 +223,7 @@ mod tests {
                 source: PromptSource::PromptSp,
                 start: Scrolline(1)
             }),
-            fixture.vterm.take_prompt()
+            fixture.processor.take_prompt()
         );
 
         Ok(())

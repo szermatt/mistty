@@ -7,7 +7,7 @@ use qwertty_term_input::{
     key_mods::{Mods, OptionAsAlt},
 };
 
-use emacs::{Env, GlobalRef, IntoLisp, Result, Value, Vector, defun};
+use emacs::{Env, GlobalRef, Result, Value, Vector};
 
 use crate::{input, vterm::VTerm};
 
@@ -20,42 +20,7 @@ emacs::use_symbols! {
 }
 
 /// Generate an escape sequence for an Emacs keyboard event.
-///
-/// This function generates escape sequences according to the kitty
-/// protocol. It is not appropriate to call when the kitty protocol is
-/// disable - it always retuns nil in such case.
-///
-/// This function generate escape sequence for keys appropriate for
-/// the current state of `term` in `env`. It takes a vector of
-/// symbols, created by converting the list `event-modifiers` returns
-/// into a vector, and `base_key`, which is the result of calling
-/// `event-basic-type`.
-///
-/// `base_key` is either a number, an Emacs unicode character code, or
-/// a symbol, for function keys.
-///
-/// The result is either nil, if the keyboard event cannot be
-/// transformed, or a vector of bytes to send to the terminal.
-#[defun]
-pub(crate) fn kitty_key_seq<'e>(
-    term: &mut VTerm,
-    env: &'e Env,
-    orig_key: Value<'_>,
-    mods: Vector,
-    base_key: Value<'_>,
-) -> Result<Value<'e>> {
-    match internal_kitty_key_seq(
-        term,
-        EmacsKey::from(orig_key)?,
-        mods,
-        EmacsKey::from(base_key)?,
-    ) {
-        None => Ok(nil_sym.bind(env)),
-        Some(str) => str.into_lisp(env),
-    }
-}
-
-fn internal_kitty_key_seq(
+pub(crate) fn kitty_key_seq(
     term: &VTerm,
     orig_key: Option<EmacsKey<'_>>,
     mods: Vector,
@@ -230,13 +195,13 @@ pub(crate) fn init(env: &'_ Env) -> Result<()> {
 }
 
 /// A key from emacs that can be either a codepoint or a symbol.
-enum EmacsKey<'a> {
+pub(crate) enum EmacsKey<'a> {
     Code(u32),
     Symbol(Value<'a>),
 }
 
 impl<'a> EmacsKey<'a> {
-    fn from(val: Value<'a>) -> Result<Option<Self>> {
+    pub(crate) fn from(val: Value<'a>) -> Result<Option<Self>> {
         if numberp.bind(val.env).call((val,))?.is_not_nil() {
             Ok(Some(Self::Code(val.into_rust::<u32>()?)))
         } else if symbolp.bind(val.env).call((val,))?.is_not_nil() {

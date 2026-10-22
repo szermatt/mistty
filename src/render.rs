@@ -8,7 +8,7 @@ use alacritty_terminal::{
     term::cell::{Cell, Flags, Hyperlink},
     vte::ansi::{Color, NamedColor, Rgb},
 };
-use emacs::{Env, Result, Value, defun};
+use emacs::{Env, Result, Value};
 use std::{cmp::max, collections::HashMap, str::FromStr};
 
 emacs::use_functions! {
@@ -145,32 +145,7 @@ impl ToggleProperty {
     }
 }
 
-/// Clear terminal history.
-#[defun]
-pub(crate) fn clear_scrollback(term: &mut VTerm) -> Result<()> {
-    term.clear_scrollback();
-
-    Ok(())
-}
-
-/// Return the number of terminal lines in the scrollback.
-#[defun]
-fn scrollback_line_count(term: &VTerm) -> Result<usize> {
-    Ok(term.scrollback_row_count())
-}
-
 /// Write scrollback lines to the current buffer.
-///
-/// This function writes any scrollback line kept in the virtual
-/// terminal to the current buffer at the current point and leaves the
-/// point at the end of the written lines.
-///
-/// It returns the number of lines written. This might be smaller that
-/// the number of the corresponding terminal lines if some lines were
-/// wrapped.
-///
-/// If scrollback is disabled on the virtual terminal, this call
-/// always returns 0 and does nothing.
 pub(crate) fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     if term.scrollback_row_count() == 0 {
         return Ok(0);
@@ -225,21 +200,11 @@ pub(crate) fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
 }
 
 /// Render the state of the terminal in a way Emacs understands.
-///
-/// Rendering is done in the current buffer in the range from point to
-/// end of buffer (or earlier if narrowing is enabled), starting with
-/// the scrollback lines, then the screen itself.
-///
-/// `cursor_marker` is set to the cursor position.
-///
-/// The point is not conserved. Wrap this call inside a
-/// `save_excursion`.
-///
-/// This function returns the buffer position of the top right corner
-/// of the screen and the corresponding absolute scrolline. Everything
-/// before that position belongs in the scrollback area.
-#[defun]
-pub(crate) fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -> Result<Value<'a>> {
+pub(crate) fn render<'a>(
+    env: &'a Env,
+    term: &mut VTerm,
+    cursor_marker: Value,
+) -> Result<Value<'a>> {
     let history_scrollines = write_scrollback(env, term)?;
 
     let mut render = Render::init(env, term)?;
@@ -250,26 +215,6 @@ pub(crate) fn render<'a>(env: &'a Env, term: &mut VTerm, cursor_marker: Value) -
 }
 
 /// Render the terminal content on the current buffer.
-///
-/// This call renders only the terminal content, ignoring the
-/// scrollback area. Call [render] to take the scrollback area into
-/// account.
-///
-/// This call may optimize rendering by only updating the portions of
-/// the terminal that have changed since last call to `render` or
-/// `render_damage. For this to work, the range from point to end of
-/// buffer must contain the unmodified result of the previous call.
-///
-/// Rendering is done in the current buffer in the range START to end
-/// of buffer (or earlier if narrowing is enabled).
-///
-/// `cursor_marker` is set to the cursor position if that position has
-/// changed since last call. If the cursor hasn't moved since last
-/// call, the marker might just be left as it is.
-///
-/// The point is not conserved. Wrap this call inside
-/// `save_excursion` if it matters.
-#[defun]
 pub(crate) fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
     let mut render = Render::init(env, term)?;
     render.render_screen()?;

@@ -538,7 +538,9 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (add-hook 'after-change-functions #'mistty--after-change-on-term nil t)
 
         (mistty--term-postprocess-changed accum term)
-        (mistty--add-prompt-detection accum term) ;; CHECK
+        (mistty--add-regexp-prompt-detection accum term)
+        (mistty--add-bracketed-paste-prompt-detection accum term)
+        (mistty--add-prompt_sp-detection accum term)
 
         (mistty--add-da1 accum)
         (mistty--add-skip-unsupported accum)
@@ -762,11 +764,6 @@ CURSOR-MARKER is updated to the cursor position."
 
 This is not needed as it's enough to clear the text properties for eterm.")
 
-
-(cl-defmethod mistty--term-cleanup-prompt-sp ((_term mistty--term-eterm) _pos)
-  "Does nothing.
-
-This is not needed as it's enough to clear the text properties for eterm.")
 
 (cl-defmethod mistty--term-changed ((_term mistty--term-eterm) beg end)
   "Report that the region between BEG and END changed on the terminal buffer."
@@ -1272,6 +1269,56 @@ Start searching after BEG."
     (when (< pos (point-max))
       (add-text-properties pos (point-max)
                            '(mistty-skip empty-lines-at-eob yank-handler (nil "" nil nil))))))
+
+
+(defun mistty--add-prompt_sp-detection (accum term)
+  "Setup ACCUM for detection of prompt_sp hack for TERM.
+
+Detected prompts can be found in `mistty-prompt'."
+  ;; Detect prompt-sp as many spaces followed by CR at the end of a
+  ;; line.
+  ;;
+  ;; Not using " \r" as regexp for the processor as it would mean
+  ;; waiting after a space in case a \r eventually comes. This isn't
+  ;; an escape sequence.
+  (mistty--accum-add-processor
+   accum
+   'CR
+   (lambda (ctx _)
+     (when (mistty--term-detect-prompt-p term)
+       ;; If we received at least 8 spaces before the \r (enough to fill
+       ;; the look-back buffer) flush and look at the state of the
+       ;; buffer just before the \r is taken into account.
+       (when (string= "        " (mistty--accum-ctx-look-back ctx))
+         (mistty--accum-ctx-flush ctx)
+         (when (or (and (= (1- (mistty--term-columns term))
+                           (cdr (mistty--term-cursor-linecol term)))
+                        (eq ?\  (char-before (point))))
+                   (and (get-text-property (pos-eol 0) 'term-line-wrap)
+                        (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
+           (let* ((prompt (mistty--prompt))
+                  (pos (pos-bol))
+                  (scrolline (mistty--scrolline-at pos)))
+             (when (get-text-property (pos-eol 0) 'term-line-wrap)
+               (let* ((eol (pos-eol 0))
+                      (pos eol)
+                      (inhibit-read-only t)
+                      (inhibit-modification-hooks t))
+                 (remove-text-properties eol (1+ eol) '(term-line-wrap nil))
+                 (while (eq ?\  (char-before pos))
+                   (cl-decf pos))
+                 (when (> eol pos)
+                   (add-text-properties pos eol '(mistty-blank t))))
+               (cl-incf scrolline))
+             (when (or (null prompt)
+                       (not (mistty--prompt-contains prompt scrolline)))
+               (setq prompt (mistty--make-prompt 'prompt_sp scrolline))
+               (setf (mistty--prompt) prompt)
+               (mistty-log "Suspected %s prompt #%s: [%s,)"
+                           (mistty--prompt-source prompt)
+                           (mistty--prompt-input-id prompt)
+                           (mistty--prompt-start prompt)))))))
+     (mistty--accum-ctx-push-down ctx "\r"))))
 
 (provide 'mistty-term-eterm)
 

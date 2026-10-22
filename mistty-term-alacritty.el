@@ -115,7 +115,8 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (set-process-filter proc accum)
         (process-put proc 'mistty-term term)
 
-        (mistty--add-prompt-detection accum term)
+        (mistty--add-regexp-prompt-detection accum term)
+        (mistty--add-bracketed-paste-prompt-detection accum term)
         (mistty--term-alacritty-add-osc-detection accum term)
         (unless enter-fullscreen (error ":enter-fullscreen required"))
         (mistty--accum-add-processor
@@ -310,15 +311,6 @@ CURSOR-MARKER is updated to the cursor position."
                                           (mistty--count-lines mistty-alacritty--home pos)
                                           (- pos (mistty--bol pos)))))))
 
-(cl-defmethod mistty--term-cleanup-prompt-sp ((term mistty--term-alacritty) pos)
-  "Cleanup the prompt in TERM at POS after a prompt-sp hack."
-  (let ((vterm (mistty--term-alacritty-vterm term)))
-    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-      (when (> pos mistty-alacritty--home)
-        (mistty-alacritty-vt-cleanup-prompt-sp
-         vterm
-         (mistty--count-lines mistty-alacritty--home pos))))))
-
 (cl-defmethod mistty--term-truncate-buffer ((term mistty--term-alacritty) scrolline-limit)
   "Truncate the terminal buffer of TERM, if necessary.
 
@@ -415,7 +407,14 @@ buffer."
            (setf (mistty--term-alacritty-kkp term) val))
           (`(mouse ,val)
            (setf (mistty--term-alacritty-mouse term) val)
-           (funcall (mistty--term-alacritty-request-report-mouse term) val))))
+           (funcall (mistty--term-alacritty-request-report-mouse term) val))
+          (`(prompt :source ,source :start ,start)
+           (let ((prompt (mistty--make-prompt source start)))
+             (setf (mistty--prompt) prompt)
+             (mistty-log "Suspected %s prompt #%s: [%s,)"
+                         (mistty--prompt-source prompt)
+                         (mistty--prompt-input-id prompt)
+                         (mistty--prompt-start prompt))))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))

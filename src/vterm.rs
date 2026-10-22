@@ -961,6 +961,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::row_to_string;
 
     #[test]
     fn scrollback_empty() {
@@ -1374,17 +1375,5 @@ mod tests {
 
     fn handler<'a>(term: &'a mut VTerm) -> HandlerProxy<'a, EventAccumulator> {
         HandlerProxy::new(&mut term.inner, &mut term.scrollback)
-    }
-
-    /// Return a string representation of the row.
-    ///
-    /// This doesn't support hidden chars or multi-column characters;
-    /// it's just good enough for testing.
-    fn row_to_string(row: &Row<Cell>) -> String {
-        (0..row.len())
-            .map(|col| row[Column(col)].c)
-            .collect::<String>()
-            .trim_end()
-            .to_string()
     }
 }

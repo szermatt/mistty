@@ -22,6 +22,9 @@ pub(crate) trait GridExt {
         start: Line,
         end: Line,
     ) -> impl DoubleEndedIterator<Item = (Line, &Row<Cell>)>;
+
+    /// Count number of scrollines between `to` and `from`.
+    fn count_scrollines(&self, from: Line, to: Line) -> usize;
 }
 
 impl GridExt for Grid<Cell> {
@@ -39,6 +42,12 @@ impl GridExt for Grid<Cell> {
         end: Line,
     ) -> impl DoubleEndedIterator<Item = (Line, &Row<Cell>)> {
         (start.0..end.0).map(|line| (Line(line), &self[Line(line)]))
+    }
+
+    fn count_scrollines(&self, from: Line, to: Line) -> usize {
+        self.ranged_iter(from, to)
+            .filter(|(_, r)| !r.is_wrapped())
+            .count()
     }
 }
 

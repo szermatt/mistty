@@ -4,6 +4,7 @@
 
 use crate::damage::GridDamage;
 use crate::gridext::{CellExt, GridExt, RowExt};
+use crate::prompt::{Prompt, PromptDetector};
 use crate::render;
 use crate::types::Scrolline;
 use alacritty_terminal::vte::ansi::{KeyboardModes, KeyboardModesApplyBehavior, ModifyOtherKeys};
@@ -11,7 +12,7 @@ use alacritty_terminal::{
     Grid, Term,
     event::{Event, EventListener},
     grid::{Dimensions, Row},
-    index::{Column, Line, Point},
+    index::{Line, Point},
     term::{
         ClipboardType, Config, Osc52, TermMode,
         cell::{Cell, Flags},
@@ -72,6 +73,8 @@ pub(crate) struct VTerm {
 
     /// State kept for mouse_encode
     last_cell: Option<(i64, i64)>,
+
+    prompt_detector: PromptDetector,
 }
 
 impl VTerm {
@@ -105,6 +108,7 @@ impl VTerm {
             scrollback: vec![],
             extra_damage: GridDamage::new(),
             last_cell: None,
+            prompt_detector: PromptDetector::new(),
         }
     }
 
@@ -139,8 +143,6 @@ impl VTerm {
     }
 
     /// Return a modifiable reference to the terminal grid.
-    ///
-    /// If you modify terminal content, remember to register the
     /// modified lines as extra damage.
     #[inline]
     fn grid_mut(&mut self) -> &mut Grid<Cell> {
@@ -316,6 +318,26 @@ impl VTerm {
 
     /// Parse terminal data and update internal state.
     pub(crate) fn process_bytes(&mut self, bytes: &[u8]) {
+        if let Some(pos) = self
+            .prompt_detector
+            .detect_prompt_sp(self.inner.columns(), bytes)
+        {
+            self.process_bytes_internal(&bytes[0..pos]);
+            self.prompt_detector.handle_prompt_sp(
+                self.screen_top_scrolline(),
+                self.inner.grid_mut(),
+                &mut self.extra_damage,
+            );
+            self.process_bytes(&bytes[pos..]);
+        } else {
+            self.process_bytes_internal(bytes);
+        }
+    }
+
+    fn process_bytes_internal(&mut self, bytes: &[u8]) {
+        if bytes.len() == 0 {
+            return;
+        }
         self.processor.advance(
             &mut HandlerProxy::new(&mut self.inner, &mut self.scrollback),
             bytes,
@@ -380,6 +402,12 @@ impl VTerm {
         Ok(lisp_events)
     }
 
+    /// Take a prompt to report to the lisp side.
+    pub(crate) fn take_prompt(&mut self) -> Option<Prompt> {
+        self.prompt_detector.take()
+    }
+
+    /// Report changes to [TermMode] to the lisp side.
     pub(crate) fn mode_changes<'a>(
         &self,
         env: &'a Env,
@@ -449,29 +477,6 @@ impl VTerm {
         self.extra_damage.add(line);
     }
 
-    /// Cleanup after a shell's PROMPT-SP hack.
-    pub(crate) fn cleanup_prompt_sp(&mut self, line: Line) {
-        if line == Line(0) {
-            return;
-        }
-
-        let grid = self.grid_mut();
-        let last_column = grid.last_column();
-        let prev_line: Line = line - 1;
-        let prev_row = &mut grid[prev_line];
-        let mut prev_damaged = false;
-        if prev_row.is_wrapped() {
-            prev_row[last_column].flags.remove(Flags::WRAPLINE);
-            blank_trailing(prev_row);
-            prev_damaged = true;
-        }
-        blank_trailing(&mut grid[line]);
-        if prev_damaged {
-            self.extra_damage.add(prev_line);
-        }
-        self.extra_damage.add(line);
-    }
-
     /// Return the set of lines to refresh, `None` to refresh the whole screen.
     ///
     /// If there are no changes, return an empty vector.
@@ -491,17 +496,6 @@ impl VTerm {
     /// Return state for mouse_encode
     pub(crate) fn last_cell(&mut self) -> &mut Option<(i64, i64)> {
         &mut self.last_cell
-    }
-}
-
-fn blank_trailing(row: &mut Row<Cell>) {
-    for col in (0..row.len()).rev() {
-        let col = Column(col);
-        let cell = &mut row[col];
-        if cell.c != ' ' {
-            break;
-        }
-        cell.flags.set(Flags::DIM, false);
     }
 }
 

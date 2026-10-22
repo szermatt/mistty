@@ -1139,59 +1139,6 @@
                   "\n")
                  (mistty-test-content :trim nil)))))))
 
-(mistty-deftest mistty-alacritty-vt-cleanup-sp-continued (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 5))
-        (cursor (make-marker)))
-    (ert-with-test-buffer ()
-      (mistty-alacritty-vt-process-bytes term (vconcat "output 1\r\n"))
-      (mistty-alacritty-vt-process-bytes term (vconcat "end"))
-      (mistty-alacritty-vt-process-bytes term (vconcat "%" (make-string 19 ?\ ))) ;; prompt-sp
-      (mistty-alacritty-vt-render term cursor)
-
-      (should (equal
-               (concat "output 1\n"
-                       "end%                [\n]"
-                       "   <>\n")
-               (mistty-test-content
-                :trim nil :show cursor :show-property '(term-line-wrap t))))
-
-      (mistty-alacritty-vt-cleanup-prompt-sp term 2)
-      (mistty-alacritty-vt-process-bytes term (vconcat "\r"))
-      (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor)
-
-      (should (equal
-               (concat "output 1\n"
-                       "end%\n"
-                       "<>\n")
-               (mistty-test-content
-                :trim nil :show cursor :show-property '(term-line-wrap t)))))))
-
-(mistty-deftest mistty-alacritty-vt-cleanup-sp-not-continued (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 5))
-        (cursor (make-marker)))
-    (ert-with-test-buffer ()
-      (mistty-alacritty-vt-process-bytes term (vconcat "output 1\r\n"))
-      (mistty-alacritty-vt-process-bytes term (vconcat "%" (make-string 19 ?\ ))) ;; prompt-sp
-      (mistty-alacritty-vt-render term cursor)
-
-      (should (equal
-               (concat "output 1\n"
-                       "%                  <> \n")
-               (mistty-test-content
-                :trim nil :show cursor :show-property '(term-line-wrap t))))
-
-      (mistty-alacritty-vt-cleanup-prompt-sp term 1)
-      (mistty-alacritty-vt-process-bytes term (vconcat "\r"))
-      (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor)
-
-      (should (equal
-               (concat "output 1\n"
-                       "<>%\n")
-               (mistty-test-content
-                :trim nil :show cursor :show-property '(term-line-wrap t)))))))
-
 (mistty-deftest mistty-alacritty-vt-mark-indent (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10))
         (cursor (make-marker)))

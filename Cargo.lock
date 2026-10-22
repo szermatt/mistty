@@ -271,6 +271,7 @@ name = "mistty-alacritty-vt"
 version = "2.2.2-alpha"
 dependencies = [
  "alacritty_terminal",
+ "anyhow",
  "emacs",
  "qwertty-term-input",
 ]

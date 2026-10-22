@@ -12,3 +12,6 @@ qwertty-term-input = "0.4.0"
 
 [lib]
 crate-type = ["cdylib"]
+
+[dev-dependencies]
+anyhow = "1.0.104"

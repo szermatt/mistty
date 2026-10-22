@@ -134,7 +134,7 @@ end of a prompt with no commands.")
 ;; uses scrollines as units.
 (cl-defstruct (mistty--prompt
                (:constructor mistty--make-prompt
-                             (source start &optional end &key text
+                             (source start &optional end &key text user-input-start
                                      &aux (input-id
                                            (progn
                                              (cl-incf (mistty--prompt-cell-counter
@@ -199,13 +199,17 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
        (or (null (mistty--prompt-end prompt))
            (< scrolline (mistty--prompt-end prompt)))))
 
-(defun mistty--add-prompt-detection (accum term)
-  "Register processors to ACCUM for prompt detection for TERM.
+(defun mistty--add-regexp-prompt-detection (accum term)
+  "Setup ACCUM for regexp prompt detection for TERM.
 
 Detected prompts can be found in `mistty-prompt'."
   (mistty--accum-add-post-processor
-   accum (mistty--regexp-prompt-detector term))
+   accum (mistty--regexp-prompt-detector term)))
 
+(defun mistty--add-bracketed-paste-prompt-detection (accum term)
+  "Setup ACCUM for bracketed-paste prompt detection for TERM.
+
+Detected prompts can be found in `mistty-prompt'."
   ;; Enable bracketed paste
   (mistty--accum-add-processor
    accum
@@ -265,53 +269,7 @@ Detected prompts can be found in `mistty-prompt'."
                       (> scrolline (mistty--prompt-start prompt)))
              (setf (mistty--prompt-end prompt) scrolline)))
          (setq mistty-bracketed-paste nil)))
-     (mistty--accum-ctx-push-down ctx str)))
-
-  ;; Detect prompt-sp as many spaces followed by CR at the end of a
-  ;; line.
-  ;;
-  ;; Not using " \r" as regexp for the processor as it would mean
-  ;; waiting after a space in case a \r eventually comes. This isn't
-  ;; an escape sequence.
-  (mistty--accum-add-processor
-   accum
-   'CR
-   (lambda (ctx _)
-     (when (mistty--term-detect-prompt-p term)
-       ;; If we received at least 8 spaces before the \r (enough to fill
-       ;; the look-back buffer) flush and look at the state of the
-       ;; buffer just before the \r is taken into account.
-       (when (string= "        " (mistty--accum-ctx-look-back ctx))
-         (mistty--accum-ctx-flush ctx)
-         (when (or (and (= (1- (mistty--term-columns term))
-                           (cdr (mistty--term-cursor-linecol term)))
-                        (eq ?\  (char-before (point))))
-                   (and (get-text-property (pos-eol 0) 'term-line-wrap)
-                        (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))
-           (let* ((prompt (mistty--prompt))
-                  (pos (pos-bol))
-                  (scrolline (mistty--scrolline-at pos)))
-             (when (get-text-property (pos-eol 0) 'term-line-wrap)
-               (mistty--term-cleanup-prompt-sp term (point))
-               (let* ((eol (pos-eol 0))
-                      (pos eol)
-                      (inhibit-read-only t)
-                      (inhibit-modification-hooks t))
-                 (remove-text-properties eol (1+ eol) '(term-line-wrap nil))
-                 (while (eq ?\  (char-before pos))
-                   (cl-decf pos))
-                 (when (> eol pos)
-                   (add-text-properties pos eol '(mistty-blank t))))
-               (cl-incf scrolline))
-             (when (or (null prompt)
-                       (not (mistty--prompt-contains prompt scrolline)))
-               (setq prompt (mistty--make-prompt 'prompt_sp scrolline))
-               (setf (mistty--prompt) prompt)
-               (mistty-log "Suspected %s prompt #%s: [%s,)"
-                           (mistty--prompt-source prompt)
-                           (mistty--prompt-input-id prompt)
-                           (mistty--prompt-start prompt)))))))
-     (mistty--accum-ctx-push-down ctx "\r"))))
+     (mistty--accum-ctx-push-down ctx str))))
 
 (defun mistty--regexp-prompt-detector (term)
   "Build a post-processor for TERM that look for a new prompt at cursor.

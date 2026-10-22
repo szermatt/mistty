@@ -157,27 +157,6 @@ the cursor on DEST-BUFFER.")
 (cl-defgeneric mistty--term-clear-to-eol (term pos)
   "Mark spaces in TERM from POS to end-of-line as unmodified.")
 
-(cl-defgeneric mistty--term-cleanup-prompt-sp (term pos)
-  "Cleanup after the shell using the prompt-sp hack in TERM at POS.
-
-This command cleans up the terminal after a trick used to detect output
-that doesn't end in a newline is called prompt sp. That trick consists
-of outputing an optional end-of-line marker, then columns-1 spaces and a
-CR. If we end up still on the same line, the output ended with a NL and
-the whole line, and the marker, is then overwritten. If we end up on
-another line due to line wrap, the previous line and the marker stay in
-the previous line.
-
-This results in a continuation line that shouldn't be continued and a
-large number of newlines, both of which will look bad when they enter
-scrollback.
-
-To work around it, this call transform the fake newline into a real one
-and marks the spaces at the end of the previous line as blank.
-
-POS should be the position where the CR is called in the prompt-sp
-sequence.")
-
 (cl-defgeneric mistty--term-changed (term beg end)
   "Mark the region of TERM between BEG and END as requiring post-processing."
 

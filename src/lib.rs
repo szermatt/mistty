@@ -3,6 +3,7 @@ mod gridext;
 mod input;
 mod kbd;
 mod mouse;
+mod prompt;
 mod render;
 #[cfg(any(test))]
 pub mod testing;
@@ -149,6 +150,9 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTerm, bytes: Vector) -> Result<Va
     for event in events.into_iter().rev() {
         result = env.cons(event, result)?;
     }
+    if let Some(prompt) = term.take_prompt() {
+        result = env.cons(prompt, result)?;
+    }
 
     Ok(result)
 }
@@ -183,15 +187,6 @@ fn clear_to_eol(env: &Env, term: &mut VTerm, line: i32, beg_chars: usize) -> Res
     let line = line_range_check(env, line, term)?;
 
     term.clear_to_eol(line, beg_chars);
-
-    Ok(())
-}
-
-/// Cleanup the effects of the hack that ZSH calls prompt sp.
-#[defun]
-fn cleanup_prompt_sp(env: &Env, term: &mut VTerm, line: i32) -> Result<()> {
-    let line = line_range_check(env, line, term)?;
-    term.cleanup_prompt_sp(line);
 
     Ok(())
 }

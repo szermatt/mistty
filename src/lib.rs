@@ -4,6 +4,8 @@ mod input;
 mod kbd;
 mod mouse;
 mod render;
+#[cfg(any(test))]
+pub mod testing;
 mod types;
 mod vterm;
 

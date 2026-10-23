@@ -569,7 +569,7 @@ This is meant to be assigned to `mistty--report-issue-function'
                      (mistty-test-content
                       :show-property '(mistty-skip t)
                       :show (list (point) (ignore-errors (mistty-cursor)) mistty-sync-marker)))))
-        (mistty-log error-message)
+        (mistty-log "%s" error-message)
         ;; Errors might get caught. This makes sure
         (setq mistty-test-had-issues t)
       (error "%s" error-message)))))

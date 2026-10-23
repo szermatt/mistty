@@ -1335,7 +1335,7 @@
     (should
      (equal nil
             (mistty-alacritty-vt-process-bytes
-             term (vconcat (format "value\e]52;c;%s\a : "
+             term (vconcat (format "value\e]52;c;%s\a is "
                                    (base64-encode-string "foo, bar"))))))
     ;; copying didn't work
     (should (equal "initial" (current-kill 0)))
@@ -1353,7 +1353,7 @@
     (should
      (equal nil
             (mistty-alacritty-vt-process-bytes
-             term (vconcat (format "value\e]52;c;%s\a : "
+             term (vconcat (format "value\e]52;c;%s\a is "
                                    (base64-encode-string "foo, bar"))))))
     (should (equal "foo, bar" (current-kill 0)))
 

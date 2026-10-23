@@ -115,7 +115,6 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (set-process-filter proc accum)
         (process-put proc 'mistty-term term)
 
-        (mistty--add-regexp-prompt-detection accum term)
         (mistty--term-alacritty-add-osc-detection accum term)
 
         (unless enter-fullscreen (error ":enter-fullscreen required"))
@@ -412,9 +411,9 @@ buffer."
            (mistty--with-live-buffer buf
              (mistty-log "BRACKETED PASTE %s" (if val "ON" "OFF"))
              (setq mistty-bracketed-paste val)))
-          (`(start-prompt ,source ,start)
+          (`(start-prompt ,source ,start . ,args)
            (mistty--with-live-buffer buf
-             (mistty--register-prompt source start)))
+             (apply #'mistty--register-prompt source start args)))
           (`(end-prompt ,source ,end)
            (mistty--with-live-buffer buf
              (mistty--end-prompt source end)))))

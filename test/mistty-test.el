@@ -5661,7 +5661,7 @@ function prompt {
   ;; Even that sync marker was wrong, as ==== was replaced by Got:
   ;; bar, but that's ok.
   (mistty-wait-for-output :str "Got: bar")
-  (should (equal "$ prompt\nGot: bar\n<>$"
+  (should (equal "$ prompt\n<>Got: bar\n$"
                  (mistty-test-content :show mistty-sync-marker))))
 
 (mistty-deftest mistty-test-recovery-clear-before-prompt-removed-buffer-start (:shell ((bash mistty-test-clear-before-prompt)) :type all)
@@ -6640,8 +6640,8 @@ function prompt {
   (should (eq mistty--prompt-cell
               (buffer-local-value
                'mistty--prompt-cell mistty-term-buffer)))
-  (let ((prompt (mistty--make-prompt 'test 0 1))
-        (other-prompt (mistty--make-prompt 'other 0 1)))
+  (let ((prompt (mistty--make-prompt :source 'test :start 0 :end 1))
+        (other-prompt (mistty--make-prompt :source 'other :start 0 :end 1)))
     (setf (mistty--prompt) prompt)
     (should (eq prompt (mistty--prompt)))
     (with-current-buffer mistty-term-buffer

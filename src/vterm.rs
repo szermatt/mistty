@@ -64,9 +64,9 @@ impl VTermProcessor {
     /// Update the terminal and processor state from the given teminal
     /// sequence.
     pub(crate) fn process_bytes(&mut self, vterm: &mut VTerm, bytes: &[u8]) {
-        if let Some(pos) = self
-            .prompt_detector
-            .detect_prompt_sp(vterm.columns(), bytes)
+        if let Some(pos) =
+            self.prompt_detector
+                .detect_prompt_sp(*vterm.mode(), vterm.columns(), bytes)
         {
             self.process_bytes_internal(vterm, &bytes[0..pos]);
             self.prompt_detector.handle_prompt_sp(vterm);
@@ -74,6 +74,8 @@ impl VTermProcessor {
         } else {
             self.process_bytes_internal(vterm, bytes);
         }
+
+        self.prompt_detector.detect_regexp_prompt(vterm);
     }
 
     fn process_bytes_internal(&mut self, vterm: &mut VTerm, bytes: &[u8]) {

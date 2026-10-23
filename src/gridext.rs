@@ -107,6 +107,9 @@ pub(crate) trait CellExt {
     /// Returns the numbers of chars added.
     fn append_content(&self, str: &mut String) -> usize;
 
+    /// Return the cell content as a string.
+    fn content_string(&self) -> String;
+
     /// Check whether a cell is just there as a spacer.
     ///
     /// A spacer is a cell that comes before or after a cell
@@ -135,6 +138,13 @@ impl CellExt for Cell {
         }
 
         1 + self.zerowidth().map(|chars| chars.len()).unwrap_or(0)
+    }
+
+    fn content_string(&self) -> String {
+        let mut content = String::with_capacity(self.char_count());
+        self.append_content(&mut content);
+
+        content
     }
 
     fn append_content(&self, dest: &mut String) -> usize {

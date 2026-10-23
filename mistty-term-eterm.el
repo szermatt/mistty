@@ -1350,6 +1350,36 @@ Detected prompts can be found in `mistty-prompt'."
          (setq mistty-bracketed-paste nil)))
      (mistty--accum-ctx-push-down ctx str))))
 
+
+(defun mistty--add-regexp-prompt-detection (accum term)
+  "Setup ACCUM for regexp prompt detection for TERM.
+
+Detected prompts can be found in `mistty-prompt'."
+  (mistty--accum-add-post-processor
+   accum
+   (let ((last-nonempty-scrolline 0))
+     (lambda ()
+       (when (mistty--term-detect-prompt-p term)
+         (let ((scrolline (mistty--scrolline-at-point)))
+           ;; Only look at new lines
+           (when (> scrolline
+                    (prog1 last-nonempty-scrolline
+                      ;; for next time
+                      (setq last-nonempty-scrolline
+                            (mistty--scrolline-at
+                             (mistty--last-non-ws)))))
+             (let ((cursor (point))
+                   (bos (mistty--scrolline-start-pos)))
+               (when (and (> cursor bos)
+                          (>= cursor (mistty--last-non-ws))
+                          (string-match
+                           mistty--prompt-regexp
+                           (mistty--safe-bufstring bos cursor)))
+                 (mistty--register-prompt
+                  'regexp scrolline
+                  :end (1+ scrolline)
+                  :text (mistty--safe-bufstring bos (+ bos (match-end 0)))))))))))))
+
 (provide 'mistty-term-eterm)
 
 ;;; mistty-term-eterm.el ends here

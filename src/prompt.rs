@@ -51,19 +51,19 @@ pub(crate) struct PromptDetector {
     /// sent by shells for the PROMPT_SP hack.
     seen_spaces: usize,
 
-    captured: Option<Prompt>,
+    prompts: Vec<Prompt>,
 }
 impl PromptDetector {
     pub(crate) fn new() -> Self {
         PromptDetector {
             seen_spaces: 0,
-            captured: None,
+            prompts: vec![],
         }
     }
 
-    /// Take the prompt that was detected.
-    pub(crate) fn take(&mut self) -> Option<Prompt> {
-        self.captured.take()
+    /// Return the prompts that were detected since last collected.
+    pub(crate) fn collect(&mut self) -> Vec<Prompt> {
+        std::mem::take(&mut self.prompts)
     }
 
     /// Detect the PROMPT_SP hack and return the position at which
@@ -116,7 +116,7 @@ impl PromptDetector {
     pub(crate) fn handle_prompt_sp(&mut self, vterm: &mut VTerm) {
         cleanup_prompt_sp(vterm);
 
-        self.captured = Some(Prompt {
+        self.prompts.push(Prompt {
             source: PromptSource::PromptSp,
             start: vterm.scrolline_at_cursor(),
         });
@@ -202,11 +202,11 @@ mod tests {
 
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
         assert_eq!(
-            Some(Prompt {
+            vec![Prompt {
                 source: PromptSource::PromptSp,
                 start: Scrolline(1)
-            }),
-            fixture.processor.take_prompt()
+            }],
+            fixture.processor.collect_prompts()
         );
         Ok(())
     }
@@ -219,13 +219,42 @@ mod tests {
         assert_eq!("text⏎", fixture.row_to_string(Line(0)));
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
         assert_eq!(
-            Some(Prompt {
+            vec![Prompt {
                 source: PromptSource::PromptSp,
                 start: Scrolline(1)
-            }),
-            fixture.processor.take_prompt()
+            }],
+            fixture.processor.collect_prompts()
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn detect_multiple_prompts() -> anyhow::Result<()> {
+        let mut fixture = Fixture::setup()?;
+        fixture.process_bytes("text\r\n⏎                   \r$ ".as_bytes());
+        fixture.process_bytes(b"echo ok\r\n");
+        fixture.process_bytes(b"ok\r\n");
+        fixture.process_bytes("⏎                   \r$ ".as_bytes());
+
+        assert_eq!("text", fixture.row_to_string(Line(0)));
+        assert_eq!("$ echo ok", fixture.row_to_string(Line(1)));
+        assert_eq!("ok", fixture.row_to_string(Line(2)));
+        assert_eq!("$ ", fixture.row_to_string(Line(3)));
+
+        assert_eq!(
+            vec![
+                Prompt {
+                    source: PromptSource::PromptSp,
+                    start: Scrolline(1)
+                },
+                Prompt {
+                    source: PromptSource::PromptSp,
+                    start: Scrolline(3)
+                }
+            ],
+            fixture.processor.collect_prompts()
+        );
         Ok(())
     }
 }

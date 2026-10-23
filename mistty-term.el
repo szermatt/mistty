@@ -132,13 +132,10 @@ end of a prompt with no commands.")
 ;;
 ;; This datastructure is shared between the work and term buffer and
 ;; uses scrollines as units.
+;;
+;; Use (mistty--register-prompt) to create and register new prompts.
 (cl-defstruct (mistty--prompt
-               (:constructor mistty--make-prompt
-                             (source start &optional end &key text user-input-start
-                                     &aux (input-id
-                                           (progn
-                                             (cl-incf (mistty--prompt-cell-counter
-                                                       mistty--prompt-cell)))))))
+               (:constructor mistty--make-prompt))
   input-id
 
   ;; prompt source:
@@ -165,6 +162,61 @@ end of a prompt with no commands.")
   ;; This is a (cons scrolline column).
   user-input-start)
 
+(defun mistty--prompt-source< (a b)
+  "Compare prompt sources A and B.
+
+Comparison goes from the most trusted (lowest number) to the least
+trusted (highest number).
+
+Return non-nil if A < B."
+  (cl-labels ((priority (source)
+                (pcase source
+                  ('osc133 0)
+                  ('bracketed-paste 1)
+                  ('prompt_sp 2)
+                  ('regexp 3)
+                  (_ 10))))
+    (< (priority a) (priority b))))
+
+(defun mistty--prompt-merge-from (p other)
+  "Update P with values from OTHER.
+
+P input-id slot is not modified."
+
+  ;; Select the most trusted source
+  (when (mistty--prompt-source<
+         (mistty--prompt-source other) (mistty--prompt-source p))
+    (setf (mistty--prompt-source p) (mistty--prompt-source other)))
+
+  ;; Expand start and end to cover the union of both ranges.
+  ;;
+  ;; Expand the end when going from regexp (1 line) to other,
+  ;; open-ended prompt type. Expand prompt start when merging
+  ;; 'prompt_sp and and 'bracketed paste on Zsh, where bracketed
+  ;; past is called on the last line of a multi-line prompt.
+  (setf (mistty--prompt-start p)
+        (min (mistty--prompt-start other)
+             (mistty--prompt-start p)))
+  (cond
+   ((and (mistty--prompt-end other) (mistty--prompt-end p))
+    (setf (mistty--prompt-end p)
+          (max (mistty--prompt-end other)
+               (mistty--prompt-end p))))
+   ((null (mistty--prompt-end other))
+    (setf (mistty--prompt-end p) nil)))
+
+  ;; Text is a restriction only valid on 'regexp that captures
+  ;; the very first prompt text seen. Mostly only clear it.
+  (unless (and (eq 'regexp (mistty--prompt-source p))
+               (mistty--prompt-text other)
+               (mistty--prompt-text p))
+    (setf (mistty--prompt-text p) nil))
+
+  ;; User-input-start is provided explicitly. Always use the
+  ;; latest value.
+  (when-let* ((s (mistty--prompt-user-input-start other)))
+    (setf (mistty--prompt-user-input-start p) s)))
+
 (defun mistty--prompt ()
   "Get the value of the current `mistty--prompt' struct or nil."
   (when-let* ((cell mistty--prompt-cell))
@@ -181,13 +233,61 @@ end of a prompt with no commands.")
     (mistty--prompt-cell-counter cell)))
 
 (gv-define-setter mistty--prompt (val)
-  "Sets the value of the current `mistty--prompt' struct.
+  "Sets the value of the current `mistty--prompt' struct to VAL.
+
+This also assigns the slot input-id of VAL.
 
 The old value, if any, is pushed into `mistty--prompt-archive'."
-  `(progn
-     (when-let* ((old (mistty--prompt-cell-current mistty--prompt-cell)))
-       (push old (mistty--prompt-cell-archive mistty--prompt-cell)))
-     (setf (mistty--prompt-cell-current mistty--prompt-cell) ,val)))
+  `(let ((val ,val)
+         (c mistty--prompt-cell))
+     (when val
+       (setf (mistty--prompt-input-id val)
+             (cl-incf (mistty--prompt-cell-counter c))))
+     (when-let* ((old (mistty--prompt-cell-current c)))
+       (push old (mistty--prompt-cell-archive c)))
+     (setf (mistty--prompt-cell-current c) val)))
+
+(cl-defun mistty--register-prompt (source start &key end text user-input-start)
+  "Create and register a new prompt or merge it with the current one.
+
+This function also logs the new or updated prompt.
+
+SOURCE is the prompt source.
+START is the scrolline of the prompt start position.
+END is nil or the scrolline of the prompt end position.
+TEXT is the prompt text.
+USER-INPUT-START is (cons scrolline pos) of the start of user input.
+
+Return the new prompt or the modified p prompt. In either case,
+this is the same as what's returned by `mistty--prompt' after this call."
+  (let* ((p (mistty--prompt))
+         (other (mistty--make-prompt
+                 :source source
+                 :start start
+                 :end end
+                 :text text
+                 :user-input-start user-input-start))
+         (overlap (and p
+                       (mistty--prompt-overlaps p other)
+                       (<= (abs (- (mistty--prompt-start p)
+                                   (mistty--prompt-start other)))
+                           2))))
+    (if overlap
+        (mistty--prompt-merge-from p other)
+
+      ;; Register the new prompt
+      (setq p other)
+      (setf (mistty--prompt) p))
+    (mistty-log "%s %s prompt #%s [%s-%s]%s%s"
+                (if overlap "Updated" "Detected")
+                (mistty--prompt-source p)
+                (mistty--prompt-input-id p)
+                (mistty--prompt-start p)
+                (or (mistty--prompt-end p) "")
+                (if-let* ((text (mistty--prompt-text p)))
+                  (format " :text %S" text) "")
+                (if-let* ((s (mistty--prompt-user-input-start p)))
+                  (format " :user-input-start %S" s) ""))))
 
 (gv-define-setter mistty--prompt-archive (val)
   "Sets the value of `mistty--prompt-archive'."
@@ -199,12 +299,41 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
        (or (null (mistty--prompt-end prompt))
            (< scrolline (mistty--prompt-end prompt)))))
 
+(defun mistty--prompt-overlaps (prompt other)
+  "Return non-nil if PROMPT range overlaps with OTHER's."
+  (or (mistty--prompt-contains
+       prompt (mistty--prompt-start other))
+      (mistty--prompt-contains
+       other (mistty--prompt-start prompt))))
+
 (defun mistty--add-regexp-prompt-detection (accum term)
   "Setup ACCUM for regexp prompt detection for TERM.
 
 Detected prompts can be found in `mistty-prompt'."
   (mistty--accum-add-post-processor
-   accum (mistty--regexp-prompt-detector term)))
+   accum
+   (let ((last-nonempty-scrolline 0))
+     (lambda ()
+       (when (mistty--term-detect-prompt-p term)
+         (let ((scrolline (mistty--scrolline-at-point)))
+           ;; Only look at new lines
+           (when (> scrolline
+                    (prog1 last-nonempty-scrolline
+                      ;; for next time
+                      (setq last-nonempty-scrolline
+                            (mistty--scrolline-at
+                             (mistty--last-non-ws)))))
+             (let ((cursor (point))
+                   (bos (mistty--scrolline-start-pos)))
+               (when (and (> cursor bos)
+                          (>= cursor (mistty--last-non-ws))
+                          (string-match
+                           mistty--prompt-regexp
+                           (mistty--safe-bufstring bos cursor)))
+                 (mistty--register-prompt
+                  'regexp scrolline
+                  :end (1+ scrolline)
+                  :text (mistty--safe-bufstring bos (+ bos (match-end 0)))))))))))))
 
 (defun mistty--add-bracketed-paste-prompt-detection (accum term)
   "Setup ACCUM for bracketed-paste prompt detection for TERM.
@@ -218,37 +347,13 @@ Detected prompts can be found in `mistty-prompt'."
      (when (mistty--term-detect-prompt-p term)
        (mistty--accum-ctx-flush ctx)
        (unless mistty-bracketed-paste
-         (let* ((prompt (mistty--prompt))
-                (inhibit-read-only t)
+         (let* ((inhibit-read-only t)
                 (inhibit-modification-hooks t)
                 (start-pos (pos-bol))
                 (scrolline (mistty--scrolline-at-point)))
-           (when (or (null prompt)
-                     (memq (mistty--prompt-source prompt) '(regexp prompt_sp))
-                     (not (mistty--prompt-contains prompt scrolline)))
-             (cond
-              ;; Zsh enables bracketed past after opening the prompt. Rely on prompt_sp
-              ;; to find the beginning of possible multiline prompts.
-              ((and prompt
-                    (eq 'prompt_sp (mistty--prompt-source prompt))
-                    (mistty--prompt-contains prompt scrolline)
-                    (< (mistty--prompt-start prompt) scrolline))
-               (when-let* ((start-scrolline (mistty--prompt-start prompt))
-                           (pos (mistty--find-scrolline start-scrolline)))
-                 (setq start-pos pos)
-                 (mistty-log "Reusing prompt_sp start %s@%s" start-scrolline start-pos)
-                 (setq scrolline start-scrolline))))
-             (setq prompt (mistty--make-prompt 'bracketed-paste scrolline))
-             (mistty-log "Detected %s prompt #%s [%s-]"
-                         (mistty--prompt-source prompt)
-                         (mistty--prompt-input-id prompt)
-                         (mistty--prompt-start prompt))
-             (when (> (pos-eol) start-pos)
-               (mistty--term-changed term start-pos (pos-eol)))
-             (setf (mistty--prompt) prompt))
-           (unless (eq 'osc133 (mistty--prompt-source prompt))
-             (setf (mistty--prompt-source prompt) 'bracketed-paste)
-             (setf (mistty--prompt-end prompt) nil)))
+           (mistty--register-prompt 'bracketed-paste scrolline)
+           (when (> (pos-eol) start-pos)
+             (mistty--term-changed term start-pos (pos-eol))))
          (setq mistty-bracketed-paste t)))
      (mistty--accum-ctx-push-down ctx str)))
 
@@ -270,47 +375,6 @@ Detected prompts can be found in `mistty-prompt'."
              (setf (mistty--prompt-end prompt) scrolline)))
          (setq mistty-bracketed-paste nil)))
      (mistty--accum-ctx-push-down ctx str))))
-
-(defun mistty--regexp-prompt-detector (term)
-  "Build a post-processor for TERM that look for a new prompt at cursor.
-
-The return value is meant to be
-`mistty--accum-add-post-processor'.
-
- The post-processor updates `mistty--prompt' after the content of the
-terminal buffer has been updated."
-  (let ((last-nonempty-scrolline 0))
-    (lambda ()
-      (when (mistty--term-detect-prompt-p term)
-        (let ((scrolline (mistty--scrolline-at-point)))
-          ;; Only look at new lines
-          (when (> scrolline
-                   (prog1 last-nonempty-scrolline
-                     ;; for next time
-                     (setq last-nonempty-scrolline
-                           (mistty--scrolline-at
-                            (mistty--last-non-ws)))))
-            (let ((cursor (point))
-                  (bos (mistty--scrolline-start-pos))
-                  (prompt (mistty--prompt)))
-              (when (and (or (null prompt)
-                             (and (mistty--prompt-end prompt)
-                                  (>= scrolline (mistty--prompt-end prompt))))
-                         (> cursor bos)
-                         (>= cursor (mistty--last-non-ws))
-                         (string-match
-                          mistty--prompt-regexp
-                          (mistty--safe-bufstring bos cursor)))
-                (let ((prompt (mistty--make-prompt
-                               'regexp scrolline (1+ scrolline)
-                               :text (mistty--safe-bufstring bos (+ bos (match-end 0))))))
-                  (setf (mistty--prompt) prompt)
-                  (mistty-log "Suspected %s prompt #%s: [%s-%s] '%s'"
-                              (mistty--prompt-source prompt)
-                              (mistty--prompt-input-id prompt)
-                              (mistty--prompt-start prompt)
-                              (mistty--prompt-end prompt)
-                              (mistty--prompt-text prompt)))))))))))
 
 (defun mistty-register-text-properties (id props)
   "Add PROPS to any text written to the terminal.
@@ -452,12 +516,7 @@ Everything else is ignored."
       (pcase command-char
         (?A ;; start a new command
          ;; Overwrite any other prompt source.
-         (let ((prompt (mistty--make-prompt 'osc133 (mistty--scrolline-at-point))))
-           (setf (mistty--prompt) prompt)
-           (mistty-log "Detected %s prompt #%s [%s-]"
-                       (mistty--prompt-source prompt)
-                       (mistty--prompt-input-id prompt)
-                       (mistty--prompt-start prompt)))
+         (mistty--register-prompt 'osc133 (mistty--scrolline-at-point))
          (when (and send-clicks-func (string-match-p ";click_events=1" osc-seq))
            (funcall send-clicks-func t)))
 

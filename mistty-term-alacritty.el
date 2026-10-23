@@ -409,12 +409,7 @@ buffer."
            (setf (mistty--term-alacritty-mouse term) val)
            (funcall (mistty--term-alacritty-request-report-mouse term) val))
           (`(prompt :source ,source :start ,start)
-           (let ((prompt (mistty--make-prompt source start)))
-             (setf (mistty--prompt) prompt)
-             (mistty-log "Suspected %s prompt #%s: [%s,)"
-                         (mistty--prompt-source prompt)
-                         (mistty--prompt-input-id prompt)
-                         (mistty--prompt-start prompt))))))
+           (mistty--register-prompt source start))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))

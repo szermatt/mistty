@@ -2,44 +2,46 @@ use crate::{gridext::RowExt, types::Scrolline, vterm::VTerm};
 use alacritty_terminal::{
     grid::{Dimensions, Row},
     index::{Column, Line},
-    term::cell::{Cell, Flags},
+    term::{
+        TermMode,
+        cell::{Cell, Flags},
+    },
 };
 use emacs::{IntoLisp, Result, Value};
 
 emacs::use_symbols! {
-    prompt_sym => "prompt"
+    start_prompt_sym => "start-prompt"
+    end_prompt_sym => "end-prompt"
     prompt_sp_sym => "prompt_sp"
-    colon_source_sym => ":source"
-    colon_start_sym => ":start"
+    bracketed_paste_sym => "bracketed-paste"
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub(crate) struct Prompt {
-    source: PromptSource,
-    start: Scrolline,
+pub(crate) enum PromptChange {
+    Start(PromptSource, Scrolline),
+    End(PromptSource, Scrolline),
 }
 
-impl<'e> IntoLisp<'e> for Prompt {
+impl<'e> IntoLisp<'e> for PromptChange {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<Value<'e>> {
-        env.list((
-            prompt_sym,
-            colon_source_sym,
-            self.source,
-            colon_start_sym,
-            self.start,
-        ))
+        match self {
+            PromptChange::Start(source, start) => env.list((start_prompt_sym, source, start)),
+            PromptChange::End(source, end) => env.list((end_prompt_sym, source, end)),
+        }
     }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum PromptSource {
     PromptSp,
+    BracketedPaste,
 }
 
 impl<'e> IntoLisp<'e> for PromptSource {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<Value<'e>> {
         match self {
             PromptSource::PromptSp => Ok(prompt_sp_sym.bind(env)),
+            PromptSource::BracketedPaste => Ok(bracketed_paste_sym.bind(env)),
         }
     }
 }
@@ -51,7 +53,7 @@ pub(crate) struct PromptDetector {
     /// sent by shells for the PROMPT_SP hack.
     seen_spaces: usize,
 
-    prompts: Vec<Prompt>,
+    prompts: Vec<PromptChange>,
 }
 impl PromptDetector {
     pub(crate) fn new() -> Self {
@@ -62,7 +64,7 @@ impl PromptDetector {
     }
 
     /// Return the prompts that were detected since last collected.
-    pub(crate) fn collect(&mut self) -> Vec<Prompt> {
+    pub(crate) fn collect(&mut self) -> Vec<PromptChange> {
         std::mem::take(&mut self.prompts)
     }
 
@@ -116,10 +118,31 @@ impl PromptDetector {
     pub(crate) fn handle_prompt_sp(&mut self, vterm: &mut VTerm) {
         cleanup_prompt_sp(vterm);
 
-        self.prompts.push(Prompt {
-            source: PromptSource::PromptSp,
-            start: vterm.scrolline_at_cursor(),
-        });
+        self.prompts.push(PromptChange::Start(
+            PromptSource::PromptSp,
+            vterm.scrolline_at_cursor(),
+        ));
+    }
+
+    /// React to bracketed paste being set or unset.
+    pub(crate) fn set_bracketed_paste(&mut self, vterm: &mut VTerm, value: bool) {
+        if value && !vterm.mode().intersects(TermMode::BRACKETED_PASTE) {
+            self.prompts.push(PromptChange::Start(
+                PromptSource::BracketedPaste,
+                vterm.scrolline_at_cursor(),
+            ));
+            return;
+        }
+        if !value && vterm.mode().intersects(TermMode::BRACKETED_PASTE) {
+            self.prompts.push(PromptChange::End(
+                PromptSource::BracketedPaste,
+                if vterm.grid().cursor.point.column.0 == 0 {
+                    vterm.scrolline_at_cursor()
+                } else {
+                    vterm.scrolline_at_cursor() + 1
+                },
+            ));
+        }
     }
 }
 
@@ -202,11 +225,8 @@ mod tests {
 
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
         assert_eq!(
-            vec![Prompt {
-                source: PromptSource::PromptSp,
-                start: Scrolline(1)
-            }],
-            fixture.processor.collect_prompts()
+            vec![PromptChange::Start(PromptSource::PromptSp, Scrolline(1))],
+            fixture.processor.collect_prompt_changes()
         );
         Ok(())
     }
@@ -219,11 +239,8 @@ mod tests {
         assert_eq!("text⏎", fixture.row_to_string(Line(0)));
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
         assert_eq!(
-            vec![Prompt {
-                source: PromptSource::PromptSp,
-                start: Scrolline(1)
-            }],
-            fixture.processor.collect_prompts()
+            vec![PromptChange::Start(PromptSource::PromptSp, Scrolline(1))],
+            fixture.processor.collect_prompt_changes()
         );
 
         Ok(())
@@ -244,16 +261,82 @@ mod tests {
 
         assert_eq!(
             vec![
-                Prompt {
-                    source: PromptSource::PromptSp,
-                    start: Scrolline(1)
-                },
-                Prompt {
-                    source: PromptSource::PromptSp,
-                    start: Scrolline(3)
-                }
+                PromptChange::Start(PromptSource::PromptSp, Scrolline(1)),
+                PromptChange::Start(PromptSource::PromptSp, Scrolline(3))
             ],
-            fixture.processor.collect_prompts()
+            fixture.processor.collect_prompt_changes()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn detect_bracketed_paste() -> anyhow::Result<()> {
+        let mut fixture = Fixture::setup()?;
+        fixture.process_bytes(b"\x1b[?2004h$ ");
+        fixture.process_bytes(b"echo ok\r\n");
+        fixture.process_bytes(b"\x1b[?2004l");
+        fixture.process_bytes(b"ok\r\n");
+        fixture.process_bytes(b"\x1b[?2004h$ ");
+
+        assert_eq!("$ echo ok", fixture.row_to_string(Line(0)));
+        assert_eq!("ok", fixture.row_to_string(Line(1)));
+        assert_eq!("$ ", fixture.row_to_string(Line(2)));
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2)),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn detect_bracketed_paste_end_before_nl() -> anyhow::Result<()> {
+        let mut fixture = Fixture::setup()?;
+        fixture.process_bytes(b"\x1b[?2004h$ ");
+        fixture.process_bytes(b"echo ok");
+        // bracketed pasted is ended before the final newline of the
+        // prompt is sent.
+        fixture.process_bytes(b"\x1b[?2004l\r\n");
+        fixture.process_bytes(b"ok\r\n");
+        fixture.process_bytes(b"\x1b[?2004h$ ");
+
+        assert_eq!("$ echo ok", fixture.row_to_string(Line(0)));
+        assert_eq!("ok", fixture.row_to_string(Line(1)));
+        assert_eq!("$ ", fixture.row_to_string(Line(2)));
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2)),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn detect_bracketed_paste_multiline() -> anyhow::Result<()> {
+        let mut fixture = Fixture::setup()?;
+        fixture.process_bytes(b"\x1b[?2004hmyprompt\r\n> ");
+        fixture.process_bytes(b"echo ok\r\n");
+        fixture.process_bytes(b"\x1b[?2004l");
+        fixture.process_bytes(b"ok\r\n");
+
+        assert_eq!("myprompt", fixture.row_to_string(Line(0)));
+        assert_eq!("> echo ok", fixture.row_to_string(Line(1)));
+        assert_eq!("ok", fixture.row_to_string(Line(2)));
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(PromptSource::BracketedPaste, Scrolline(2)),
+            ],
+            fixture.processor.collect_prompt_changes()
         );
         Ok(())
     }

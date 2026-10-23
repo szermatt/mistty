@@ -289,6 +289,14 @@ this is the same as what's returned by `mistty--prompt' after this call."
                 (if-let* ((s (mistty--prompt-user-input-start p)))
                   (format " :user-input-start %S" s) ""))))
 
+(defun mistty--end-prompt (source end)
+  "End the current prompt if it comes from SOURCE at END."
+  (when-let* ((p (mistty--prompt)))
+    (when (and (eq source (mistty--prompt-source p))
+               (null (mistty--prompt-end p))
+               (> end (mistty--prompt-start p)))
+      (setf (mistty--prompt-end p) end))))
+
 (gv-define-setter mistty--prompt-archive (val)
   "Sets the value of `mistty--prompt-archive'."
   `(setf (mistty--prompt-cell-archive mistty--prompt-cell) ,val))
@@ -334,47 +342,6 @@ Detected prompts can be found in `mistty-prompt'."
                   'regexp scrolline
                   :end (1+ scrolline)
                   :text (mistty--safe-bufstring bos (+ bos (match-end 0)))))))))))))
-
-(defun mistty--add-bracketed-paste-prompt-detection (accum term)
-  "Setup ACCUM for bracketed-paste prompt detection for TERM.
-
-Detected prompts can be found in `mistty-prompt'."
-  ;; Enable bracketed paste
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI "?2004h")
-   (lambda (ctx str)
-     (when (mistty--term-detect-prompt-p term)
-       (mistty--accum-ctx-flush ctx)
-       (unless mistty-bracketed-paste
-         (let* ((inhibit-read-only t)
-                (inhibit-modification-hooks t)
-                (start-pos (pos-bol))
-                (scrolline (mistty--scrolline-at-point)))
-           (mistty--register-prompt 'bracketed-paste scrolline)
-           (when (> (pos-eol) start-pos)
-             (mistty--term-changed term start-pos (pos-eol))))
-         (setq mistty-bracketed-paste t)))
-     (mistty--accum-ctx-push-down ctx str)))
-
-  ;; Disable bracketed paste
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI "?2004l")
-   (lambda (ctx str)
-     (when (mistty--term-detect-prompt-p term)
-       (mistty--accum-ctx-flush ctx)
-       (when mistty-bracketed-paste
-         (when-let* ((prompt (mistty--prompt))
-                     (scrolline (if (eq ?\n (char-before (point)))
-                                    (mistty--scrolline-at-point)
-                                  (1+ (mistty--scrolline-at-point)))))
-           (when (and (eq 'bracketed-paste (mistty--prompt-source prompt))
-                      (null (mistty--prompt-end prompt))
-                      (> scrolline (mistty--prompt-start prompt)))
-             (setf (mistty--prompt-end prompt) scrolline)))
-         (setq mistty-bracketed-paste nil)))
-     (mistty--accum-ctx-push-down ctx str))))
 
 (defun mistty-register-text-properties (id props)
   "Add PROPS to any text written to the terminal.

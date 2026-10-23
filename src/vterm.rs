@@ -4,7 +4,7 @@
 
 use crate::damage::GridDamage;
 use crate::gridext::{CellExt, GridExt, RowExt};
-use crate::prompt::{Prompt, PromptDetector};
+use crate::prompt::{PromptChange, PromptDetector};
 use crate::render;
 use crate::types::Scrolline;
 use alacritty_terminal::vte::ansi::{KeyboardModes, KeyboardModesApplyBehavior, ModifyOtherKeys};
@@ -28,6 +28,7 @@ emacs::use_functions! {
     kill_new
 }
 emacs::use_symbols! {
+    bracketed_paste_sym => "bracketed_paste"
     pty_write_sym => "pty-write"
     title_sym => "title"
     kkp_sym => "kkp"
@@ -56,7 +57,7 @@ impl VTermProcessor {
     }
 
     /// Collect all prompts detected in previous calls to [process_bytes].
-    pub(crate) fn collect_prompts(&mut self) -> Vec<Prompt> {
+    pub(crate) fn collect_prompt_changes(&mut self) -> Vec<PromptChange> {
         self.prompt_detector.collect()
     }
 
@@ -79,7 +80,10 @@ impl VTermProcessor {
         if bytes.len() == 0 {
             return;
         }
-        self.processor.advance(&mut HandlerProxy::new(vterm), bytes);
+        self.processor.advance(
+            &mut HandlerProxy::new(vterm, &mut self.prompt_detector),
+            bytes,
+        );
     }
 }
 
@@ -430,6 +434,11 @@ impl VTerm {
             reports.push(env.list((kkp_sym, kkp_on))?);
         }
 
+        let bp_on = mode.intersects(TermMode::BRACKETED_PASTE);
+        if bp_on != before.intersects(TermMode::BRACKETED_PASTE) {
+            reports.push(env.list((bracketed_paste_sym, bp_on))?);
+        }
+
         let mouse_flags =
             TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION;
         let mouse = mode.intersection(mouse_flags);
@@ -597,11 +606,15 @@ impl EventListener for EventAccumulator {
 /// require allocating a separate flag for that.
 struct HandlerProxy<'a> {
     vterm: &'a mut VTerm,
+    prompt_detector: &'a mut PromptDetector,
 }
 
 impl<'a> HandlerProxy<'a> {
-    fn new(vterm: &'a mut VTerm) -> Self {
-        Self { vterm }
+    fn new(vterm: &'a mut VTerm, prompt_detector: &'a mut PromptDetector) -> Self {
+        Self {
+            vterm,
+            prompt_detector,
+        }
     }
 }
 
@@ -826,15 +839,23 @@ impl<'a> Handler for HandlerProxy<'a> {
                 if !self.vterm.inner.mode().contains(TermMode::ALT_SCREEN) {
                     move_history(self.vterm.inner.grid_mut(), &mut self.vterm.scrollback);
                 }
-                self.vterm.inner.set_private_mode(mode);
             }
-            _ => {
-                self.vterm.inner.set_private_mode(mode);
+            PrivateMode::Named(NamedPrivateMode::BracketedPaste) => {
+                self.prompt_detector.set_bracketed_paste(self.vterm, true);
             }
+            _ => {}
         }
+        self.vterm.inner.set_private_mode(mode);
     }
 
     fn unset_private_mode(&mut self, mode: PrivateMode) {
+        match mode {
+            PrivateMode::Named(NamedPrivateMode::BracketedPaste) => {
+                self.prompt_detector.set_bracketed_paste(self.vterm, false);
+            }
+            _ => {}
+        }
+
         self.vterm.inner.unset_private_mode(mode);
     }
 
@@ -971,28 +992,51 @@ mod tests {
     use super::*;
     use crate::testing::row_to_string;
 
+    struct Fixture {
+        vterm: VTerm,
+        processor: VTermProcessor,
+    }
+
+    impl Fixture {
+        fn setup() -> Self {
+            Self {
+                vterm: VTerm::new(10, 3, Osc52::Disabled),
+                processor: VTermProcessor::new(),
+            }
+        }
+
+        fn handler(&mut self) -> HandlerProxy<'_> {
+            HandlerProxy::new(&mut self.vterm, &mut self.processor.prompt_detector)
+        }
+
+        fn process_bytes(&mut self, bytes: &[u8]) {
+            self.processor.process_bytes(&mut self.vterm, bytes);
+        }
+    }
+
     #[test]
     fn scrollback_empty() {
-        let mut term = VTerm::new(10, 3, Osc52::Disabled);
-        term.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        let vterm = &mut fixture.vterm;
 
-        assert_eq!(0, term.scrollback_row_count());
-        assert_eq!(0, term.scrollback_rows().count());
-        assert!(term.last_scrollback_row().is_none());
+        vterm.enable_scrollback();
+
+        assert_eq!(0, vterm.scrollback_row_count());
+        assert_eq!(0, vterm.scrollback_rows().count());
+        assert!(vterm.last_scrollback_row().is_none());
     }
 
     #[test]
     fn disabled_scrollback() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.disable_scrollback();
+        let mut fixture = Fixture::setup();
+
+        fixture.vterm.disable_scrollback();
 
         // fill and scroll terminal
-        VTermProcessor::new().process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
 
         // scrollback remains empty
+        let vterm = &fixture.vterm;
         assert_eq!(0, vterm.scrollback_row_count());
         assert_eq!(0, vterm.scrollback_rows().count());
         assert!(vterm.last_scrollback_row().is_none());
@@ -1000,16 +1044,14 @@ mod tests {
 
     #[test]
     fn scrollback_from_grid() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
         // fill and scroll terminal
-        VTermProcessor::new().process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
 
         // the first three lines are no included into history
+        let vterm = &fixture.vterm;
         assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
@@ -1026,14 +1068,13 @@ mod tests {
 
     #[test]
     fn scrollback_after_move() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
         // fill and scroll terminal, putting 3 rows into history
-        VTermProcessor::new().process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        let vterm = &mut fixture.vterm;
         vterm.move_history();
 
         // grid history is empty
@@ -1056,19 +1097,15 @@ mod tests {
 
     #[test]
     fn scrollback_merged() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
-
-        let mut processor = VTermProcessor::new();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
         // fill and scroll terminal, putting 3 rows into history
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
-        vterm.move_history();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.move_history();
 
-        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+        let vterm = &fixture.vterm;
         assert_eq!(2, vterm.grid().history_size());
 
         // 3 rows are in VTerm.scrollback, 2 in grid history
@@ -1088,19 +1125,16 @@ mod tests {
 
     #[test]
     fn scrollback_append() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        let mut processor = VTermProcessor::new();
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
-        vterm.move_history();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.move_history();
 
-        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+        let vterm = &mut fixture.vterm;
+
         assert_eq!(2, vterm.grid().history_size());
-
         vterm.move_history();
 
         // Everything is now in VTerm::scrollback; make sure it was
@@ -1122,17 +1156,14 @@ mod tests {
 
     #[test]
     fn clear_scrollback() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        let mut processor = VTermProcessor::new();
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
-        vterm.move_history();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.move_history();
 
-        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+        let vterm = &mut fixture.vterm;
         assert_eq!(2, vterm.grid().history_size());
 
         // this should clear both the scrollback in VTerm::scrollback and the grid history
@@ -1144,37 +1175,33 @@ mod tests {
 
     #[test]
     fn ignore_clear_scrollback() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        let mut processor = VTermProcessor::new();
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
-        assert_eq!(3, vterm.grid().history_size());
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        assert_eq!(3, fixture.vterm.grid().history_size());
 
-        HandlerProxy::new(&mut vterm).clear_screen(ansi::ClearMode::Saved);
-        assert_eq!(3, vterm.grid().history_size());
+        fixture.handler().clear_screen(ansi::ClearMode::Saved);
+        assert_eq!(3, fixture.vterm.grid().history_size());
     }
 
     #[test]
     fn reset_fills_scrollback() {
-        let mut vterm = VTerm::new(10, 6, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        let mut processor = VTermProcessor::new();
-        processor.process_bytes(&mut vterm, b"line 1\r\nline 2\r\nline 3");
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3");
 
         // scrollback is initially empty
-        assert_eq!(0, vterm.scrollback_row_count());
-        assert_eq!(0, vterm.scrollback_rows().count());
+        assert_eq!(0, fixture.vterm.scrollback_row_count());
+        assert_eq!(0, fixture.vterm.scrollback_rows().count());
 
         // reset clears the screen (among other things) and store
         // the screen content into scrollback.
-        HandlerProxy::new(&mut vterm).reset_state();
+        fixture.handler().reset_state();
 
         // the three screen lines are now in scrollback
+        let vterm = &fixture.vterm;
         assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
@@ -1197,21 +1224,18 @@ mod tests {
 
     #[test]
     fn save_scrollback_before_switching_to_alt_buf() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        let mut processor = VTermProcessor::new();
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
-        assert_eq!(3, vterm.scrollback_row_count());
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        assert_eq!(3, fixture.vterm.scrollback_row_count());
 
-        HandlerProxy::new(&mut vterm).set_private_mode(PrivateMode::Named(
+        fixture.handler().set_private_mode(PrivateMode::Named(
             NamedPrivateMode::SwapScreenAndSetRestoreCursor,
         ));
 
         // scrollback is still available, even after the swap
+        let vterm = &fixture.vterm;
         assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
@@ -1230,52 +1254,45 @@ mod tests {
 
     #[test]
     fn screen_top_scrolline_with_history() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
-
-        let mut processor = VTermProcessor::new();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
         // 3 scrollines/5 terminal lines
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1 is long\r\nline 2\r\nline 3 is long\r\n",
-        );
+        fixture.process_bytes(b"line 1 is long\r\nline 2\r\nline 3 is long\r\n");
         // writing 3 terminal lines puts everything above into history
-        processor.process_bytes(&mut vterm, b"line 4\r\nline 5\r\n");
-        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
-        assert_eq!(5, vterm.scrollback_row_count());
+        fixture.process_bytes(b"line 4\r\nline 5\r\n");
+        assert_eq!(Scrolline(3), fixture.vterm.screen_top_scrolline());
+        assert_eq!(5, fixture.vterm.scrollback_row_count());
 
         // 2 more scrollines scroll into history
-        processor.process_bytes(&mut vterm, b"line 6 is long\r\nline 7");
+        fixture.process_bytes(b"line 6 is long\r\nline 7");
+        let vterm = &fixture.vterm;
         assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
         assert_eq!(7, vterm.scrollback_row_count());
     }
 
     #[test]
     fn screen_top_scrolline_after_clear_scrollback() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        let mut processor = VTermProcessor::new();
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
-        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        assert_eq!(Scrolline(3), fixture.vterm.screen_top_scrolline());
 
-        vterm.clear_scrollback();
-        assert_eq!(Scrolline(3), vterm.base_scrolline());
-        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
+        fixture.vterm.clear_scrollback();
+        assert_eq!(Scrolline(3), fixture.vterm.base_scrolline());
+        assert_eq!(Scrolline(3), fixture.vterm.screen_top_scrolline());
 
-        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
-        assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+        assert_eq!(Scrolline(5), fixture.vterm.screen_top_scrolline());
     }
 
     #[test]
     fn terminal_line_for_scrolline_screen() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        VTermProcessor::new().process_bytes(&mut vterm, b"line 1\r\nline 2\r\n");
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"line 1\r\nline 2\r\n");
 
+        let vterm = &fixture.vterm;
         assert_eq!(
             Some(Line(0)),
             vterm.terminal_line_for_scrolline(Scrolline(0))
@@ -1295,14 +1312,12 @@ mod tests {
 
     #[test]
     fn terminal_line_for_scrolline_within_history() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        VTermProcessor::new().process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
 
+        let vterm = &fixture.vterm;
         assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
         assert_eq!(
             Some(Line(-3)),
@@ -1333,17 +1348,14 @@ mod tests {
 
     #[test]
     fn terminal_line_for_scrolline_within_scrollback() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        let mut processor = VTermProcessor::new();
-        processor.process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
-        vterm.move_history();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.move_history();
 
-        processor.process_bytes(&mut vterm, b"line 6\r\nline 7\r\n");
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+        let vterm = &fixture.vterm;
         assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
 
         assert_eq!(
@@ -1383,13 +1395,11 @@ mod tests {
 
     #[test]
     fn terminal_line_for_scrolline_out_of_bounds() {
-        let mut vterm = VTerm::new(10, 3, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
 
-        VTermProcessor::new().process_bytes(
-            &mut vterm,
-            b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n",
-        );
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        let vterm = &mut fixture.vterm;
         vterm.clear_scrollback();
 
         assert_eq!(None, vterm.terminal_line_for_scrolline(Scrolline(0)));
@@ -1403,11 +1413,13 @@ mod tests {
 
     #[test]
     fn scrolline_with_wrapped_lines() {
-        let mut vterm = VTerm::new(10, 4, Osc52::Disabled);
-        vterm.enable_scrollback();
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 4);
+        fixture.vterm.enable_scrollback();
 
-        VTermProcessor::new().process_bytes(&mut vterm, b"A long line....\r\nline 2\r\n");
+        fixture.process_bytes(b"A long line....\r\nline 2\r\n");
 
+        let vterm = &mut fixture.vterm;
         assert_eq!(Scrolline(0), vterm.screen_top_scrolline());
         assert_eq!(
             Some(Line(0)),

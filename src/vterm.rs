@@ -55,9 +55,9 @@ impl VTermProcessor {
         }
     }
 
-    /// Take a prompt detected in a previous call to [process_bytes].
-    pub(crate) fn take_prompt(&mut self) -> Option<Prompt> {
-        self.prompt_detector.take()
+    /// Collect all prompts detected in previous calls to [process_bytes].
+    pub(crate) fn collect_prompts(&mut self) -> Vec<Prompt> {
+        self.prompt_detector.collect()
     }
 
     /// Update the terminal and processor state from the given teminal

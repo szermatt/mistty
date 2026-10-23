@@ -163,6 +163,7 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTermFacade, bytes: Vector) -> Res
 
     let events = term.vterm.handle_events(env)?;
     let mode_changes = term.vterm.mode_changes(env, &before)?;
+    let prompts = term.processor.collect_prompts();
 
     let mut result = ().into_lisp(env)?;
     for change in mode_changes.into_iter().rev() {
@@ -171,7 +172,7 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTermFacade, bytes: Vector) -> Res
     for event in events.into_iter().rev() {
         result = env.cons(event, result)?;
     }
-    if let Some(prompt) = term.processor.take_prompt() {
+    for prompt in prompts {
         result = env.cons(prompt, result)?;
     }
 

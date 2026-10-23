@@ -116,8 +116,8 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (process-put proc 'mistty-term term)
 
         (mistty--add-regexp-prompt-detection accum term)
-        (mistty--add-bracketed-paste-prompt-detection accum term)
         (mistty--term-alacritty-add-osc-detection accum term)
+
         (unless enter-fullscreen (error ":enter-fullscreen required"))
         (mistty--accum-add-processor
          accum
@@ -408,8 +408,16 @@ buffer."
           (`(mouse ,val)
            (setf (mistty--term-alacritty-mouse term) val)
            (funcall (mistty--term-alacritty-request-report-mouse term) val))
-          (`(prompt :source ,source :start ,start)
-           (mistty--register-prompt source start))))
+          (`(bracketed_paste ,val)
+           (mistty--with-live-buffer buf
+             (mistty-log "BRACKETED PASTE %s" (if val "ON" "OFF"))
+             (setq mistty-bracketed-paste val)))
+          (`(start-prompt ,source ,start)
+           (mistty--with-live-buffer buf
+             (mistty--register-prompt source start)))
+          (`(end-prompt ,source ,end)
+           (mistty--with-live-buffer buf
+             (mistty--end-prompt source end)))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))

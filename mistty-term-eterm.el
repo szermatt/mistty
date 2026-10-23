@@ -1312,6 +1312,44 @@ Detected prompts can be found in `mistty-prompt'."
              (mistty--register-prompt 'prompt_sp scrolline)))))
      (mistty--accum-ctx-push-down ctx "\r"))))
 
+
+(defun mistty--add-bracketed-paste-prompt-detection (accum term)
+  "Setup ACCUM for bracketed-paste prompt detection for TERM.
+
+Detected prompts can be found in `mistty-prompt'."
+  ;; Enable bracketed paste
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?2004h")
+   (lambda (ctx str)
+     (when (mistty--term-detect-prompt-p term)
+       (mistty--accum-ctx-flush ctx)
+       (unless mistty-bracketed-paste
+         (let* ((inhibit-read-only t)
+                (inhibit-modification-hooks t)
+                (start-pos (pos-bol))
+                (scrolline (mistty--scrolline-at-point)))
+           (mistty--register-prompt 'bracketed-paste scrolline)
+           (when (> (pos-eol) start-pos)
+             (mistty--term-changed term start-pos (pos-eol))))
+         (setq mistty-bracketed-paste t)))
+     (mistty--accum-ctx-push-down ctx str)))
+
+  ;; Disable bracketed paste
+  (mistty--accum-add-processor
+   accum
+   '(seq CSI "?2004l")
+   (lambda (ctx str)
+     (when (mistty--term-detect-prompt-p term)
+       (mistty--accum-ctx-flush ctx)
+       (when mistty-bracketed-paste
+         (when-let* ((end (if (eq ?\n (char-before (point)))
+                              (mistty--scrolline-at-point)
+                            (1+ (mistty--scrolline-at-point)))))
+           (mistty--end-prompt 'bracketed-paste end))
+         (setq mistty-bracketed-paste nil)))
+     (mistty--accum-ctx-push-down ctx str))))
+
 (provide 'mistty-term-eterm)
 
 ;;; mistty-term-eterm.el ends here

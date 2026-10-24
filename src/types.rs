@@ -112,6 +112,12 @@ impl PartialEq<usize> for BufferPos {
     }
 }
 
+impl<'e> IntoLisp<'e> for &BufferPos {
+    fn into_lisp(self, env: &'e emacs::Env) -> Result<emacs::Value<'e>> {
+        self.0.into_lisp(env)
+    }
+}
+
 impl<'e> IntoLisp<'e> for BufferPos {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<emacs::Value<'e>> {
         self.0.into_lisp(env)
@@ -205,6 +211,12 @@ impl PartialEq<usize> for Scrolline {
     #[inline]
     fn eq(&self, other: &usize) -> bool {
         self.0.eq(other)
+    }
+}
+
+impl<'e> IntoLisp<'e> for &Scrolline {
+    fn into_lisp(self, env: &'e emacs::Env) -> Result<emacs::Value<'e>> {
+        self.0.into_lisp(env)
     }
 }
 

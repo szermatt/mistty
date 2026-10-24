@@ -172,7 +172,7 @@ fn process_bytes<'a>(env: &'a Env, term: &mut VTermFacade, bytes: Vector) -> Res
     for event in events.into_iter().rev() {
         result = env.cons(event, result)?;
     }
-    for prompt in prompts {
+    for prompt in prompts.into_iter().rev() {
         result = env.cons(prompt, result)?;
     }
 

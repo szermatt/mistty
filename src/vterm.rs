@@ -159,6 +159,14 @@ impl VTerm {
         self.inner.mode()
     }
 
+    pub(crate) fn set_private_mode(&mut self, mode: PrivateMode) {
+        self.inner.set_private_mode(mode);
+    }
+
+    pub(crate) fn unset_private_mode(&mut self, mode: PrivateMode) {
+        self.inner.unset_private_mode(mode);
+    }
+
     /// Read-only access to the terminal grid.
     ///
     /// WARNING: history is incomplete in the grid. To access
@@ -987,6 +995,31 @@ impl<'a> Handler for HandlerProxy<'a> {
     fn set_scp(&mut self, char_path: ansi::ScpCharPath, update_mode: ansi::ScpUpdateMode) {
         self.vterm.inner.set_scp(char_path, update_mode);
     }
+
+    /// OSC 133 A
+    fn prompt_start(&mut self, args: ansi::KeyValueArgs<'_>) {
+        self.prompt_detector
+            .osc133_prompt_start(self.vterm, args.get("click_events") == Some("1"));
+    }
+
+    /// OSC 133 B
+    fn command_start(&mut self) {
+        self.prompt_detector.osc133_command_start(self.vterm);
+    }
+
+    /// OSC 133 C
+    fn command_executed(&mut self, __args: ansi::KeyValueArgs<'_>) {
+        // TODO: forward cmdline_url
+        self.prompt_detector.osc133_command_end(self.vterm);
+    }
+
+    /// OSC 133 D
+    fn command_finished(&mut self, _exit_status: Option<u8>) {
+        self.prompt_detector.osc133_command_end(self.vterm);
+    }
+
+    /// OSC 7
+    fn set_cwd(&mut self, _url: Option<&str>) {}
 }
 
 #[cfg(test)]

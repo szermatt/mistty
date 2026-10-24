@@ -295,7 +295,23 @@ this is the same as what's returned by `mistty--prompt' after this call."
     (when (and (eq source (mistty--prompt-source p))
                (null (mistty--prompt-end p))
                (> end (mistty--prompt-start p)))
+      (mistty-log "Closed %s prompt #%s [%s-%s]"
+                  (mistty--prompt-source p)
+                  (mistty--prompt-input-id p)
+                  (mistty--prompt-start p)
+                  end)
       (setf (mistty--prompt-end p) end))))
+
+(cl-defun mistty--update-prompt (source &key user-input-start)
+  "Update the current prompt if it comes from SOURCE."
+  (ignore source)
+  (when-let* ((p (mistty--prompt)))
+    (when user-input-start
+      (mistty-log "Updated %s prompt #%s :user-input-start %S"
+                  (mistty--prompt-source p)
+                  (mistty--prompt-input-id p)
+                  user-input-start)
+      (setf (mistty--prompt-user-input-start p) user-input-start))))
 
 (gv-define-setter mistty--prompt-archive (val)
   "Sets the value of `mistty--prompt-archive'."
@@ -432,13 +448,11 @@ Detected dead spaces are marked with the text property \\='mistty-skip
   "Scrolline at the top of the screen."
   mistty--scrolline-home-num)
 
-(defun mistty-osc133 (_ osc-seq &optional send-clicks-func)
+(defun mistty-osc133 (_ osc-seq)
   "Handle OSC 133 codes.
 
 OSC-SEQ contains the subcode followed optionally by a semi-colon and
 arguments (ignored).
-
-If SEND-CLICKS-FUNC is non-nil, it is called when click events are requested.
 
 MisTTY supports code A-D:
 
@@ -454,9 +468,7 @@ Everything else is ignored."
       (pcase command-char
         (?A ;; start a new command
          ;; Overwrite any other prompt source.
-         (mistty--register-prompt 'osc133 (mistty--scrolline-at-point))
-         (when (and send-clicks-func (string-match-p ";click_events=1" osc-seq))
-           (funcall send-clicks-func t)))
+         (mistty--register-prompt 'osc133 (mistty--scrolline-at-point)))
 
         (?B ;; end of prompt/start of user input
          (when-let* ((prompt (mistty--prompt)))
@@ -481,11 +493,7 @@ Everything else is ignored."
                          (mistty--prompt-source prompt)
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
-             (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point))))))
-
-      (when (and send-clicks-func
-                 (not (memq command-char '(?A ?B))))
-        (funcall send-clicks-func nil)))))
+             (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point)))))))))
 
 (defun mistty-call-term-mode-hook ()
   "Call the functions registered to `term-mode-hook'.

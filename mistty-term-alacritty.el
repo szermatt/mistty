@@ -115,7 +115,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (set-process-filter proc accum)
         (process-put proc 'mistty-term term)
 
-        (mistty--term-alacritty-add-osc-detection accum term)
+        (mistty--term-alacritty-add-osc-detection accum)
 
         (unless enter-fullscreen (error ":enter-fullscreen required"))
         (mistty--accum-add-processor
@@ -318,31 +318,15 @@ Always keep SCROLLINE-LIMIT and below."
     (when (>= scrolline-limit mistty--scrolline-home-num)
       (mistty--truncate-buffer mistty-alacritty--home))))
 
-(defun mistty--term-alacritty-add-osc-detection (accum term)
-  "Register handlers for OSC sequences in ACCUM for TERM."
+(defun mistty--term-alacritty-add-osc-detection (accum)
+  "Register handlers for OSC sequences in ACCUM."
 
   ;; This intercepts just a few OSC sequences not supported by the
   ;; alacritty, let others through.
   (mistty--accum-add-processor-lambda
    accum
    (_ctx '(seq OSC "7;" (let text Pt) ST))
-   (mistty-osc7 "7" text))
-  (mistty--accum-add-processor-lambda
-   accum
-   (ctx '(seq OSC "133;" (let text Pt) ST))
-   (mistty--accum-ctx-flush ctx) ;; for accurate cursor pos
-   (unless (mistty--term-alacritty-fs term)
-     (mistty-osc133
-      "133" text
-      (lambda (click-events)
-        (cond
-         (click-events
-          (mistty-log "OSC 133 click_events=1")
-          (mistty--accum-ctx-push-down ctx "\e[?1000h\e[?1006h"))
-
-         ((mistty--term-alacritty-mouse term)
-          (mistty-log "OSC 133 click_events=0")
-          (mistty--accum-ctx-push-down ctx "\e[?1000l"))))))))
+   (mistty-osc7 "7" text)))
 
 (cl-defmethod mistty--term-clear-scrollback ((term mistty--term-alacritty))
   "Clear any scrollback still stored in TERM's process buffer or vterm."
@@ -416,7 +400,10 @@ buffer."
              (apply #'mistty--register-prompt source start args)))
           (`(end-prompt ,source ,end)
            (mistty--with-live-buffer buf
-             (mistty--end-prompt source end)))))
+             (mistty--end-prompt source end)))
+          (`(update-prompt ,source :user-input-start ,val)
+           (mistty--with-live-buffer buf
+             (mistty--update-prompt source :user-input-start val)))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))

@@ -37,6 +37,7 @@ emacs::use_symbols! {
     drag_sym => "drag"
     motion_sym => "motion"
     nil_sym => "nil"
+    cwd_sym => "cwd"
 }
 
 /// Size of the scrollback, in lines. There needs to be enough space
@@ -119,6 +120,17 @@ pub(crate) struct VTerm {
 
     /// State kept for mouse_encode
     last_cell: Option<(i64, i64)>,
+
+    /// Hostname and path of the working directory, as reported by OSC 7.
+    ///
+    /// None means that the working directory is unknown or has been
+    /// cleared. The string is supposed to be a percent-encoded file
+    /// URL; this isn't checked.
+    cwd_url: Option<String>,
+
+    /// If true, cwd_url should be reported to the lisp side. This is
+    /// set whenever cwd_url is modified.
+    cwd_modified: bool,
 }
 
 impl VTerm {
@@ -150,6 +162,8 @@ impl VTerm {
             scrollback: vec![],
             extra_damage: GridDamage::new(),
             last_cell: None,
+            cwd_url: None,
+            cwd_modified: false,
         }
     }
 
@@ -470,7 +484,16 @@ impl VTerm {
         Ok(reports)
     }
 
-    // Compare the render count with a value form Emacs side.
+    /// Return the current directory URL. None if unmodified.
+    pub(crate) fn collect_cwd<'a>(&mut self, env: &'a Env) -> Result<Option<Value<'a>>> {
+        if !self.cwd_modified {
+            return Ok(None);
+        }
+
+        Ok(Some(env.list((cwd_sym, self.cwd_url.as_deref()))?))
+    }
+
+    /// Compare the render count with a value form Emacs side.
     pub(crate) fn check_render_count_tag(&self, tag_value: Value<'_>) -> Result<bool> {
         if !tag_value.is_not_nil() {
             return Ok(false);
@@ -480,7 +503,7 @@ impl VTerm {
         Ok(self.render_count == tag_value)
     }
 
-    // Return a tag that identifies a render operation.
+    /// Return a tag that identifies a render operation.
     pub(crate) fn inc_render_count(&mut self) -> i32 {
         let mut next = self.render_count + 1;
 
@@ -529,6 +552,26 @@ impl VTerm {
     /// Return state for mouse_encode
     pub(crate) fn last_cell(&mut self) -> &mut Option<(i64, i64)> {
         &mut self.last_cell
+    }
+
+    /// Set the cwd to report to the lisp side
+    fn set_cwd(&mut self, cwd: Option<&str>) {
+        match cwd {
+            None => {
+                // clear
+                if self.cwd_url.is_some() {
+                    self.cwd_url = None;
+                    self.cwd_modified = true;
+                }
+            }
+            Some(url) => {
+                let url = Some(url.to_string());
+                if url != self.cwd_url {
+                    self.cwd_url = url;
+                    self.cwd_modified = true;
+                }
+            }
+        }
     }
 }
 
@@ -1019,7 +1062,9 @@ impl<'a> Handler for HandlerProxy<'a> {
     }
 
     /// OSC 7
-    fn set_cwd(&mut self, _url: Option<&str>) {}
+    fn set_cwd(&mut self, url: Option<&str>) {
+        self.vterm.set_cwd(url);
+    }
 }
 
 #[cfg(test)]

@@ -115,8 +115,6 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (set-process-filter proc accum)
         (process-put proc 'mistty-term term)
 
-        (mistty--term-alacritty-add-osc-detection accum)
-
         (unless enter-fullscreen (error ":enter-fullscreen required"))
         (mistty--accum-add-processor
          accum
@@ -318,16 +316,6 @@ Always keep SCROLLINE-LIMIT and below."
     (when (>= scrolline-limit mistty--scrolline-home-num)
       (mistty--truncate-buffer mistty-alacritty--home))))
 
-(defun mistty--term-alacritty-add-osc-detection (accum)
-  "Register handlers for OSC sequences in ACCUM."
-
-  ;; This intercepts just a few OSC sequences not supported by the
-  ;; alacritty, let others through.
-  (mistty--accum-add-processor-lambda
-   accum
-   (_ctx '(seq OSC "7;" (let text Pt) ST))
-   (mistty-osc7 "7" text)))
-
 (cl-defmethod mistty--term-clear-scrollback ((term mistty--term-alacritty))
   "Clear any scrollback still stored in TERM's process buffer or vterm."
   (with-current-buffer (mistty--term-alacritty-buf term)
@@ -385,6 +373,10 @@ buffer."
            (mistty-log "TITLE %S" title)
            (mistty--with-live-buffer buf
              (setq ansi-osc-window-title title)))
+          (`(cwd ,url)
+           (mistty-log "CWD %s" url)
+           (mistty--with-live-buffer buf
+             (mistty-osc7 "7" url)))
           (`(kkp ,val)
            (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
            (setf (mistty--term-alacritty-kkp term) val))

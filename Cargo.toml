@@ -15,3 +15,6 @@ crate-type = ["cdylib"]
 
 [dev-dependencies]
 anyhow = "1.0.104"
+
+[patch.crates-io]
+vte = { git = 'https://github.com/szermatt/vte.git' }

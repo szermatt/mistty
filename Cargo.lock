@@ -570,8 +570,7 @@ checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 [[package]]
 name = "vte"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5924018406ce0063cd67f8e008104968b74b563ee1b85dde3ed1f7cb87d3dbd"
+source = "git+https://github.com/szermatt/vte.git#7ffa9c2e332eb97f88cd6a7b5858fa7ebd78573e"
 dependencies = [
  "arrayvec",
  "bitflags",

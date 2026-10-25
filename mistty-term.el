@@ -113,14 +113,6 @@ accessible from either buffer.
 Always access it through the places `mistty--prompt'
 `mistty--prompt-archive' and `mistty--prompt-counter'.")
 
-(defconst mistty--prompt-regexp
-  "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
-  "Regexp used to identify prompts.
-
-New, empty lines that might be prompts are evaluated against this
-regexp. This regexp should match something that looks like the
-end of a prompt with no commands.")
-
 (cl-defstruct (mistty--prompt-cell
                (:constructor mistty--make-prompt-cell
                              (&aux (counter 0))))

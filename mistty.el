@@ -848,6 +848,17 @@ buffer.")
 (defvar-local mistty--active-prompt nil
   "A `mistty--prompt' struct of the active prompt.")
 
+(defvar-local mistty--last-prompt-considered -1
+  "Scrolline of the last rejected possible prompt.")
+
+(defconst mistty--prompt-regexp
+  "[^[:alnum:][:cntrl:][:blank:]][[:blank:]]$"
+  "Regexp used to identify possible prompts.
+
+New, empty lines that might be prompts are evaluated against this
+regexp. This regexp should match something that looks like the
+end of a prompt with no commands.")
+
 (defvar-local mistty--sync-ov nil
   "An overlay that covers the region [`mistty-sync-marker', `(point-max)'].
 
@@ -1594,6 +1605,7 @@ Returns M or a new marker."
 
 (defun mistty--add-replay-hooks ()
   "Register hooks for tracking and replaying changes."
+  (add-hook 'before-change-functions #'mistty--before-change-on-work nil t)
   (add-hook 'after-change-functions #'mistty--after-change-on-work nil t)
   (add-hook 'pre-command-hook #'mistty--pre-command nil t)
   (add-hook 'post-command-hook #'mistty--post-command-undo nil t)
@@ -1603,6 +1615,7 @@ Returns M or a new marker."
 
 (defun mistty--remove-replay-hooks ()
   "Unregister hooks for tracking and replaying changes."
+  (remove-hook 'before-change-functions #'mistty--before-change-on-work t)
   (remove-hook 'after-change-functions #'mistty--after-change-on-work t)
   (remove-hook 'pre-command-hook #'mistty--pre-command t)
   (remove-hook 'post-command-hook #'mistty--post-command-undo t)
@@ -2499,6 +2512,7 @@ Fails if CUTOFF is inside the synced region."
       (error "Cutoff must be outside the synced region [%s-]"
              (marker-position mistty-sync-marker)))
     (delete-region (point-min) cutoff)))
+
 (defun mistty--maybe-move-sync-mark (scrolline)
   "Move sync mark to SCROLLINE on both buffers, if possible.
 
@@ -2915,6 +2929,13 @@ buffers."
            (end-of-line n)
            (mistty--interact-done)))))))
 
+(defun mistty--before-change-on-work (_beg end)
+  "Prepare for allowing modifications on the work buffer."
+  (when (and (not mistty-fullscreen)
+           mistty-sync-marker
+           (>= end mistty-sync-marker))
+    (mistty--detect-possible-prompt)))
+
 (defun mistty--after-change-on-work (beg end old-length)
   "Handler for modifications made to the work buffer.
 
@@ -2922,7 +2943,7 @@ buffers."
   that region before the change.
 
   This is meant to be added to ==\'after-change-functions."
-  (if (and (not mistty-fullscreen)
+  (when (and (not mistty-fullscreen)
            mistty-sync-marker
            (>= end mistty-sync-marker))
       ;; In sync region
@@ -3441,7 +3462,7 @@ up (negative)."
              (let ((accepted-count 0))
                (lambda (prompt)
                  (when (and (>= (point) (nth 1 prompt))  ; input must be above point
-                            (/= (point-max) (nth 2 prompt))) ;; ignore active prompt
+                            (> (point-max) (nth 1 prompt))) ;; ignore active prompt
                    (cl-incf accepted-count))
 
                  (>= accepted-count n))))))
@@ -3965,9 +3986,8 @@ Might modify CS before allowing replay."
      ;; modifications are part of a possible prompt; realize it, keep
      ;; the modifications before the new prompt and replay the
      ;; modifications after the new prompt.
-     ((and (mistty--possible-prompt-p)
-           (mistty--changeset-restrict
-            cs (mistty--find-scrolline (mistty--prompt-start (mistty--prompt)))))
+     ((and (mistty--detect-possible-prompt)
+           (mistty--changeset-restrict cs (mistty--bol (mistty-cursor))))
       (mistty--realize-possible-prompt)
       (setq replay t))
 
@@ -4570,10 +4590,10 @@ point, as this is only done by the post-command hook on detected
 prompts."
   (mistty--enqueue
    mistty--queue
-   (mistty--interact before-position (interact)
+   (mistty--interact before-positional (interact)
      (let ((cursor (mistty-cursor)))
-       (when (and (not (= cursor (point)))
-                  (mistty-maybe-realize-possible-prompt))
+       (when (and (mistty-maybe-realize-possible-prompt)
+                  (not (= cursor (point))))
          (mistty--enqueue
           mistty--queue
           (mistty--cursor-to-point-interaction)
@@ -4581,14 +4601,60 @@ prompts."
        (mistty--interact-done)))))
 
 (defun mistty-maybe-realize-possible-prompt (&optional pos)
-  "If a possible prompt was detected at POS, create it now."
+  "If POS looks like it's on a possible prompt, create it now."
   (let ((pos (or pos (point))))
-    (when (and (not (mistty-on-prompt-p pos))
-               (mistty--possible-prompt-p)
-               (mistty--prompt-contains-pos (mistty--prompt) pos)
-               (mistty--prompt-contains-pos (mistty--prompt) (mistty-cursor)))
+    (when (and (mistty--detect-possible-prompt)
+               (or (= pos (mistty-cursor))
+                   (= (pos-bol) (mistty--bol (mistty-cursor)))))
       (mistty--realize-possible-prompt)
       t)))
+
+(defun mistty--detect-possible-prompt ()
+  "Check if there might be a prompt at the cursor position.
+
+Return non-nil if there is a possible prompt at the position. It has
+been added to the prompt list, but left unrealized.
+
+The prompt can later be created with `mistty--realize-possible-prompt'."
+  (save-excursion
+    (goto-char (mistty-cursor))
+    (let ((scrolline (mistty--scrolline-at-point))
+          (scrolline-start (mistty--scrolline-start-pos))
+          (current-prompt (mistty--prompt))
+          (prev-prompt (car (mistty--prompt-archive))))
+      (if (or
+           (and current-prompt
+                (not (mistty--prompt-realized current-prompt))
+                (mistty--prompt-contains current-prompt scrolline))
+           (and
+            ;; there's no active prompt
+            (null mistty--active-prompt)
+
+            ;; not in a continuation line
+            (= scrolline-start (pos-bol))
+            ;; not already checked or had a prompt there
+            (> scrolline mistty--last-prompt-considered)
+            (or (null prev-prompt)
+                (>= scrolline (or (mistty--prompt-end prev-prompt)
+                                  (1+ (mistty--prompt-start prev-prompt)))))
+
+            ;; it looks like a prompt
+            (string-match-p
+             mistty--prompt-regexp
+             (mistty--safe-bufstring scrolline-start (point)))
+
+            ;; it's at the very end of the buffer
+            (progn
+              (skip-chars-forward " \n")
+              (eobp))))
+          (progn
+            (mistty--register-prompt 'regexp scrolline :end (1+ scrolline))
+
+            t)
+
+        ;; Remember we checked this position and rejected it
+        (setq mistty--last-prompt-considered scrolline)
+        nil))))
 
 (defun mistty--realize-possible-prompt ()
   "Realize a regexp prompt in `mistty--prompt'."
@@ -4602,25 +4668,6 @@ prompts."
                   (marker-position mistty-sync-marker))
       (setq mistty--active-prompt prompt)
       (setf (mistty--prompt-realized prompt) t))))
-
-(defun mistty--possible-prompt-p ()
-  "Return non-nil if `mistty--possible-prompt' is usable."
-  (when-let* ((prompt (mistty--prompt))
-              (scrolline (mistty--prompt-start prompt))
-              (start (mistty--find-scrolline scrolline)))
-    (when (and (eq 'regexp (mistty--prompt-source prompt))
-               (not (mistty--prompt-realized prompt)))
-      (let* ((content (mistty--prompt-text prompt))
-             (length (length content))
-             (end (+ start length))
-             (cursor (mistty-cursor)))
-        (and (or (> start mistty-sync-marker)
-                 (and (= start mistty-sync-marker)
-                      (not mistty--active-prompt)))
-             (>= cursor end)
-             (or (> cursor (point-max))
-                 (<= cursor (mistty--bol start 2)))
-             (string= content (mistty--safe-bufstring start end)))))))
 
 (defun mistty--prompt-contains-pos (prompt pos)
   "Return non-nil if POS is inside PROMPT."

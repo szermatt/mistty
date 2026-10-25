@@ -538,7 +538,6 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (add-hook 'after-change-functions #'mistty--after-change-on-term nil t)
 
         (mistty--term-postprocess-changed accum term)
-        (mistty--add-regexp-prompt-detection accum term)
         (mistty--add-bracketed-paste-prompt-detection accum term)
         (mistty--add-prompt_sp-detection accum term)
 
@@ -739,7 +738,8 @@ CURSOR-MARKER is updated to the cursor position."
 
       (setf (mistty--term-eterm-change-before-scrolline term) nil)
 
-      (let ((source-sync-pos (mistty--find-scrolline sync-scrolline))
+      (let ((source-sync-pos (or (mistty--find-scrolline sync-scrolline)
+                                 (mistty--find-scrolline home-scrolline)))
             (column-count term-width))
         (mistty--sync-buffer
          source-buffer
@@ -1349,36 +1349,6 @@ Detected prompts can be found in `mistty-prompt'."
            (mistty--end-prompt 'bracketed-paste end))
          (setq mistty-bracketed-paste nil)))
      (mistty--accum-ctx-push-down ctx str))))
-
-
-(defun mistty--add-regexp-prompt-detection (accum term)
-  "Setup ACCUM for regexp prompt detection for TERM.
-
-Detected prompts can be found in `mistty-prompt'."
-  (mistty--accum-add-post-processor
-   accum
-   (let ((last-nonempty-scrolline 0))
-     (lambda ()
-       (when (mistty--term-detect-prompt-p term)
-         (let ((scrolline (mistty--scrolline-at-point)))
-           ;; Only look at new lines
-           (when (> scrolline
-                    (prog1 last-nonempty-scrolline
-                      ;; for next time
-                      (setq last-nonempty-scrolline
-                            (mistty--scrolline-at
-                             (mistty--last-non-ws)))))
-             (let ((cursor (point))
-                   (bos (mistty--scrolline-start-pos)))
-               (when (and (> cursor bos)
-                          (>= cursor (mistty--last-non-ws))
-                          (string-match
-                           mistty--prompt-regexp
-                           (mistty--safe-bufstring bos cursor)))
-                 (mistty--register-prompt
-                  'regexp scrolline
-                  :end (1+ scrolline)
-                  :text (mistty--safe-bufstring bos (+ bos (match-end 0)))))))))))))
 
 (provide 'mistty-term-eterm)
 

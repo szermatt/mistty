@@ -75,8 +75,6 @@ impl VTermProcessor {
         } else {
             self.process_bytes_internal(vterm, bytes);
         }
-
-        self.prompt_detector.detect_regexp_prompt(vterm);
     }
 
     fn process_bytes_internal(&mut self, vterm: &mut VTerm, bytes: &[u8]) {

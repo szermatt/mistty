@@ -92,9 +92,13 @@
                          " <>")
                  (mistty-test-content :show (point)))))
 
-(mistty-deftest mistty-test-reconcile-delete-nobracketed-paste (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
-  (mistty-send-text "echo")
+(defconst mistty-test-nobracketed-paste-setup
+  "bind 'set enable-bracketed-paste off';"
+  "Disable bracketed paste in a Bash shell.")
+
+(mistty-deftest mistty-test-reconcile-delete-nobracketed-paste
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
+  (mistty-run-command (insert "echo"))
 
   (mistty-run-command
    (delete-region (mistty-test-pos "echo")
@@ -529,8 +533,8 @@
    (call-interactively #'mistty-end-of-line-or-goto-cursor))
   (should (equal (point) (mistty-test-goto-after "world"))))
 
-(mistty-deftest mistty-test-no-bracketed-paste-bol-eol-in-possible-prompt (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
+(mistty-deftest mistty-test-no-bracketed-paste-bol-eol-in-possible-prompt
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
 
   (mistty-send-text "txt=world; echo hello $txt")
   (mistty-send-and-wait-for-prompt)
@@ -933,12 +937,12 @@
                   "$ echo current")
           (mistty-test-content :show (point)))))
 
-(mistty-deftest mistty-test-next-input-nobracketed-paste (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
-  (mistty-send-text "echo $((1 + 1))")
+(mistty-deftest mistty-test-next-input-nobracketed-paste 
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
+  (mistty-run-command (insert "echo $((1 + 1))"))
   (mistty-send-and-wait-for-prompt)
-  (mistty-send-text "echo $((2 + 2))")
-  (goto-char mistty-test-content-start)
+  (mistty-run-command (insert "echo $((2 + 2))"))
+  (goto-char (point-min))
   (mistty-next-input 1)
   (should (equal (concat "$ echo $((1 + 1))\n"
                          "2\n"
@@ -2064,29 +2068,28 @@
    "printf 'say %s>> ' something; read something; echo something: $something")
   (mistty-send-command)
   (mistty-wait-for-output :str "say something")
-  (mistty-send-text "foo")
+
+  (mistty-run-command (insert "foo"))
   (let ((prompt (mistty--prompt)))
     (should-not (null prompt))
     (should (equal 'regexp (mistty--prompt-source prompt)))
     (should (equal (mistty--scrolline-at (mistty-test-goto "say something>> "))
                    (mistty--prompt-start prompt)))
     (should (equal (1+ (mistty--prompt-start prompt))
-                   (mistty--prompt-end prompt)))
-    (should (equal "say something>> "
-                   (mistty--prompt-text prompt)))))
+                   (mistty--prompt-end prompt)))))
 
-(mistty-deftest mistty-test-nobracketed-paste-just-type (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
-  (mistty-send-text "echo ok")
+(mistty-deftest mistty-test-nobracketed-paste-just-type
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all :selected t)
+  (execute-kbd-macro (kbd "e c h o SPC o k"))
   (should (equal "ok" (mistty-send-and-capture-command-output)))
 
   ;; the input was identified and labelled
   (mistty-previous-input 1)
   (should (looking-at (regexp-quote "echo ok"))))
 
-(mistty-deftest mistty-test-nobracketed-paste-move-and-type (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
-  (mistty-send-text "echo ack")
+(mistty-deftest mistty-test-nobracketed-paste-move-and-type
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
+  (mistty-run-command (insert "echo ack"))
   (mistty-run-command
    (mistty-test-goto "ack"))
   (mistty-run-command
@@ -2103,21 +2106,32 @@
     (mistty-send-key 1 "\C-d")
     (mistty-wait-for-term-buffer-and-proc-to-die buf proc)))
 
-(mistty-deftest mistty-test-nobracketed-paste-delchar (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
-  (mistty-send-text "echo nok")
+(mistty-deftest mistty-test-nobracketed-paste-delchar
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
+
+  (mistty-run-command (insert "echo nok"))
+
   (mistty-run-command
-   (mistty-test-goto "nok")
+   (mistty-test-goto "nok"))
+
+  (mistty-run-command
    (mistty-send-key 1 "\C-d"))
+
+  (should (equal "$ echo <>ok"
+                 (mistty-test-content :show (mistty-cursor))))
+
   ;; deleted the first 1, the command-line is now 1 + 1
   (should (equal "ok" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-nobracketed-paste-edit-prompt (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
+(mistty-deftest mistty-test-nobracketed-paste-edit-prompt
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
   (mistty-run-command
    (insert "echo ok"))
 
   (should (equal "ok" (mistty-send-and-capture-command-output)))
+
+  (should (equal "$ echo ok\nok\n$ <>"
+                 (mistty-test-content :show (point))))
 
   ;; the input was identified and labelled
   (mistty-previous-input 1)
@@ -2277,16 +2291,19 @@
           (mistty-test-content
            :start start :strip-last-prompt t)))))))
 
-(mistty-deftest mistty-test-nobracketed-paste-edit-before-prompt (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
+(mistty-deftest mistty-test-nobracketed-paste-edit-before-prompt
+  (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
 
-  (mistty-send-text "echo $((1 + 1))")
+  (mistty-run-command
+   (insert "echo $((1 + 1))"))
   (should (equal "2" (mistty-send-and-capture-command-output)))
 
-  (mistty-send-text "echo $((3 + 3))")
+  (mistty-run-command
+   (insert "echo $((3 + 3))"))
   (should (equal "6" (mistty-send-and-capture-command-output)))
 
-  (mistty-send-text "echo $((5 + 5))")
+  (mistty-run-command
+   (insert "echo $((5 + 5))"))
 
   (mistty-run-command
    (save-excursion
@@ -2697,9 +2714,10 @@
     "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10"
     (mistty-test-content :start mistty-sync-marker))))
 
-(mistty-deftest mistty-test-end-prompt-nobracketed-paste (:shell bash :type all)
-  (mistty-test-nobracketed-paste)
-  (mistty-send-text "echo 'hello, world'")
+(mistty-deftest mistty-test-end-prompt-nobracketed-paste
+    (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
+  (mistty-run-command
+   (insert "echo 'hello, world'"))
   (mistty-send-and-wait-for-prompt)
   (should (equal
            (concat
@@ -5526,17 +5544,17 @@
          mistty-proc (format "echo one two three four five six seven eight nine %02.2d\n" i)))
       (mistty-wait-for-output :str "19\n$ ")
 
-      (mistty-send-text "echo one")
+      (mistty-run-command (insert "echo one"))
       (mistty-send-and-wait-for-prompt)
-      (mistty-send-text "echo two")
+      (mistty-run-command (insert "echo two"))
       (mistty-send-and-wait-for-prompt)
 
       (mistty--send-string
        mistty-proc
        (concat "for i in {0..5}; do"
-               "\n  echo -n \"$ \""
+               "\n  printf '\\033]133;A\\007$ \\033]133;B\\007\'"
                "\n  read"
-               "\n  echo \"line $i\""
+               "\n  printf \"\\033]133;C\\007line $i\\033]133;D\\007\\n\""
                "\ndone ; printf \"\\r\\e[6;AMODIFIED\\r\\e[6;BDONE\\n\""))
       (dotimes (_ 7)
         (mistty-send-and-wait-for-prompt)
@@ -5734,17 +5752,15 @@ function prompt {
         else
           input=\"$input$c\"
         fi
-        printf \"\\e[0K\\e[1K\\r\\e[1A\\e[0K\\e[1K\\r====\\nPrompt: $input\"
+        printf \"\\e[0K\\e[1K\\r\\e[1A\\e[0K\\e[1K\\r====\\n\\033]133;A\\007Prompt: \\033]133;B\\007$input\"
         read -s -N 1 c
+        printf '\\033]133;C\\007'
     done
     printf \"\\r\\e[0KGot: $input\n\"
 }")))
   (mistty-send-text "prompt")
   (mistty-send-command)
   (mistty-wait-for-output :str "Prompt:")
-  (should (equal "$ prompt\n<>====\nPrompt:"
-                 (mistty-test-content :show mistty-sync-marker)))
-  (mistty--realize-possible-prompt)
   ;; The detected prompt has a line before it, ====, that's constantly
   ;; erased and re-created. That shouldn't cause resets.
   (should (equal "$ prompt\n====\n<>Prompt:"

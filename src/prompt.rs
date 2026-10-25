@@ -1,12 +1,7 @@
-use crate::{
-    gridext::{CellExt, RowExt},
-    types::Scrolline,
-    vterm::VTerm,
-};
+use crate::{gridext::RowExt, types::Scrolline, vterm::VTerm};
 use alacritty_terminal::{
-    Grid,
     grid::{Dimensions, Row},
-    index::{Column, Line, Point},
+    index::{Column, Line},
     term::{
         TermMode,
         cell::{Cell, Flags},
@@ -26,9 +21,7 @@ emacs::use_symbols! {
     update_prompt_sym => "update-prompt"
     prompt_sp_sym => "prompt_sp"
     bracketed_paste_sym => "bracketed-paste"
-    regexp_sym => "regexp"
     colon_end_sym => ":end"
-    colon_text_sym => ":text"
     colon_user_input_start_sym => ":user-input-start"
 }
 
@@ -41,7 +34,6 @@ pub(crate) enum PromptChange {
 
 #[derive(PartialEq, Eq, Debug, Default)]
 pub(crate) struct PromptOptions {
-    pub(crate) text: Option<String>,
     pub(crate) user_input_start: Option<(Scrolline, Column)>,
 }
 
@@ -56,30 +48,12 @@ impl<'e> IntoLisp<'e> for &PromptOptions {
 
         env.call(
             append_fn,
-            (
-                if let Some(val) = &self.text {
-                    env.list((colon_text_sym, val))?
-                } else {
-                    nil
-                },
-                if let Some((scrolline, col)) = &self.user_input_start {
-                    env.list((colon_user_input_start_sym, env.cons(scrolline, col.0)?))?
-                } else {
-                    nil
-                },
-            ),
+            (if let Some((scrolline, col)) = &self.user_input_start {
+                env.list((colon_user_input_start_sym, env.cons(scrolline, col.0)?))?
+            } else {
+                nil
+            },),
         )
-    }
-}
-
-impl PromptChange {
-    /// Return the start scrolline
-    fn start(&self) -> Option<Scrolline> {
-        match self {
-            PromptChange::Start(_, start, _, _) => Some(*start),
-            PromptChange::End(_, _) => None,
-            PromptChange::Update(_, opts) => opts.user_input_start.map(|(s, _)| s),
-        }
     }
 }
 
@@ -113,7 +87,6 @@ impl<'e> IntoLisp<'e> for PromptChange {
 pub(crate) enum PromptSource {
     PromptSp,
     BracketedPaste,
-    Regexp,
     Osc133,
 }
 
@@ -122,7 +95,6 @@ impl<'e> IntoLisp<'e> for PromptSource {
         match self {
             PromptSource::PromptSp => Ok(prompt_sp_sym.bind(env)),
             PromptSource::BracketedPaste => Ok(bracketed_paste_sym.bind(env)),
-            PromptSource::Regexp => Ok(regexp_sym.bind(env)),
             PromptSource::Osc133 => Ok(osc133_sym.bind(env)),
         }
     }
@@ -135,8 +107,9 @@ pub(crate) struct PromptDetector {
     /// sent by shells for the PROMPT_SP hack.
     seen_spaces: usize,
 
-    last_prompt_scrolline: Option<Scrolline>,
-
+    /// Detected prompts, from the most ancient to the most recent.
+    ///
+    /// Add new prompts using PromptDetector::push.
     prompts: Vec<PromptChange>,
 }
 
@@ -144,7 +117,6 @@ impl PromptDetector {
     pub(crate) fn new() -> Self {
         PromptDetector {
             seen_spaces: 0,
-            last_prompt_scrolline: None,
             prompts: vec![],
         }
     }
@@ -156,7 +128,6 @@ impl PromptDetector {
 
     /// Add a new prompt and update `last_prompt_scrolline`.
     fn push(&mut self, prompt: PromptChange) {
-        self.last_prompt_scrolline = prompt.start();
         self.prompts.push(prompt);
     }
 
@@ -217,7 +188,6 @@ impl PromptDetector {
         cleanup_prompt_sp(vterm);
 
         let scrolline = vterm.scrolline_at_cursor();
-        self.last_prompt_scrolline = Some(scrolline);
         self.push(PromptChange::Start(
             PromptSource::PromptSp,
             scrolline,
@@ -234,8 +204,7 @@ impl PromptDetector {
 
         if value && !vterm.mode().intersects(TermMode::BRACKETED_PASTE) {
             let scrolline = vterm.scrolline_at_cursor();
-            self.last_prompt_scrolline = Some(scrolline);
-            self.prompts.push(PromptChange::Start(
+            self.push(PromptChange::Start(
                 PromptSource::BracketedPaste,
                 scrolline,
                 None,
@@ -251,60 +220,6 @@ impl PromptDetector {
             };
             self.push(PromptChange::End(PromptSource::BracketedPaste, scrolline));
         }
-    }
-
-    /// Detect a prompt matching `mistty--prompt-regexp` at the cursor.
-    pub(crate) fn detect_regexp_prompt(&mut self, vterm: &VTerm) {
-        if vterm
-            .mode()
-            .intersects(TermMode::ALT_SCREEN | TermMode::BRACKETED_PASTE)
-        {
-            return;
-        }
-
-        let grid = vterm.grid();
-        let cursor = grid.cursor.point;
-
-        // reject continuation lines
-        if cursor.line > Line(0) {
-            let prevrow: &Row<Cell> = &grid[cursor.line - 1];
-            if prevrow.is_wrapped() {
-                return;
-            }
-        }
-        // before cursor must looks like the end of a prompt
-        if !may_be_prompt_end(&grid[cursor.line], cursor.column) {
-            return;
-        }
-
-        // ignores scrollines already considered
-        let cursor_scrolline = vterm.scrolline_at_cursor();
-        if self
-            .last_prompt_scrolline
-            .map(|s| s >= cursor_scrolline)
-            .unwrap_or(false)
-        {
-            return;
-        }
-        // there must be nothing after cursor
-        if !all_clear_after(grid, cursor) {
-            return;
-        }
-
-        // Register a regexp prompt
-        let mut text = String::new();
-        for (_, cell) in grid[cursor.line].ranged_iter(Column(0), cursor.column) {
-            cell.append_content(&mut text);
-        }
-        self.push(PromptChange::Start(
-            PromptSource::Regexp,
-            cursor_scrolline,
-            Some(cursor_scrolline + 1),
-            PromptOptions {
-                text: Some(text),
-                ..PromptOptions::default()
-            },
-        ));
     }
 
     pub(crate) fn osc133_prompt_start(&mut self, vterm: &mut VTerm, click_events: bool) {
@@ -395,37 +310,6 @@ fn blank_trailing(row: &mut Row<Cell>) {
         }
         cell.flags.set(Flags::DIM, false);
     }
-}
-
-/// Check whether col may be at prompt end.
-///
-/// A prompt end looks like "$ " or "> " or any non-alphanumeric
-/// character followed by a space, followed by the cursor.
-pub(crate) fn may_be_prompt_end(row: &Row<Cell>, col: Column) -> bool {
-    if col < 2 {
-        return false;
-    }
-    let prev1 = &row[col - 1];
-    if prev1.is_clear() || prev1.content_string() != " " {
-        return false;
-    }
-    let prev2 = &row[col - 2];
-    if prev2.c.is_alphanumeric() || prev2.c.is_control() || prev2.c.is_whitespace() {
-        return false;
-    }
-
-    true
-}
-
-/// Check whether anything is non-clear after the given point.
-fn all_clear_after(grid: &Grid<Cell>, point: Point) -> bool {
-    for cell in grid.iter_from(point) {
-        if !cell.is_clear() {
-            return false;
-        }
-    }
-
-    true
 }
 
 #[cfg(test)]
@@ -625,124 +509,6 @@ mod tests {
     }
 
     #[test]
-    fn detect_regexp_prompt_simple() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
-        fixture.process_bytes(b"$ ");
-
-        assert_eq!("$ ", fixture.row_to_string(Line(0)));
-        assert_eq!(
-            vec![PromptChange::Start(
-                PromptSource::Regexp,
-                Scrolline(0),
-                Some(Scrolline(1)),
-                PromptOptions {
-                    text: Some("$ ".to_string()),
-                    ..PromptOptions::default()
-                }
-            )],
-            fixture.processor.collect_prompt_changes()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn detect_regexp_prompt_custom_text() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
-        fixture.process_bytes(b"say something>> ");
-
-        assert_eq!("say something>> ", fixture.row_to_string(Line(0)));
-        assert_eq!(
-            vec![PromptChange::Start(
-                PromptSource::Regexp,
-                Scrolline(0),
-                Some(Scrolline(1)),
-                PromptOptions {
-                    text: Some("say something>> ".to_string()),
-                    ..PromptOptions::default()
-                }
-            )],
-            fixture.processor.collect_prompt_changes()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn detect_regexp_prompt_multiline_output() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
-        fixture.process_bytes(b"line 1\r\nline 2\r\n> ");
-
-        assert_eq!(
-            vec![PromptChange::Start(
-                PromptSource::Regexp,
-                Scrolline(2),
-                Some(Scrolline(3)),
-                PromptOptions {
-                    text: Some("> ".to_string()),
-                    ..PromptOptions::default()
-                }
-            )],
-            fixture.processor.collect_prompt_changes()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn detect_regexp_prompt_ignores_non_prompt() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
-        fixture.process_bytes(b"hello world\r\n");
-
-        assert_eq!(
-            Vec::<PromptChange>::new(),
-            fixture.processor.collect_prompt_changes()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn detect_regexp_prompt_ignores_text_after_cursor() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
-        // Cursor moves back 3 characters over 'foo'
-        fixture.process_bytes(b"$ foo\x1b[3D");
-
-        let cursor = fixture.vterm.grid().cursor.point;
-        assert!(may_be_prompt_end(
-            &fixture.vterm.grid()[cursor.line],
-            cursor.column
-        ));
-        assert_eq!(
-            Vec::<PromptChange>::new(),
-            fixture.processor.collect_prompt_changes()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn detect_regexp_prompt_only_once_per_line() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
-        fixture.process_bytes(b"$ ");
-        assert_eq!(
-            vec![PromptChange::Start(
-                PromptSource::Regexp,
-                Scrolline(0),
-                Some(Scrolline(1)),
-                PromptOptions {
-                    text: Some("$ ".to_string()),
-                    ..PromptOptions::default()
-                }
-            )],
-            fixture.processor.collect_prompt_changes()
-        );
-
-        // Typing more on the same line should not detect again
-        fixture.process_bytes(b"echo");
-        assert_eq!(
-            Vec::<PromptChange>::new(),
-            fixture.processor.collect_prompt_changes()
-        );
-        Ok(())
-    }
-
-    #[test]
     fn detect_osc133() -> anyhow::Result<()> {
         let mut fixture = Fixture::setup()?;
         fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07");
@@ -830,19 +596,23 @@ mod tests {
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
 
         fixture.process_bytes(b"\x1b]133;A;click_events=1\x07$ \x1b]133;B\x07");
-        assert!(fixture
-            .vterm
-            .mode()
-            .contains(TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE));
+        assert!(
+            fixture
+                .vterm
+                .mode()
+                .contains(TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE)
+        );
 
         fixture.process_bytes(b"echo ok\r\n\x1b]133;C\x07");
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
 
         fixture.process_bytes(b"\x1b]133;A;click_events=1\x07$ ");
-        assert!(fixture
-            .vterm
-            .mode()
-            .contains(TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE));
+        assert!(
+            fixture
+                .vterm
+                .mode()
+                .contains(TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE)
+        );
 
         fixture.process_bytes(b"\x1b]133;A\x07$ ");
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
@@ -856,7 +626,9 @@ mod tests {
         fixture.process_bytes(b"\x1b[?1049h");
         assert!(fixture.vterm.mode().contains(TermMode::ALT_SCREEN));
 
-        fixture.process_bytes(b"\x1b]133;A;click_events=1\x07$ \x1b]133;B\x07echo ok\r\n\x1b]133;C\x07");
+        fixture.process_bytes(
+            b"\x1b]133;A;click_events=1\x07$ \x1b]133;B\x07echo ok\r\n\x1b]133;C\x07",
+        );
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
         assert_eq!(
             Vec::<PromptChange>::new(),

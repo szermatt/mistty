@@ -481,7 +481,6 @@ to call `mistty--term-postprocess'.")
    &key width height
    enter-fullscreen
    leave-fullscreen
-   active-prompt
    after-clear-screen
    sync-scrolline
    request-report-mouse)
@@ -491,7 +490,6 @@ COMMAND is run in the terminal and its size is set to WIDTH x HEIGHT,
 defaulting to 80 x 24.
 
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
-ACTIVE-PROMPT returns the active prompt.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
 SYNC-SCROLLINE returns the current sync scrolline.
 REQUEST-REPORT-MOUSE controls mouse reporting."
@@ -581,7 +579,6 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                (setf (mistty--term-eterm-fs term) nil)
                (funcall leave-fullscreen)))))
 
-        (unless active-prompt (error ":active-prompt required"))
         (mistty--accum-add-processor
          accum
          ;; CSI H CSI J is the exact sequence sent by 'clear'. We're going to
@@ -594,7 +591,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
 
              (let ((goto-home (equal str "\e[H\e[J")))
                (mistty--accum-ctx-flush ctx)
-               (if (when-let* ((p (funcall active-prompt)))
+               (if (when-let* ((p (mistty--active-prompt)))
                      (equal
                       (mistty--prompt-start p)
                       (mistty--with-live-buffer (mistty--term-eterm-buf term)

@@ -28,7 +28,6 @@
           &key width height
           enter-fullscreen
           leave-fullscreen
-          active-prompt
           after-clear-screen
           sync-scrolline
           request-report-mouse)
@@ -51,8 +50,6 @@ fullscreen mode or normal fullscreen mode.
 
 LEAVE-FULLSCREEN is a function that takes the TERM instance and
 leaves fullscreen mode.
-
-ACTIVE-PROMPT should return the active `mistty--prompt'.
 
 AFTER-CLEAR-SCREEN is to be called right after the screen has been cleared.
 

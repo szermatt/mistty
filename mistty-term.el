@@ -209,6 +209,12 @@ P input-id slot is not modified."
   (when-let* ((s (mistty--prompt-user-input-start other)))
     (setf (mistty--prompt-user-input-start p) s)))
 
+(defun mistty--active-prompt ()
+  "Get the value of the current prompt if it is realized."
+  (when-let* ((p (mistty--prompt)))
+    (when (mistty--prompt-realized p)
+      p)))
+
 (defun mistty--prompt ()
   "Get the value of the current `mistty--prompt' struct or nil."
   (when-let* ((cell mistty--prompt-cell))

@@ -762,11 +762,6 @@ redraw everything."
                (process-get mistty-proc 'remote-command)))
     command))
 
-(defun mistty-test-nobracketed-paste ()
-  "Disable bracketed paste in a Bash shell."
-  (mistty-send-text "bind 'set enable-bracketed-paste off'")
-  (mistty-test-narrow (mistty-send-and-wait-for-prompt)))
-
 (defmacro mistty-test-with-isolated-buffers (&rest body)
   "Run BODY with isolated buffers.
 

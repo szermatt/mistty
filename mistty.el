@@ -4667,7 +4667,8 @@ The prompt can later be created with `mistty--realize-possible-prompt'."
                   (mistty--prompt-start prompt)
                   (marker-position mistty-sync-marker))
       (setq mistty--active-prompt prompt)
-      (setf (mistty--prompt-realized prompt) t))))
+      (setf (mistty--prompt-realized prompt) t)
+      (mistty--update-secondary-mode))))
 
 (defun mistty--prompt-contains-pos (prompt pos)
   "Return non-nil if POS is inside PROMPT."

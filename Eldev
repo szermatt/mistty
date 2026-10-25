@@ -41,8 +41,10 @@
                             target)
                        :forward-output t :die-on-error t))
 
-;; Always use the locally compiled 'dev' version when testing.
-(setq mistty-alacritty-version "dev")
+;; Always use the development version during tests and load from the
+;; dev version of the module, built above. Release versions are built
+;; or downloaded using the M-x mistty-install or mistty-install-dwim.
+(setq mistty-development-mode t)
 
 ;;; Test dependencies
 

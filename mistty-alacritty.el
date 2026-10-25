@@ -35,10 +35,17 @@
 ;; loaded and compiled. Availability check should be done dynamically
 ;; dynamically using (mistty-alacritty-available-p)
 
-(defvar mistty-alacritty-version "dev"
-  "Mistty version name or \"dev\" for local development version.
+(defconst mistty-alacritty-version "2.2.2-alpha"
+  "Mistty module version name, matching the version in Cargo.toml.
 
 This is used to download and load the correct version of the module.")
+
+(defvar mistty-development-mode t
+  "Turn on development mode, switching module version to dev.
+
+With this turned on, `mistty-alacritty-version' is ignored and the
+module is loaded from the development version, without version checks.
+Turn it on at your on risks.")
 
 (defvar mistty-alacritty-release nil
   "Mistty release name.
@@ -58,26 +65,22 @@ This is used to download and load the correct version of the module.")
 The module version should match the version of the elisp code and should
 provide the feature `mistty-alacritty-vt'."
   (format "mistty-alacritty-vt-%s-%s%s"
-          mistty-alacritty-version
+          (if mistty-development-mode "dev" mistty-alacritty-version)
           mistty-alacritty-arch
           module-file-suffix))
 
 (defun mistty-alacritty-check-version ()
-  "Raise an error unless the right version of the module is loaded.
-
-This check is disabled in development, when the version is set to
-\"dev\"."
+  "Raise an error unless the right version of the module is loaded."
   (interactive)
   (unless (featurep 'mistty-alacritty-vt)
     (error "Module %s not loaded yet" (mistty-alacritty-modulename)))
-  (unless (string= mistty-alacritty-version "dev")
-    (let ((module-version (condition-case nil
-                              (mistty-alacritty-vt-version)
-                            ;; version is
-                            (void-function "unspecified"))))
-      (unless (string= mistty-alacritty-version module-version)
-        (error "Incompatibly mistty-alacritty-vt module. You may need to restart Emacs. Expected %s, got %s"
-               mistty-alacritty-version module-version)))))
+  (let ((module-version (condition-case nil
+                            (mistty-alacritty-vt-version)
+                          ;; version is
+                          (void-function "unspecified"))))
+    (unless (string= mistty-alacritty-version module-version)
+      (error "Incompatibly mistty-alacritty-vt module. You may need to restart Emacs. Expected %s, got %s"
+             mistty-alacritty-version module-version))))
 
 (defun mistty-alacritty-load ()
   "Attempt to load the module.

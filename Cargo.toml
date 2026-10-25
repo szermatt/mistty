@@ -1,6 +1,6 @@
 [package]
 name = "mistty-alacritty-vt"
-version = "2.2.1"
+version = "2.2.2-alpha"
 edition = "2024"
 authors = ["Stephane Zermatten <szermatt@gmx.net>"]
 publish = false

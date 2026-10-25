@@ -323,7 +323,6 @@
            ;; send-command is added to the queue. It must not execute, not
            ;; even partially, until 'echo ok' has appeared.
            (should-not mistty-goto-cursor-next-time)
-           (should-not mistty--end-prompt)
            (should (equal "$ <>" (mistty-test-content :show (point))))
            (mistty--send-string mistty-proc "echo ok")))
   (should (equal "$ echo ok\nok\n$ <>" (mistty-test-content :show (point)))))

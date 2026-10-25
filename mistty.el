@@ -880,13 +880,6 @@ It is used in the `post-command-hook'.
 
 This variable is available in the work buffer.")
 
-(defvar-local mistty--end-prompt nil
-  "End the prompt after the next refresh.
-
-When this variable is non-nil, it contains a position in the work buffer
-that's on the current prompt. The line after that is going to be a
-process output or a new prompt.")
-
 (defvar-local mistty--inhibit-refresh nil
   "When non-nil, prevent `mistty--refresh' from copying data.
 
@@ -2200,7 +2193,7 @@ Also updates prompt and point."
          (setq on-prompt (unless mistty-fullscreen
                            (mistty-on-prompt-p (mistty-cursor))))
 
-         (let ((keep-markers (and on-prompt (not mistty--end-prompt))))
+         (let ((keep-markers on-prompt))
            (mistty-log "refresh (%s)@%s"
                        (if keep-markers "complete" "quick")
                        mistty--scrolline-home-num)
@@ -2243,26 +2236,17 @@ Also updates prompt and point."
   "Update prompt state after syncing.
 
 If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
-  ;; Right after a mistty-send-command, we're waiting for a line
-  ;; after mistty--end-prompt that's not part of the old prompt.
-  (when (and mistty--end-prompt
-             (or (<= mistty--end-prompt mistty-sync-marker)
-                 (> mistty--end-prompt (point-max))))
-    (setq mistty--end-prompt nil))
-
-  (when mistty--end-prompt
-    (when-let* ((prompt mistty--active-prompt)
-                (scrolline (mistty--with-live-buffer mistty-term-buffer
-                             (mistty--scrolline-at-point)))
-                (end-scrolline (mistty--prompt-end prompt)))
-      (when (>= scrolline end-scrolline)
-        (when (mistty--maybe-move-sync-mark end-scrolline)
-          (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrolline %s)"
-                      (mistty--prompt-source prompt)
-                      (mistty--prompt-input-id prompt)
-                      (mistty--prompt-start prompt)
-                      end-scrolline
-                      scrolline)))))
+  (when-let* ((prompt mistty--active-prompt)
+              (scrolline (mistty--scrolline-at (mistty-cursor)))
+              (prompt-end (mistty--prompt-end prompt)))
+    (when (and (>= scrolline prompt-end)
+               (mistty--maybe-move-sync-mark (mistty--prompt-end prompt)))
+      (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrolline %s)"
+                  (mistty--prompt-source prompt)
+                  (mistty--prompt-input-id prompt)
+                  (mistty--prompt-start prompt)
+                  (mistty--prompt-end prompt)
+                  scrolline)))
 
   (when-let* ((prompt (mistty--prompt))
               (prompt-beg (mistty--find-scrolline
@@ -2548,8 +2532,7 @@ SCROLLINE is a scrolline that's currently visible on the terminal."
       (mistty-log "Deactivate prompt #%s"
                   (mistty--prompt-input-id mistty--active-prompt))
       (setq mistty--active-prompt nil)
-      (mistty--update-secondary-mode)
-      (setq mistty--end-prompt nil)))
+      (mistty--update-secondary-mode)))
 
     (mistty--process-archived-prompts sync-pos)
     (let ((old-marker-position (marker-position mistty-sync-marker)))
@@ -2654,10 +2637,6 @@ SCROLLINE is the scrolline at BEG."
      (mistty--interact send-command (interact)
        (mistty-maybe-realize-possible-prompt)
        (setq mistty-goto-cursor-next-time t)
-       (when (and (eq 'prompt (mistty--secondary-mode))
-                  (mistty-on-prompt-p (point))
-                  (mistty-on-prompt-p (mistty-cursor)))
-         (setq mistty--end-prompt (mistty-cursor)))
        (setq mistty--interacted t)
        (mistty--interact-send interact "\C-m")
        (mistty--interact-wait-for-output-then

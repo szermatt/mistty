@@ -135,15 +135,13 @@ impl PromptDetector {
     /// handle_prompt_sp should be called.
     pub(crate) fn detect_prompt_sp(
         &mut self,
-        mode: TermMode,
         screen_columns: usize,
         bytes: &[u8],
     ) -> Option<usize> {
-        if mode.contains(TermMode::ALT_SCREEN) {
-            self.seen_spaces = 0;
-            return None;
-        }
-
+        // This logic must be executed even when mode is ALT_SCREEN,
+        // because we don't know when in the bytes array it's going to
+        // be switched. The right point to check that the mode is in
+        // handle_prompt_sp.
         for (index, c) in bytes.iter().enumerate() {
             match *c {
                 b' ' => {
@@ -185,6 +183,10 @@ impl PromptDetector {
     /// The cursor should should be at the position where the CR is
     /// called in the prompt-sp sequence.
     pub(crate) fn handle_prompt_sp(&mut self, vterm: &mut VTerm) {
+        if vterm.mode().contains(TermMode::ALT_SCREEN) {
+            return;
+        }
+
         cleanup_prompt_sp(vterm);
 
         let scrolline = vterm.scrolline_at_cursor();

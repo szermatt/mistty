@@ -845,9 +845,6 @@ kept in sync.
 This variable is available in both the work buffer and the term
 buffer.")
 
-(defvar-local mistty--active-prompt nil
-  "A `mistty--prompt' struct of the active prompt.")
-
 (defvar-local mistty--last-prompt-considered -1
   "Scrolline of the last rejected possible prompt.")
 
@@ -1489,10 +1486,6 @@ window."
                   :leave-fullscreen
                   (lambda ()
                     (mistty--leave-fullscreen work-buffer))
-                  :active-prompt
-                  (lambda ()
-                    (mistty--with-live-buffer work-buffer
-                      mistty--active-prompt))
                   :after-clear-screen
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
@@ -2236,7 +2229,7 @@ Also updates prompt and point."
   "Update prompt state after syncing.
 
 If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
-  (when-let* ((prompt mistty--active-prompt)
+  (when-let* ((prompt (mistty--active-prompt))
               (scrolline (mistty--scrolline-at (mistty-cursor)))
               (prompt-end (mistty--prompt-end prompt)))
     (when (and (>= scrolline prompt-end)
@@ -2264,7 +2257,6 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
                   prompt-beg)
       (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
       (setf (mistty--prompt-realized prompt) t)
-      (setq mistty--active-prompt prompt)
       (mistty--update-secondary-mode))
     (when (mistty--prompt-realized prompt)
       (mistty--mark-continue-prompts prompt prompt-beg)
@@ -2290,7 +2282,7 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
       (mistty--update-secondary-mode)
       (mistty-log "SPECIAL PROMPT done"))))
 
-  (unless mistty--active-prompt
+  (unless (mistty--active-prompt)
     (let ((screen-start (mistty--term-scrolline-at-screen-start)))
       (when (< mistty--scrolline-home-num screen-start)
         ;; Next time, only sync the visible portion of the terminal.
@@ -2518,14 +2510,14 @@ SCROLLINE is a scrolline that's currently visible on the terminal."
                 (marker-position mistty-sync-marker)
                 sync-pos
                 scrolline)
-    (when-let* ((p mistty--active-prompt))
+    (when-let* ((p (mistty--active-prompt)))
       (if (and (mistty--prompt-realized p)
                (not (mistty--prompt-end p)))
           (mistty-log "Keep prompt #%s"
-                      (mistty--prompt-input-id mistty--active-prompt))
+                      (mistty--prompt-input-id p))
       (mistty-log "Deactivate prompt #%s"
-                  (mistty--prompt-input-id mistty--active-prompt))
-      (setq mistty--active-prompt nil)
+                  (mistty--prompt-input-id p))
+      (setf (mistty--prompt) nil)
       (mistty--update-secondary-mode)))
 
     (mistty--process-archived-prompts sync-pos)
@@ -3681,7 +3673,7 @@ ACTIVE-PROMPT-RANGES must be the output of
   "If a prompt is active, return (list prompt-start output-start output-end).
 
 Also accepts inactive (potential) prompts."
-  (when-let* ((prompt (or mistty--active-prompt (mistty--prompt)))
+  (when-let* ((prompt (mistty--prompt))
               (start-pos (mistty--find-scrolline (mistty--prompt-start prompt)))
               (end-pos (or (when-let* ((end (mistty--prompt-end prompt)))
                              (mistty--find-scrolline end))
@@ -4551,7 +4543,7 @@ Prompts can span multiple lines; everything after the beginning of a
 prompt is treated as being on a prompt, including completion options
 displayed below the prompt as fish or zsh do."
   (and mistty-sync-marker
-       mistty--active-prompt
+       (mistty--active-prompt)
        (>= pos mistty-sync-marker)))
 
 (defun mistty-before-positional ()
@@ -4601,7 +4593,7 @@ The prompt can later be created with `mistty--realize-possible-prompt'."
                 (mistty--prompt-contains current-prompt scrolline))
            (and
             ;; there's no active prompt
-            (null mistty--active-prompt)
+            (null (mistty--active-prompt))
 
             ;; not in a continuation line
             (= scrolline-start (pos-bol))
@@ -4639,7 +4631,6 @@ The prompt can later be created with `mistty--realize-possible-prompt'."
                   (mistty--prompt-input-id prompt)
                   (mistty--prompt-start prompt)
                   (marker-position mistty-sync-marker))
-      (setq mistty--active-prompt prompt)
       (setf (mistty--prompt-realized prompt) t)
       (mistty--update-secondary-mode))))
 
@@ -5071,7 +5062,7 @@ The ID corresponds to an entry in `mistty--secondary-mode-alist'."
              ((eq t mistty-fullscreen) 'full)
              (mistty--inhibit 'off)
              (mistty--special-prompt 'special-prompt)
-             (mistty--active-prompt 'prompt)
+             ((mistty--active-prompt) 'prompt)
              ((and mistty-proc (process-live-p mistty-proc)) 'running)
              (t 'running))))
     (if prop

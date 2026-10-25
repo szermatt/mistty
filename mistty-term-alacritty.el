@@ -73,7 +73,6 @@
    &key width height
    enter-fullscreen
    leave-fullscreen
-   active-prompt
    after-clear-screen
    sync-scrolline
    request-report-mouse)
@@ -83,7 +82,6 @@ If WIDTH and HEIGHT are specified, they'll be used as terminal line and
 column count. The default is 80x24.
 
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
-ACTIVE-PROMPT returns the active prompt.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
 SYNC-SCROLLINE returns the current sync scrolline.
 REQUEST-REPORT-MOUSE controls mouse reporting."
@@ -137,7 +135,6 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
              (setf (mistty--term-alacritty-fs term) nil)
              (funcall leave-fullscreen))))
 
-        (unless active-prompt (error ":active-prompt required"))
         (mistty--accum-add-processor
          accum '(seq CSI ?2 ?J) ;; Clear screen
          (lambda (ctx str)
@@ -145,7 +142,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                (mistty--accum-ctx-push-down ctx str)
 
              (mistty--accum-ctx-flush ctx)
-             (if (when-let* ((p (funcall active-prompt)))
+             (if (when-let* ((p (mistty--active-prompt)))
                    (equal
                     (mistty--prompt-start p)
                     (mistty--with-live-buffer (mistty--term-alacritty-buf term)

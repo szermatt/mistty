@@ -55,7 +55,7 @@ has happened."
   :group 'mistty
   :type '(integer))
 
-(defcustom mistty-log-max-backtrace-length 800
+(defcustom mistty-log-max-backtrace-length 2400
   "Maximum length, in characters, of logged backtraces.
 
 Backtraces that are longer than this value are truncated by

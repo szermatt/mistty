@@ -5625,9 +5625,9 @@ function prompt {
         else
           input=\"$input$c\"
         fi
-        printf \"${clear}====\\n==== $i\\nPrompt: $input\"
+        printf \"${clear}====\\n==== $i\\n\\033]133;A\\007Prompt: \\033]133;B\\007$input\"
         read -s -N 1 c
-        clear=\"\\r\\e[2A\\e[J\"
+        clear=\"\\033]133;D\\007\\r\\e[2A\\e[J\"
         i=$i'-'
     done
     printf \"${clear}Got: $input\\n\"
@@ -5638,15 +5638,8 @@ function prompt {
   (mistty-send-command)
   (mistty-wait-for-output :str "Prompt: ")
 
-  ;; The prompt hasn't been realized, so the sync marker is at the
-  ;; beginning of the output.
-  (should (equal "$ prompt\n<>====\n==== -\nPrompt:"
-                 (mistty-test-content :show mistty-sync-marker)))
-  (mistty--realize-possible-prompt)
-
-  ;; The sync marker is at the beginning of the newly realized
-  ;; prompt (but this is wrong, because text changes above the
-  ;; prompt).
+  ;; The sync marker is at the beginning of the prompt (but this is
+  ;; wrong, because text changes above the prompt).
   (should (equal "$ prompt\n====\n==== -\n<>Prompt:"
                  (mistty-test-content :show mistty-sync-marker)))
 

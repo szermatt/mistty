@@ -7737,7 +7737,7 @@ precmd_functions+=(prompt_header)
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line
-              "-UUU:**- F1  test-mode-line   Top  (misTTY [_] ⌨) ------------------------------")
+              "-UUU:**- F1  test-mode-line   58%  (misTTY [_] ⌨) ------------------------------")
              (mistty-test-trim-mode-line))))
 
   (mistty-toggle-keymap)
@@ -7745,7 +7745,7 @@ precmd_functions+=(prompt_header)
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line
-              "-UUU:**- F1  test-mode-line   Top  (misTTY [_]) --------------------------------")
+              "-UUU:**- F1  test-mode-line   58%  (misTTY [_]) --------------------------------")
              (mistty-test-trim-mode-line)))))
 
 (mistty-deftest mistty-test-mode-line-split-buffer-fs (:selected t :type eterm :turtles t)
@@ -8813,7 +8813,6 @@ precmd_functions+=(prompt_header)
 
 (mistty-deftest mistty-test-button-to-toggle-fullscreen-keyboard
     (:selected t :type alacritty :turtles t)
-
   (let ((mistty-tag-theme 'textual))
     (mistty-test-rename-buffer "test-mode-line")
     (mistty--send-string
@@ -8826,7 +8825,7 @@ precmd_functions+=(prompt_header)
       (turtles-with-grab-buffer (:mode-line (selected-window))
         (should (equal
                  (mistty-test-trim-mode-line
-                  "-UUU:**- F1  test-mode-line   Top  [(misTTY fullscreen [kb])] ------")
+                  "-UUU:**- F1  test-mode-line   58%  [(misTTY fullscreen [kb])] ------")
                  (mistty-test-trim-mode-line))))
 
       :mouse-ev 'mouse-1 (turtles-coords "[kb]" :mode-line (current-buffer))
@@ -8835,7 +8834,7 @@ precmd_functions+=(prompt_header)
       (turtles-with-grab-buffer (:mode-line (selected-window))
         (should (equal
                  (mistty-test-trim-mode-line
-                  "-UUU:**- F1  test-mode-line   Top  [(misTTY fullscreen (kb))] ------")
+                  "-UUU:**- F1  test-mode-line   58%  [(misTTY fullscreen (kb))] ------")
                  (mistty-test-trim-mode-line))))
 
       :mouse-ev 'mouse-1 (turtles-coords "(kb)" :mode-line (current-buffer))

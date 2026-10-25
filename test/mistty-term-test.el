@@ -225,9 +225,4 @@
     (mistty--register-prompt 'bracketed-paste 12)
     (should (equal 2 (mistty--prompt-input-id (mistty--prompt))))
     (should (equal 'bracketed-paste (mistty--prompt-source (mistty--prompt))))
-    (should (equal 12 (mistty--prompt-start (mistty--prompt))))
-
-    ;; New prompt comes in before old prompt is closed, but its start is
-    ;; to far from the old prompt's start.
-    (mistty--register-prompt 'osc133 15)
-    (should (equal 3 (mistty--prompt-input-id (mistty--prompt))))))
+    (should (equal 12 (mistty--prompt-start (mistty--prompt))))))

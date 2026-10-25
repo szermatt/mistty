@@ -259,11 +259,7 @@ this is the same as what's returned by `mistty--prompt' after this call."
                  :end end
                  :text text
                  :user-input-start user-input-start))
-         (overlap (and p
-                       (mistty--prompt-overlaps p other)
-                       (<= (abs (- (mistty--prompt-start p)
-                                   (mistty--prompt-start other)))
-                           2))))
+         (overlap (and p (mistty--prompt-overlaps p other))))
     (if overlap
         (mistty--prompt-merge-from p other)
 

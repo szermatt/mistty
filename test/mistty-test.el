@@ -7734,6 +7734,7 @@ precmd_functions+=(prompt_header)
   (mistty-wait-for-output :start (point-min) :regexp "^FS")
 
   (should (eq 'full (mistty--secondary-mode)))
+  (force-mode-line-update)
   (turtles-with-grab-buffer (:mode-line (selected-window))
     (should (equal
              (mistty-test-trim-mode-line
@@ -8758,7 +8759,7 @@ precmd_functions+=(prompt_header)
     (mistty-wait-for-output :start (point-min) :regexp "^FS")
 
     (should (eq 'full (mistty--secondary-mode)))
-
+    (force-mode-line-update)
     (turtles-interaction
       (turtles-with-grab-buffer (:mode-line (selected-window))
         (should (equal

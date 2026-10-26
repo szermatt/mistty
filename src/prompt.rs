@@ -85,7 +85,6 @@ impl<'e> IntoLisp<'e> for PromptChange {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum PromptSource {
-    PromptSp,
     BracketedPaste,
     Osc133,
 }
@@ -93,7 +92,6 @@ pub(crate) enum PromptSource {
 impl<'e> IntoLisp<'e> for PromptSource {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<Value<'e>> {
         match self {
-            PromptSource::PromptSp => Ok(prompt_sp_sym.bind(env)),
             PromptSource::BracketedPaste => Ok(bracketed_paste_sym.bind(env)),
             PromptSource::Osc133 => Ok(osc133_sym.bind(env)),
         }
@@ -107,6 +105,10 @@ pub(crate) struct PromptDetector {
     /// sent by shells for the PROMPT_SP hack.
     seen_spaces: usize,
 
+    /// Scrolline at which the last PROMPT_SP hack was seen. This is
+    /// the line below the one PROMPT_SP sign would be seen.
+    last_prompt_sp: Scrolline,
+
     /// Detected prompts, from the most ancient to the most recent.
     ///
     /// Add new prompts using PromptDetector::push.
@@ -118,6 +120,7 @@ impl PromptDetector {
         PromptDetector {
             seen_spaces: 0,
             prompts: vec![],
+            last_prompt_sp: Scrolline(0),
         }
     }
 
@@ -189,13 +192,7 @@ impl PromptDetector {
 
         cleanup_prompt_sp(vterm);
 
-        let scrolline = vterm.scrolline_at_cursor();
-        self.push(PromptChange::Start(
-            PromptSource::PromptSp,
-            scrolline,
-            None,
-            PromptOptions::default(),
-        ));
+        self.last_prompt_sp = vterm.scrolline_at_cursor();
     }
 
     /// React to bracketed paste being set or unset.
@@ -205,10 +202,21 @@ impl PromptDetector {
         }
 
         if value && !vterm.mode().intersects(TermMode::BRACKETED_PASTE) {
-            let scrolline = vterm.scrolline_at_cursor();
+            let mut start = vterm.scrolline_at_cursor();
+
+            // Handle the ZSH case, where BRACKETED_PASTE is turned on
+            // where user input is expected and not at the beginning of
+            // the prompt, like Bash or Fish.
+            if self.last_prompt_sp < start
+                && (start - self.last_prompt_sp) <= 2
+                && vterm.grid().cursor.point.column.0 > 0
+            {
+                start = self.last_prompt_sp;
+            }
+
             self.push(PromptChange::Start(
                 PromptSource::BracketedPaste,
-                scrolline,
+                start,
                 None,
                 PromptOptions::default(),
             ));
@@ -343,73 +351,22 @@ mod tests {
     }
 
     #[test]
-    fn detect_prompt_sp_full_line() -> anyhow::Result<()> {
+    fn fix_prompt_sp_full_line() -> anyhow::Result<()> {
         let mut fixture = Fixture::setup()?;
         fixture.process_bytes("text\r\n⏎                   \r$ ".as_bytes());
 
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
-        assert_eq!(
-            vec![PromptChange::Start(
-                PromptSource::PromptSp,
-                Scrolline(1),
-                None,
-                PromptOptions::default()
-            )],
-            fixture.processor.collect_prompt_changes()
-        );
         Ok(())
     }
 
     #[test]
-    fn detect_prompt_sp_split_line() -> anyhow::Result<()> {
+    fn fix_prompt_sp_split_line() -> anyhow::Result<()> {
         let mut fixture = Fixture::setup()?;
         fixture.process_bytes("text⏎                   \r$ ".as_bytes());
 
         assert_eq!("text⏎", fixture.row_to_string(Line(0)));
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
-        assert_eq!(
-            vec![PromptChange::Start(
-                PromptSource::PromptSp,
-                Scrolline(1),
-                None,
-                PromptOptions::default()
-            )],
-            fixture.processor.collect_prompt_changes()
-        );
 
-        Ok(())
-    }
-
-    #[test]
-    fn detect_multiple_prompts() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
-        fixture.process_bytes("text\r\n⏎                   \r$ ".as_bytes());
-        fixture.process_bytes(b"echo ok\r\n");
-        fixture.process_bytes(b"ok\r\n");
-        fixture.process_bytes("⏎                   \r$ ".as_bytes());
-
-        assert_eq!("text", fixture.row_to_string(Line(0)));
-        assert_eq!("$ echo ok", fixture.row_to_string(Line(1)));
-        assert_eq!("ok", fixture.row_to_string(Line(2)));
-        assert_eq!("$ ", fixture.row_to_string(Line(3)));
-
-        assert_eq!(
-            vec![
-                PromptChange::Start(
-                    PromptSource::PromptSp,
-                    Scrolline(1),
-                    None,
-                    PromptOptions::default()
-                ),
-                PromptChange::Start(
-                    PromptSource::PromptSp,
-                    Scrolline(3),
-                    None,
-                    PromptOptions::default()
-                )
-            ],
-            fixture.processor.collect_prompt_changes()
-        );
         Ok(())
     }
 
@@ -444,6 +401,86 @@ mod tests {
             ],
             fixture.processor.collect_prompt_changes()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn detect_bracketed_paste_after_prompt_sp() -> anyhow::Result<()> {
+        // This is what happens with zsh: first a prompt_sp, then the
+        // prompt, and then, just before user input is expected,
+        // bracketed paste is turned on. There is of course no
+        // prompt_sp before the first prompt.
+        let mut fixture = Fixture::setup()?;
+        fixture.process_bytes(b"$ \x1b[?2004h");
+        fixture.process_bytes(b"echo ok");
+        fixture.process_bytes(b"\x1b[?2004l\r\n");
+        fixture.process_bytes(b"ok\r\n#                   \r$ ");
+        fixture.process_bytes(b"\x1b[?2004h");
+
+        assert_eq!("$ echo ok", fixture.row_to_string(Line(0)));
+        assert_eq!("ok", fixture.row_to_string(Line(1)));
+        assert_eq!("$ ", fixture.row_to_string(Line(2)));
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(
+                    PromptSource::BracketedPaste,
+                    Scrolline(0),
+                    None,
+                    PromptOptions::default()
+                ),
+                PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
+                PromptChange::Start(
+                    PromptSource::BracketedPaste,
+                    Scrolline(2),
+                    None,
+                    PromptOptions::default()
+                ),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn detect_bracketed_paste_after_prompt_sp_multiline() -> anyhow::Result<()> {
+        // This is what happens with zsh: first a prompt_sp, then the
+        // prompt, and then, just before user input is expected,
+        // bracketed paste is turned on. There is of course no
+        // prompt_sp before the first prompt.
+        let mut fixture = Fixture::setup()?;
+        fixture.process_bytes(b"prompt\r\n$ \x1b[?2004h");
+        fixture.process_bytes(b"echo ok");
+        fixture.process_bytes(b"\x1b[?2004l\r\n");
+        fixture.process_bytes(b"ok\r\n#                   \rprompt\r\n$ ");
+        fixture.process_bytes(b"\x1b[?2004h");
+
+        assert_eq!("prompt", fixture.row_to_string(Line(0)));
+        assert_eq!("$ echo ok", fixture.row_to_string(Line(1)));
+        assert_eq!("ok", fixture.row_to_string(Line(2)));
+        assert_eq!("prompt", fixture.row_to_string(Line(3)));
+        assert_eq!("$ ", fixture.row_to_string(Line(4)));
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(
+                    PromptSource::BracketedPaste,
+                    Scrolline(0),
+                    None,
+                    PromptOptions::default()
+                ),
+                PromptChange::End(PromptSource::BracketedPaste, Scrolline(2)),
+                PromptChange::Start(
+                    PromptSource::BracketedPaste,
+                    Scrolline(3),
+                    None,
+                    PromptOptions::default()
+                ),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+
         Ok(())
     }
 

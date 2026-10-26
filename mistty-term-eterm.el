@@ -479,6 +479,7 @@ to call `mistty--term-postprocess'.")
 (cl-defmethod mistty--create-term
   ((_type (eql 'eterm)) name command
    &key width height
+   prompt-cell
    enter-fullscreen
    leave-fullscreen
    after-clear-screen
@@ -488,6 +489,9 @@ to call `mistty--term-postprocess'.")
 
 COMMAND is run in the terminal and its size is set to WIDTH x HEIGHT,
 defaulting to 80 x 24.
+
+PROMPT-CELL specifies a mistty--prompt-cell struct used to track
+prompts.
 
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
@@ -509,7 +513,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
       (setq-local term-height height)
       (setq-local term-command-function #'mistty--term-command-hook)
       (setq-local mistty--translate-key-function #'mistty--eterm-translate-key)
-      (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
+      (setq-local mistty--prompt-cell prompt-cell)
       (setq-local scroll-margin 0)
 
       ;; This makes sure the obsolete option

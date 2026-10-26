@@ -209,9 +209,12 @@ P input-id slot is not modified."
   (when-let* ((s (mistty--prompt-user-input-start other)))
     (setf (mistty--prompt-user-input-start p) s)))
 
-(defun mistty--active-prompt ()
-  "Get the value of the current prompt if it is realized."
-  (when-let* ((p (mistty--prompt)))
+(defun mistty--active-prompt (&optional cell)
+  "Get the value of the current prompt if it is realized.
+
+CELL is the prompt cell to check. It defaults to `mistty--prompt-cell'."
+  (when-let* ((cell (or cell mistty--prompt-cell))
+              (p (mistty--prompt-cell-current cell)))
     (when (mistty--prompt-realized p)
       p)))
 

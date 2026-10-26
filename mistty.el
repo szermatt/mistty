@@ -1365,6 +1365,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   (overlay-put mistty--sync-ov 'wrap-prefix "")
   (overlay-put mistty--sync-ov 'line-number-disable t)
   (setq mistty--ignored-overlays (list mistty--sync-ov))
+  (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
   (setq-local beginning-of-defun-function #'mistty-beginning-of-defun)
   (setq-local end-of-defun-function #'mistty-end-of-defun)
   (setq-local imenu-create-index-function #'mistty-imenu-create-index)
@@ -1480,6 +1481,7 @@ window."
                   (cons command args)
                   :width width
                   :height height
+                  :prompt-cell mistty--prompt-cell
                   :enter-fullscreen
                   (lambda (split)
                     (mistty--enter-fullscreen work-buffer split))
@@ -1538,7 +1540,6 @@ window."
     (setq mistty--term term)
     (setq mistty-proc proc)
     (setq mistty-term-buffer term-buffer)
-    (setq mistty--prompt-cell (buffer-local-value 'mistty--prompt-cell term-buffer))
     (setq mistty--queue (mistty--make-queue proc))
     (setq mistty-goto-cursor-next-time t)
     (mistty--needs-refresh)

@@ -66,11 +66,15 @@
 
   ;; mouse tracking state; the value sent to the last call to
   ;; request-report-mouse
-  mouse)
+  mouse
+
+  ;; struct of type mistty--prompt-cell used to track prompts
+  prompt-cell)
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'alacritty)) name command
    &key width height
+   prompt-cell
    enter-fullscreen
    leave-fullscreen
    after-clear-screen
@@ -80,6 +84,9 @@
 
 If WIDTH and HEIGHT are specified, they'll be used as terminal line and
 column count. The default is 80x24.
+
+PROMPT-CELL specifies a mistty--prompt-cell struct used to track
+prompts.
 
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
@@ -92,7 +99,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (height (or height 24)))
     (with-current-buffer term-buffer
       (mistty-alacritty-mode)
-      (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
+      (setq-local mistty--prompt-cell prompt-cell)
       (setq-local scroll-margin 0)
       (let ((process-environment
              (if (with-connection-local-variables mistty-set-EMACS)
@@ -107,6 +114,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                     :vterm (mistty-alacritty--make-vterm width height)
                     :lines height
                     :columns width
+                    :prompt-cell prompt-cell
                     :request-report-mouse request-report-mouse))
              (accum (mistty--make-accumulator
                      (mistty--term-alacritty-filter term))))
@@ -142,7 +150,8 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                (mistty--accum-ctx-push-down ctx str)
 
              (mistty--accum-ctx-flush ctx)
-             (if (when-let* ((p (mistty--active-prompt)))
+             (if (when-let* ((p (mistty--active-prompt
+                                 (mistty--term-alacritty-prompt-cell term))))
                    (equal
                     (mistty--prompt-start p)
                     (mistty--with-live-buffer (mistty--term-alacritty-buf term)

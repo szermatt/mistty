@@ -402,10 +402,9 @@
 (mistty-deftest mistty-alacritty-vt-pty-write (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
     ;; \e[6n queries the cursor position. ]
-    (should (equal nil (mistty-alacritty-vt-process-bytes term (vconcat "foo\r\n"))))
-    (should (equal
-             '((pty-write "\33[2;4R"))
-             (mistty-alacritty-vt-process-bytes term (vconcat "bar\e[6n\r\n"))))))
+    (should (null (mistty-alacritty-vt-process-bytes term (vconcat "foo\r\n"))))
+    (should (equal "\33[2;4R"
+                   (mistty-alacritty-vt-process-bytes term (vconcat "bar\e[6n\r\n"))))))
 
 (mistty-deftest mistty-alacritty-vt-render-unicode-wide-characters (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
@@ -1257,10 +1256,11 @@
 (mistty-deftest mistty-alacritty-vt-set-title (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10))
         (cursor (make-marker)))
+    (should (null (mistty-alacritty-vt-process-bytes
+                   term (vconcat "foo\e]0;window-title\e\\bar"))))
     (should (equal
              '((title "window-title"))
-             (mistty-alacritty-vt-process-bytes
-              term (vconcat "foo\e]0;window-title\e\\bar"))))
+             (mistty-alacritty-vt-collect-changes term)))
     (ert-with-test-buffer ()
        (mistty-alacritty-vt-render term cursor)
        (should (equal "foobar" (mistty-test-content))))))
@@ -1340,9 +1340,8 @@
     ;; copying didn't work
     (should (equal "initial" (current-kill 0)))
 
-    (should (equal `((pty-write
-                     ,(format "\e]52;c;%s\a"
-                              (base64-encode-string "initial"))))
+    (should (equal (format "\e]52;c;%s\a"
+                           (base64-encode-string "initial"))
                    (mistty-alacritty-vt-process-bytes
                     term (vconcat "\e]52;c;?\a."))))))
 
@@ -1358,9 +1357,8 @@
     (should (equal "foo, bar" (current-kill 0)))
 
     (kill-new "new value")
-    (should (equal `((pty-write
-                     ,(format "\e]52;c;%s\a"
-                              (base64-encode-string "new value"))))
+    (should (equal (format "\e]52;c;%s\a"
+                           (base64-encode-string "new value"))
                    (mistty-alacritty-vt-process-bytes
                     term (vconcat "\e]52;c;?\a."))))))
 
@@ -1576,20 +1574,26 @@
                 (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
     ;; turn on the kitty keyboard protocol
-    (should (equal '((kkp t))(mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>1u"))))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>1u"))
+    (should (equal '((kkp t)) (mistty-alacritty-vt-collect-changes vterm)))
     ;; push some flag
-    (should (equal nil (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>8u"))))
-    (should (equal nil (mistty-alacritty-vt-process-bytes vterm (vconcat "foobar"))))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>8u"))
+    (should (equal nil (mistty-alacritty-vt-collect-changes vterm)))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "foobar"))
+    (should (equal nil (mistty-alacritty-vt-collect-changes vterm)))
     ;; pop the previous flag (8)
-    (should (equal nil (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))
+    (should (equal nil (mistty-alacritty-vt-collect-changes vterm)))
     ;; turn off the kitty keyboard protocol
-    (should (equal '((kkp nil)) (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))))))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[<u"))
+    (should (equal '((kkp nil)) (mistty-alacritty-vt-collect-changes vterm)))))
 
 (mistty-deftest mistty-alacritty-vt-kitty-key-seq
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
     ;; turn on the kitty keyboard protocol
-    (should (equal '((kkp t))(mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>1u"))))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>1u"))
+    (should (equal '((kkp t)) (mistty-alacritty-vt-collect-changes vterm)))
 
     (pcase-dolist
         (`(,expected ,key)
@@ -1644,28 +1648,33 @@
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
     ;; turn on all flags of the kitty keyboard protocol
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>29u"))
     (should (equal '((kkp t))
-                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[>29u"))))
+                   (mistty-alacritty-vt-collect-changes vterm)))
 
     ;; but only one flag was actually enabled
-    (should (equal '((pty-write "\e[?1u"))
+    (should (equal "\e[?1u"
                    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?u"))))))
 
 (mistty-deftest mistty-alacritty-vt-report-mouse
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
     ;; turn on mouse reporting
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000h"))
     (should (equal '((mouse click))
-                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000h"))))
+                   (mistty-alacritty-vt-collect-changes vterm)))
     ;; ask also for button events
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1002h"))
     (should (equal '((mouse drag))
-                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1002h"))))
+                   (mistty-alacritty-vt-collect-changes vterm)))
     ;; ask for all events
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1003h"))
     (should (equal '((mouse motion))
-                   (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1003h"))))
+                   (mistty-alacritty-vt-collect-changes vterm)))
 
     ;; deactivate
-    (should (null (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000l"))))))
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1000l"))
+    (should (null (mistty-alacritty-vt-collect-changes vterm)))))
 
 (mistty-deftest mistty-alacritty-vt-mouse-seq-disabled
     (:features mistty-alacritty-vt :shell none)
@@ -1677,9 +1686,9 @@
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
     ;; Send clicks and drag
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1002h"))
     (should (equal '((mouse drag))
-                   (mistty-alacritty-vt-process-bytes
-                    vterm (vconcat "\e[?1002h"))))
+                   (mistty-alacritty-vt-collect-changes vterm)))
 
     (pcase-dolist
         (`(,expected ,action ,button ,mods ,line ,col)
@@ -1722,9 +1731,9 @@
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
 
     ;; Send clicks and drag
+    (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1002h"))
     (should (equal '((mouse drag))
-                   (mistty-alacritty-vt-process-bytes
-                    vterm (vconcat "\e[?1002h"))))
+                   (mistty-alacritty-vt-collect-changes vterm)))
 
     ;; Select SGR format
     (mistty-alacritty-vt-process-bytes vterm (vconcat "\e[?1006h"))

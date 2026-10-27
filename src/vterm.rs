@@ -19,7 +19,7 @@ use alacritty_terminal::{
     },
     vte::ansi::{self, Attr, Color, Handler, NamedPrivateMode, PrivateMode, Processor},
 };
-use emacs::{Env, Result, Value};
+use emacs::{Env, IntoLisp, Result, Value};
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 emacs::use_functions! {
@@ -29,7 +29,6 @@ emacs::use_functions! {
 }
 emacs::use_symbols! {
     bracketed_paste_sym => "bracketed_paste"
-    pty_write_sym => "pty-write"
     title_sym => "title"
     kkp_sym => "kkp"
     mouse_sym => "mouse"
@@ -94,6 +93,53 @@ impl VTermProcessor {
     }
 }
 
+/// Changes reported by
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum VTermChanges {
+    /// Kitty Keyboard protocol enabled or disabled.
+    KittyKeyboard(bool),
+
+    /// Bracketed paste enabled or disabled.
+    BracketedPaste(bool),
+
+    /// Toggle mouse support
+    Mouse(MouseMode),
+
+    /// Set or clear window title.
+    Title(Option<String>),
+
+    /// Set or clear working directory.
+    ///
+    /// The working directory is set as a file: URL
+    Cwd(Option<String>),
+}
+
+/// Mouse mode reported to the lisp side
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub(crate) enum MouseMode {
+    Off,
+    Click,
+    Drag,
+    Motion,
+}
+
+impl<'e> IntoLisp<'e> for VTermChanges {
+    fn into_lisp(self, env: &'e Env) -> Result<Value<'e>> {
+        match self {
+            VTermChanges::KittyKeyboard(on) => env.list((kkp_sym, on)),
+            VTermChanges::BracketedPaste(on) => env.list((bracketed_paste_sym, on)),
+            VTermChanges::Mouse(MouseMode::Motion) => env.list((mouse_sym, motion_sym)),
+            VTermChanges::Mouse(MouseMode::Drag) => env.list((mouse_sym, drag_sym)),
+            VTermChanges::Mouse(MouseMode::Click) => env.list((mouse_sym, click_sym)),
+            VTermChanges::Mouse(MouseMode::Off) => env.list((mouse_sym, nil_sym)),
+            VTermChanges::Title(None) => env.list((title_sym, nil_sym)),
+            VTermChanges::Title(Some(title)) => env.list((title_sym, title)),
+            VTermChanges::Cwd(None) => env.list((cwd_sym, nil_sym)),
+            VTermChanges::Cwd(Some(url)) => env.list((cwd_sym, url)),
+        }
+    }
+}
+
 /// Virtual Terminal for MisTTY that keeps its data in memory.
 pub(crate) struct VTerm {
     inner: Term<EventAccumulator>,
@@ -135,6 +181,13 @@ pub(crate) struct VTerm {
     /// If true, cwd_url should be reported to the lisp side. This is
     /// set whenever cwd_url is modified.
     cwd_modified: bool,
+
+    /// Terminal mode at the time of the last call to [VTerm::collect_mode_changes].
+    last_collected_mode: TermMode,
+
+    /// Title change to be collected. The empty string represents a
+    /// cleared title.
+    title: Option<String>,
 }
 
 impl VTerm {
@@ -155,6 +208,7 @@ impl VTerm {
 
         // See comment on HandlerProxy
         init_grid(inner.grid_mut());
+        let last_collected_mode = *inner.mode();
 
         Self {
             inner,
@@ -168,6 +222,8 @@ impl VTerm {
             last_cell: None,
             cwd_url: None,
             cwd_modified: false,
+            last_collected_mode,
+            title: None,
         }
     }
 
@@ -391,35 +447,36 @@ impl VTerm {
         self.inner.grid().cursor.point
     }
 
-    /// Handle accumulated events using the given `env`.
+    /// Process accumulated events and prepare data to send to the PTY.
     ///
-    /// The return value is a vector of lisp-formatted events that
-    /// should be handled by the caller in lisp format.
-    pub(crate) fn handle_events<'a>(&self, env: &'a Env) -> Result<Vec<Value<'a>>> {
+    /// Returns response data to be sent to the PTY.
+    ///
+    /// Some other events, like window Title events are stored for
+    /// later and returned as part of [VTerm::collect_events].
+    ///
+    /// This should be called right after calling 'process_bytes' to
+    /// avoid delaying responses.
+    pub(crate) fn prepare_responses<'a>(&mut self, env: &'a Env) -> Result<Vec<String>> {
+        let mut pty_writes = vec![];
         let mut events = self.events.borrow_mut();
-        let mut lisp_events = vec![];
-        if events.is_empty() {
-            return Ok(lisp_events);
-        }
-
         while let Some(event) = events.pop_front() {
             match event {
                 Event::PtyWrite(data) => {
-                    lisp_events.push(pty_write(env, data)?);
+                    pty_writes.push(data);
                 }
                 Event::ColorRequest(index, rgb_to_seq) => {
                     if let Some(named) = render::named_color_for_color_request(index)
                         && let Some(color) =
                             render::to_emacs_color_rgb(env, Color::Named(named), true)?
                     {
-                        lisp_events.push(pty_write(env, rgb_to_seq(color))?);
+                        pty_writes.push(rgb_to_seq(color));
                     }
                 }
                 Event::Title(title) => {
-                    lisp_events.push(env.list((title_sym, title))?);
+                    self.title = Some(title);
                 }
                 Event::ResetTitle => {
-                    lisp_events.push(env.list((title_sym, ""))?);
+                    self.title = Some(String::new());
                 }
 
                 Event::ClipboardStore(clipboard, data) => match clipboard {
@@ -435,7 +492,7 @@ impl VTerm {
                             .and_then(|v| v.into_rust())
                             .unwrap_or(None);
                         if let Some(data) = data {
-                            lisp_events.push(pty_write(env, formatter(&data))?);
+                            pty_writes.push(formatter(&data));
                         }
                     }
                     ClipboardType::Selection => {}
@@ -446,55 +503,62 @@ impl VTerm {
             };
         }
 
-        Ok(lisp_events)
+        Ok(pty_writes)
     }
 
-    /// Report changes to [TermMode] to the lisp side.
-    pub(crate) fn mode_changes<'a>(
-        &self,
-        env: &'a Env,
-        before: &TermMode,
-    ) -> Result<Vec<Value<'a>>> {
+    /// Collect events to send back to the lisp side.
+    pub(crate) fn collect_changes<'e>(&mut self) -> Result<Vec<VTermChanges>> {
+        let mut changes = self.collect_mode_changes();
+        if let Some(title) = self.title.take() {
+            changes.push(VTermChanges::Title(if title.is_empty() {
+                None
+            } else {
+                Some(title)
+            }));
+        }
+        if self.cwd_modified {
+            self.cwd_modified = false;
+            changes.push(VTermChanges::Cwd(self.cwd_url.clone()));
+        }
+
+        Ok(changes)
+    }
+
+    /// Report changes to [TermMode] since the last call to [VTerm::collect_mode_changes].
+    fn collect_mode_changes(&mut self) -> Vec<VTermChanges> {
         let mut reports = vec![];
-        let mode = self.mode();
+        let mode = *self.mode();
+        let before = self.last_collected_mode;
+        self.last_collected_mode = mode;
+
         let kkp_on = mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
         if kkp_on != before.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
-            reports.push(env.list((kkp_sym, kkp_on))?);
+            reports.push(VTermChanges::KittyKeyboard(kkp_on));
         }
 
         let bp_on = mode.intersects(TermMode::BRACKETED_PASTE);
         if bp_on != before.intersects(TermMode::BRACKETED_PASTE) {
-            reports.push(env.list((bracketed_paste_sym, bp_on))?);
+            reports.push(VTermChanges::BracketedPaste(bp_on));
         }
 
         let mouse_flags =
             TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION;
         let mouse = mode.intersection(mouse_flags);
         if mouse != before.intersection(mouse_flags) {
-            reports.push(env.list((
-                mouse_sym,
+            reports.push(VTermChanges::Mouse(
                 if mouse.intersects(TermMode::MOUSE_MOTION) {
-                    motion_sym
+                    MouseMode::Motion
                 } else if mouse.intersects(TermMode::MOUSE_DRAG) {
-                    drag_sym
+                    MouseMode::Drag
                 } else if mouse.intersects(TermMode::MOUSE_REPORT_CLICK) {
-                    click_sym
+                    MouseMode::Click
                 } else {
-                    nil_sym
+                    MouseMode::Off
                 },
-            ))?);
+            ));
         }
 
-        Ok(reports)
-    }
-
-    /// Return the current directory URL. None if unmodified.
-    pub(crate) fn collect_cwd<'a>(&mut self, env: &'a Env) -> Result<Option<Value<'a>>> {
-        if !self.cwd_modified {
-            return Ok(None);
-        }
-
-        Ok(Some(env.list((cwd_sym, self.cwd_url.as_deref()))?))
+        reports
     }
 
     /// Compare the render count with a value form Emacs side.
@@ -590,11 +654,6 @@ fn move_history(grid: &mut Grid<Cell>, history: &mut Vec<Row<Cell>>) {
         history.push(copy);
     }
     grid.clear_history();
-}
-
-/// Generate `(pty-write <value>)`
-fn pty_write<'a>(env: &'a Env, data: String) -> Result<Value<'a>> {
-    env.list((pty_write_sym, data))
 }
 
 /// Set flags on a newly-created or reset grid.
@@ -1528,6 +1587,122 @@ mod tests {
         assert_eq!(
             Some(Line(0)),
             vterm.terminal_line_for_scrolline(Scrolline(2))
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_kkp() {
+        let mut fixture = Fixture::setup();
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[>1u");
+        assert_eq!(
+            vec![VTermChanges::KittyKeyboard(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[>8u");
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[<u");
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[<u");
+        assert_eq!(
+            vec![VTermChanges::KittyKeyboard(false)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_bracketed_paste() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b[?2004h");
+        assert_eq!(
+            vec![VTermChanges::BracketedPaste(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?2004l");
+        assert_eq!(
+            vec![VTermChanges::BracketedPaste(false)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_mouse() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b[?1000h");
+        assert_eq!(
+            vec![VTermChanges::Mouse(MouseMode::Click)],
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?1002h");
+        assert_eq!(
+            vec![VTermChanges::Mouse(MouseMode::Drag)],
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?1003h");
+        assert_eq!(
+            vec![VTermChanges::Mouse(MouseMode::Motion)],
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?1003l");
+        assert_eq!(
+            vec![VTermChanges::Mouse(MouseMode::Off)],
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_across_multiple_process_bytes() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b[?1000h");
+        fixture.process_bytes(b"\x1b[?1002h");
+        fixture.process_bytes(b"\x1b[>1u");
+
+        assert_eq!(
+            vec![
+                VTermChanges::KittyKeyboard(true),
+                VTermChanges::Mouse(MouseMode::Drag),
+            ],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChanges>::new(),
+            fixture.vterm.collect_mode_changes()
         );
     }
 }

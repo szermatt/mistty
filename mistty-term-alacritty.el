@@ -383,8 +383,9 @@ buffer."
              (setq ansi-osc-window-title title)))
           (`(cwd ,url)
            (mistty-log "CWD %s" url)
-           (mistty--with-live-buffer buf
-             (mistty-osc7 "7" url)))
+           (when url
+             (mistty--with-live-buffer buf
+               (mistty-osc7 "7" url))))
           (`(kkp ,val)
            (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
            (setf (mistty--term-alacritty-kkp term) val))
@@ -395,9 +396,9 @@ buffer."
            (mistty--with-live-buffer buf
              (mistty-log "BRACKETED PASTE %s" (if val "ON" "OFF"))
              (setq mistty-bracketed-paste val)))
-          (`(start-prompt ,source ,start . ,args)
+          (`(start-prompt ,source ,start)
            (mistty--with-live-buffer buf
-             (apply #'mistty--register-prompt source start args)))
+             (mistty--register-prompt source start)))
           (`(end-prompt ,source ,end)
            (mistty--with-live-buffer buf
              (mistty--end-prompt source end)))

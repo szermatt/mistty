@@ -145,39 +145,42 @@ fn resize(term: &mut VTermFacade, width: usize, height: usize) -> Result<()> {
 
 /// Process BYTES coming from a pty and update the virtual terminal.
 ///
-/// Return a list of events to be processed Emacs-side. Events are
-/// encoded as list, with an identifying symbol as car followed by an
-/// event-specific argument list.
-///
-/// Events:
-///  (`write-pty` data): request to write DATA to the PTY
+/// Return nil or a string to send back to the pty.
 #[defun]
-fn process_bytes<'a>(env: &'a Env, term: &mut VTermFacade, bytes: Vector) -> Result<Value<'a>> {
+fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: Vector) -> Result<Value<'e>> {
     let mut v: Vec<u8> = Vec::with_capacity(bytes.len());
     for val in bytes {
         let b: u8 = val.into_rust()?;
         v.push(b);
     }
-    let before = *term.vterm.mode();
     term.processor.process_bytes(&mut term.vterm, &v);
 
-    let events = term.vterm.handle_events(env)?;
-    let mode_changes = term.vterm.mode_changes(env, &before)?;
-    let prompts = term.processor.collect_prompt_changes();
-    let cwd = term.vterm.collect_cwd(env)?;
-
-    let mut result = ().into_lisp(env)?;
-    for change in mode_changes.into_iter().rev() {
-        result = env.cons(change, result)?;
+    let responses = term.vterm.prepare_responses(env)?;
+    if responses.is_empty() {
+        ().into_lisp(env)
+    } else {
+        responses.join("").into_lisp(env)
     }
+}
+
+/// Collect state changes accumulated since the last call to
+/// `collect_changes`.
+///
+/// Return a list of events to be processed Emacs-side. Events are
+/// encoded as list, with an identifying symbol as car followed by an
+/// event-specific argument list.
+#[defun]
+fn collect_changes<'a>(env: &'a Env, term: &mut VTermFacade) -> Result<Value<'a>> {
+    let mut result = ().into_lisp(env)?;
+
+    let events = term.vterm.collect_changes()?;
     for event in events.into_iter().rev() {
         result = env.cons(event, result)?;
     }
+
+    let prompts = term.processor.collect_prompt_changes();
     for prompt in prompts.into_iter().rev() {
         result = env.cons(prompt, result)?;
-    }
-    if let Some(cwd) = cwd {
-        result = env.cons(cwd, result)?;
     }
 
     Ok(result)

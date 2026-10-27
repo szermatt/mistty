@@ -370,11 +370,13 @@ buffer."
     (mistty-log "RECV %S" str)
     (let ((vterm (mistty--term-alacritty-vterm term))
           (buf (mistty--term-alacritty-buf term)))
-      (dolist (ev (mistty-alacritty-vt-process-bytes vterm (vconcat str)))
+      (when-let* ((reply (mistty-alacritty-vt-process-bytes
+                          vterm (vconcat str))))
+        (mistty-log "REPLY %S" reply)
+        (process-send-string proc reply))
+
+      (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
         (pcase ev
-          (`(pty-write ,data)
-           (mistty-log "REPLY %S" data)
-           (process-send-string proc data))
           (`(title ,title)
            (mistty-log "TITLE %S" title)
            (mistty--with-live-buffer buf

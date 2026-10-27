@@ -112,6 +112,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-cleanup-prompt-sp nil (term pos))
 (declare-function mistty-alacritty-vt-clear-to-eol nil (term line col))
 (declare-function mistty-alacritty-vt-clear-scrollback nil (term))
+(declare-function mistty-alacritty-vt-collect-changes nil (term))
 (declare-function mistty-alacritty-vt-cursor nil (term))
 (declare-function mistty-alacritty-vt-enable-scrollback nil (term))
 (declare-function mistty-alacritty-vt-kitty-key-seq nil (term key mods basic-type))

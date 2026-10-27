@@ -52,11 +52,7 @@ Use `mistty--active-changeset' to access it.")
 (defvar-local mistty--last-changeset-id 0)
 
 (cl-defstruct (mistty--changeset
-               (:constructor mistty--make-changeset
-                             (&aux (id (cl-incf mistty--last-changeset-id))
-                                   (command (if (eq this-command t)
-                                                real-this-command
-                                              this-command))))
+               (:constructor mistty--make-changeset)
                (:conc-name mistty--changeset-)
                (:copier nil))
   ;; changeset identifier, for debugging
@@ -75,7 +71,10 @@ Use `mistty--active-changeset' to access it.")
 
   ;; Value of this-command active when the change was created. May be
   ;; nil if a change was not created during a command.
-  command)
+  command
+
+  ;; Possible prompt detected before changes where applied.
+  possible-prompt)
 
 (defsubst mistty--changeset-collected (changeset)
   "Evaluate to a true value if CHANGESET intervals exist.
@@ -83,13 +82,23 @@ Use `mistty--active-changeset' to access it.")
 Calling `mistty-changeset-collect' guarantees this to be true."
   (mistty--changeset-intervals changeset))
 
-(defun mistty--activate-changeset ()
+(cl-defun mistty--activate-changeset (&key command possible-prompt)
   "Create a new active changeset.
+
+COMMAND should be the command to associate with the changeset, usually
+`this-command'. This is used to decide when to use bracketed paste.
+
+POSSIBLE-PROMPT is a prompt detected before changes were made. This is
+used to attempt to create a prompt when changes are made outside of any
+prompt.
 
 Returns the changeset."
   (let ((changeset (mistty--active-changeset)))
     (unless changeset
-      (setq changeset (mistty--make-changeset))
+      (setq changeset (mistty--make-changeset
+                       :id (cl-incf mistty--last-changeset-id)
+                       :command command
+                       :possible-prompt possible-prompt))
       (mistty-log "NEW CHANGESET #%s for %s"
                   (mistty--changeset-id changeset)
                   (mistty--changeset-command changeset))

@@ -5690,7 +5690,8 @@ function prompt {
   (mistty-send-text "prompt")
   (mistty-send-command)
   (mistty-wait-for-output :str "Prompt: ")
-  (mistty--realize-possible-prompt)
+  (mistty--realize-possible-prompt
+   (mistty--detect-possible-prompt))
   (mistty-send-text "bar")
 
   ;; The deleted prompt reappeared.
@@ -5712,7 +5713,8 @@ function prompt {
   (mistty-send-text "prompt")
   (mistty-send-command)
   (mistty-wait-for-output :str "Prompt: ")
-  (mistty--realize-possible-prompt)
+  (mistty--realize-possible-prompt
+   (mistty--detect-possible-prompt))
   (mistty-send-text "bar")
 
   ;; The deleted prompt reappeared.
@@ -5736,7 +5738,8 @@ function prompt {
   (mistty-send-text "prompt")
   (mistty-send-command)
   (mistty-wait-for-output :str "Prompt: ")
-  (mistty--realize-possible-prompt)
+  (mistty--realize-possible-prompt
+   (mistty--detect-possible-prompt))
   (mistty-send-text "bar")
 
   ;; Some of the deleted prompts reappeared, because a change before

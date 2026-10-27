@@ -2896,11 +2896,26 @@ buffers."
            (mistty--interact-done)))))))
 
 (defun mistty--before-change-on-work (_beg end)
-  "Prepare for allowing modifications on the work buffer."
+  "Prepare for allowing modifications on the work buffer.
+
+This is meant to be added to ==\'before-change-functions."
   (when (and (not mistty-fullscreen)
            mistty-sync-marker
            (>= end mistty-sync-marker))
-    (mistty--detect-possible-prompt)))
+    (unless (mistty--active-changeset)
+      (mistty--activate-changeset
+       :command (if (eq this-command t)
+                    real-this-command
+                  this-command)
+       :possible-prompt (mistty--detect-possible-prompt)))
+    ;; Temporarily stop refreshing the work buffer while collecting
+    ;; modifications.
+    (setq mistty--inhibit-refresh t)
+    (unless this-command
+      ;; Outside of a command, use an idle timer
+      ;; to later on pickup the change and send it
+      ;; to the terminal.
+      (mistty--schedule-pickup-changes))))
 
 (defun mistty--after-change-on-work (beg end old-length)
   "Handler for modifications made to the work buffer.
@@ -2909,27 +2924,15 @@ buffers."
   that region before the change.
 
   This is meant to be added to ==\'after-change-functions."
-  (when (and (not mistty-fullscreen)
-           mistty-sync-marker
-           (>= end mistty-sync-marker))
-      ;; In sync region
+  (when (and mistty-sync-marker (>= end mistty-sync-marker))
+    (when-let* ((cs (mistty--active-changeset)))
       (let ((inhibit-read-only t)
+            ;; Restrict change tracking to sync region
             (beg (max beg mistty-sync-marker))
             (end (max end mistty-sync-marker))
-            (old-end (max (+ beg old-length) mistty-sync-marker))
-            (cs (or (mistty--active-changeset)
-                    (let ((cs (mistty--activate-changeset)))
-                      (prog1 cs
-                        ;; Temporarily stop refreshing the work buffer while collecting
-                        ;; modifications.
-                        (setq mistty--inhibit-refresh t)
-                        (unless this-command
-                          ;; Outside of a command, use an idle timer
-                          ;; to later on pickup the change and send it
-                          ;; to the terminal.
-                          (mistty--schedule-pickup-changes)))))))
+            (old-end (max (+ beg old-length) mistty-sync-marker)))
         (mistty--inhibit-undo
-         (mistty--changeset-mark-region cs beg end old-end)))))
+         (mistty--changeset-mark-region cs beg end old-end))))))
 
 (defun mistty--can-click-to-move-p ()
   "Check whether clicking can be used to move the cursor."
@@ -3952,9 +3955,9 @@ Might modify CS before allowing replay."
      ;; modifications are part of a possible prompt; realize it, keep
      ;; the modifications before the new prompt and replay the
      ;; modifications after the new prompt.
-     ((and (mistty--detect-possible-prompt)
+     ((and (mistty--changeset-possible-prompt cs)
            (mistty--changeset-restrict cs (mistty--bol (mistty-cursor))))
-      (mistty--realize-possible-prompt)
+      (mistty--realize-possible-prompt (mistty--changeset-possible-prompt cs))
       (setq replay t))
 
      ;; leave all modifications if there's enough of an unmodified
@@ -4568,30 +4571,24 @@ prompts."
 
 (defun mistty-maybe-realize-possible-prompt (&optional pos)
   "If POS looks like it's on a possible prompt, create it now."
-  (let ((pos (or pos (point))))
-    (when (and (mistty--detect-possible-prompt)
-               (or (= pos (mistty-cursor))
-                   (= (pos-bol) (mistty--bol (mistty-cursor)))))
-      (mistty--realize-possible-prompt)
+  (when (or (= (or pos (point)) (mistty-cursor))
+            (= (pos-bol) (mistty--bol (mistty-cursor))))
+    (when-let* ((prompt (mistty--detect-possible-prompt)))
+      (mistty--realize-possible-prompt prompt)
+
       t)))
 
 (defun mistty--detect-possible-prompt ()
   "Check if there might be a prompt at the cursor position.
 
-Return non-nil if there is a possible prompt at the position. It has
-been added to the prompt list, but left unrealized.
-
-The prompt can later be created with `mistty--realize-possible-prompt'."
+If there is a a possible prompt at the position, return it. The prompt
+can later be created with `mistty--realize-possible-prompt'."
   (save-excursion
     (goto-char (mistty-cursor))
     (let ((scrolline (mistty--scrolline-at-point))
           (scrolline-start (mistty--scrolline-start-pos))
-          (current-prompt (mistty--prompt))
           (prev-prompt (car (mistty--prompt-archive))))
       (if (or
-           (and current-prompt
-                (not (mistty--prompt-realized current-prompt))
-                (mistty--prompt-contains current-prompt scrolline))
            (and
             ;; there's no active prompt
             (null (mistty--active-prompt))
@@ -4613,27 +4610,31 @@ The prompt can later be created with `mistty--realize-possible-prompt'."
             (progn
               (skip-chars-forward " \n")
               (eobp))))
-          (progn
-            (mistty--register-prompt 'regexp scrolline :end (1+ scrolline))
 
-            t)
+          ;; Possible prompt at cursor
+          (mistty--make-prompt
+           :source 'regexp :start scrolline :end (1+ scrolline))
 
-        ;; Remember we checked this position and rejected it
+        ;; No possible prompt at cursor. Remember we checked this
+        ;; position and rejected it
         (setq mistty--last-prompt-considered scrolline)
+
         nil))))
 
-(defun mistty--realize-possible-prompt ()
-  "Realize a regexp prompt in `mistty--prompt'."
-  (when-let* ((prompt (mistty--prompt))
-              (scrolline (mistty--prompt-start prompt)))
-    (when (mistty--maybe-move-sync-mark scrolline)
-      (mistty-log "Realized %s prompt #%s [%s-] @%s"
-                  (mistty--prompt-source prompt)
-                  (mistty--prompt-input-id prompt)
-                  (mistty--prompt-start prompt)
-                  (marker-position mistty-sync-marker))
-      (setf (mistty--prompt-realized prompt) t)
-      (mistty--update-secondary-mode))))
+(defun mistty--realize-possible-prompt (prompt)
+  "Add and realize PROMPT."
+  (when (and (not (mistty--prompt))
+             (mistty--maybe-move-sync-mark
+              (mistty--prompt-start prompt)))
+    (setf (mistty--prompt) prompt)
+    (setf (mistty--prompt-realized prompt) t)
+    (mistty-log "Realized %s prompt #%s [%s-] @%s"
+                (mistty--prompt-source prompt)
+                (mistty--prompt-input-id prompt)
+                (mistty--prompt-start prompt)
+                (marker-position mistty-sync-marker))
+
+    (mistty--update-secondary-mode)))
 
 (defun mistty--prompt-contains-pos (prompt pos)
   "Return non-nil if POS is inside PROMPT."

@@ -169,6 +169,21 @@ fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: Vector) -> Res
 /// Return a list of events to be processed Emacs-side. Events are
 /// encoded as list, with an identifying symbol as car followed by an
 /// event-specific argument list.
+///
+/// Events can be:
+///
+/// - `(kbd ,enabled) to report that the Kitty Keyboard Protocol was enabled/disabled
+/// - `(bracketed-paste ,enabled) to report that bracketed paste was enabled/disabled
+/// - `(mouse ,mode) to report mouse mode change, nil (off) 'click, 'drag, 'motion
+/// - `(title ,title) to report window title set or clear (title is nil)
+/// - `(cwd ,url) to report workig directory set (as a file: url) or clear (url is nil)
+/// - `(start-prompt ,source ,start
+///    to report a prompt start with:
+///    - source 'osc133 'bracketed-paste or 'prompt_sp start
+///    - start the start scrolline
+/// - `(update-prompt 'source :user-input-start (,scrolline . ,col)))
+///    Sets the line and position of user input in the prompt
+/// - `(end-prompt ,source ,end)
 #[defun]
 fn collect_changes<'a>(env: &'a Env, term: &mut VTermFacade) -> Result<Value<'a>> {
     let mut result = ().into_lisp(env)?;

@@ -2176,10 +2176,6 @@ Also updates prompt and point."
           (old-point-max (point-max))
           (point-was-at-cursor (= (point) mistty--cursor))
           on-prompt)
-      (mistty--copy-buffer-local-variables
-       (cons 'mistty-bracketed-paste mistty-variables-to-copy)
-       mistty-term-buffer)
-
       (mistty--inhibit-undo
        (save-restriction
          (widen)
@@ -2202,6 +2198,10 @@ Also updates prompt and point."
              (when (or (/= sync-pos mistty-sync-marker)
                        (/= sync-scrolline mistty--scrolline-home-num))
                (mistty--set-sync-mark sync-pos sync-scrolline))))
+
+         (mistty--copy-buffer-local-variables
+          (cons 'mistty-bracketed-paste mistty-variables-to-copy)
+          mistty-term-buffer)
 
          (unless mistty-fullscreen
            (mistty--post-process-prompts on-prompt))

@@ -251,57 +251,91 @@ The actual sentinel may different from this."
 The buffer from SYNC-POS to EOB is rewritten to match TERM's content below
 SYNC-SCROLLINE.  If KEEP-MARKERS is non-nil, keep markers and overlays.
 CURSOR-MARKER is updated to the cursor position."
-  (if (mistty--term-alacritty-fs term)
-      ;; fullscreen mode, without support for prompts
-      (mistty--with-live-buffer dest-buffer
-        (let ((vterm (mistty--term-alacritty-vterm term)))
+  ;; First, collect changes and update state
+  (let ((vterm (mistty--term-alacritty-vterm term))
+        (term-buf (mistty--term-alacritty-buf term)))
+    (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
+      (pcase ev
+        (`(title ,title)
+         (mistty-log "TITLE %S" title)
+         (mistty--with-live-buffer term-buf
+           (setq ansi-osc-window-title title)))
+        (`(cwd ,url)
+         (mistty-log "CWD %s" url)
+         (when url
+           (mistty--with-live-buffer term-buf
+             (mistty-osc7 "7" url))))
+        (`(kkp ,val)
+         (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
+         (setf (mistty--term-alacritty-kkp term) val))
+        (`(mouse ,val)
+         (setf (mistty--term-alacritty-mouse term) val)
+         (funcall (mistty--term-alacritty-request-report-mouse term) val))
+        (`(bracketed_paste ,val)
+         (mistty--with-live-buffer term-buf
+           (mistty-log "BRACKETED PASTE %s" (if val "ON" "OFF"))
+           (setq mistty-bracketed-paste val)))
+        (`(start-prompt ,source ,start)
+         (mistty--with-live-buffer term-buf
+           (mistty--register-prompt source start)))
+        (`(end-prompt ,source ,end)
+         (mistty--with-live-buffer term-buf
+           (mistty--end-prompt source end)))
+        (`(update-prompt ,source :user-input-start ,val)
+         (mistty--with-live-buffer term-buf
+           (mistty--update-prompt source :user-input-start val)))))
+
+    ;; Sync or render
+    (if (mistty--term-alacritty-fs term)
+        ;; fullscreen mode, without support for prompts
+        (mistty--with-live-buffer dest-buffer
           (save-excursion
             (mistty-log "RENDER FULLSCREEN")
             (goto-char sync-pos)
             (mistty-alacritty-vt-render-screen vterm cursor-marker)
-            (put-text-property sync-pos (point-max) 'read-only t))))
+            (put-text-property sync-pos (point-max) 'read-only t)))
 
-    ;; normal mode, with support for prompts
-    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-      (let ((home-marker mistty-alacritty--home)
-            (home-scrolline mistty--scrolline-home-num)
-            (proc (mistty--term-alacritty-proc term))
-            (source-buffer (current-buffer)))
-        ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
-        (cond
-         ((< sync-scrolline home-scrolline)
-          (pcase-setq
-           `(,sync-pos . ,sync-scrolline)
-           (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
-         ((mistty--term-alacritty-change-before-scrolline term)
-          (mistty-log "Detected terminal change above sync mark, at scrolline %s"
-                      mistty--scrolline-home-num)
-          (pcase-setq
-           `(,sync-pos . ,sync-scrolline)
-           (mistty--realign-buffers
-            source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
+      ;; normal mode, with support for prompts
+      (mistty--with-live-buffer term-buf
+        (let ((home-marker mistty-alacritty--home)
+              (home-scrolline mistty--scrolline-home-num)
+              (proc (mistty--term-alacritty-proc term))
+              (source-buffer (current-buffer)))
+          ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
+          (cond
+           ((< sync-scrolline home-scrolline)
+            (pcase-setq
+             `(,sync-pos . ,sync-scrolline)
+             (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
+           ((mistty--term-alacritty-change-before-scrolline term)
+            (mistty-log "Detected terminal change above sync mark, at scrolline %s"
+                        mistty--scrolline-home-num)
+            (pcase-setq
+             `(,sync-pos . ,sync-scrolline)
+             (mistty--realign-buffers
+              source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
 
-        (setf (mistty--term-alacritty-change-before-scrolline term) nil)
+          (setf (mistty--term-alacritty-change-before-scrolline term) nil)
 
-        (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
-          (mistty--sync-buffer
-           source-buffer source-sync-pos
-           dest-buffer sync-pos
-           keep-markers)
+          (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
+            (mistty--sync-buffer
+             source-buffer source-sync-pos
+             dest-buffer sync-pos
+             keep-markers)
 
-          (mistty--with-live-buffer dest-buffer
-            (set-marker cursor-marker
-                        (+ sync-pos
-                           (- (process-mark proc) source-sync-pos)))
+            (mistty--with-live-buffer dest-buffer
+              (set-marker cursor-marker
+                          (+ sync-pos
+                             (- (process-mark proc) source-sync-pos)))
 
-            ;; When rendering, alacritty always render a final newline. Mark it.
-            (let ((last-newline (1- (point-max))))
-              (when (and (> last-newline sync-pos)
-                         (eq ?\n (char-after last-newline)))
-                (add-text-properties
-                 last-newline (point-max)
-                 '(mistty-skip empty-lines-at-eob
-                               yank-handler (nil "" nil nil))))))))))
+              ;; When rendering, alacritty always render a final newline. Mark it.
+              (let ((last-newline (1- (point-max))))
+                (when (and (> last-newline sync-pos)
+                           (eq ?\n (char-after last-newline)))
+                  (add-text-properties
+                   last-newline (point-max)
+                   '(mistty-skip empty-lines-at-eob
+                                 yank-handler (nil "" nil nil)))))))))))
 
   (cons sync-pos sync-scrolline))
 
@@ -374,37 +408,6 @@ buffer."
                           vterm (vconcat str))))
         (mistty-log "REPLY %S" reply)
         (process-send-string proc reply))
-
-      (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
-        (pcase ev
-          (`(title ,title)
-           (mistty-log "TITLE %S" title)
-           (mistty--with-live-buffer buf
-             (setq ansi-osc-window-title title)))
-          (`(cwd ,url)
-           (mistty-log "CWD %s" url)
-           (when url
-             (mistty--with-live-buffer buf
-               (mistty-osc7 "7" url))))
-          (`(kkp ,val)
-           (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
-           (setf (mistty--term-alacritty-kkp term) val))
-          (`(mouse ,val)
-           (setf (mistty--term-alacritty-mouse term) val)
-           (funcall (mistty--term-alacritty-request-report-mouse term) val))
-          (`(bracketed_paste ,val)
-           (mistty--with-live-buffer buf
-             (mistty-log "BRACKETED PASTE %s" (if val "ON" "OFF"))
-             (setq mistty-bracketed-paste val)))
-          (`(start-prompt ,source ,start)
-           (mistty--with-live-buffer buf
-             (mistty--register-prompt source start)))
-          (`(end-prompt ,source ,end)
-           (mistty--with-live-buffer buf
-             (mistty--end-prompt source end)))
-          (`(update-prompt ,source :user-input-start ,val)
-           (mistty--with-live-buffer buf
-             (mistty--update-prompt source :user-input-start val)))))
       (unless (mistty--term-alacritty-fs term)
         (mistty--with-live-buffer buf
           (mistty-alacritty--render vterm))))))

@@ -27,7 +27,7 @@ emacs::use_symbols! {
 
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) enum PromptChange {
-    Start(PromptSource, Scrolline, Option<Scrolline>, PromptOptions),
+    Start(PromptSource, Scrolline),
     End(PromptSource, Scrolline),
     Update(PromptSource, PromptOptions),
 }
@@ -60,21 +60,7 @@ impl<'e> IntoLisp<'e> for &PromptOptions {
 impl<'e> IntoLisp<'e> for PromptChange {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<Value<'e>> {
         match self {
-            PromptChange::Start(source, start, end, opts) => {
-                let nil = ().into_lisp(env)?;
-                env.call(
-                    append_fn,
-                    (
-                        env.list((start_prompt_sym, source, start))?,
-                        if let Some(end) = end {
-                            env.list((colon_end_sym, end))?
-                        } else {
-                            nil
-                        },
-                        opts,
-                    ),
-                )
-            }
+            PromptChange::Start(source, start) => env.list((start_prompt_sym, source, start)),
             PromptChange::End(source, end) => env.list((end_prompt_sym, source, end)),
             PromptChange::Update(source, opts) => {
                 env.call(append_fn, (env.list((update_prompt_sym, source))?, opts))
@@ -214,12 +200,7 @@ impl PromptDetector {
                 start = self.last_prompt_sp;
             }
 
-            self.push(PromptChange::Start(
-                PromptSource::BracketedPaste,
-                start,
-                None,
-                PromptOptions::default(),
-            ));
+            self.push(PromptChange::Start(PromptSource::BracketedPaste, start));
             return;
         }
         if !value && vterm.mode().intersects(TermMode::BRACKETED_PASTE) {
@@ -239,8 +220,6 @@ impl PromptDetector {
         self.push(PromptChange::Start(
             PromptSource::Osc133,
             vterm.scrolline_at_cursor(),
-            None,
-            PromptOptions::default(),
         ));
         if click_events {
             vterm.set_private_mode(PrivateMode::Named(NamedPrivateMode::ReportMouseClicks));
@@ -385,19 +364,9 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(0),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
                 PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(2),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2),),
             ],
             fixture.processor.collect_prompt_changes()
         );
@@ -423,19 +392,9 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(0),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
                 PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(2),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2),),
             ],
             fixture.processor.collect_prompt_changes()
         );
@@ -464,19 +423,9 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(0),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
                 PromptChange::End(PromptSource::BracketedPaste, Scrolline(2)),
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(3),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(3),),
             ],
             fixture.processor.collect_prompt_changes()
         );
@@ -501,19 +450,9 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(0),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
                 PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(2),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2),),
             ],
             fixture.processor.collect_prompt_changes()
         );
@@ -534,12 +473,7 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(
-                    PromptSource::BracketedPaste,
-                    Scrolline(0),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
                 PromptChange::End(PromptSource::BracketedPaste, Scrolline(2)),
             ],
             fixture.processor.collect_prompt_changes()
@@ -563,12 +497,7 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(
-                    PromptSource::Osc133,
-                    Scrolline(0),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0),),
                 PromptChange::Update(
                     PromptSource::Osc133,
                     PromptOptions {
@@ -578,12 +507,7 @@ mod tests {
                 ),
                 PromptChange::End(PromptSource::Osc133, Scrolline(1)),
                 PromptChange::End(PromptSource::Osc133, Scrolline(2)),
-                PromptChange::Start(
-                    PromptSource::Osc133,
-                    Scrolline(2),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(2),),
                 PromptChange::Update(
                     PromptSource::Osc133,
                     PromptOptions {
@@ -609,12 +533,7 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(
-                    PromptSource::Osc133,
-                    Scrolline(0),
-                    None,
-                    PromptOptions::default()
-                ),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0),),
                 PromptChange::Update(
                     PromptSource::Osc133,
                     PromptOptions {

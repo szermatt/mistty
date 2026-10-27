@@ -95,7 +95,7 @@ impl VTermProcessor {
 
 /// Changes reported by
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub(crate) enum VTermChanges {
+pub(crate) enum VTermChange {
     /// Kitty Keyboard protocol enabled or disabled.
     KittyKeyboard(bool),
 
@@ -123,19 +123,19 @@ pub(crate) enum MouseMode {
     Motion,
 }
 
-impl<'e> IntoLisp<'e> for VTermChanges {
+impl<'e> IntoLisp<'e> for VTermChange {
     fn into_lisp(self, env: &'e Env) -> Result<Value<'e>> {
         match self {
-            VTermChanges::KittyKeyboard(on) => env.list((kkp_sym, on)),
-            VTermChanges::BracketedPaste(on) => env.list((bracketed_paste_sym, on)),
-            VTermChanges::Mouse(MouseMode::Motion) => env.list((mouse_sym, motion_sym)),
-            VTermChanges::Mouse(MouseMode::Drag) => env.list((mouse_sym, drag_sym)),
-            VTermChanges::Mouse(MouseMode::Click) => env.list((mouse_sym, click_sym)),
-            VTermChanges::Mouse(MouseMode::Off) => env.list((mouse_sym, nil_sym)),
-            VTermChanges::Title(None) => env.list((title_sym, nil_sym)),
-            VTermChanges::Title(Some(title)) => env.list((title_sym, title)),
-            VTermChanges::Cwd(None) => env.list((cwd_sym, nil_sym)),
-            VTermChanges::Cwd(Some(url)) => env.list((cwd_sym, url)),
+            VTermChange::KittyKeyboard(on) => env.list((kkp_sym, on)),
+            VTermChange::BracketedPaste(on) => env.list((bracketed_paste_sym, on)),
+            VTermChange::Mouse(MouseMode::Motion) => env.list((mouse_sym, motion_sym)),
+            VTermChange::Mouse(MouseMode::Drag) => env.list((mouse_sym, drag_sym)),
+            VTermChange::Mouse(MouseMode::Click) => env.list((mouse_sym, click_sym)),
+            VTermChange::Mouse(MouseMode::Off) => env.list((mouse_sym, nil_sym)),
+            VTermChange::Title(None) => env.list((title_sym, nil_sym)),
+            VTermChange::Title(Some(title)) => env.list((title_sym, title)),
+            VTermChange::Cwd(None) => env.list((cwd_sym, nil_sym)),
+            VTermChange::Cwd(Some(url)) => env.list((cwd_sym, url)),
         }
     }
 }
@@ -507,10 +507,10 @@ impl VTerm {
     }
 
     /// Collect events to send back to the lisp side.
-    pub(crate) fn collect_changes<'e>(&mut self) -> Result<Vec<VTermChanges>> {
+    pub(crate) fn collect_changes<'e>(&mut self) -> Result<Vec<VTermChange>> {
         let mut changes = self.collect_mode_changes();
         if let Some(title) = self.title.take() {
-            changes.push(VTermChanges::Title(if title.is_empty() {
+            changes.push(VTermChange::Title(if title.is_empty() {
                 None
             } else {
                 Some(title)
@@ -518,14 +518,14 @@ impl VTerm {
         }
         if self.cwd_modified {
             self.cwd_modified = false;
-            changes.push(VTermChanges::Cwd(self.cwd_url.clone()));
+            changes.push(VTermChange::Cwd(self.cwd_url.clone()));
         }
 
         Ok(changes)
     }
 
     /// Report changes to [TermMode] since the last call to [VTerm::collect_mode_changes].
-    fn collect_mode_changes(&mut self) -> Vec<VTermChanges> {
+    fn collect_mode_changes(&mut self) -> Vec<VTermChange> {
         let mut reports = vec![];
         let mode = *self.mode();
         let before = self.last_collected_mode;
@@ -533,19 +533,19 @@ impl VTerm {
 
         let kkp_on = mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
         if kkp_on != before.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
-            reports.push(VTermChanges::KittyKeyboard(kkp_on));
+            reports.push(VTermChange::KittyKeyboard(kkp_on));
         }
 
         let bp_on = mode.intersects(TermMode::BRACKETED_PASTE);
         if bp_on != before.intersects(TermMode::BRACKETED_PASTE) {
-            reports.push(VTermChanges::BracketedPaste(bp_on));
+            reports.push(VTermChange::BracketedPaste(bp_on));
         }
 
         let mouse_flags =
             TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION;
         let mouse = mode.intersection(mouse_flags);
         if mouse != before.intersection(mouse_flags) {
-            reports.push(VTermChanges::Mouse(
+            reports.push(VTermChange::Mouse(
                 if mouse.intersects(TermMode::MOUSE_MOTION) {
                     MouseMode::Motion
                 } else if mouse.intersects(TermMode::MOUSE_DRAG) {
@@ -1594,39 +1594,39 @@ mod tests {
     fn collect_mode_changes_kkp() {
         let mut fixture = Fixture::setup();
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[>1u");
         assert_eq!(
-            vec![VTermChanges::KittyKeyboard(true)],
+            vec![VTermChange::KittyKeyboard(true)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[>8u");
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[<u");
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[<u");
         assert_eq!(
-            vec![VTermChanges::KittyKeyboard(false)],
+            vec![VTermChange::KittyKeyboard(false)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
     }
@@ -1637,21 +1637,21 @@ mod tests {
 
         fixture.process_bytes(b"\x1b[?2004h");
         assert_eq!(
-            vec![VTermChanges::BracketedPaste(true)],
+            vec![VTermChange::BracketedPaste(true)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[?2004l");
         assert_eq!(
-            vec![VTermChanges::BracketedPaste(false)],
+            vec![VTermChange::BracketedPaste(false)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
     }
@@ -1662,25 +1662,25 @@ mod tests {
 
         fixture.process_bytes(b"\x1b[?1000h");
         assert_eq!(
-            vec![VTermChanges::Mouse(MouseMode::Click)],
+            vec![VTermChange::Mouse(MouseMode::Click)],
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[?1002h");
         assert_eq!(
-            vec![VTermChanges::Mouse(MouseMode::Drag)],
+            vec![VTermChange::Mouse(MouseMode::Drag)],
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[?1003h");
         assert_eq!(
-            vec![VTermChanges::Mouse(MouseMode::Motion)],
+            vec![VTermChange::Mouse(MouseMode::Motion)],
             fixture.vterm.collect_mode_changes()
         );
 
         fixture.process_bytes(b"\x1b[?1003l");
         assert_eq!(
-            vec![VTermChanges::Mouse(MouseMode::Off)],
+            vec![VTermChange::Mouse(MouseMode::Off)],
             fixture.vterm.collect_mode_changes()
         );
     }
@@ -1695,13 +1695,13 @@ mod tests {
 
         assert_eq!(
             vec![
-                VTermChanges::KittyKeyboard(true),
-                VTermChanges::Mouse(MouseMode::Drag),
+                VTermChange::KittyKeyboard(true),
+                VTermChange::Mouse(MouseMode::Drag),
             ],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(
-            Vec::<VTermChanges>::new(),
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
     }

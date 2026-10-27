@@ -28,6 +28,8 @@
   ;; change if it thinks it's run outside of a command. This turns it
   ;; off.
   (setq-local this-command 'test)
+  (setq-local mistty--cursor (copy-marker (point-min)))
+  (add-hook 'before-change-functions #'mistty--before-change-on-work nil t)
   (add-hook 'after-change-functions #'mistty--after-change-on-work nil t))
 
 (ert-deftest mistty-changeset-test-collect-modifications-delete-after-replace ()

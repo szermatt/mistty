@@ -15,10 +15,7 @@ use crate::{
     types::Scrolline,
     vterm::{VTerm, VTermProcessor},
 };
-use alacritty_terminal::{
-    index::Line,
-    term::{Osc52, TermMode},
-};
+use alacritty_terminal::{index::Line, term::Osc52};
 use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
 use std::{fmt::Debug, ops::RangeBounds};
 

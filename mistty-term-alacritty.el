@@ -69,7 +69,13 @@
   mouse
 
   ;; struct of type mistty--prompt-cell used to track prompts
-  prompt-cell)
+  prompt-cell
+
+  ;; function to call when entering fullscreen
+  enter-fullscreen
+
+  ;; function to call when leaving fullscreen
+  leave-fullscreen)
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'alacritty)) name command
@@ -122,26 +128,10 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (process-put proc 'mistty-term term)
 
         (unless enter-fullscreen (error ":enter-fullscreen required"))
-        (mistty--accum-add-processor
-         accum
-         '(seq CSI (or "47" "?47" "?1047" "?1049") ?h)
-         (lambda (ctx str)
-           (unless (mistty--term-alacritty-fs term)
-             (mistty--accum-ctx-flush ctx)
-             (funcall enter-fullscreen nil)
-             (setf (mistty--term-alacritty-fs term) t))
-           (mistty--accum-ctx-push-down ctx str)))
+        (setf (mistty--term-alacritty-enter-fullscreen term) enter-fullscreen)
 
         (unless leave-fullscreen (error ":leave-fullscreen required"))
-        (mistty--accum-add-processor
-         accum
-         '(seq CSI (or "47" "?47" "?1047" "?1049") ?l)
-         (lambda (ctx str)
-           (mistty--accum-ctx-push-down ctx str)
-           (when (mistty--term-alacritty-fs term)
-             (mistty--accum-ctx-flush ctx)
-             (setf (mistty--term-alacritty-fs term) nil)
-             (funcall leave-fullscreen))))
+        (setf (mistty--term-alacritty-leave-fullscreen term) leave-fullscreen)
 
         (mistty--accum-add-processor
          accum '(seq CSI ?2 ?J) ;; Clear screen
@@ -275,6 +265,14 @@ CURSOR-MARKER is updated to the cursor position."
          (mistty--with-live-buffer term-buf
            (mistty-log "BRACKETED PASTE %s" (if val "ON" "OFF"))
            (setq mistty-bracketed-paste val)))
+        (`(fullscreen ,val)
+         (setf (mistty--term-alacritty-fs term) val)
+         (if val
+             (progn
+               (mistty-log "FULLSCREEN ON")
+               (funcall (mistty--term-alacritty-enter-fullscreen term) nil))
+           (mistty-log "FULLSCREEN OFF")
+           (funcall (mistty--term-alacritty-leave-fullscreen term))))
         (`(start-prompt ,source ,start)
          (mistty--with-live-buffer term-buf
            (mistty--register-prompt source start)))
@@ -283,7 +281,8 @@ CURSOR-MARKER is updated to the cursor position."
            (mistty--end-prompt source end)))
         (`(update-prompt ,source :user-input-start ,val)
          (mistty--with-live-buffer term-buf
-           (mistty--update-prompt source :user-input-start val)))))
+           (mistty--update-prompt source :user-input-start val)))
+        (_ (error "Unhandled event: %S" ev))))
 
     ;; Sync or render
     (if (mistty--term-alacritty-fs term)

@@ -37,6 +37,7 @@ emacs::use_symbols! {
     motion_sym => "motion"
     nil_sym => "nil"
     cwd_sym => "cwd"
+    fullscreen_sym => "fullscreen"
 }
 
 /// Size of the scrollback, in lines. There needs to be enough space
@@ -102,6 +103,9 @@ pub(crate) enum VTermChange {
     /// Bracketed paste enabled or disabled.
     BracketedPaste(bool),
 
+    /// Fullscreen (alt screen) mode enabled or disabled.
+    Fullscreen(bool),
+
     /// Toggle mouse support
     Mouse(MouseMode),
 
@@ -128,6 +132,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
         match self {
             VTermChange::KittyKeyboard(on) => env.list((kkp_sym, on)),
             VTermChange::BracketedPaste(on) => env.list((bracketed_paste_sym, on)),
+            VTermChange::Fullscreen(on) => env.list((fullscreen_sym, on)),
             VTermChange::Mouse(MouseMode::Motion) => env.list((mouse_sym, motion_sym)),
             VTermChange::Mouse(MouseMode::Drag) => env.list((mouse_sym, drag_sym)),
             VTermChange::Mouse(MouseMode::Click) => env.list((mouse_sym, click_sym)),
@@ -539,6 +544,11 @@ impl VTerm {
         let bp_on = mode.intersects(TermMode::BRACKETED_PASTE);
         if bp_on != before.intersects(TermMode::BRACKETED_PASTE) {
             reports.push(VTermChange::BracketedPaste(bp_on));
+        }
+
+        let fs_on = mode.intersects(TermMode::ALT_SCREEN);
+        if fs_on != before.intersects(TermMode::ALT_SCREEN) {
+            reports.push(VTermChange::Fullscreen(fs_on));
         }
 
         let mouse_flags =
@@ -1648,6 +1658,31 @@ mod tests {
         fixture.process_bytes(b"\x1b[?2004l");
         assert_eq!(
             vec![VTermChange::BracketedPaste(false)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_fullscreen() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b[?1049h");
+        assert_eq!(
+            vec![VTermChange::Fullscreen(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?1049l");
+        assert_eq!(
+            vec![VTermChange::Fullscreen(false)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(

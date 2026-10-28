@@ -5650,7 +5650,8 @@ function prompt {
     printf \"${clear}Got: $input\\n\"
 }")
 
-(mistty-deftest mistty-test-recovery-clear-before-prompt (:shell ((bash mistty-test-clear-before-prompt)) :type all)
+(mistty-deftest mistty-test-recovery-clear-before-prompt/alacritty
+                (:shell ((bash mistty-test-clear-before-prompt)) :type alacritty)
   (mistty-send-text "prompt")
   (mistty-send-command)
   (mistty-wait-for-output :str "Prompt: ")
@@ -5662,8 +5663,38 @@ function prompt {
 
   (mistty-send-text "bar")
 
-  ;; The sync marker was moved before the line that changes, below
-  ;; the line that doesn't.
+  ;; The sync marker was moved temporarily before the line that
+  ;; changes, below the line that doesn't, then the prompt was
+  ;; re-opened.
+  (should (equal "$ prompt\n====\n==== ----\n<>Prompt: bar"
+                 (mistty-test-content :show mistty-sync-marker)))
+  (mistty-send-command)
+
+  ;; Even that sync marker was wrong, as ==== was replaced by Got:
+  ;; bar, but that's ok.
+  (mistty-wait-for-output :str "Got: bar\n$ ")
+  (let ((content (mistty-test-content :show mistty-sync-marker)))
+    ;; TODO: fix test unstability. Either of these possibilities are
+    ;; reasonable, but the code should always pick the same one.
+    (should (or (equal "$ prompt\n<>Got: bar\n$" content)
+                (equal "$ prompt\nGot: bar\n<>$" content)))))
+
+
+(mistty-deftest mistty-test-recovery-clear-before-prompt/eterm
+                (:shell ((bash mistty-test-clear-before-prompt)) :type eterm)
+  (mistty-send-text "prompt")
+  (mistty-send-command)
+  (mistty-wait-for-output :str "Prompt: ")
+
+  ;; The sync marker is at the beginning of the prompt (but this is
+  ;; wrong, because text changes above the prompt).
+  (should (equal "$ prompt\n====\n==== -\n<>Prompt:"
+                 (mistty-test-content :show mistty-sync-marker)))
+
+  (mistty-send-text "bar")
+
+  ;; The sync marker was moved before the line that
+  ;; changes, below the line that doesn't.
   (should (equal "$ prompt\n====\n<>==== ----\nPrompt: bar"
                  (mistty-test-content :show mistty-sync-marker)))
   (mistty-send-command)

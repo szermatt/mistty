@@ -154,61 +154,6 @@ Always access it through the places `mistty--prompt'
   ;; This is a (cons scrolline column).
   user-input-start)
 
-(defun mistty--prompt-source< (a b)
-  "Compare prompt sources A and B.
-
-Comparison goes from the most trusted (lowest number) to the least
-trusted (highest number).
-
-Return non-nil if A < B."
-  (cl-labels ((priority (source)
-                (pcase source
-                  ('osc133 0)
-                  ('bracketed-paste 1)
-                  ('prompt_sp 2)
-                  ('regexp 3)
-                  (_ 10))))
-    (< (priority a) (priority b))))
-
-(defun mistty--prompt-merge-from (p other)
-  "Update P with values from OTHER.
-
-P input-id slot is not modified."
-
-  ;; Select the most trusted source
-  (when (mistty--prompt-source<
-         (mistty--prompt-source other) (mistty--prompt-source p))
-    (setf (mistty--prompt-source p) (mistty--prompt-source other)))
-
-  ;; Expand start and end to cover the union of both ranges.
-  ;;
-  ;; Expand the end when going from regexp (1 line) to other,
-  ;; open-ended prompt type. Expand prompt start when merging
-  ;; 'prompt_sp and and 'bracketed paste on Zsh, where bracketed
-  ;; past is called on the last line of a multi-line prompt.
-  (setf (mistty--prompt-start p)
-        (min (mistty--prompt-start other)
-             (mistty--prompt-start p)))
-  (cond
-   ((and (mistty--prompt-end other) (mistty--prompt-end p))
-    (setf (mistty--prompt-end p)
-          (max (mistty--prompt-end other)
-               (mistty--prompt-end p))))
-   ((null (mistty--prompt-end other))
-    (setf (mistty--prompt-end p) nil)))
-
-  ;; Text is a restriction only valid on 'regexp that captures
-  ;; the very first prompt text seen. Mostly only clear it.
-  (unless (and (eq 'regexp (mistty--prompt-source p))
-               (mistty--prompt-text other)
-               (mistty--prompt-text p))
-    (setf (mistty--prompt-text p) nil))
-
-  ;; User-input-start is provided explicitly. Always use the
-  ;; latest value.
-  (when-let* ((s (mistty--prompt-user-input-start other)))
-    (setf (mistty--prompt-user-input-start p) s)))
-
 (defun mistty--active-prompt (&optional cell)
   "Get the value of the current prompt if it is realized.
 
@@ -247,68 +192,6 @@ The old value, if any, is pushed into `mistty--prompt-archive'."
      (when-let* ((old (mistty--prompt-cell-current c)))
        (push old (mistty--prompt-cell-archive c)))
      (setf (mistty--prompt-cell-current c) val)))
-
-(cl-defun mistty--register-prompt (source start &key end text user-input-start)
-  "Create and register a new prompt or merge it with the current one.
-
-This function also logs the new or updated prompt.
-
-SOURCE is the prompt source.
-START is the scrolline of the prompt start position.
-END is nil or the scrolline of the prompt end position.
-TEXT is the prompt text.
-USER-INPUT-START is (cons scrolline pos) of the start of user input.
-
-Return the new prompt or the modified p prompt. In either case,
-this is the same as what's returned by `mistty--prompt' after this call."
-  (let* ((p (mistty--prompt))
-         (other (mistty--make-prompt
-                 :source source
-                 :start start
-                 :end end
-                 :text text
-                 :user-input-start user-input-start))
-         (overlap (and p (mistty--prompt-overlaps p other))))
-    (if overlap
-        (mistty--prompt-merge-from p other)
-
-      ;; Register the new prompt
-      (setq p other)
-      (setf (mistty--prompt) p))
-    (mistty-log "%s %s prompt #%s [%s-%s]%s%s"
-                (if overlap "Updated" "Detected")
-                (mistty--prompt-source p)
-                (mistty--prompt-input-id p)
-                (mistty--prompt-start p)
-                (or (mistty--prompt-end p) "")
-                (if-let* ((text (mistty--prompt-text p)))
-                  (format " :text %S" text) "")
-                (if-let* ((s (mistty--prompt-user-input-start p)))
-                  (format " :user-input-start %S" s) ""))))
-
-(defun mistty--end-prompt (source end)
-  "End the current prompt if it comes from SOURCE at END."
-  (when-let* ((p (mistty--prompt)))
-    (when (and (eq source (mistty--prompt-source p))
-               (null (mistty--prompt-end p))
-               (> end (mistty--prompt-start p)))
-      (mistty-log "Closed %s prompt #%s [%s-%s]"
-                  (mistty--prompt-source p)
-                  (mistty--prompt-input-id p)
-                  (mistty--prompt-start p)
-                  end)
-      (setf (mistty--prompt-end p) end))))
-
-(cl-defun mistty--update-prompt (source &key user-input-start)
-  "Update the current prompt if it comes from SOURCE."
-  (ignore source)
-  (when-let* ((p (mistty--prompt)))
-    (when user-input-start
-      (mistty-log "Updated %s prompt #%s :user-input-start %S"
-                  (mistty--prompt-source p)
-                  (mistty--prompt-input-id p)
-                  user-input-start)
-      (setf (mistty--prompt-user-input-start p) user-input-start))))
 
 (gv-define-setter mistty--prompt-archive (val)
   "Sets the value of `mistty--prompt-archive'."
@@ -444,53 +327,6 @@ Detected dead spaces are marked with the text property \\='mistty-skip
 (defun mistty--term-scrolline-at-screen-start()
   "Scrolline at the top of the screen."
   mistty--scrolline-home-num)
-
-(defun mistty-osc133 (_ osc-seq)
-  "Handle OSC 133 codes.
-
-OSC-SEQ contains the subcode followed optionally by a semi-colon and
-arguments (ignored).
-
-MisTTY supports code A-D:
-
- - A marks the start of a new command.
- - B marks the end of the prompt and the start of user input.
- - C marks the start of command output.
- - D marks the end of the command.
-
-Everything else is ignored."
-  (when (and (length> osc-seq 0))
-    (let ((command-char (aref osc-seq 0)))
-      (mistty-log "OSC 133 %s" osc-seq)
-      (pcase command-char
-        (?A ;; start a new command
-         ;; Overwrite any other prompt source.
-         (mistty--register-prompt 'osc133 (mistty--scrolline-at-point)))
-
-        (?B ;; end of prompt/start of user input
-         (when-let* ((prompt (mistty--prompt)))
-           (setf (mistty--prompt-user-input-start prompt)
-                 (cons (mistty--scrolline-at-point)
-                       (- (point) (pos-bol))))))
-
-        (?C ;; start of command output
-         (when-let* ((prompt (mistty--prompt)))
-           (when (eq 'osc133 (mistty--prompt-source prompt))
-             (mistty-log "Closed %s prompt #%s [%s-]"
-                         (mistty--prompt-source prompt)
-                         (mistty--prompt-input-id prompt)
-                         (mistty--prompt-start prompt))
-             (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point)))))
-
-        (?D ;; end of command (possible anytime after ?A)
-         (when-let* ((prompt (mistty--prompt)))
-           (when (and (eq 'osc133 (mistty--prompt-source prompt))
-                      (null (mistty--prompt-end prompt)))
-             (mistty-log "Aborted %s prompt #%s [%s-]"
-                         (mistty--prompt-source prompt)
-                         (mistty--prompt-input-id prompt)
-                         (mistty--prompt-start prompt))
-             (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point)))))))))
 
 (defun mistty-call-term-mode-hook ()
   "Call the functions registered to `term-mode-hook'.

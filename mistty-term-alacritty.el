@@ -271,13 +271,40 @@ CURSOR-MARKER is updated to the cursor position."
            (funcall (mistty--term-alacritty-leave-fullscreen term))))
         (`(start-prompt ,source ,start)
          (mistty--with-live-buffer term-buf
-           (mistty--register-prompt source start)))
-        (`(end-prompt ,source ,end)
+           (let ((prompt (mistty--prompt)))
+             (if (and prompt (null (mistty--prompt-end prompt)))
+                 (progn
+                   (setf (mistty--prompt-source prompt) source)
+                   (setf (mistty--prompt-start prompt) start)
+                   (mistty-log "Updated %s prompt #%s [%s-]"
+                               (mistty--prompt-source prompt)
+                               (mistty--prompt-input-id prompt)
+                               (mistty--prompt-start prompt)))
+               (setq prompt (mistty--make-prompt :source source :start start))
+               (setf (mistty--prompt) prompt)
+               (mistty-log "Detected %s prompt #%s [%s-]"
+                           (mistty--prompt-source prompt)
+                           (mistty--prompt-input-id prompt)
+                           (mistty--prompt-start prompt))))))
+        (`(end-prompt ,end)
          (mistty--with-live-buffer term-buf
-           (mistty--end-prompt source end)))
-        (`(update-prompt ,source :user-input-start ,val)
+           (when-let* ((prompt (mistty--prompt)))
+             (setf (mistty--prompt-end prompt) end)
+             (mistty-log "Ended %s prompt #%s [%s-%s]"
+                         (mistty--prompt-source prompt)
+                         (mistty--prompt-input-id prompt)
+                         (mistty--prompt-start prompt)
+                         end))))
+        (`(update-prompt :user-input-start ,val)
          (mistty--with-live-buffer term-buf
-           (mistty--update-prompt source :user-input-start val)))
+           (when-let* ((prompt (mistty--prompt)))
+             (setf (mistty--prompt-user-input-start prompt) val)
+             (mistty-log "Updated %s prompt #%s [%s-%s] :user-input-start %s"
+                         (mistty--prompt-source prompt)
+                         (mistty--prompt-input-id prompt)
+                         (mistty--prompt-start prompt)
+                         (mistty--prompt-end prompt)
+                         val))))
         (_ (error "Unhandled event: %S" ev))))
 
     ;; Sync or render

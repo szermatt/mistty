@@ -19,7 +19,6 @@ emacs::use_symbols! {
     start_prompt_sym => "start-prompt"
     end_prompt_sym => "end-prompt"
     update_prompt_sym => "update-prompt"
-    prompt_sp_sym => "prompt_sp"
     bracketed_paste_sym => "bracketed-paste"
     colon_end_sym => ":end"
     colon_user_input_start_sym => ":user-input-start"
@@ -27,9 +26,15 @@ emacs::use_symbols! {
 
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) enum PromptChange {
+    /// Report a prompt start. If the current prompt isn't ended yet,
+    /// this replaces the current prompt.
     Start(PromptSource, Scrolline),
-    End(PromptSource, Scrolline),
-    Update(PromptSource, PromptOptions),
+
+    /// End the current prompt, identified by its id.
+    End(Scrolline),
+
+    /// Update the current prompt, identified by its id.
+    Update(PromptOptions),
 }
 
 #[derive(PartialEq, Eq, Debug, Default)]
@@ -61,15 +66,14 @@ impl<'e> IntoLisp<'e> for PromptChange {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<Value<'e>> {
         match self {
             PromptChange::Start(source, start) => env.list((start_prompt_sym, source, start)),
-            PromptChange::End(source, end) => env.list((end_prompt_sym, source, end)),
-            PromptChange::Update(source, opts) => {
-                env.call(append_fn, (env.list((update_prompt_sym, source))?, opts))
-            }
+            PromptChange::End(end) => env.list((end_prompt_sym, end)),
+            PromptChange::Update(opts) => env.cons(update_prompt_sym, opts),
         }
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+/// Prompt source, ordered from less to most trustworthy.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub(crate) enum PromptSource {
     BracketedPaste,
     Osc133,
@@ -99,6 +103,15 @@ pub(crate) struct PromptDetector {
     ///
     /// Add new prompts using PromptDetector::push.
     prompts: Vec<PromptChange>,
+
+    /// Current prompt
+    current: Option<Prompt>,
+}
+
+/// Internal struct used to keep track of the current prompt.
+struct Prompt {
+    source: PromptSource,
+    start: Scrolline,
 }
 
 impl PromptDetector {
@@ -107,6 +120,7 @@ impl PromptDetector {
             seen_spaces: 0,
             prompts: vec![],
             last_prompt_sp: Scrolline(0),
+            current: None,
         }
     }
 
@@ -200,7 +214,7 @@ impl PromptDetector {
                 start = self.last_prompt_sp;
             }
 
-            self.push(PromptChange::Start(PromptSource::BracketedPaste, start));
+            self.report_prompt(PromptSource::BracketedPaste, start);
             return;
         }
         if !value && vterm.mode().intersects(TermMode::BRACKETED_PASTE) {
@@ -209,7 +223,7 @@ impl PromptDetector {
             } else {
                 vterm.scrolline_at_cursor() + 1
             };
-            self.push(PromptChange::End(PromptSource::BracketedPaste, scrolline));
+            self.end_prompt(PromptSource::BracketedPaste, scrolline);
         }
     }
 
@@ -217,10 +231,7 @@ impl PromptDetector {
         if vterm.mode().contains(TermMode::ALT_SCREEN) {
             return;
         }
-        self.push(PromptChange::Start(
-            PromptSource::Osc133,
-            vterm.scrolline_at_cursor(),
-        ));
+        self.report_prompt(PromptSource::Osc133, vterm.scrolline_at_cursor());
         if click_events {
             vterm.set_private_mode(PrivateMode::Named(NamedPrivateMode::ReportMouseClicks));
             vterm.set_private_mode(PrivateMode::Named(NamedPrivateMode::SgrMouse));
@@ -233,27 +244,53 @@ impl PromptDetector {
         if vterm.mode().contains(TermMode::ALT_SCREEN) {
             return;
         }
-        self.push(PromptChange::Update(
-            PromptSource::Osc133,
-            PromptOptions {
+        if let Some(_) = &self.current {
+            self.push(PromptChange::Update(PromptOptions {
                 user_input_start: Some((
                     vterm.scrolline_at_cursor(),
                     vterm.grid().cursor.point.column,
                 )),
                 ..PromptOptions::default()
-            },
-        ));
+            }));
+        }
     }
 
     pub(crate) fn osc133_command_end(&mut self, vterm: &mut VTerm) {
         if vterm.mode().contains(TermMode::ALT_SCREEN) {
             return;
         }
-        self.push(PromptChange::End(
-            PromptSource::Osc133,
-            vterm.scrolline_at_cursor(),
-        ));
+        self.end_prompt(PromptSource::Osc133, vterm.scrolline_at_cursor());
         vterm.unset_private_mode(PrivateMode::Named(NamedPrivateMode::ReportMouseClicks));
+    }
+
+    fn report_prompt(&mut self, source: PromptSource, start: Scrolline) {
+        match &mut self.current {
+            Some(current) if current.source < source => {
+                // Overwrite
+                current.source = source;
+                current.start = start;
+                self.push(PromptChange::Start(source, start));
+            }
+            Some(current) if current.source == source && start > current.start => {
+                // Replace
+                self.push(PromptChange::End(start));
+
+                self.current = Some(Prompt { source, start });
+                self.push(PromptChange::Start(source, start));
+            }
+            None => {
+                // Create new
+                self.current = Some(Prompt { source, start });
+                self.push(PromptChange::Start(source, start));
+            }
+            _ => {} // Ignore
+        }
+    }
+
+    fn end_prompt(&mut self, source: PromptSource, end: Scrolline) {
+        if let Some(_) = self.current.take_if(|p| p.source == source) {
+            self.push(PromptChange::End(end))
+        }
     }
 }
 
@@ -314,10 +351,10 @@ mod tests {
     }
 
     impl Fixture {
-        fn setup() -> anyhow::Result<Self> {
+        fn setup() -> Self {
             let vterm = VTerm::new(20, 10, Osc52::Disabled);
             let processor = VTermProcessor::new();
-            Ok(Self { vterm, processor })
+            Self { vterm, processor }
         }
 
         fn process_bytes(&mut self, bytes: &[u8]) {
@@ -330,28 +367,25 @@ mod tests {
     }
 
     #[test]
-    fn fix_prompt_sp_full_line() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn fix_prompt_sp_full_line() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes("text\r\n⏎                   \r$ ".as_bytes());
 
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
-        Ok(())
     }
 
     #[test]
-    fn fix_prompt_sp_split_line() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn fix_prompt_sp_split_line() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes("text⏎                   \r$ ".as_bytes());
 
         assert_eq!("text⏎", fixture.row_to_string(Line(0)));
         assert_eq!("$ ", fixture.row_to_string(Line(1)));
-
-        Ok(())
     }
 
     #[test]
-    fn detect_bracketed_paste() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn detect_bracketed_paste() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"\x1b[?2004h$ ");
         fixture.process_bytes(b"echo ok\r\n");
         fixture.process_bytes(b"\x1b[?2004l");
@@ -364,22 +398,21 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
-                PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2),),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(Scrolline(1)),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2)),
             ],
             fixture.processor.collect_prompt_changes()
         );
-        Ok(())
     }
 
     #[test]
-    fn detect_bracketed_paste_after_prompt_sp() -> anyhow::Result<()> {
+    fn detect_bracketed_paste_after_prompt_sp() {
         // This is what happens with zsh: first a prompt_sp, then the
         // prompt, and then, just before user input is expected,
         // bracketed paste is turned on. There is of course no
         // prompt_sp before the first prompt.
-        let mut fixture = Fixture::setup()?;
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"$ \x1b[?2004h");
         fixture.process_bytes(b"echo ok");
         fixture.process_bytes(b"\x1b[?2004l\r\n");
@@ -392,23 +425,21 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
-                PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2),),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(Scrolline(1)),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2)),
             ],
             fixture.processor.collect_prompt_changes()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn detect_bracketed_paste_after_prompt_sp_multiline() -> anyhow::Result<()> {
+    fn detect_bracketed_paste_after_prompt_sp_multiline() {
         // This is what happens with zsh: first a prompt_sp, then the
         // prompt, and then, just before user input is expected,
         // bracketed paste is turned on. There is of course no
         // prompt_sp before the first prompt.
-        let mut fixture = Fixture::setup()?;
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"prompt\r\n$ \x1b[?2004h");
         fixture.process_bytes(b"echo ok");
         fixture.process_bytes(b"\x1b[?2004l\r\n");
@@ -423,19 +454,17 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
-                PromptChange::End(PromptSource::BracketedPaste, Scrolline(2)),
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(3),),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(Scrolline(2)),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(3)),
             ],
             fixture.processor.collect_prompt_changes()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn detect_bracketed_paste_end_before_nl() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn detect_bracketed_paste_end_before_nl() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"\x1b[?2004h$ ");
         fixture.process_bytes(b"echo ok");
         // bracketed pasted is ended before the final newline of the
@@ -450,18 +479,17 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
-                PromptChange::End(PromptSource::BracketedPaste, Scrolline(1)),
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2),),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(Scrolline(1)),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(2)),
             ],
             fixture.processor.collect_prompt_changes()
         );
-        Ok(())
     }
 
     #[test]
-    fn detect_bracketed_paste_multiline() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn detect_bracketed_paste_multiline() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"\x1b[?2004hmyprompt\r\n> ");
         fixture.process_bytes(b"echo ok\r\n");
         fixture.process_bytes(b"\x1b[?2004l");
@@ -473,17 +501,16 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0),),
-                PromptChange::End(PromptSource::BracketedPaste, Scrolline(2)),
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::End(Scrolline(2)),
             ],
             fixture.processor.collect_prompt_changes()
         );
-        Ok(())
     }
 
     #[test]
-    fn detect_osc133() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn detect_osc133() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07");
         fixture.process_bytes(b"echo ok\r\n");
         fixture.process_bytes(b"\x1b]133;C\x07");
@@ -497,33 +524,25 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::Osc133, Scrolline(0),),
-                PromptChange::Update(
-                    PromptSource::Osc133,
-                    PromptOptions {
-                        user_input_start: Some((Scrolline(0), Column(2))),
-                        ..PromptOptions::default()
-                    }
-                ),
-                PromptChange::End(PromptSource::Osc133, Scrolline(1)),
-                PromptChange::End(PromptSource::Osc133, Scrolline(2)),
-                PromptChange::Start(PromptSource::Osc133, Scrolline(2),),
-                PromptChange::Update(
-                    PromptSource::Osc133,
-                    PromptOptions {
-                        user_input_start: Some((Scrolline(2), Column(2))),
-                        ..PromptOptions::default()
-                    }
-                ),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(0), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(1)),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(2)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(2), Column(2))),
+                    ..PromptOptions::default()
+                }),
             ],
             fixture.processor.collect_prompt_changes()
         );
-        Ok(())
     }
 
     #[test]
-    fn detect_osc133_multiline() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn detect_osc133_multiline() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"\x1b]133;A\x07myprompt\r\n> \x1b]133;B\x07");
         fixture.process_bytes(b"echo ok\r\n");
         fixture.process_bytes(b"\x1b]133;C\x07");
@@ -533,24 +552,91 @@ mod tests {
 
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::Osc133, Scrolline(0),),
-                PromptChange::Update(
-                    PromptSource::Osc133,
-                    PromptOptions {
-                        user_input_start: Some((Scrolline(1), Column(2))),
-                        ..PromptOptions::default()
-                    }
-                ),
-                PromptChange::End(PromptSource::Osc133, Scrolline(2)),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(1), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(2)),
             ],
             fixture.processor.collect_prompt_changes()
         );
-        Ok(())
     }
 
     #[test]
-    fn detect_osc133_click_events() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn detect_osc133_replace_unended_prompt() {
+        let mut fixture = Fixture::setup();
+        // First prompt starts on line 0, never ended with C or D (e.g. Ctrl-C)
+        fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07^C\r\n");
+        // Duplicate A on the same line is ignored, A on a new line replaces prompt 1
+        fixture.process_bytes(b"\x1b]133;A\x07\x1b]133;A\x07$ \x1b]133;B\x07");
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(0), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(1)),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(1)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(1), Column(2))),
+                    ..PromptOptions::default()
+                }),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn detect_osc133_created_before_bracketed_paste() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"\x1b]133;A\x07myprompt\r\n$ \x1b]133;B\x07\x1b[?2004h");
+        fixture.process_bytes(b"echo ok\x1b[?2004l\r\n");
+        fixture.process_bytes(b"\x1b]133;C\x07");
+        fixture.process_bytes(b"ok\r\n");
+        fixture.process_bytes(b"\x1b]133;D;0\x07");
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(1), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(2)),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn detect_osc133_overwrites_bracketed_paste() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"\x1b[?2004hmyprompt\r\n\x1b]133;A\x07$ \x1b]133;B\x07");
+        fixture.process_bytes(b"echo ok\x1b[?2004l\r\n");
+        fixture.process_bytes(b"\x1b]133;C\x07");
+        fixture.process_bytes(b"ok\r\n");
+        fixture.process_bytes(b"\x1b]133;D;0\x07");
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
+                PromptChange::Start(PromptSource::Osc133, Scrolline(1)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(1), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(2)),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn detect_osc133_click_events() {
+        let mut fixture = Fixture::setup();
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
 
         fixture.process_bytes(b"\x1b]133;A;click_events=1\x07$ \x1b]133;B\x07");
@@ -574,13 +660,11 @@ mod tests {
 
         fixture.process_bytes(b"\x1b]133;A\x07$ ");
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
-
-        Ok(())
     }
 
     #[test]
-    fn detect_osc133_ignores_alt_screen() -> anyhow::Result<()> {
-        let mut fixture = Fixture::setup()?;
+    fn detect_osc133_ignores_alt_screen() {
+        let mut fixture = Fixture::setup();
         fixture.process_bytes(b"\x1b[?1049h");
         assert!(fixture.vterm.mode().contains(TermMode::ALT_SCREEN));
 
@@ -592,7 +676,5 @@ mod tests {
             Vec::<PromptChange>::new(),
             fixture.processor.collect_prompt_changes()
         );
-
-        Ok(())
     }
 }

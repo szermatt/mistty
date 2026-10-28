@@ -75,9 +75,6 @@ The marker is only valid in the terminal buffer.")
 (cl-defgeneric mistty--term-screen-top-scrolline (term)
   "Return the scrolline for he start of TERM's terminal.")
 
-(cl-defgeneric mistty--term-alt-screen-p (term)
-  "Return non-nil when TERM is displaying the alternate screen buffer.")
-
 (cl-defgeneric mistty--term-detect-prompt-p (term)
   "Return non-nil prompt detection should be enabled in TERM.")
 

@@ -6690,6 +6690,33 @@ precmd_functions+=(prompt_header)
 
 ")
 
+(mistty-deftest mistty-osc133-zsh-prompt
+    (:type all :shell ((zsh mistty-test-zsh-osc133)))
+  (mistty-send-text "echo foo")
+  (mistty-send-and-wait-for-prompt)
+
+  (mistty-run-command
+   (insert "echo bar"))
+  (mistty-send-and-wait-for-prompt)
+
+  ;; The prompt (and the sync marker) include the prompt header
+  (should (equal "$ <>" (mistty-test-content
+                                :start mistty-sync-marker
+                                :show (mistty-cursor))))
+
+  (mistty-send-text "baa")
+
+  ;; Prompts were detected correctly, including the prompt header
+  (should (equal
+           (concat
+            "$ <>echo foo\n"
+            "foo\n"
+            "$ <1>echo bar\n"
+            "bar\n"
+            "$ <2>baa")
+           (mistty-test-content
+            :show (mistty-test-all-inputs)))))
+
 (mistty-deftest mistty-osc133-zsh-multiline-prompt
     (:type all :shell ((zsh mistty-test-zsh-osc133
                             mistty-test-zsh-osc133-multiline-prompt)))

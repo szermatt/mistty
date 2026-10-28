@@ -5353,7 +5353,7 @@
       (should (equal (format "EMACS=%s" emacs-version )
                      (mistty-send-and-capture-command-output))))))
 
-(mistty-deftest mistty-test-change-term-colors/alacritty (:turtles t :shell none)
+(mistty-deftest mistty-test-change-term-colors/alacritty (:turtles t :selected t :shell none)
   (unwind-protect
       (progn
         (load-theme 'modus-vivendi 'no-confirm) ;; dark theme
@@ -5362,7 +5362,7 @@
     (dolist (theme custom-enabled-themes)
       (disable-theme theme))))
 
-(mistty-deftest mistty-test-change-term-colors/eterm (:turtles t :shell none)
+(mistty-deftest mistty-test-change-term-colors/eterm (:turtles t :selected t :shell none)
   (unwind-protect
       (progn
         (load-theme 'modus-vivendi 'no-confirm) ;; dark theme

@@ -1720,7 +1720,7 @@
         (term-buffer mistty-term-buffer))
     (mistty-send-text
      (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
-             "[47h" "[47l"))
+             "[?1049h" "[?1049l"))
     (mistty-send-command)
     (mistty-wait-for-output
      :test

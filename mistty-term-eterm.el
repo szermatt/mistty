@@ -665,11 +665,6 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
   (with-current-buffer (mistty--term-eterm-buf term)
     (mistty--scrolline-at term-home-marker)))
 
-(cl-defmethod mistty--term-alt-screen-p ((term mistty--term-eterm))
-  "Return non-nil when the TERM's terminal is showing the alt buffer."
-  (with-current-buffer (mistty--term-eterm-buf term)
-    (term-using-alternate-sub-buffer)))
-
 (cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-eterm))
   "Return non-nil prompt detection should be enabled in TERM."
   (not (mistty--term-eterm-fs term)))

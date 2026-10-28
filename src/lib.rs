@@ -213,18 +213,6 @@ fn cursor<'a>(env: &'a Env, term: &VTermFacade) -> Result<Value<'a>> {
     env.cons(point.line.0, point.column.0)
 }
 
-/// Check whether the alternate screen is in use.
-#[defun]
-fn alt_screen_p(term: &VTermFacade) -> Result<bool> {
-    Ok(term.vterm.mode().contains(TermMode::ALT_SCREEN))
-}
-
-/// Check whether bracketed paste is enabled.
-#[defun]
-fn bracketed_paste_p(term: &VTermFacade) -> Result<bool> {
-    Ok(term.vterm.mode().contains(TermMode::BRACKETED_PASTE))
-}
-
 /// Mark spaces at the given line between beg_chars and end_chars as clear.
 #[defun]
 fn clear_to_eol(env: &Env, term: &mut VTermFacade, line: i32, beg_chars: usize) -> Result<()> {

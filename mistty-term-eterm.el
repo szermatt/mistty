@@ -476,6 +476,11 @@ to call `mistty--term-postprocess'.")
                (:copier nil))
   proc buf change-before-scrolline fs)
 
+(defun mistty--term-eterm-reset (term)
+  "Reset internal state."
+  (setf (mistty--term-eterm-fs term) nil)
+  (setf (mistty--term-eterm-change-before-scrolline term) nil))
+
 (cl-defmethod mistty--create-term
   ((_type (eql 'eterm)) name command
    &key width height
@@ -483,6 +488,7 @@ to call `mistty--term-postprocess'.")
    enter-fullscreen
    leave-fullscreen
    after-clear-screen
+   after-reset
    sync-scrolline
    request-report-mouse)
   "Create an eterm-based terminal called NAME.
@@ -495,6 +501,7 @@ prompts.
 
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
+AFTER-RESET is called after the terminal was reset
 SYNC-SCROLLINE returns the current sync scrolline.
 REQUEST-REPORT-MOUSE controls mouse reporting."
   (ignore request-report-mouse)
@@ -610,6 +617,17 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                  (mistty--accum-ctx-flush ctx)
                  (when after-clear-screen
                    (funcall after-clear-screen)))))))
+
+        (mistty--accum-add-processor
+         accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
+         (lambda (ctx str)
+           (mistty--accum-ctx-push-down ctx str)
+           (mistty--accum-ctx-flush ctx)
+           (mistty-log "RESET")
+           (mistty--term-eterm-reset term)
+           (mistty--with-live-buffer (mistty--term-eterm-buf term)
+             (setq mistty-bracketed-paste nil))
+           (funcall after-reset)))
 
         (mistty--accum-add-around-process-filter
          accum

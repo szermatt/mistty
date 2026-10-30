@@ -1494,6 +1494,20 @@ window."
                       (if mistty-allow-clearing-scrollback
                           (mistty--clear-scrollback)
                         (mistty--scroll-after-reset))))
+                  :after-reset
+                  (lambda ()
+                    (mistty--with-live-buffer work-buffer
+                      (when mistty-fullscreen
+                        (mistty--leave-fullscreen work-buffer))
+                      (mistty--cancel-queue mistty--queue)
+                      (mistty--release-all-changesets)
+                      (setq mistty--inhibit-refresh nil)
+                      (setq mistty-bracketed-paste nil))
+                    ;; TODO: clear all secondary state, keyboard
+                    ;; override, mouse override
+                    (if mistty-allow-clearing-scrollback
+                        (mistty--clear-scrollback)
+                      (mistty--scroll-after-reset)))
                   :sync-scrolline
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
@@ -1514,7 +1528,7 @@ window."
            (term-buffer (mistty--term-buf term))
            (accum (process-filter (mistty--term-proc term))))
       (mistty--add-toggle-cursor accum work-buffer term-buffer)
-      (mistty--add-sync-buffers accum work-buffer term-buffer)
+      (mistty--add-sync-buffers accum work-buffer)
 
       (with-current-buffer term-buffer
         (add-hook 'mistty-start-capture-keyboard-hook
@@ -1976,11 +1990,11 @@ special string describing the new process state."
       (mistty--run-after-process-end-hooks work-buffer proc))
      (t (mistty--term-sentinel proc msg)))))
 
-(defun mistty--add-sync-buffers (accum work-buffer term-buffer)
-  "Sync the terminal region of WORK-BUFFER with TERM-BUFFER.
+(defun mistty--add-sync-buffers (accum work-buffer)
+  "Sync the terminal region of WORK-BUFFER.
 
 This function updates the state of ACCUM as necessary to keep the
-terminal region of WORK-BUFFER in sync with TERM-BUFFER."
+terminal region of WORK-BUFFER in sync with the terminal."
 
   ;; Mark the terminal region as needing refresh as soon as the
   ;; processor filter is called. This might be in the middle of a
@@ -2031,27 +2045,6 @@ terminal region of WORK-BUFFER in sync with TERM-BUFFER."
        (when mistty--term
          (mistty--term-truncate-buffer
           mistty--term mistty--scrolline-home-num)))))
-
-  (mistty--accum-add-processor
-   accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
-   (lambda (ctx str)
-     (mistty--accum-ctx-push-down ctx str)
-     (mistty--accum-ctx-flush ctx)
-     (mistty-log "RESET")
-
-     (mistty--with-live-buffer work-buffer
-       (when mistty-fullscreen
-         (mistty--leave-fullscreen work-buffer))
-       (mistty--cancel-queue mistty--queue)
-       (mistty--release-all-changesets)
-       (setq mistty--inhibit-refresh nil)
-       (setq mistty-bracketed-paste nil))
-     (mistty--with-live-buffer term-buffer
-       (setq mistty-bracketed-paste nil))
-
-     (if mistty-allow-clearing-scrollback
-         (mistty--clear-scrollback)
-       (mistty--scroll-after-reset))))
 
   (mistty--accum-add-processor
    accum '(seq CSI ?3 ?J) ;; Clear scrollback

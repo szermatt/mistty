@@ -61,9 +61,6 @@
   ;; if non-nil, we are in fullscreen mode
   fs
 
-  ;; callback to send changes to what mouse events should be reported
-  request-report-mouse
-
   ;; mouse tracking state; the value sent to the last call to
   ;; request-report-mouse
   mouse
@@ -71,11 +68,21 @@
   ;; struct of type mistty--prompt-cell used to track prompts
   prompt-cell
 
+  ;; callback to send changes to what mouse events should be reported
+  request-report-mouse
+
   ;; function to call when entering fullscreen
   enter-fullscreen
 
   ;; function to call when leaving fullscreen
   leave-fullscreen)
+
+(defun mistty--term-alacritty-reset (term)
+  "Reset internal state."
+  (setf (mistty--term-alacritty-fs term) nil)
+  (setf (mistty--term-alacritty-kkp term) nil)
+  (setf (mistty--term-alacritty-mouse term) nil)
+  (setf (mistty--term-alacritty-change-before-scrolline term) nil))
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'alacritty)) name command
@@ -84,6 +91,7 @@
    enter-fullscreen
    leave-fullscreen
    after-clear-screen
+   after-reset
    sync-scrolline
    request-report-mouse)
   "Create an alacritty-type terminal with the given NAME and COMMAND.
@@ -96,6 +104,7 @@ prompts.
 
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
+AFTER-RESET is called after the terminal was reset
 SYNC-SCROLLINE returns the current sync scrolline.
 REQUEST-REPORT-MOUSE controls mouse reporting."
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks))
@@ -159,6 +168,17 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                (mistty--accum-ctx-flush ctx)
                (when after-clear-screen
                  (funcall after-clear-screen))))))
+
+        (mistty--accum-add-processor
+         accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
+         (lambda (ctx str)
+           (mistty--accum-ctx-push-down ctx str)
+           (mistty--accum-ctx-flush ctx)
+           (mistty-log "RESET")
+           (mistty--term-alacritty-reset term)
+           (mistty--with-live-buffer (mistty--term-alacritty-buf term)
+             (setq mistty-bracketed-paste nil))
+           (funcall after-reset)))
 
         ;; Detect changes made to the terminal above the sync scrolline, which
         ;; means that the sync scrolline needs to be updated.

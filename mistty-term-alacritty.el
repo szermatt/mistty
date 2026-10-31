@@ -160,9 +160,12 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                    (mistty-log "CLEAR PROMPT (%S)" str)
                    (mistty--accum-ctx-push-down
                     ctx
-                    ;; This is equivalent to CSI 2J, but doesn't trigger
-                    ;; alacritty's storing the current screen content into
-                    ;; scrollback.
+                    ;; This is CSI 1 J, clear-before-point + CSI 0 J,
+                    ;; clear-after-point which is equivalent to CSI 2
+                    ;; J, clear-screen, but doesn't trigger
+                    ;; alacritty's storing the current screen content
+                    ;; into scrollback, which we don't want in this
+                    ;; case.
                     "\e[1J\e[0J"))
                (mistty-log "CLEAR SCREEN (%S)" str)
                (mistty--accum-ctx-push-down ctx str)

@@ -108,10 +108,10 @@ pub(crate) struct PromptDetector {
     current: Option<Prompt>,
 }
 
-/// Internal struct used to keep track of the current prompt.
-struct Prompt {
-    source: PromptSource,
-    start: Scrolline,
+/// Keep track of the current prompt.
+pub(crate) struct Prompt {
+    pub(crate) start: Scrolline,
+    pub(crate) source: PromptSource,
 }
 
 impl PromptDetector {
@@ -122,6 +122,11 @@ impl PromptDetector {
             last_prompt_sp: Scrolline(0),
             current: None,
         }
+    }
+
+    /// Return details about the current prompt
+    pub(crate) fn current_prompt(&self) -> Option<&Prompt> {
+        self.current.as_ref()
     }
 
     /// Return the prompts that were detected since last collected.

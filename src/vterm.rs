@@ -7,7 +7,9 @@ use crate::gridext::{CellExt, GridExt, RowExt};
 use crate::prompt::{PromptChange, PromptDetector};
 use crate::render;
 use crate::types::Scrolline;
-use alacritty_terminal::vte::ansi::{KeyboardModes, KeyboardModesApplyBehavior, ModifyOtherKeys};
+use alacritty_terminal::vte::ansi::{
+    ClearMode, KeyboardModes, KeyboardModesApplyBehavior, ModifyOtherKeys,
+};
 use alacritty_terminal::{
     Grid, Term,
     event::{Event, EventListener},
@@ -38,6 +40,7 @@ emacs::use_symbols! {
     nil_sym => "nil"
     cwd_sym => "cwd"
     fullscreen_sym => "fullscreen"
+    cleared_screen_sym => "cleared-screen"
 }
 
 /// Size of the scrollback, in lines. There needs to be enough space
@@ -116,6 +119,9 @@ pub(crate) enum VTermChange {
     ///
     /// The working directory is set as a file: URL
     Cwd(Option<String>),
+
+    /// Screen has been cleared
+    ClearedScreen,
 }
 
 /// Mouse mode reported to the lisp side
@@ -141,6 +147,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::Title(Some(title)) => env.list((title_sym, title)),
             VTermChange::Cwd(None) => env.list((cwd_sym, nil_sym)),
             VTermChange::Cwd(Some(url)) => env.list((cwd_sym, url)),
+            VTermChange::ClearedScreen => env.cons(cleared_screen_sym, ()),
         }
     }
 }
@@ -187,12 +194,16 @@ pub(crate) struct VTerm {
     /// set whenever cwd_url is modified.
     cwd_modified: bool,
 
-    /// Terminal mode at the time of the last call to [VTerm::collect_mode_changes].
+    /// Terminal mode at the time of the last call to [VTerm::collect_changes].
     last_collected_mode: TermMode,
 
     /// Title change to be collected. The empty string represents a
     /// cleared title.
     title: Option<String>,
+
+    /// If true, report that the screen was cleared next time
+    /// [VTerm::collect_changes] is called.
+    cleared_screen: bool,
 }
 
 impl VTerm {
@@ -229,6 +240,7 @@ impl VTerm {
             cwd_modified: false,
             last_collected_mode,
             title: None,
+            cleared_screen: false,
         }
     }
 
@@ -457,7 +469,7 @@ impl VTerm {
     /// Returns response data to be sent to the PTY.
     ///
     /// Some other events, like window Title events are stored for
-    /// later and returned as part of [VTerm::collect_events].
+    /// later and returned as part of [VTerm::collect_changes].
     ///
     /// This should be called right after calling 'process_bytes' to
     /// avoid delaying responses.
@@ -514,6 +526,10 @@ impl VTerm {
     /// Collect events to send back to the lisp side.
     pub(crate) fn collect_changes<'e>(&mut self) -> Result<Vec<VTermChange>> {
         let mut changes = self.collect_mode_changes();
+        if self.cleared_screen {
+            changes.push(VTermChange::ClearedScreen);
+            self.cleared_screen = false;
+        }
         if let Some(title) = self.title.take() {
             changes.push(VTermChange::Title(if title.is_empty() {
                 None
@@ -911,14 +927,36 @@ impl<'a> Handler for HandlerProxy<'a> {
         self.vterm.inner.clear_line(mode);
     }
 
-    fn clear_screen(&mut self, mode: ansi::ClearMode) {
+    fn clear_screen(&mut self, mode: ClearMode) {
         match mode {
-            ansi::ClearMode::Saved => {
+            ClearMode::Saved => {
                 // Refuse to clear the scrollback as this messes up the
                 // buffer. This is handled elisp-side with
                 // mistty-allow-clearing-scrollback.
             }
-            _ => {
+            ClearMode::All => {
+                if self.vterm.mode().intersects(TermMode::ALT_SCREEN) {
+                    self.vterm.inner.clear_screen(ClearMode::All);
+                    return;
+                }
+                // If there is an active prompt, discard everything in
+                // or below the prompt
+                // TODO: Handle prompts starting in scrollback (terminal_line < Line(0)).
+                if let Some(prompt) = self.prompt_detector.current_prompt()
+                    && let Some(terminal_line) =
+                        self.vterm.terminal_line_for_scrolline(prompt.start)
+                {
+                    self.vterm.grid_mut().reset_region(terminal_line..)
+                }
+                // Avoid calling ClearMode::All (clear_viewport) on an
+                // empty screen, as alacritty_terminal scrolls 1 blank
+                // line into history when history_size() == 0.
+                if self.vterm.grid().screen_iter().any(|(_, r)| !r.is_clear()) {
+                    self.vterm.inner.clear_screen(ClearMode::All);
+                }
+                self.vterm.cleared_screen = true;
+            }
+            ClearMode::Below | ClearMode::Above => {
                 self.vterm.inner.clear_screen(mode);
             }
         }
@@ -936,7 +974,7 @@ impl<'a> Handler for HandlerProxy<'a> {
         // The scrollback should resist a reset for MisTTY. A reset of
         // the scrollback, if desired, can be done elisp-side with
         // mistty-allow-clearing-scrollback.
-        self.vterm.inner.clear_screen(ansi::ClearMode::All);
+        self.vterm.inner.clear_screen(ClearMode::All);
         move_history(self.vterm.inner.grid_mut(), &mut self.vterm.scrollback);
 
         self.vterm.inner.reset_state();
@@ -1336,6 +1374,119 @@ mod tests {
 
         fixture.handler().clear_screen(ansi::ClearMode::Saved);
         assert_eq!(3, fixture.vterm.grid().history_size());
+    }
+
+    #[test]
+    fn clear_screen_without_prompt() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3");
+        fixture.process_bytes(b"\x1b[2J");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(
+            vec!["line 1", "line 2", "line 3"],
+            vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        for line in 0..=vterm.bottommost_line().0 {
+            assert!(vterm.grid()[Line(line)].is_clear());
+        }
+        assert_eq!(
+            vec![VTermChange::ClearedScreen],
+            vterm.collect_changes().unwrap()
+        );
+        assert_eq!(Vec::<VTermChange>::new(), vterm.collect_changes().unwrap());
+    }
+
+    #[test]
+    fn clear_screen_empty() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"\x1b[2J");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(0, vterm.scrollback_row_count());
+        assert_eq!(
+            vec![VTermChange::ClearedScreen],
+            vterm.collect_changes().unwrap()
+        );
+    }
+
+    #[test]
+    fn clear_screen_with_prompt_at_top() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"\x1b]133;A\x07prompt\r\n$ \x1b]133;B\x07cmd");
+        fixture.process_bytes(b"\x1b[2J");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(0, vterm.scrollback_row_count());
+        for line in 0..=vterm.bottommost_line().0 {
+            assert!(vterm.grid()[Line(line)].is_clear());
+        }
+        assert_eq!(
+            vec![VTermChange::ClearedScreen],
+            vterm.collect_changes().unwrap()
+        );
+        assert_eq!(Vec::<VTermChange>::new(), vterm.collect_changes().unwrap());
+    }
+
+    #[test]
+    fn clear_screen_with_prompt() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\n\x1b]133;A\x07prompt\r\n$ \x1b]133;B\x07cmd");
+        fixture.process_bytes(b"\x1b[2J");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(
+            vec!["line 1"],
+            vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        for line in 0..=vterm.bottommost_line().0 {
+            assert!(vterm.grid()[Line(line)].is_clear());
+        }
+        assert_eq!(
+            vec![VTermChange::ClearedScreen],
+            vterm.collect_changes().unwrap()
+        );
+        assert_eq!(Vec::<VTermChange>::new(), vterm.collect_changes().unwrap());
+    }
+
+    #[test]
+    fn clear_screen_with_ended_prompt() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07clear\r\n\x1b]133;C\x07");
+        fixture.process_bytes(b"\x1b[2J");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(
+            vec!["$ clear"],
+            vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        for line in 0..=vterm.bottommost_line().0 {
+            assert!(vterm.grid()[Line(line)].is_clear());
+        }
+        assert_eq!(
+            vec![VTermChange::ClearedScreen],
+            vterm.collect_changes().unwrap()
+        );
+        assert_eq!(Vec::<VTermChange>::new(), vterm.collect_changes().unwrap());
     }
 
     #[test]

@@ -75,7 +75,10 @@
   enter-fullscreen
 
   ;; function to call when leaving fullscreen
-  leave-fullscreen)
+  leave-fullscreen
+
+  ;; function to call after clearing the screen
+  after-clear-screen)
 
 (defun mistty--term-alacritty-reset (term)
   "Reset internal state."
@@ -143,35 +146,8 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (unless leave-fullscreen (error ":leave-fullscreen required"))
         (setf (mistty--term-alacritty-leave-fullscreen term) leave-fullscreen)
 
-        (mistty--accum-add-processor
-         accum '(seq CSI ?2 ?J) ;; Clear screen
-         (lambda (ctx str)
-           (if (mistty--term-alacritty-fs term)
-               (mistty--accum-ctx-push-down ctx str)
-
-             (mistty--accum-ctx-flush ctx)
-             (if (when-let* ((p (mistty--active-prompt
-                                 (mistty--term-alacritty-prompt-cell term))))
-                   (equal
-                    (mistty--prompt-start p)
-                    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-                      mistty--scrolline-home-num)))
-                 (progn
-                   (mistty-log "CLEAR PROMPT (%S)" str)
-                   (mistty--accum-ctx-push-down
-                    ctx
-                    ;; This is CSI 1 J, clear-before-point + CSI 0 J,
-                    ;; clear-after-point which is equivalent to CSI 2
-                    ;; J, clear-screen, but doesn't trigger
-                    ;; alacritty's storing the current screen content
-                    ;; into scrollback, which we don't want in this
-                    ;; case.
-                    "\e[1J\e[0J"))
-               (mistty-log "CLEAR SCREEN (%S)" str)
-               (mistty--accum-ctx-push-down ctx str)
-               (mistty--accum-ctx-flush ctx)
-               (when after-clear-screen
-                 (funcall after-clear-screen))))))
+        (unless after-clear-screen (error ":after-clear-screen required"))
+        (setf (mistty--term-alacritty-after-clear-screen term) after-clear-screen)
 
         (unless clear-scrollback (error ":clear-scrollback required"))
         (mistty--accum-add-processor
@@ -283,6 +259,9 @@ CURSOR-MARKER is updated to the cursor position."
          (when url
            (mistty--with-live-buffer term-buf
              (mistty-osc7 "7" url))))
+        (`(cleared-screen)
+         (mistty--with-live-buffer term-buf
+           (funcall (mistty--term-alacritty-after-clear-screen term))))
         (`(kkp ,val)
          (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
          (setf (mistty--term-alacritty-kkp term) val))

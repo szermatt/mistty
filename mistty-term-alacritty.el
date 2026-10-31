@@ -92,6 +92,7 @@
    leave-fullscreen
    after-clear-screen
    after-reset
+   clear-scrollback
    sync-scrolline
    request-report-mouse)
   "Create an alacritty-type terminal with the given NAME and COMMAND.
@@ -168,6 +169,14 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                (mistty--accum-ctx-flush ctx)
                (when after-clear-screen
                  (funcall after-clear-screen))))))
+
+        (unless clear-scrollback (error ":clear-scrollback required"))
+        (mistty--accum-add-processor
+         accum '(seq CSI ?3 ?J) ;; Clear scrollback
+         (lambda (ctx str)
+           (mistty--accum-ctx-push-down ctx str)
+           (mistty--accum-ctx-flush ctx)
+           (funcall clear-scrollback)))
 
         (mistty--accum-add-processor
          accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)

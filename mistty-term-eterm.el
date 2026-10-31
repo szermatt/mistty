@@ -489,6 +489,7 @@ to call `mistty--term-postprocess'.")
    leave-fullscreen
    after-clear-screen
    after-reset
+   clear-scrollback
    sync-scrolline
    request-report-mouse)
   "Create an eterm-based terminal called NAME.
@@ -502,6 +503,7 @@ prompts.
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
 AFTER-RESET is called after the terminal was reset
+CLEAR-SCROLLBACK clears scrollback in the work buffer
 SYNC-SCROLLINE returns the current sync scrolline.
 REQUEST-REPORT-MOUSE controls mouse reporting."
   (ignore request-report-mouse)
@@ -617,6 +619,13 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                  (mistty--accum-ctx-flush ctx)
                  (when after-clear-screen
                    (funcall after-clear-screen)))))))
+
+        (when clear-scrollback
+          (mistty--accum-add-processor
+           accum '(seq CSI ?3 ?J) ;; Clear scrollback
+           (lambda (ctx _)
+               (mistty--accum-ctx-flush ctx)
+               (funcall clear-scrollback))))
 
         (mistty--accum-add-processor
          accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)

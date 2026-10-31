@@ -28,8 +28,9 @@
           &key width height
           enter-fullscreen
           leave-fullscreen
-          after-clear-screen
           after-reset
+          after-clear-screen
+          clear-scrollback
           sync-scrolline
           request-report-mouse)
   "Create a new term buffer of the given TYPE with name NAME.
@@ -52,9 +53,11 @@ fullscreen mode or normal fullscreen mode.
 LEAVE-FULLSCREEN is a function that takes the TERM instance and
 leaves fullscreen mode.
 
+AFTER-RESET is to be called after a reset.
+
 AFTER-CLEAR-SCREEN is to be called after the screen has been cleared.
 
-AFTER-RESET is to be called after a reset.
+CLEAR-SCROLLBACK is to be called after the screen has been cleared.
 
 SYNC-SCROLLINE is a function that returns the current sync scrolline.
 

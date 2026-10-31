@@ -1493,7 +1493,13 @@ window."
                     (mistty--with-live-buffer work-buffer
                       (if mistty-allow-clearing-scrollback
                           (mistty--clear-scrollback)
-                        (mistty--scroll-after-reset))))
+                        (mistty--scroll-after-clear))))
+                  :clear-scrollback
+                  (lambda ()
+                    (mistty--with-live-buffer work-buffer
+                      (when mistty-allow-clearing-scrollback
+                        (mistty-log "CLEAR SCROLLBACK")
+                        (mistty--clear-scrollback))))
                   :after-reset
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
@@ -1503,11 +1509,9 @@ window."
                       (mistty--release-all-changesets)
                       (setq mistty--inhibit-refresh nil)
                       (setq mistty-bracketed-paste nil))
-                    ;; TODO: clear all secondary state, keyboard
-                    ;; override, mouse override
                     (if mistty-allow-clearing-scrollback
                         (mistty--clear-scrollback)
-                      (mistty--scroll-after-reset)))
+                      (mistty--scroll-after-clear)))
                   :sync-scrolline
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
@@ -2020,12 +2024,23 @@ terminal region of WORK-BUFFER in sync with the terminal."
              (mistty--dequeue-with-timer mistty--queue 'stable))
          (mistty--refresh)))))
 
+  ;; Truncate work buffer
   (mistty--accum-add-post-processor
    accum
    (lambda ()
      (mistty--with-live-buffer work-buffer
        (mistty--maybe-truncate-when-idle))))
 
+  ;; Truncate term buffer
+  (mistty--accum-add-post-processor
+   accum
+   (lambda ()
+     (mistty--with-live-buffer work-buffer
+       (when mistty--term
+         (mistty--term-truncate-buffer
+          mistty--term mistty--scrolline-home-num)))))
+
+  ;; Resize terminal
   (mistty--accum-add-post-processor
    accum
    (lambda ()
@@ -2036,26 +2051,9 @@ terminal region of WORK-BUFFER in sync with the terminal."
                   (not mistty--check-window-size-timer))
          (setq mistty--check-window-size-timer
                (run-with-idle-timer
-                0.6 nil #'mistty--check-window-size work-buffer))))))
+                0.6 nil #'mistty--check-window-size work-buffer)))))))
 
-  (mistty--accum-add-post-processor
-   accum
-   (lambda ()
-     (mistty--with-live-buffer work-buffer
-       (when mistty--term
-         (mistty--term-truncate-buffer
-          mistty--term mistty--scrolline-home-num)))))
-
-  (mistty--accum-add-processor
-   accum '(seq CSI ?3 ?J) ;; Clear scrollback
-   (lambda (ctx str)
-     (when mistty-allow-clearing-scrollback
-       (mistty--accum-ctx-push-down ctx str)
-       (mistty--accum-ctx-flush ctx)
-       (mistty-log "CLEAR SCROLLBACK")
-       (mistty--clear-scrollback)))))
-
-(defun mistty--scroll-after-reset ()
+(defun mistty--scroll-after-clear ()
   "Scroll the main window to the top of the screen.
 
 This way, it looks like the buffer was cleared even though history is

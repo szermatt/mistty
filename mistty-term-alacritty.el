@@ -437,8 +437,7 @@ buffer."
     (mistty-log "RECV %S" str)
     (let ((vterm (mistty--term-alacritty-vterm term))
           (buf (mistty--term-alacritty-buf term)))
-      (when-let* ((reply (mistty-alacritty-vt-process-bytes
-                          vterm (vconcat str))))
+      (when-let* ((reply (mistty-alacritty-vt-process-bytes vterm str)))
         (mistty-log "REPLY %S" reply)
         (process-send-string proc reply))
       (unless (mistty--term-alacritty-fs term)

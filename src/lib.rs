@@ -144,13 +144,9 @@ fn resize(term: &mut VTermFacade, width: usize, height: usize) -> Result<()> {
 ///
 /// Return nil or a string to send back to the pty.
 #[defun]
-fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: Vector) -> Result<Value<'e>> {
-    let mut v: Vec<u8> = Vec::with_capacity(bytes.len());
-    for val in bytes {
-        let b: u8 = val.into_rust()?;
-        v.push(b);
-    }
-    term.processor.process_bytes(&mut term.vterm, &v);
+fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: String) -> Result<Value<'e>> {
+    term.processor
+        .process_bytes(&mut term.vterm, &bytes.as_bytes());
 
     let responses = term.vterm.prepare_responses(env)?;
     if responses.is_empty() {

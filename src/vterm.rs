@@ -183,27 +183,11 @@ pub(crate) struct VTerm {
     /// State kept for mouse_encode
     last_cell: Option<(i64, i64)>,
 
-    /// Hostname and path of the working directory, as reported by OSC 7.
-    ///
-    /// None means that the working directory is unknown or has been
-    /// cleared. The string is supposed to be a percent-encoded file
-    /// URL; this isn't checked.
-    cwd_url: Option<String>,
-
-    /// If true, cwd_url should be reported to the lisp side. This is
-    /// set whenever cwd_url is modified.
-    cwd_modified: bool,
+    /// Changes to return to the next call to [VTerm::collect_changes].
+    changes: Vec<VTermChange>,
 
     /// Terminal mode at the time of the last call to [VTerm::collect_changes].
     last_collected_mode: TermMode,
-
-    /// Title change to be collected. The empty string represents a
-    /// cleared title.
-    title: Option<String>,
-
-    /// If true, report that the screen was cleared next time
-    /// [VTerm::collect_changes] is called.
-    cleared_screen: bool,
 }
 
 impl VTerm {
@@ -224,7 +208,6 @@ impl VTerm {
 
         // See comment on HandlerProxy
         init_grid(inner.grid_mut());
-        let last_collected_mode = *inner.mode();
 
         Self {
             inner,
@@ -236,11 +219,8 @@ impl VTerm {
             scrollback: vec![],
             extra_damage: GridDamage::new(),
             last_cell: None,
-            cwd_url: None,
-            cwd_modified: false,
-            last_collected_mode,
-            title: None,
-            cleared_screen: false,
+            last_collected_mode: TermMode::default(),
+            changes: vec![],
         }
     }
 
@@ -475,6 +455,7 @@ impl VTerm {
     /// avoid delaying responses.
     pub(crate) fn prepare_responses<'a>(&mut self, env: &'a Env) -> Result<Vec<String>> {
         let mut pty_writes = vec![];
+        let mut changes = vec![];
         let mut events = self.events.borrow_mut();
         while let Some(event) = events.pop_front() {
             match event {
@@ -490,10 +471,10 @@ impl VTerm {
                     }
                 }
                 Event::Title(title) => {
-                    self.title = Some(title);
+                    changes.push(VTermChange::Title(Some(title)));
                 }
                 Event::ResetTitle => {
-                    self.title = Some(String::new());
+                    changes.push(VTermChange::Title(None));
                 }
 
                 Event::ClipboardStore(clipboard, data) => match clipboard {
@@ -520,27 +501,15 @@ impl VTerm {
             };
         }
 
+        self.changes.append(&mut changes);
+
         Ok(pty_writes)
     }
 
     /// Collect events to send back to the lisp side.
     pub(crate) fn collect_changes<'e>(&mut self) -> Result<Vec<VTermChange>> {
         let mut changes = self.collect_mode_changes();
-        if self.cleared_screen {
-            changes.push(VTermChange::ClearedScreen);
-            self.cleared_screen = false;
-        }
-        if let Some(title) = self.title.take() {
-            changes.push(VTermChange::Title(if title.is_empty() {
-                None
-            } else {
-                Some(title)
-            }));
-        }
-        if self.cwd_modified {
-            self.cwd_modified = false;
-            changes.push(VTermChange::Cwd(self.cwd_url.clone()));
-        }
+        changes.append(&mut self.changes);
 
         Ok(changes)
     }
@@ -648,24 +617,9 @@ impl VTerm {
         &mut self.last_cell
     }
 
-    /// Set the cwd to report to the lisp side
-    fn set_cwd(&mut self, cwd: Option<&str>) {
-        match cwd {
-            None => {
-                // clear
-                if self.cwd_url.is_some() {
-                    self.cwd_url = None;
-                    self.cwd_modified = true;
-                }
-            }
-            Some(url) => {
-                let url = Some(url.to_string());
-                if url != self.cwd_url {
-                    self.cwd_url = url;
-                    self.cwd_modified = true;
-                }
-            }
-        }
+    /// Record a change to report to the next call to [VTerm::collect_changes].
+    fn record(&mut self, change: VTermChange) {
+        self.changes.push(change)
     }
 }
 
@@ -954,7 +908,7 @@ impl<'a> Handler for HandlerProxy<'a> {
                 if self.vterm.grid().screen_iter().any(|(_, r)| !r.is_clear()) {
                     self.vterm.inner.clear_screen(ClearMode::All);
                 }
-                self.vterm.cleared_screen = true;
+                self.vterm.record(VTermChange::ClearedScreen);
             }
             ClearMode::Below | ClearMode::Above => {
                 self.vterm.inner.clear_screen(mode);
@@ -1174,7 +1128,7 @@ impl<'a> Handler for HandlerProxy<'a> {
 
     /// OSC 7
     fn set_cwd(&mut self, url: Option<&str>) {
-        self.vterm.set_cwd(url);
+        self.vterm.record(VTermChange::Cwd(url.map(str::to_string)));
     }
 }
 

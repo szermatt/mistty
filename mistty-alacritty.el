@@ -116,7 +116,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-cursor nil (term))
 (declare-function mistty-alacritty-vt-enable-scrollback nil (term))
 (declare-function mistty-alacritty-vt-kitty-key-seq nil (term key mods basic-type))
-(declare-function mistty-alacritty-vt-make-vterm nil (w h))
+(declare-function mistty-alacritty-vt-make-vterm nil (w h options))
 (declare-function mistty-alacritty-vt-mouse-seq nil (term action button mods line column))
 (declare-function mistty-alacritty-vt-process-bytes nil (term bytes))
 (declare-function mistty-alacritty-vt-render nil (term cursor))
@@ -369,7 +369,9 @@ Calling any other function when this one returns nil will fail."
     (error "Alacritty terminal is unavailable; module '%s' not found"
            (mistty-alacritty-modulename)))
   (mistty-alacritty-check-version)
-  (let ((vterm (mistty-alacritty-vt-make-vterm width height)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm
+                width height
+                `(:osc52 ,mistty-alacritty-osc52))))
     (mistty-log "MAKE VTERM %s lines, %s colums" height width)
     (mistty-alacritty-vt-enable-scrollback vterm)
 

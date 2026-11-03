@@ -13,7 +13,7 @@ mod vterm;
 use crate::{
     kbd::EmacsKey,
     types::Scrolline,
-    vterm::{VTerm, VTermProcessor},
+    vterm::{VTerm, VTermOptions, VTermProcessor},
 };
 use alacritty_terminal::{index::Line, term::Osc52};
 use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
@@ -25,14 +25,15 @@ emacs::plugin_is_GPL_compatible!();
 
 emacs::use_functions! {
     symbol_value
+    plist_get
 }
 emacs::use_symbols! {
     args_out_of_range
     nil
+    colon_osc52 => ":osc52"
     only_copy
     only_paste
     copy_paste
-    mistty_alacritty_osc52
 }
 
 /// VTerm type kept Emacs-side.
@@ -74,26 +75,15 @@ fn version() -> Result<String> {
 ///
 /// If scrollback is enabled (not nil), the terminal will move when
 /// scrolling down, leaving scrollback lines behind it.
+///
+/// OPTIONS is a plist with the following possible keys:
+/// - :osc52 configues support for OSC 52. It can be either nil,
+///   'only-copy, 'only-paste or 'copy-paste (default to 'only-copy).
+/// Unknown keys are ignored.
 #[defun(user_ptr)]
-fn make_vterm(env: &Env, width: usize, height: usize) -> Result<VTermFacade> {
-    let osc52_symbol = env.call(symbol_value, (mistty_alacritty_osc52,))?;
-    let osc52 = if osc52_symbol == *only_copy {
-        Osc52::OnlyCopy
-    } else if osc52_symbol == *only_paste {
-        Osc52::OnlyPaste
-    } else if osc52_symbol == *copy_paste {
-        Osc52::CopyPaste
-    } else if osc52_symbol == *nil {
-        Osc52::Disabled
-    } else {
-        env.call(
-            "mistty-log",
-            ("OSC52 disabled; unknown value: '%s'", osc52_symbol),
-        )?;
-
-        Osc52::Disabled
-    };
-    Ok(VTermFacade::new(VTerm::new(width, height, osc52)))
+fn make_vterm(env: &Env, width: usize, height: usize, options: Value<'_>) -> Result<VTermFacade> {
+    let options = options_from_plist(env, options)?;
+    Ok(VTermFacade::new(VTerm::new(width, height, options)))
 }
 
 /// Tell the virtual terminal to track scrollback.
@@ -384,4 +374,24 @@ where
     }
 
     Ok(val)
+}
+
+/// Create a [VTermOption] from a plist with matching keys and values.
+fn options_from_plist(env: &Env, plist: Value<'_>) -> Result<VTermOptions> {
+    let osc52 = env.call(plist_get, (plist, colon_osc52))?;
+    let osc52 = if osc52 == *only_copy {
+        Osc52::OnlyCopy
+    } else if osc52 == *only_paste {
+        Osc52::OnlyPaste
+    } else if osc52 == *copy_paste {
+        Osc52::CopyPaste
+    } else if osc52 == *nil {
+        Osc52::Disabled
+    } else {
+        let _ = env.call("mistty-log", ("OSC52 disabled; unknown value: '%s'", osc52));
+
+        Osc52::Disabled
+    };
+
+    Ok(VTermOptions { osc52 })
 }

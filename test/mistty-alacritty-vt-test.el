@@ -20,7 +20,7 @@
 (require 'turtles nil 'noerror)
 
 (mistty-deftest mistty-alacritty-vt-render (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     ;; fill the screen
     (mistty-alacritty-vt-process-bytes term "\r0 ")
@@ -48,7 +48,7 @@
           (mistty-test-content :trim nil :show cursor))))))
 
 (mistty-deftest mistty-alacritty-vt-render-to-last-nonblank (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     ;; fill the screen
     (mistty-alacritty-vt-process-bytes term "\r0")
     (dotimes (i 5)
@@ -132,7 +132,7 @@
           (mistty-test-content :trim nil :show cursor)))))))
 
 (mistty-deftest mistty-alacritty-vt-set-cursor (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     ;; fill the screen
     (mistty-alacritty-vt-process-bytes term "\r0")
     (dotimes (i 9)
@@ -180,7 +180,7 @@
 (mistty-deftest mistty-alacritty-vt-all-fg-color
     (:turtles t :shell none :features mistty-alacritty-vt)
   (ert-with-test-buffer ()
-    (let ((term (mistty-alacritty-vt-make-vterm 80 20))
+    (let ((term (mistty-alacritty-vt-make-vterm 80 20 nil))
           (colors '((30 40 ansi-color-black)
                     (31 41 ansi-color-red)
                     (32 42 ansi-color-green)
@@ -218,7 +218,7 @@
 (mistty-deftest mistty-alacritty-vt-set-all-color
     (:turtles t :shell none :features mistty-alacritty-vt)
  (ert-with-test-buffer ()
-   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes term "\e[31mred\e[0m, \e[37m\e[42mgreen\e[0m, \e[34mblue\e[0m.")
     (mistty-alacritty-vt-render term (make-marker))
     (turtles-with-grab-buffer ()
@@ -251,7 +251,7 @@
 (mistty-deftest mistty-alacritty-vt-set-24bit-color
     (:turtles t :shell none :features mistty-alacritty-vt)
  (ert-with-test-buffer ()
-   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes
      term "\e[38;2;237;237;216m\e[48;2;97;35;196mcolorful\e[0m!")
     (goto-char (point-min))
@@ -271,7 +271,7 @@
 
 (mistty-deftest mistty-alacritty-vt-set-face (:features mistty-alacritty-vt :shell none)
  (ert-with-test-buffer ()
-   (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes term "\e[1mbold, \e[3mitalic\e[0m,\r\n\e[4munderline\e[0m,\r\n\e[7minverse\e[0m.")
     (mistty-alacritty-vt-render term (make-marker))
 
@@ -297,7 +297,7 @@
 
 (mistty-deftest mistty-alacritty-vt-render-line-background
                 (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes
      term
      (concat "\e[45mline1---------------\r\n"
@@ -356,7 +356,7 @@
                        nil))))))
 
 (mistty-deftest mistty-alacritty-vt-render-move-cursor (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     ;; fill the screen
     (mistty-alacritty-vt-process-bytes term "\r0")
     (dotimes (i 9)
@@ -400,14 +400,14 @@
           (mistty-test-content :show cursor)))))))
 
 (mistty-deftest mistty-alacritty-vt-pty-write (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     ;; \e[6n queries the cursor position. ]
     (should (null (mistty-alacritty-vt-process-bytes term "foo\r\n")))
     (should (equal "\33[2;4R"
                    (mistty-alacritty-vt-process-bytes term "bar\e[6n\r\n")))))
 
 (mistty-deftest mistty-alacritty-vt-render-unicode-wide-characters (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes term "\e[1ma\e[0m\xF0\x9F\x9F\xA7\e[4msquare\e[0m!\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
@@ -433,7 +433,7 @@
 
 (mistty-deftest mistty-alacritty-vt-render-right-wide-character-background
                 (:features mistty-alacritty-vt :shell none :turtles t)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes
      term (concat "\e[45mline1             "
                   (encode-coding-string "\U0001F7E7" 'utf-8)
@@ -463,7 +463,7 @@
 
 (mistty-deftest mistty-alacritty-vt-render-right-wide-combining-character-background
                 (:features mistty-alacritty-vt :shell none :turtles t)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes
      term (concat "\e[45mline1             "
                   (encode-coding-string "\u26a0\ufe0f" 'utf-8)
@@ -494,7 +494,7 @@
 
 (mistty-deftest mistty-alacritty-vt-render-right-align-wide-characters
                 (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes
      term (concat "line1             "
                   (encode-coding-string "\U0001F7E7..." 'utf-8)
@@ -511,7 +511,7 @@
 
 (mistty-deftest mistty-alacritty-vt-render-align-wide-combining-character
                 (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((term (mistty-alacritty-vt-make-vterm 80 24 nil)))
     (mistty-alacritty-vt-process-bytes
      term (concat "A " (encode-coding-string "\u26a0\ufe0f" 'utf-8) "! Something is wrong.\r\n"))
     (ert-with-test-buffer ()
@@ -524,7 +524,7 @@
 
 (mistty-deftest mistty-alacritty-vt-render-tabs
                 (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes term "<\t> !\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
@@ -532,7 +532,7 @@
         (should (equal "<       > !" (mistty-test-content)))))))
 
 (mistty-deftest mistty-alacritty-vt-render-unicode-combining-characters (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes term "\e[1mc'e\xcc\x81tait\e[0m \e[4ml'e\xcc\x81te\xcc\x81\e[0m!\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
@@ -552,7 +552,7 @@
           (mistty-test-content :show-property '(face ansi-color-underline))))))))
 
 (mistty-deftest mistty-alacritty-vt-render-unicode-zerowidth-characters (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 80 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 80 10 nil)))
     (mistty-alacritty-vt-process-bytes
      term "https://example.com/\xe2\x80\x8b\e[1mvery\e[0m/\xe2\x80\x8blong/\xe2\x80\x8b\e[1mpath\e[0m.\r\n")
     (ert-with-test-buffer ()
@@ -567,7 +567,7 @@
         ))))
 
 (mistty-deftest mistty-alacritty-vt-render-unicode-joiner (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes
      term
      ;; 👨 (Man) + [ZWJ] + 👩 (Woman) + [ZWJ] + 👧 (Girl)
@@ -585,7 +585,7 @@
         ))))
 
 (mistty-deftest mistty-alacritty-vt-scrollback-enabled (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-enable-scrollback vterm)
 
     ;; fill the screen
@@ -679,7 +679,7 @@
                                :trim nil)))))))
 
 (mistty-deftest mistty-alacritty-vt-scrollback-trim-right (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-enable-scrollback vterm)
 
     ;; When writing scrollback data, spaces that were not actually
@@ -698,7 +698,7 @@
                        (buffer-substring-no-properties (point-min) screen-top)))))))
 
 (mistty-deftest mistty-alacritty-vt-scrollback-disabled (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil)))
     ;; unnecessary, as scrollback is disabled by default
     ;; (mistty-alacritty-vt-disable-scrollback vterm)
 
@@ -753,7 +753,7 @@
         ))))
 
 (mistty-deftest mistty-alacritty-vt-wrapped-lines (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 10 20))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 10 20 nil))
         (cursor (make-marker)))
 
     ;; The first line cannot fit into 10 columns, it'll be split by
@@ -786,7 +786,7 @@
                        (search-forward "full!") 'yank-handler))))))
 
 (mistty-deftest mistty-alacritty-vt-scrollback-not-wrapped (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-enable-scrollback vterm)
 
     ;; The first line cannot fit into 10 columns, it'll be split by
@@ -814,7 +814,7 @@
                  (mistty-test-content :end new-top)))))))
 
 (mistty-deftest mistty-alacritty-vt-clear-scrollback (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-enable-scrollback term)
 
     ;; fill the screen
@@ -831,7 +831,7 @@
     (should (equal 0 (mistty-alacritty-vt-scrollback-line-count term)))))
 
 (mistty-deftest mistty-alacritty-vt-cursor (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (should (equal '(0 . 0) (mistty-alacritty-vt-cursor term)))
     (mistty-alacritty-vt-process-bytes term "test")
     (should (equal '(0 . 4) (mistty-alacritty-vt-cursor term)))
@@ -841,7 +841,7 @@
     (should (equal '(3 . 7) (mistty-alacritty-vt-cursor term)))))
 
 (mistty-deftest mistty-alacritty-vt-scrollback-wrapped-lines (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes
      vterm "\rBaa, baa, black sheep have you any wool?")
     (mistty-alacritty-vt-process-bytes vterm " Yes sir, yes, sir three bags full!")
@@ -996,7 +996,7 @@
            :show screen-top :show-property '(term-line-wrap t))))))))
 
 (mistty-deftest mistty-alacritty-vt-render-mistty-clear (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-render term cursor)
@@ -1035,7 +1035,7 @@
                 :show-property '(mistty-clear t)))))))
 
 (mistty-deftest mistty-alacritty-vt-render-mistty-clear-not-dim (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       ;; Since the DIM flag is used internally to track clear terminal
@@ -1061,7 +1061,7 @@
                (mistty-test-content :show-property '(face ansi-color-bold)))))))
 
 (mistty-deftest mistty-alacritty-vt-resize (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-process-bytes term "Baa, baa, black sheep have you any wool?\r\n")
@@ -1083,7 +1083,7 @@
 
 
 (mistty-deftest mistty-alacritty-vt-clear-to-eol (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-process-bytes term "foo     \r\nbar          \r\n")
@@ -1112,7 +1112,7 @@
                 :show-property '(mistty-clear t)))))))
 
 (mistty-deftest mistty-alacritty-vt-clear-to-eol-unicode (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       ;; This makes sure the unicode characters don't mess up the
@@ -1139,7 +1139,7 @@
                  (mistty-test-content :trim nil)))))))
 
 (mistty-deftest mistty-alacritty-vt-mark-indent (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-process-bytes
@@ -1171,7 +1171,7 @@
       )))
 
 (mistty-deftest mistty-alacritty-vt-mark-right-prompt (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 30 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 30 10 nil))
         (cursor (make-marker)))
     (mistty-alacritty-vt-process-bytes
      term
@@ -1216,7 +1216,7 @@
            :show-property '(mistty-skip indent)))))))
 
 (mistty-deftest mistty-alacritty-vt-link (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-process-bytes
@@ -1236,7 +1236,7 @@
         (should (equal "http://www.example.com/world" (button-get button 'browse-url-data)))))))
 
 (mistty-deftest mistty-alacritty-vt-consecutive-links (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-process-bytes
@@ -1253,7 +1253,7 @@
       (should (equal "http://www.example.com/world" (button-get (button-at (1- (match-end 0))) 'browse-url-data))))))
 
 (mistty-deftest mistty-alacritty-vt-set-title (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (should (null (mistty-alacritty-vt-process-bytes
                    term "foo\e]0;window-title\e\\bar")))
@@ -1265,8 +1265,7 @@
        (should (equal "foobar" (mistty-test-content))))))
 
 (mistty-deftest mistty-alacritty-vt-osc52-update-kill-ring (:features mistty-alacritty-vt :shell none)
-  (let* ((mistty-alacritty-osc52 'only-copy)
-         (term (mistty-alacritty-vt-make-vterm 80 10)))
+  (let* ((term (mistty-alacritty-vt-make-vterm 80 10 '(:osc52 only-copy))))
     (kill-new "initial")
     (mistty-alacritty-vt-process-bytes
      term (format "\e]52;c;%s\a" (base64-encode-string "baa1")))
@@ -1278,8 +1277,7 @@
     (should (equal "initial" (nth 2 kill-ring)))))
 
 (mistty-deftest mistty-alacritty-vt-osc52-clear (:features mistty-alacritty-vt :shell none)
-  (let* ((mistty-alacritty-osc52 'only-copy)
-         (term (mistty-alacritty-vt-make-vterm 80 10)))
+  (let* ((term (mistty-alacritty-vt-make-vterm 80 10 '(:osc52 only-copy))))
     (kill-new "initial")
     (mistty-alacritty-vt-process-bytes
      term (format "\e]52;c;%s\a" (base64-encode-string "baa1")))
@@ -1293,8 +1291,7 @@
     (should (equal "baa1" (nth 1 kill-ring)))))
 
 (mistty-deftest mistty-alacritty-vt-osc52-disabled (:features mistty-alacritty-vt :shell none)
-  (let* ((mistty-alacritty-osc52 nil)
-         (term (mistty-alacritty-vt-make-vterm 80 10)))
+  (let* ((term (mistty-alacritty-vt-make-vterm 80 10 '(:osc52 nil))))
     (kill-new "initial")
     (should
      (equal nil
@@ -1310,8 +1307,7 @@
                         term "\e]52;c;?\a")))))
 
 (mistty-deftest mistty-alacritty-vt-osc52-only-copy (:features mistty-alacritty-vt :shell none)
-  (let* ((mistty-alacritty-osc52 'only-copy)
-         (term (mistty-alacritty-vt-make-vterm 80 10)))
+  (let* ((term (mistty-alacritty-vt-make-vterm 80 10 '(:osc52 only-copy))))
     (kill-new "initial")
     (should
      (equal nil
@@ -1326,8 +1322,7 @@
                         term "\e]52;c;?\a")))))
 
 (mistty-deftest mistty-alacritty-vt-osc52-only-paste (:features mistty-alacritty-vt :shell none)
-  (let* ((mistty-alacritty-osc52 'only-paste)
-         (term (mistty-alacritty-vt-make-vterm 80 10)))
+  (let* ((term (mistty-alacritty-vt-make-vterm 80 10 '(:osc52 only-paste))))
     (kill-new "initial")
     (should
      (equal nil
@@ -1342,8 +1337,7 @@
                     term "\e]52;c;?\a.")))))
 
 (mistty-deftest mistty-alacritty-vt-osc52-copy-paste (:features mistty-alacritty-vt :shell none)
-  (let* ((mistty-alacritty-osc52 'copy-paste)
-         (term (mistty-alacritty-vt-make-vterm 80 10)))
+  (let* ((term (mistty-alacritty-vt-make-vterm 80 10 '(:osc52 copy-paste))))
     (kill-new "initial")
     (should
      (equal nil
@@ -1358,7 +1352,7 @@
                     term "\e]52;c;?\a.")))))
 
 (mistty-deftest mistty-alacritty-vt-render-partial (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((term (mistty-alacritty-vt-make-vterm 80 24 nil)))
     (mistty-alacritty-vt-process-bytes term "baa, baa\r\nblack sheep\r\nhave you any wool?\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
@@ -1401,7 +1395,7 @@
 
 
 (mistty-deftest mistty-alacritty-vt-render-partial-detect-issues (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((term (mistty-alacritty-vt-make-vterm 80 24 nil)))
     (mistty-alacritty-vt-process-bytes term "baa, baa\r\nblack sheep\r\nhave you any wool?\r\n")
     (ert-with-test-buffer ()
       (let ((bufa (current-buffer)))
@@ -1469,7 +1463,7 @@
                 (mistty-test-content :trim nil :show-property '(existing t)))))))))))
 
 (mistty-deftest mistty-alacritty-vt-render-screen (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10))
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     ;; even mostly empty, the whole screen is drawn
     (mistty-alacritty-vt-process-bytes term "\r0")
@@ -1548,7 +1542,7 @@
         (mistty-test-content :trim nil :show cursor))))))
 
 (mistty-deftest mistty-alacritty-vt-render-scrollback-after-reset (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil))
         (cursor (make-marker)))
     (mistty-alacritty-vt-enable-scrollback vterm)
 
@@ -1567,7 +1561,7 @@
 
 (mistty-deftest mistty-alacritty-vt-report-toggle-kkp
                 (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on the kitty keyboard protocol
     (mistty-alacritty-vt-process-bytes vterm "\e[>1u")
     (should (equal '((kkp t)) (mistty-alacritty-vt-collect-changes vterm)))
@@ -1585,7 +1579,7 @@
 
 (mistty-deftest mistty-alacritty-vt-kitty-key-seq
     (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on the kitty keyboard protocol
     (mistty-alacritty-vt-process-bytes vterm "\e[>1u")
     (should (equal '((kkp t)) (mistty-alacritty-vt-collect-changes vterm)))
@@ -1641,7 +1635,7 @@
 
 (mistty-deftest mistty-alacritty-vt-kkp-progressive-enhancements
     (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on all flags of the kitty keyboard protocol
     (mistty-alacritty-vt-process-bytes vterm "\e[>29u")
     (should (equal '((kkp t))
@@ -1653,7 +1647,7 @@
 
 (mistty-deftest mistty-alacritty-vt-report-mouse
     (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on mouse reporting
     (mistty-alacritty-vt-process-bytes vterm "\e[?1000h")
     (should (equal '((mouse click))
@@ -1673,13 +1667,13 @@
 
 (mistty-deftest mistty-alacritty-vt-mouse-seq-disabled
     (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     (should (null (mistty-alacritty-vt-mouse-seq vterm 'press 1 [] 0 0)))))
 
 
 (mistty-deftest mistty-alacritty-vt-mouse-seq-x10
     (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; Send clicks and drag
     (mistty-alacritty-vt-process-bytes vterm "\e[?1002h")
     (should (equal '((mouse drag))
@@ -1723,7 +1717,7 @@
         (mistty-alacritty-vt-mouse-seq vterm action button mods line col))))))
 
 (mistty-deftest mistty-alacritty-vt-mouse-seq-sgr (:features mistty-alacritty-vt :shell none)
-  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24)))
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
 
     ;; Send clicks and drag
     (mistty-alacritty-vt-process-bytes vterm "\e[?1002h")

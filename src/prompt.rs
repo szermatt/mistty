@@ -347,8 +347,7 @@ fn blank_trailing(row: &mut Row<Cell>) {
 mod tests {
     use super::*;
     use crate::testing;
-    use crate::vterm::{VTerm, VTermProcessor};
-    use alacritty_terminal::term::Osc52;
+    use crate::vterm::{VTerm, VTermOptions, VTermProcessor};
 
     struct Fixture {
         vterm: VTerm,
@@ -357,7 +356,7 @@ mod tests {
 
     impl Fixture {
         fn setup() -> Self {
-            let vterm = VTerm::new(20, 10, Osc52::Disabled);
+            let vterm = VTerm::new(20, 10, VTermOptions::default());
             let processor = VTermProcessor::new();
             Self { vterm, processor }
         }

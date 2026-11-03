@@ -152,6 +152,11 @@ impl<'e> IntoLisp<'e> for VTermChange {
     }
 }
 
+#[derive(Default, Clone, Debug)]
+pub(crate) struct VTermOptions {
+    pub(crate) osc52: Osc52,
+}
+
 /// Virtual Terminal for MisTTY that keeps its data in memory.
 pub(crate) struct VTerm {
     inner: Term<EventAccumulator>,
@@ -192,14 +197,14 @@ pub(crate) struct VTerm {
 
 impl VTerm {
     /// Create a new terminal with the given dimensions
-    pub(crate) fn new(width: usize, height: usize, osc52: Osc52) -> Self {
+    pub(crate) fn new(width: usize, height: usize, options: VTermOptions) -> Self {
         let events = Rc::new(RefCell::new(VecDeque::new()));
         let acc = EventAccumulator {
             events: Rc::clone(&events),
         };
         let config = Config {
             scrolling_history: 0, // call enable_scrollback to re-enable
-            osc52,
+            osc52: options.osc52,
             kitty_keyboard: true,
             ..Default::default()
         };
@@ -1145,7 +1150,7 @@ mod tests {
     impl Fixture {
         fn setup() -> Self {
             Self {
-                vterm: VTerm::new(10, 3, Osc52::Disabled),
+                vterm: VTerm::new(10, 3, VTermOptions::default()),
                 processor: VTermProcessor::new(),
             }
         }
@@ -1506,7 +1511,7 @@ mod tests {
 
     #[test]
     fn screen_top_scrolline_empty() {
-        let vterm = VTerm::new(10, 3, Osc52::Disabled);
+        let vterm = VTerm::new(10, 3, VTermOptions::default());
         assert_eq!(Scrolline(0), vterm.screen_top_scrolline());
     }
 

@@ -30,6 +30,8 @@
 (require 'backtrace)
 (eval-when-compile
   (require 'cl-lib))
+(require 'mistty-custom)
+
 
 (defvar mistty-log-buffer nil
   "Buffer when log messages are directed, might not be live.")
@@ -44,24 +46,6 @@ Calling the function `mistty-log' is a no-op unless this is set.")
 (defvar mistty-log-to-messages noninteractive
   "If non-nil, send log to messages instead of mistty log buffer.")
 
-(defcustom mistty-backlog-size 0
-  "Log entries to track when logging is disabled.
-
-As many as `mistty-backlog-size' entries will be backfilled
-by `mistty-start-log' when logging is enabled.
-
-Setting this value allows turning on logging once something wrong
-has happened."
-  :group 'mistty
-  :type '(integer))
-
-(defcustom mistty-log-max-backtrace-length 2400
-  "Maximum length, in characters, of logged backtraces.
-
-Backtraces that are longer than this value are truncated by
-`mistty-log-error'."
-  :group 'mistty
-  :type 'integer)
 
 (defvar-local mistty--backlog nil
   "If non-nil, a ring of `mistty--log' arguments.")

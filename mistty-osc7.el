@@ -22,44 +22,9 @@
 ;;
 
 (require 'url-util)
+(require 'mistty-custom)
 
 ;;; Code:
-
-(defcustom mistty-allow-tramp-paths t
-  "If true, allow generating TRAMP paths as shell-specified directory.
-
-This affects directories set using OSC 7, which can then build
-TRAMP remote paths based on the hostname specified in the file://
-URL, using the default method.
-
-This option doesn't affect hosts configured using
-`mistty-host-to-tramp-path-alist'."
-
-  :group 'mistty
-  :type '(boolean))
-
-(defcustom mistty-host-to-tramp-path-alist nil
-  "Maps hostnames to TRAMP paths.
-
-This alist maps hosts as self-declared using OSC 7 to the TRAMP
-path MisTTY should use for directory tracking.
-
-This is useful for hosts that require a specific method to
-connect to.
-
-The values should be of the same form as the remote identifiers
-returned by `file-remote-p', with method, user and host, for
-example \"/ssh:example.com:\". Invalid values are ignored.
-
-The values can also be nil to disable directory tracking for that
-specific host.
-
-Note that for the ssh method, it's often easier to add the
-configuration option you need to a host to ~/.ssh/config."
-  :group 'mistty
-  :type '(alist :key-type (string :tag "Host")
-                :value-type (choice (string :tag "TRAMP Path")
-                                    (const nil))))
 
 (defun mistty-osc7 (_ osc-seq)
   "Store OSC-SEQ as path to the current directory.

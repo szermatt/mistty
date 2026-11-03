@@ -19,6 +19,7 @@
 ;; This file provides helper for downloading or building and
 ;; installing the appropriate module.
 
+(require 'mistty-custom)
 (require 'mistty-alacritty)
 (require 'cl-lib)
 (require 'url)
@@ -29,32 +30,6 @@
   "Directory where mistty is installed.
 
 This is the directory where the .el or .elc files are installed.")
-
-;;;###autoload
-(defcustom mistty-install-dir nil
-  "Directory where the module should be installed.
-
-`mistty-install' will attempt to store the module into this directory.
-It should be a writable directory that's on `load-path'.
-
-It defaults to the directory where `mistty-install.el' is stored, if it
-is writable, otherwise `user-emacs-directory'."
-  :group 'mistty
-  :type 'directory)
-
-;;;###autoload
-(defcustom mistty-install-keep-output nil
-  "Keep around the *mistty-install* output buffer.
-
-When this option is nil, which is the default, the buffer that displays
-installation details and progress created by `mistty-install' and
-`mistty-install-dwim' is displayed only after a delay and killed at the
-end of a successful command.
-
-With this option set, the buffer is displayed right away and kept around
-for the user to kill."
-  :group 'mistty
-  :type 'boolean)
 
 (defvar mistty-install-url
   "https://github.com/szermatt/mistty/releases/download/%r/mistty-alacritty-vt-%v-%a%e"

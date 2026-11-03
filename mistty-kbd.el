@@ -20,22 +20,8 @@
 ;; normally accessed through mistty.el.
 
 ;;; Code:
+(require 'mistty-custom)
 (require 'mistty-log)
-
-(defcustom mistty-exit-capture-keyboard-key "C-g"
-  "Key that ends `mistty-capture-keyboard'.
-
-While it is running, `mistty-capture-keyboard' sends all keys to the
-terminal, all except this specific key or key combination, which exits
-the mode.
-
-It must be a single key or key combination reported by `read-key', not a
-key sequence.
-
-It's also possible to exit keyboard capture with the mouse, clicking
-anywhere, or programatically by calling `mistty-exit-capture-keyboard'."
-  :group `mistty
-  :type 'key)
 
 (defconst mistty-del "\C-h"
   "Sequence to send to the process when backspace is pressed.

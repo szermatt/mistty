@@ -28,6 +28,7 @@
 (defvar term-height) ; defined in term.el
 (defvar term-home-marker) ; defined in term.el
 
+(require 'mistty-custom)
 (require 'mistty-term-base)
 (require 'mistty-term)
 (require 'mistty-accum)
@@ -39,71 +40,6 @@
 (autoload 'mistty-osc-query-color "mistty-osc-colors")
 (autoload 'ansi-osc-window-title-handler "ansi-osc")
 (autoload 'ansi-osc-hyperlink-handler "ansi-osc")
-
-(defcustom mistty-osc-handlers
-  '(
-    ;; not using ansi-osc-directory-tracker because it doesn't decode
-    ;; the coding system of the path after percent-decoding it.
-    ;; TODO: propose a fix for ansi-osc
-    ("7" . mistty-osc7)
-
-    ;; These handlers are reasonably compatibly with MisTTY OSC. This
-    ;; isn't necessary going to be the case for all such handlers.
-    ("0" . ansi-osc-window-title-handler)
-    ("2" . ansi-osc-window-title-handler)
-    ("8" . ansi-osc-hyperlink-handler)
-
-    ;; Allow querying foreground and background color. While OSC 10/11
-    ;; normally supports changing color, this isn't supported here.
-    ("10" . mistty-osc-query-color)
-    ("11" . mistty-osc-query-color)
-    ("133" . mistty-osc133))
-  "Hook run when unknown OSC sequences have been received.
-
-This hook is run on the `term-mode' buffer. It is passed the OSC code as
-a string and the content of OSC sequence - everything between OSC (ESC
-]) and ST (ESC \\ or \\a) and may choose to handle them.
-
-The current buffer a`term-mode' buffer. The hook is allowed to
-modify it, to add text properties, for example. In such case,
-consider using `mistty-register-text-properties'.
-
-Most handlers written for the ansi-osc package (Emacs 29) should
-work here as well.
-
-If you add here a handler that sets a buffer-local variable,
-consider adding that variable to `mistty-variables-to-copy' so
-that its value is available in the main MisTTY buffer, not just
-the terminal buffer.
-
-This option only works on eterm terminals. It has no effect on alacritty
-terminals."
-  :group 'mistty
-  :type '(alist :key-type string :value-type function))
-
-(defcustom mistty-term-mode-hook (list #'mistty-call-term-mode-hook)
-  "Hook run in in `term-mode' buffers created by MisTTY.
-
-This hook overrides `term-mode-hook' for term buffers started by MisTTY
-to allow configuring MisTTY's term buffers differently from normal term
-buffers.
-
-The default includes `mistty-call-term-mode-hook', which calls the
-original `term-mode-hook'.
-
-If you'd like to have completely different configuration for normal `term-mode'
-buffers and `term-mode' buffers started by Mistty, call:
-
-  (remove-hook \\='mistty-term-mode-hook \\='mistty-call-term-mode-hook)
-
-You might want to execute the above command as well if you have reasons
-to think that some `term-mode' customization are interfering with MisTTY's
-operations.
-
-This option only works on eterm terminals. It has no effect on alacritty
-terminals."
-  :group 'mistty
-  :type 'hook)
 
 (define-obsolete-variable-alias
   'mistty-fullscreen-map  'mistty-term-mode-map "1.5.1snapshot")

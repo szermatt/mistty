@@ -24,6 +24,7 @@
 (eval-when-compile
   (require 'cl-lib))
 
+(require 'mistty-custom)
 (require 'mistty-scrolline)
 (require 'mistty-util)
 (require 'mistty-log)
@@ -35,56 +36,6 @@
 (require 'mistty-term-base)
 
 ;;; Code:
-
-(defcustom mistty-set-EMACS nil
-  "Whether the EMACS env variable should be set, for Bash 4.3 and older.
-
-NOTE: Bash detecting that it's running under Emacs only works when using
-term.el as Bash wants the TERM env variable to be set to eterm. When
-using the module, only OSC7 work for directory tracking.
-
-You can set set this if:
- - you're stuck using a very old version of Bash (4.3 or older)
- - you don't want to set up directory tracking using OSC7
-   as described in the manual
-
-When set, MisTTY sets the EMACS env variable, which Bash 4.3 and
-older check to decide whether to send out directory tracking
-information. (Newer version check INSIDE_EMACS instead.)
-
-As this is usually host-specific, it can be set as a
-connection-local variable. This might be useful when connecting
-with TRAMP to hosts or docker instances that use a very old
-version of Bash that you don't want to configure.
-
-For example:
-
-  (connection-local-set-profile-variables
-   \\='profile-old-bash
-   \\='((mistty-set-EMACS . t)
-     (mistty-shell-command . (\"/bin/bash\" \"-i\"))))
-
-  (connection-local-set-profiles \\='(:machine \"oldhost.example.com\")
-   \\='profile-old-bash)
-  (connection-local-set-profiles \\='(:protocol \"docker\")
-   \\='profile-old-bash)"
-  :group 'mistty
-  :type 'boolean)
-
-(defcustom mistty-multi-line-continue-prompts
-  '("^    *\\.\\.\\.: " ; ipython
-    )
-  "Regexp used to identify multi-line command prompts.
-
-These regexps identifies prompts that tell the user that they can
-type more, while still allowing them to edit what's above. MisTTY
-uses these regexps to identify sections of texts it should ignore
-when editing.
-
-Note that bash \"> \" is not a continuation prompt, with this
-definition, because it doesn't allow editing what's above."
-  :group 'mistty
-  :type '(list regexp))
 
 (defvar-local mistty--term-properties-to-add-alist nil
   "An alist of id to text properties to add to the term buffer.

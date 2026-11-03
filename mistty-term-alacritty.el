@@ -111,11 +111,14 @@ AFTER-CLEAR-SCREEN is called after the screen is cleared.
 AFTER-RESET is called after the terminal was reset
 SYNC-SCROLLINE returns the current sync scrolline.
 REQUEST-REPORT-MOUSE controls mouse reporting."
-  (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks))
-        (program (car command))
-        (args (cdr command))
-        (width (or width 80))
-        (height (or height 24)))
+  (let* ((width (or width 80))
+         (height (or height 24))
+         ;; Take terminal options from possibly buffer-local values
+         ;; from calling buffer, the work buffer.
+         (vterm (mistty-alacritty--make-vterm width height))
+         (term-buffer (generate-new-buffer name 'inhibit-buffer-hooks))
+         (program (car command))
+         (args (cdr command)))
     (with-current-buffer term-buffer
       (mistty-alacritty-mode)
       (setq-local mistty--prompt-cell prompt-cell)
@@ -130,7 +133,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
              (term (mistty--make-term-alacritty
                     :buf term-buffer
                     :proc proc
-                    :vterm (mistty-alacritty--make-vterm width height)
+                    :vterm vterm
                     :lines height
                     :columns width
                     :prompt-cell prompt-cell

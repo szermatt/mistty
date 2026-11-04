@@ -67,6 +67,19 @@ takes one argument that is either nil (deactivated), \\='click (press
 and release events), \\='drag (press, release, and mouse movement with
 pointer down), \\='motion (all mouse events).")
 
+(cl-defgeneric mistty--term-update-options (term &rest plist)
+  "Set TERM options.
+
+PLIST specifies the options to set. Possible keys:
+
+- :osc52 nil|\\='only-copy|\\='only-paste|\\='copy-paste
+- :allow-clearing-scrollback boolean
+
+Not all terminal support all options. Unsupported or unknown options are
+ignored."
+
+  (ignore term plist))
+
 (cl-defgeneric mistty--term-buf (term)
   "Return the TERM's terminal or process buffer.")
 

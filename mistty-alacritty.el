@@ -117,7 +117,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-cursor nil (term))
 (declare-function mistty-alacritty-vt-enable-scrollback nil (term))
 (declare-function mistty-alacritty-vt-kitty-key-seq nil (term key mods basic-type))
-(declare-function mistty-alacritty-vt-make-vterm nil (w h options))
+(declare-function mistty-alacritty-vt-make-vterm nil (w h options-plist))
 (declare-function mistty-alacritty-vt-mouse-seq nil (term action button mods line column))
 (declare-function mistty-alacritty-vt-process-bytes nil (term bytes))
 (declare-function mistty-alacritty-vt-render nil (term cursor))
@@ -125,6 +125,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-resize nil (term w h))
 (declare-function mistty-alacritty-vt-scrollback-line-count nil (term))
 (declare-function mistty-alacritty-vt-terminal-line-for-scrolline nil (term scrolline))
+(declare-function mistty-alacritty-vt-update-options nil (term options-plist))
 (declare-function mistty-alacritty-vt-write-scrollback nil (term))
 
 (defvar-local mistty-alacritty--cursor nil

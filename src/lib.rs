@@ -15,7 +15,7 @@ use crate::{
     types::Scrolline,
     vterm::{VTerm, VTermOptions, VTermProcessor},
 };
-use alacritty_terminal::{index::Line, term::Osc52};
+use alacritty_terminal::index::Line;
 use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
 use std::{fmt::Debug, ops::RangeBounds};
 
@@ -25,16 +25,10 @@ emacs::plugin_is_GPL_compatible!();
 
 emacs::use_functions! {
     symbol_value
-    plist_get
 }
 emacs::use_symbols! {
     args_out_of_range
     nil
-    colon_allow_clearing_scrollback => ":allow-clearing-scrollback"
-    colon_osc52 => ":osc52"
-    only_copy
-    only_paste
-    copy_paste
 }
 
 /// VTerm type kept Emacs-side.
@@ -77,14 +71,32 @@ fn version() -> Result<String> {
 /// If scrollback is enabled (not nil), the terminal will move when
 /// scrolling down, leaving scrollback lines behind it.
 ///
-/// OPTIONS is a plist with the following possible keys:
-/// - :osc52 configues support for OSC 52. It can be either nil,
-///   'only-copy, 'only-paste or 'copy-paste (default to 'only-copy).
-/// Unknown keys are ignored.
+/// OPTIONS_PLIST is a plist with the following possible keys:
+///  - :osc52 nil|'only-copy|'only-paste|'copy-paste
+///  - :allow-clearing-scrollback boolean
+///
+/// If an option is unset, its default value is used. Unknown
+/// properties are ignored.
 #[defun(user_ptr)]
-fn make_vterm(env: &Env, width: usize, height: usize, options: Value<'_>) -> Result<VTermFacade> {
-    let options = options_from_plist(env, options)?;
+fn make_vterm(width: usize, height: usize, options_plist: Value<'_>) -> Result<VTermFacade> {
+    let mut options = VTermOptions::default();
+    options.apply_plist(options_plist)?;
+    mistty_log(options_plist.env, format!("OPTIONS: {options:?}"));
     Ok(VTermFacade::new(VTerm::new(width, height, options)))
+}
+
+/// Update terminal options.
+///
+/// OPTIONS_PLIST takes the same kind of plist as passed to
+/// [make_vterm]. Unspecified properties are unchanged.
+#[defun]
+fn update_options(term: &mut VTermFacade, options_plist: Value<'_>) -> Result<()> {
+    let mut options = term.vterm.options().clone();
+    options.apply_plist(options_plist)?;
+    mistty_log(options_plist.env, format!("OPTIONS: {options:?}"));
+    term.vterm.set_options(options);
+
+    Ok(())
 }
 
 /// Tell the virtual terminal to track scrollback.
@@ -377,29 +389,7 @@ where
     Ok(val)
 }
 
-/// Create a [VTermOption] from a plist with matching keys and values.
-fn options_from_plist(env: &Env, plist: Value<'_>) -> Result<VTermOptions> {
-    let osc52 = env.call(plist_get, (plist, colon_osc52))?;
-    let osc52 = if osc52 == *only_copy {
-        Osc52::OnlyCopy
-    } else if osc52 == *only_paste {
-        Osc52::OnlyPaste
-    } else if osc52 == *copy_paste {
-        Osc52::CopyPaste
-    } else if osc52 == *nil {
-        Osc52::Disabled
-    } else {
-        let _ = env.call("mistty-log", ("OSC52 disabled; unknown value: '%s'", osc52));
-
-        Osc52::Disabled
-    };
-
-    let allow_clearing_scrollback = env
-        .call(plist_get, (plist, colon_allow_clearing_scrollback))?
-        .is_not_nil();
-
-    Ok(VTermOptions {
-        osc52,
-        allow_clearing_scrollback,
-    })
+/// Log a debug message elisp-side (best effort).
+pub fn mistty_log<S: AsRef<str>>(env: &Env, message: S) {
+    let _ = env.call("mistty-log", (message.as_ref(),));
 }

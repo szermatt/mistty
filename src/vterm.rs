@@ -28,6 +28,8 @@ emacs::use_functions! {
     nreverse_func => "nreverse"
     current_kill
     kill_new
+    plist_member
+    cadr
 }
 emacs::use_symbols! {
     bracketed_paste_sym => "bracketed-paste"
@@ -42,6 +44,11 @@ emacs::use_symbols! {
     fullscreen_sym => "fullscreen"
     cleared_screen_sym => "cleared-screen"
     cleared_scrollback_sym => "cleared-scrollback"
+    colon_allow_clearing_scrollback => ":allow-clearing-scrollback"
+    colon_osc52 => ":osc52"
+    only_copy
+    only_paste
+    copy_paste
 }
 
 /// Size of the scrollback, in lines. There needs to be enough space
@@ -163,6 +170,42 @@ pub(crate) struct VTermOptions {
     pub(crate) allow_clearing_scrollback: bool,
 }
 
+impl VTermOptions {
+    /// Update options from an property list.
+    ///
+    /// Properties:
+    ///  - :osc52 nil|'only-copy|'only-paste|'copy-paste
+    ///  - :allow-clearing-scrollback bool
+    ///
+    /// Unknown properties are ignored.
+    pub(crate) fn apply_plist(&mut self, plist: Value<'_>) -> Result<()> {
+        let env = plist.env;
+
+        let member = env.call(plist_member, (plist, colon_osc52))?;
+        if member.is_not_nil() {
+            let osc52 = env.call(cadr, (member,))?;
+            if !osc52.is_not_nil() {
+                self.osc52 = Osc52::Disabled;
+            } else if osc52 == *only_copy {
+                self.osc52 = Osc52::OnlyCopy;
+            } else if osc52 == *only_paste {
+                self.osc52 = Osc52::OnlyPaste;
+            } else if osc52 == *copy_paste {
+                self.osc52 = Osc52::CopyPaste;
+            } else {
+                let _ = env.call("mistty-log", ("Unknown value for :osc52: '%s'", osc52));
+            };
+        }
+
+        let member = env.call(plist_member, (plist, colon_allow_clearing_scrollback))?;
+        if member.is_not_nil() {
+            self.allow_clearing_scrollback = env.call(cadr, (member,))?.is_not_nil();
+        }
+
+        Ok(())
+    }
+}
+
 /// Virtual Terminal for MisTTY that keeps its data in memory.
 pub(crate) struct VTerm {
     inner: Term<EventAccumulator>,
@@ -212,14 +255,9 @@ impl VTerm {
         let acc = EventAccumulator {
             events: Rc::clone(&events),
         };
-        let config = Config {
-            scrolling_history: 0, // call enable_scrollback to re-enable
-            osc52: options.osc52,
-            kitty_keyboard: true,
-            ..Default::default()
-        };
-
-        let mut inner = Term::new(config, &VTermDimensions::new(width, height, 0), acc);
+        let config = build_config(&options, false);
+        let dims = VTermDimensions::new(width, height, config.scrolling_history);
+        let mut inner = Term::new(config, &dims, acc);
 
         // See comment on HandlerProxy
         init_grid(inner.grid_mut());
@@ -244,6 +282,21 @@ impl VTerm {
     #[inline]
     pub(crate) fn mode(&self) -> &TermMode {
         self.inner.mode()
+    }
+
+    /// Return the current options
+    #[inline]
+    pub(crate) fn options(&self) -> &VTermOptions {
+        &self.options
+    }
+
+    /// Update the current options.
+    pub(crate) fn set_options(&mut self, options: VTermOptions) {
+        if options.osc52 != self.options.osc52 {
+            let config = build_config(&options, self.scrollback_enabled);
+            self.inner.set_options(config);
+        }
+        self.options = options;
     }
 
     pub(crate) fn set_private_mode(&mut self, mode: PrivateMode) {
@@ -644,6 +697,21 @@ impl VTerm {
     fn record(&mut self, change: VTermChange) {
         self.changes.push(change)
     }
+}
+
+/// Build [Config] for [Term].
+fn build_config(options: &VTermOptions, scrollback_enabled: bool) -> Config {
+    let config = Config {
+        scrolling_history: if scrollback_enabled {
+            SCROLLBACK_SIZE
+        } else {
+            0
+        },
+        osc52: options.osc52,
+        kitty_keyboard: true,
+        ..Default::default()
+    };
+    config
 }
 
 /// Set flags on a newly-created or reset grid.

@@ -184,6 +184,18 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
 
         term))))
 
+(cl-defmethod mistty--term-update-options ((term mistty--term-alacritty) &rest plist)
+  "Set TERM options.
+
+PLIST specifies the options to set. Possible keys:
+
+- :osc52 nil|\\='only-copy|\\='only-paste|\\='copy-paste
+- :allow-clearing-scrollback boolean
+
+Unknown options are ignored."
+  (mistty-alacritty-vt-update-options
+   (mistty--term-alacritty-vterm term) plist))
+
 (cl-defmethod mistty--term-buf ((term mistty--term-alacritty))
   "Return TERM's associated terminal/process buffer."
   (mistty--term-alacritty-buf term))

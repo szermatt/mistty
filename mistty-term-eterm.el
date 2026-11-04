@@ -528,6 +528,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                (setf (mistty--term-eterm-fs term) nil)
                (funcall leave-fullscreen)))))
 
+        (unless clear-scrollback (error ":clear-scrollback required"))
         (mistty--accum-add-processor
          accum
          ;; CSI H CSI J is the exact sequence sent by 'clear'. We're going to
@@ -610,6 +611,20 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                  (setf (mistty--term-eterm-change-before-scrolline term) t)))))))
 
         term))))
+
+(cl-defmethod mistty--term-update-options ((term mistty--term-eterm) &rest plist)
+  "Set TERM options for the current terminal.
+
+PLIST specifies the options to set. Possible keys:
+
+- :allow-clearing-scrollback boolean
+
+Any other option is ignored."
+  (when-let* ((member (plist-member plist :allow-clearing-scrollback)))
+    (with-current-buffer (mistty--term-eterm-buf term)
+      (let ((val (cadr member)))
+        (mistty-log "OPTION :allow-clearing-scrollback %s" val)
+        (setq-local mistty-allow-clearing-scrollback val)))))
 
 (cl-defmethod mistty--term-buf ((term mistty--term-eterm))
   "Return TERM's `term-mode' buffer."
@@ -1477,7 +1492,8 @@ Everything else is ignored."
 This function clears scrollback still stored in TERM's process buffer
 and then call FUNC to clear scrollback stored in the work buffer."
   (with-current-buffer (mistty--term-eterm-buf term)
-    (when (and func mistty-allow-clearing-scrollback)
+    (mistty-log "=== CLEAR SCROLLBACK (eterm) %s" mistty-allow-clearing-scrollback)
+    (when mistty-allow-clearing-scrollback
       (mistty-log "CLEAR SCROLLBACK (eterm)")
       (when (> term-home-marker (point-min))
         (let ((inhibit-read-only t)

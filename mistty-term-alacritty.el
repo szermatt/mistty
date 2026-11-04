@@ -78,7 +78,10 @@
   leave-fullscreen
 
   ;; function to call after clearing the screen
-  after-clear-screen)
+  after-clear-screen
+
+  ;;; function to call to clear scrollback
+  clear-scrollback)
 
 (defun mistty--term-alacritty-reset (term)
   "Reset internal state."
@@ -153,12 +156,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (setf (mistty--term-alacritty-after-clear-screen term) after-clear-screen)
 
         (unless clear-scrollback (error ":clear-scrollback required"))
-        (mistty--accum-add-processor
-         accum '(seq CSI ?3 ?J) ;; Clear scrollback
-         (lambda (ctx str)
-           (mistty--accum-ctx-push-down ctx str)
-           (mistty--accum-ctx-flush ctx)
-           (funcall clear-scrollback)))
+        (setf (mistty--term-alacritty-clear-scrollback term) clear-scrollback)
 
         (mistty--accum-add-processor
          accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
@@ -167,8 +165,6 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
            (mistty--accum-ctx-flush ctx)
            (mistty-log "RESET")
            (mistty--term-alacritty-reset term)
-           (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-             (setq mistty-bracketed-paste nil))
            (funcall after-reset)))
 
         ;; Detect changes made to the terminal above the sync scrolline, which
@@ -252,36 +248,38 @@ CURSOR-MARKER is updated to the cursor position."
   (let ((vterm (mistty--term-alacritty-vterm term))
         (term-buf (mistty--term-alacritty-buf term)))
     (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
+      (mistty-log "EV %s" ev)
       (pcase ev
         (`(title ,title)
-         (mistty-log "TITLE %S" title)
          (mistty--with-live-buffer term-buf
            (setq ansi-osc-window-title title)))
         (`(cwd ,url)
-         (mistty-log "CWD %s" url)
          (when url
            (mistty--with-live-buffer term-buf
              (mistty-osc7 "7" url))))
         (`(cleared-screen)
          (mistty--with-live-buffer term-buf
            (funcall (mistty--term-alacritty-after-clear-screen term))))
+        (`(cleared-scrollback)
+         (mistty--with-live-buffer term-buf
+           (with-current-buffer (mistty--term-alacritty-buf term)
+             (mistty-log "CLEAR SCROLLBACK (alacritty)")
+             (when-let* ((home mistty-alacritty--home))
+               (when (> home (point-min))
+                 (delete-region (point-min) home))))
+           (funcall (mistty--term-alacritty-clear-scrollback term))))
         (`(kkp ,val)
-         (mistty-log "Kitty keyboard protocol %s" (if val "ON" "OFF"))
          (setf (mistty--term-alacritty-kkp term) val))
         (`(mouse ,val)
          (setf (mistty--term-alacritty-mouse term) val)
          (funcall (mistty--term-alacritty-request-report-mouse term) val))
         (`(bracketed_paste ,val)
          (mistty--with-live-buffer term-buf
-           (mistty-log "BRACKETED PASTE %s" (if val "ON" "OFF"))
            (setq mistty-bracketed-paste val)))
         (`(fullscreen ,val)
          (setf (mistty--term-alacritty-fs term) val)
          (if val
-             (progn
-               (mistty-log "FULLSCREEN ON")
-               (funcall (mistty--term-alacritty-enter-fullscreen term) nil))
-           (mistty-log "FULLSCREEN OFF")
+             (funcall (mistty--term-alacritty-enter-fullscreen term) nil)
            (funcall (mistty--term-alacritty-leave-fullscreen term))))
         (`(start-prompt ,source ,start)
          (mistty--with-live-buffer term-buf
@@ -391,15 +389,6 @@ Always keep SCROLLINE-LIMIT and below."
   (with-current-buffer (mistty--term-alacritty-buf term)
     (when (>= scrolline-limit mistty--scrolline-home-num)
       (mistty--truncate-buffer mistty-alacritty--home))))
-
-(cl-defmethod mistty--term-clear-scrollback ((term mistty--term-alacritty))
-  "Clear any scrollback still stored in TERM's process buffer or vterm."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    (when-let* ((home mistty-alacritty--home))
-      (when (> home (point-min))
-        (delete-region (point-min) home)))
-    (mistty-alacritty-vt-clear-scrollback
-     (mistty--term-alacritty-vterm term))))
 
 (cl-defmethod mistty--term-translate-key ((term mistty--term-alacritty) key &optional n)
   "Generate the key byte sequence for TERM.

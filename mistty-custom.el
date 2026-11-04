@@ -582,7 +582,10 @@ whole buffer content, including history kept in the scrollback area, by
 issuing reset (ESC C).
 
 In practice, this means that with this option set, the reset and clear
-command or a printf \"\\ec\" will clear the whole buffer."
+command or a printf \"\\ec\" will clear the whole buffer.
+
+On alacritty terminal, changing the value of this option only affects
+newly-created terminals."
   :group 'mistty
   :type 'boolean)
 

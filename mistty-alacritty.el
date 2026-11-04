@@ -310,7 +310,8 @@ Calling any other function when this one returns nil will fail."
   (mistty-alacritty-check-version)
   (let ((vterm (mistty-alacritty-vt-make-vterm
                 width height
-                `(:osc52 ,mistty-alacritty-osc52))))
+                `(:osc52 ,mistty-alacritty-osc52
+                  :allow-clearing-scrollback ,mistty-allow-clearing-scrollback))))
     (mistty-log "MAKE VTERM %s lines, %s colums" height width)
     (mistty-alacritty-vt-enable-scrollback vterm)
 

@@ -952,15 +952,11 @@ window."
                   :after-clear-screen
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
-                      (if mistty-allow-clearing-scrollback
-                          (mistty--clear-scrollback)
-                        (mistty--scroll-after-clear))))
+                      (mistty--scroll-after-clear)))
                   :clear-scrollback
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
-                      (when mistty-allow-clearing-scrollback
-                        (mistty-log "CLEAR SCROLLBACK")
-                        (mistty--clear-scrollback))))
+                      (mistty--clear-scrollback)))
                   :after-reset
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
@@ -970,9 +966,7 @@ window."
                       (mistty--release-all-changesets)
                       (setq mistty--inhibit-refresh nil)
                       (setq mistty-bracketed-paste nil))
-                    (if mistty-allow-clearing-scrollback
-                        (mistty--clear-scrollback)
-                      (mistty--scroll-after-clear)))
+                    (mistty--scroll-after-clear))
                   :sync-scrolline
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
@@ -1532,17 +1526,15 @@ kept."
 
 (defun mistty--clear-scrollback ()
   "Clear the work buffer above `mistty-sync-marker'."
-  (mistty--with-live-buffer mistty-work-buffer
+  (mistty--require-work-buffer)
+  (when (< (point) mistty-sync-marker)
+    (goto-char mistty-sync-marker)
+    (setq mistty-goto-cursor-next-time 1))
+  (when (> mistty-sync-marker 1)
     (mistty-log "CLEAR SCROLLBACK")
-    (when (< (point) mistty-sync-marker)
-      (goto-char mistty-sync-marker)
-      (setq mistty-goto-cursor-next-time 1))
-    (when (> mistty-sync-marker 1)
-      (let ((inhibit-modification-hooks t)
-            (inhibit-read-only t))
-        (delete-region 1 mistty-sync-marker)))
-    (mistty-log "CLEAR SCROLLBACK (term)")
-    (mistty--term-clear-scrollback mistty--term)))
+    (let ((inhibit-modification-hooks t)
+          (inhibit-read-only t))
+      (delete-region 1 mistty-sync-marker))))
 
 (defun mistty--maybe-scroll-windows ()
   "Scroll windows as appropriate for the terminal mode.

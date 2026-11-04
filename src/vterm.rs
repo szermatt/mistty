@@ -41,6 +41,7 @@ emacs::use_symbols! {
     cwd_sym => "cwd"
     fullscreen_sym => "fullscreen"
     cleared_screen_sym => "cleared-screen"
+    cleared_scrollback_sym => "cleared-scrollback"
 }
 
 /// Size of the scrollback, in lines. There needs to be enough space
@@ -122,6 +123,9 @@ pub(crate) enum VTermChange {
 
     /// Screen has been cleared
     ClearedScreen,
+
+    /// Scrollback has been cleared
+    ClearedScrollback,
 }
 
 /// Mouse mode reported to the lisp side
@@ -148,6 +152,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::Cwd(None) => env.list((cwd_sym, nil_sym)),
             VTermChange::Cwd(Some(url)) => env.list((cwd_sym, url)),
             VTermChange::ClearedScreen => env.cons(cleared_screen_sym, ()),
+            VTermChange::ClearedScrollback => env.cons(cleared_scrollback_sym, ()),
         }
     }
 }
@@ -155,6 +160,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
 #[derive(Default, Clone, Debug)]
 pub(crate) struct VTermOptions {
     pub(crate) osc52: Osc52,
+    pub(crate) allow_clearing_scrollback: bool,
 }
 
 /// Virtual Terminal for MisTTY that keeps its data in memory.
@@ -162,6 +168,10 @@ pub(crate) struct VTerm {
     inner: Term<EventAccumulator>,
     events: Rc<RefCell<VecDeque<Event>>>,
     continues_wrapped_line: bool,
+
+    /// Current option values.
+    options: VTermOptions,
+
     scrollback_enabled: bool,
     render_count: i32,
 
@@ -226,6 +236,7 @@ impl VTerm {
             last_cell: None,
             last_collected_mode: TermMode::default(),
             changes: vec![],
+            options,
         }
     }
 
@@ -389,9 +400,16 @@ impl VTerm {
     /// Call this before making a change that would otherwise lose or
     /// hide grid history, such as reset or swapping to the alt
     /// buffer.
-    #[cfg(test)]
     fn move_history(&mut self) {
-        move_history(self.inner.grid_mut(), &mut self.scrollback);
+        let grid: &mut Grid<Cell> = self.inner.grid_mut();
+        for line in grid.topmost_line().0..0 {
+            let line = Line(line);
+            let row = &mut grid[line];
+            let mut copy = Row::new(row.len());
+            std::mem::swap(row, &mut copy);
+            self.scrollback.push(copy);
+        }
+        grid.clear_history();
     }
 
     /// Number of terminal lines in the scrollback.
@@ -626,19 +644,6 @@ impl VTerm {
     fn record(&mut self, change: VTermChange) {
         self.changes.push(change)
     }
-}
-
-/// Move the history from the current grid into the given scrollback
-/// vector.
-fn move_history(grid: &mut Grid<Cell>, history: &mut Vec<Row<Cell>>) {
-    for line in grid.topmost_line().0..0 {
-        let line = Line(line);
-        let row = &mut grid[line];
-        let mut copy = Row::new(row.len());
-        std::mem::swap(row, &mut copy);
-        history.push(copy);
-    }
-    grid.clear_history();
 }
 
 /// Set flags on a newly-created or reset grid.
@@ -889,9 +894,12 @@ impl<'a> Handler for HandlerProxy<'a> {
     fn clear_screen(&mut self, mode: ClearMode) {
         match mode {
             ClearMode::Saved => {
-                // Refuse to clear the scrollback as this messes up the
-                // buffer. This is handled elisp-side with
-                // mistty-allow-clearing-scrollback.
+                if self.vterm.options.allow_clearing_scrollback
+                    && !self.vterm.mode().intersects(TermMode::ALT_SCREEN)
+                {
+                    self.vterm.clear_scrollback();
+                    self.vterm.record(VTermChange::ClearedScrollback);
+                }
             }
             ClearMode::All => {
                 if self.vterm.mode().intersects(TermMode::ALT_SCREEN) {
@@ -930,12 +938,18 @@ impl<'a> Handler for HandlerProxy<'a> {
     }
 
     fn reset_state(&mut self) {
-        // The scrollback should resist a reset for MisTTY. A reset of
-        // the scrollback, if desired, can be done elisp-side with
-        // mistty-allow-clearing-scrollback.
         self.vterm.inner.clear_screen(ClearMode::All);
-        move_history(self.vterm.inner.grid_mut(), &mut self.vterm.scrollback);
-
+        self.vterm.move_history();
+        if self.vterm.options.allow_clearing_scrollback {
+            // clear_screen and move_history put lines into
+            // scrollback. Even if the scrollback is later on cleared,
+            // it is important to go through these steps to update the
+            // scrolline correctly, so it matches with the elisp side.
+            self.vterm.clear_scrollback();
+            self.vterm.record(VTermChange::ClearedScrollback);
+        }
+        self.prompt_detector
+            .reset(self.vterm.screen_top_scrolline());
         self.vterm.inner.reset_state();
         init_grid(self.vterm.inner.grid_mut());
     }
@@ -960,7 +974,7 @@ impl<'a> Handler for HandlerProxy<'a> {
         match mode {
             PrivateMode::Named(NamedPrivateMode::SwapScreenAndSetRestoreCursor) => {
                 if !self.vterm.inner.mode().contains(TermMode::ALT_SCREEN) {
-                    move_history(self.vterm.inner.grid_mut(), &mut self.vterm.scrollback);
+                    self.vterm.move_history();
                 }
             }
             PrivateMode::Named(NamedPrivateMode::BracketedPaste) => {

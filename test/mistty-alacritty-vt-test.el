@@ -1760,3 +1760,46 @@
        (equal
         expected
         (mistty-alacritty-vt-mouse-seq vterm action button mods line col))))))
+
+(mistty-deftest mistty-alacritty-vt-disallow-clearing-scrollback
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 '(:allow-clearing-scrollback nil))))
+    (mistty-alacritty-vt-enable-scrollback vterm)
+
+    ;; fill the screen and scrollback
+    (mistty-alacritty-vt-process-bytes vterm "\r0")
+    (dotimes (i 20)
+      (mistty-alacritty-vt-process-bytes vterm (format "\r\n%d" (1+ i))))
+
+    (should (equal 11 (mistty-alacritty-vt-scrollback-line-count vterm)))
+
+    ;; clear scrollback is ignored because options is 1
+    (should (equal nil (mistty-alacritty-vt-process-bytes vterm "\e[3J")))
+    (should (equal 11 (mistty-alacritty-vt-scrollback-line-count vterm)))
+    (should (equal nil (mistty-alacritty-vt-collect-changes vterm)))))
+
+(mistty-deftest mistty-alacritty-vt-allow-clearing-scrollback
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 '(:allow-clearing-scrollback t))))
+    (mistty-alacritty-vt-enable-scrollback vterm)
+
+    ;; fill the screen and scrollback
+    (mistty-alacritty-vt-process-bytes vterm "\r0")
+    (dotimes (i 20)
+      (mistty-alacritty-vt-process-bytes vterm (format "\r\n%d" (1+ i))))
+
+    (should (equal 11 (mistty-alacritty-vt-scrollback-line-count vterm)))
+
+    ;; clear scrollback is applied because options is set
+    (should (equal nil (mistty-alacritty-vt-collect-changes vterm)))
+    (mistty-alacritty-vt-process-bytes vterm "\e[3J")
+    (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
+    (should (equal '((cleared-scrollback))
+                   (mistty-alacritty-vt-collect-changes vterm)))
+
+    (ert-with-test-buffer ()
+      (let ((cursor (make-marker)))
+        (mistty-alacritty-vt-render vterm cursor)
+        (should
+         (equal "11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n"
+                (mistty-test-content :trim nil)))))))

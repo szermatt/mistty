@@ -169,12 +169,6 @@ the cursor on DEST-BUFFER.")
 
 Always keep SCROLLINE-LIMIT and below.")
 
-(cl-defgeneric mistty--term-clear-scrollback (term)
-  "Clear any scrollback still stored in the terminal TERM.
-
-This is in addition to clearing the scrollback that's already copied
-over to the work buffer.")
-
 (cl-defgeneric mistty--term-translate-key (term key &optional n)
   "Generate the key byte sequence for TERM.
 

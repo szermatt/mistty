@@ -1922,22 +1922,35 @@
   (should (equal "$ echo one\none\n$ clear\n$ echo two\ntwo\n$"
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-reset-clears-scrollback ( :type all)
+(ert-deftest mistty-test-reset-clears-scrollback/alacritty ()
+  ;; allow-clearing-scrollback must be set before creating the
+  ;; terminal.
   (let ((mistty-allow-clearing-scrollback t))
-    (mistty-send-text "echo one")
-    (mistty-send-and-wait-for-prompt)
-    (mistty-send-text "printf '\\ec'")
-    (mistty-send-command)
+    (mistty-with-test-buffer (:type alacritty)
+      (mistty-test-reset-clears-scrollback))))
 
-    ;; The normal mistty-send-and-wait-for-prompt doesn't work here,
-    ;; since it wants a prompt to come after the current command.
-    (mistty-wait-for-output :regexp "^\\$ $")
-    (mistty-send-text "echo two")
-    (mistty-send-and-wait-for-prompt)
-    (should (equal "$ echo two\ntwo\n$"
-                   (mistty-test-content)))))
+(ert-deftest mistty-test-reset-clears-scrollback/eterm ()
+  ;; allow-clearing-scrollback must be set before creating the
+  ;; terminal.
+  (let ((mistty-allow-clearing-scrollback t))
+    (mistty-with-test-buffer (:type eterm)
+      (mistty-test-reset-clears-scrollback))))
 
-(mistty-deftest mistty-test-clear-clears-scrollback ( :type all)
+(defun mistty-test-reset-clears-scrollback ()
+  (mistty-send-text "echo one")
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-text "printf '\\ec'")
+  (mistty-send-command)
+
+  ;; The normal mistty-send-and-wait-for-prompt doesn't work here,
+  ;; since it wants a prompt to come after the current command.
+  (mistty-wait-for-output :regexp "^\\$ $")
+  (mistty-send-text "echo two")
+  (mistty-send-and-wait-for-prompt)
+  (should (equal "$ echo two\ntwo\n$"
+                 (mistty-test-content))))
+
+(mistty-deftest mistty-test-clear-clears-scrollback/eterm (:type eterm)
   (let ((mistty-allow-clearing-scrollback t))
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
@@ -1951,6 +1964,45 @@
     (mistty-send-and-wait-for-prompt)
     (should (equal "$ echo two\ntwo\n$"
                    (mistty-test-content)))))
+
+(ert-deftest mistty-test-clear-clears-scrollback/alacritty ()
+  ;; allow-clearing-scrollback must be set before creating the
+  ;; terminal.
+  (let ((mistty-allow-clearing-scrollback t))
+    (mistty-with-test-buffer (:type alacritty)
+      (mistty-send-text "echo one")
+      (mistty-send-and-wait-for-prompt)
+      ;; This is what clear sends with TERM=alacritty, but in tests, TERM=xterm-256color
+      (mistty-send-text "printf '\\e[3J\\e[H\\e[2J'")
+      (mistty-send-command)
+
+      ;; The normal mistty-send-and-wait-for-prompt doesn't work here,
+      ;; since it wants a prompt to come after the current command.
+      (mistty-wait-for-output :regexp "^\\$ $")
+      (mistty-send-text "echo two")
+      (mistty-send-and-wait-for-prompt)
+      (should (equal "$ echo two\ntwo\n$"
+                     (mistty-test-content))))))
+
+(ert-deftest mistty-test-clear-x-doesnt-clear-scrollback/alacritty ()
+  ;; allow-clearing-scrollback must be set before creating the
+  ;; terminal.
+  (let ((mistty-allow-clearing-scrollback t))
+    (mistty-with-test-buffer (:type alacritty)
+      (mistty-send-text "echo one")
+      (mistty-send-and-wait-for-prompt)
+      ;; This is what clear -x sends with TERM=alacritty, but in tests, TERM=xterm-256color
+      (mistty-send-text "printf '\\e[H\\e[2J'")
+      (mistty-send-command)
+      
+      ;; The normal mistty-send-and-wait-for-prompt doesn't work here,
+      ;; since it wants a prompt to come after the current command.
+      (mistty-wait-for-output :regexp "^\\$ $")
+      (mistty-send-text "echo two")
+      (mistty-send-and-wait-for-prompt)
+      (should
+       (equal "$ echo one\none\n$ printf '\\e[H\\e[2J'\n$ echo two\ntwo\n$"
+              (mistty-test-content))))))
 
 (mistty-deftest mistty-test-scrolls-window-after-clear
     (:shell zsh :selected t :turtles t :type all :slow t)

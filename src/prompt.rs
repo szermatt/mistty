@@ -297,6 +297,13 @@ impl PromptDetector {
             self.push(PromptChange::End(end))
         }
     }
+
+    /// End any active prompt. This is called when the terminal is reset.
+    pub(crate) fn reset(&mut self, end: Scrolline) {
+        if let Some(_) = self.current.take() {
+            self.push(PromptChange::End(end))
+        }
+    }
 }
 
 /// Cleanup after a shell's PROMPT-SP hack.

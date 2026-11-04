@@ -553,15 +553,15 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                  (mistty--accum-ctx-push-down
                   ctx (if goto-home "\e[H\e[2J" "\e[2J"))
                  (mistty--accum-ctx-flush ctx)
+                 (mistty--term-eterm-clear-scrollback term clear-scrollback)
                  (when after-clear-screen
                    (funcall after-clear-screen)))))))
 
-        (when clear-scrollback
-          (mistty--accum-add-processor
-           accum '(seq CSI ?3 ?J) ;; Clear scrollback
-           (lambda (ctx _)
-               (mistty--accum-ctx-flush ctx)
-               (funcall clear-scrollback))))
+        (mistty--accum-add-processor
+         accum '(seq CSI ?3 ?J) ;; Clear scrollback
+         (lambda (ctx _)
+           (mistty--accum-ctx-flush ctx)
+           (mistty--term-eterm-clear-scrollback term clear-scrollback)))
 
         (mistty--accum-add-processor
          accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
@@ -572,6 +572,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
            (mistty--term-eterm-reset term)
            (mistty--with-live-buffer (mistty--term-eterm-buf term)
              (setq mistty-bracketed-paste nil))
+           (mistty--term-eterm-clear-scrollback term clear-scrollback)
            (funcall after-reset)))
 
         (mistty--accum-add-around-process-filter
@@ -735,14 +736,6 @@ Always keep SCROLLINE-LIMIT and below."
   (with-current-buffer (mistty--term-eterm-buf term)
     (when (>= scrolline-limit mistty--scrolline-home-num)
       (mistty--truncate-buffer term-home-marker))))
-
-(cl-defmethod mistty--term-clear-scrollback ((term mistty--term-eterm))
-  "Clear any scrollback still stored in TERM's process buffer or vterm."
-  (with-current-buffer (mistty--term-eterm-buf term)
-    (when (> term-home-marker (point-min))
-      (let ((inhibit-read-only t)
-            (inhibit-modification-hooks t))
-        (delete-region (point-min) term-home-marker)))))
 
 (cl-defmethod mistty--term-translate-key ((_term mistty--term-eterm) key &optional n)
   "Generate the key byte sequence for TERM.
@@ -1477,6 +1470,20 @@ Everything else is ignored."
                          (mistty--prompt-input-id prompt)
                          (mistty--prompt-start prompt))
              (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point)))))))))
+
+(defun mistty--term-eterm-clear-scrollback (term func)
+  "Clear scrollback, if allowed.
+
+This function clears scrollback still stored in TERM's process buffer
+and then call FUNC to clear scrollback stored in the work buffer."
+  (with-current-buffer (mistty--term-eterm-buf term)
+    (when (and func mistty-allow-clearing-scrollback)
+      (mistty-log "CLEAR SCROLLBACK (eterm)")
+      (when (> term-home-marker (point-min))
+        (let ((inhibit-read-only t)
+              (inhibit-modification-hooks t))
+          (delete-region (point-min) term-home-marker)))
+      (funcall func))))
 
 (provide 'mistty-term-eterm)
 

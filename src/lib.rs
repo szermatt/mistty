@@ -30,6 +30,7 @@ emacs::use_functions! {
 emacs::use_symbols! {
     args_out_of_range
     nil
+    colon_allow_clearing_scrollback => ":allow-clearing-scrollback"
     colon_osc52 => ":osc52"
     only_copy
     only_paste
@@ -393,5 +394,12 @@ fn options_from_plist(env: &Env, plist: Value<'_>) -> Result<VTermOptions> {
         Osc52::Disabled
     };
 
-    Ok(VTermOptions { osc52 })
+    let allow_clearing_scrollback = env
+        .call(plist_get, (plist, colon_allow_clearing_scrollback))?
+        .is_not_nil();
+
+    Ok(VTermOptions {
+        osc52,
+        allow_clearing_scrollback,
+    })
 }

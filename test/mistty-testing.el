@@ -239,7 +239,6 @@ default, the default directory is a temp directory created for the test."
                (mistty-after-process-end-hook nil)
                (mistty-entered-fullscreen-hook nil)
                (mistty-left-fullscreen-hook nil)
-               (mistty-allow-clearing-scrollback nil)
                (mistty-default-terminal-size nil)
                (mistty-terminal-type (quote ,type))
                (mistty-alacritty-term-name "xterm-256color")

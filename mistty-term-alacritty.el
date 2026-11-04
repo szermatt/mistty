@@ -273,7 +273,7 @@ CURSOR-MARKER is updated to the cursor position."
         (`(mouse ,val)
          (setf (mistty--term-alacritty-mouse term) val)
          (funcall (mistty--term-alacritty-request-report-mouse term) val))
-        (`(bracketed_paste ,val)
+        (`(bracketed-paste ,val)
          (mistty--with-live-buffer term-buf
            (setq mistty-bracketed-paste val)))
         (`(fullscreen ,val)

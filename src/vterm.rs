@@ -30,7 +30,7 @@ emacs::use_functions! {
     kill_new
 }
 emacs::use_symbols! {
-    bracketed_paste_sym => "bracketed_paste"
+    bracketed_paste_sym => "bracketed-paste"
     title_sym => "title"
     kkp_sym => "kkp"
     mouse_sym => "mouse"

@@ -280,6 +280,11 @@ CURSOR-MARKER is updated to the cursor position."
          (setf (mistty--term-alacritty-fs term) val)
          (if val
              (funcall (mistty--term-alacritty-enter-fullscreen term) nil)
+
+           ;; Render to terminal buffer now, just after leaving fullscreen, since rendering
+           ;; in the process filter was skipped in fullscreen mode.
+           (mistty--with-live-buffer term-buf
+             (mistty-alacritty--render vterm))
            (funcall (mistty--term-alacritty-leave-fullscreen term))))
         (`(start-prompt ,source ,start)
          (mistty--with-live-buffer term-buf

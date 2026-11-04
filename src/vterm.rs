@@ -21,7 +21,7 @@ use alacritty_terminal::{
     },
     vte::ansi::{self, Attr, Color, Handler, NamedPrivateMode, PrivateMode, Processor},
 };
-use emacs::{Env, IntoLisp, Result, Value};
+use emacs::{Env, IntoLisp, Result, Transfer, Value};
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 emacs::use_functions! {
@@ -55,6 +55,38 @@ emacs::use_symbols! {
 /// Size of the scrollback, in lines. There needs to be enough space
 /// to keep scrollback between calls to `write_scrollback`, to not lose data.
 const SCROLLBACK_SIZE: usize = 100000;
+
+/// Tag identifying a render operation, stored in an Emacs text
+/// property to check whether it's safe to render only the damaged
+/// portions of the terminal.
+#[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct RenderTag {
+    count: usize,
+}
+
+impl RenderTag {
+    /// Check whether another tag matches the current one
+    pub(crate) fn matches(&self, other: &Self) -> bool {
+        self.count == other.count
+    }
+
+    /// Increment the tag count.
+    fn increment(&mut self) {
+        self.count = self.count.wrapping_add(1);
+    }
+}
+
+impl Transfer for RenderTag {
+    fn type_name() -> &'static str {
+        "mistty:RenderTag"
+    }
+}
+
+impl<'e> IntoLisp<'e> for RenderTag {
+    fn into_lisp(self, env: &'e Env) -> Result<Value<'e>> {
+        Box::new(self).into_lisp(env)
+    }
+}
 
 pub(crate) struct VTermProcessor {
     processor: Processor,
@@ -223,7 +255,7 @@ pub(crate) struct VTerm {
     options: VTermOptions,
 
     scrollback_enabled: bool,
-    render_count: i32,
+    tag: RenderTag,
 
     /// Scrolline that corresponds to the first terminal line
     ///
@@ -275,7 +307,7 @@ impl VTerm {
             continues_wrapped_line: false,
             scrollback_enabled: false,
             base_scrolline: Scrolline(0),
-            render_count: 0,
+            tag: RenderTag::default(),
             scrollback: vec![],
             extra_damage: GridDamage::new(),
             last_cell: None,
@@ -639,28 +671,16 @@ impl VTerm {
         reports
     }
 
-    /// Compare the render count with a value form Emacs side.
-    pub(crate) fn check_render_count_tag(&self, tag_value: Value<'_>) -> Result<bool> {
-        if !tag_value.is_not_nil() {
-            return Ok(false);
-        }
-        let tag_value: i32 = tag_value.into_rust()?;
-
-        Ok(self.render_count == tag_value)
+    /// Return the tag that identifies the last render operation.
+    pub(crate) fn render_tag(&self) -> RenderTag {
+        self.tag
     }
 
-    /// Return a tag that identifies a render operation.
-    pub(crate) fn inc_render_count(&mut self) -> i32 {
-        let mut next = self.render_count + 1;
+    /// Increment and return a tag that identifies a render operation.
+    pub(crate) fn next_render_tag(&mut self) -> RenderTag {
+        self.tag.increment();
 
-        // keep value inside minimum integer range supported by Emacs
-        if next > 536870911 {
-            next = -536870912;
-        }
-
-        self.render_count = next;
-
-        next
+        self.tag.clone()
     }
 
     /// Clear the given line from the given char to end of line.

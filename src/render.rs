@@ -1,5 +1,5 @@
 use crate::gridext::{self, CellExt, RowExt};
-use crate::vterm::VTerm;
+use crate::vterm::{RenderTag, VTerm};
 use crate::{gridext::GridExt, types::BufferPos};
 use alacritty_terminal::{
     Grid,
@@ -332,9 +332,10 @@ impl<'a> Render<'a> {
     /// If the tag matches, we'll trust damage information and only
     /// render the modified lines.
     fn check_tag(&mut self, env: &Env) -> Result<bool> {
-        self.term.check_render_count_tag(
-            env.call(get_text_property, (self.start, mistty_render_tag_sym))?,
-        )
+        let tag: Option<&RenderTag> = env
+            .call(get_text_property, (self.start, mistty_render_tag_sym))?
+            .into_rust()?;
+        Ok(tag.is_some_and(|t| self.term.render_tag().matches(t)))
     }
 
     /// Write a tag at the beginning of the rendered region to be used
@@ -346,7 +347,7 @@ impl<'a> Render<'a> {
                 self.start,
                 self.start + 1,
                 mistty_render_tag_sym,
-                self.term.inc_render_count(),
+                self.term.next_render_tag(),
             ),
         )?;
         Ok(())

@@ -80,15 +80,11 @@
   ;; function to call after clearing the screen
   after-clear-screen
 
+  ;; function to call after resetting the terminal
+  after-reset
+
   ;;; function to call to clear scrollback
   clear-scrollback)
-
-(defun mistty--term-alacritty-reset (term)
-  "Reset internal state."
-  (setf (mistty--term-alacritty-fs term) nil)
-  (setf (mistty--term-alacritty-kkp term) nil)
-  (setf (mistty--term-alacritty-mouse term) nil)
-  (setf (mistty--term-alacritty-change-before-scrolline term) nil))
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'alacritty)) name command
@@ -155,17 +151,11 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (unless after-clear-screen (error ":after-clear-screen required"))
         (setf (mistty--term-alacritty-after-clear-screen term) after-clear-screen)
 
+        (unless after-reset (error ":after-reset required"))
+        (setf (mistty--term-alacritty-after-reset term) after-reset)
+
         (unless clear-scrollback (error ":clear-scrollback required"))
         (setf (mistty--term-alacritty-clear-scrollback term) clear-scrollback)
-
-        (mistty--accum-add-processor
-         accum '(seq ESC ?c) ;; Reset (incl. clear scrollback)
-         (lambda (ctx str)
-           (mistty--accum-ctx-push-down ctx str)
-           (mistty--accum-ctx-flush ctx)
-           (mistty-log "RESET")
-           (mistty--term-alacritty-reset term)
-           (funcall after-reset)))
 
         ;; Detect changes made to the terminal above the sync scrolline, which
         ;; means that the sync scrolline needs to be updated.
@@ -272,6 +262,9 @@ CURSOR-MARKER is updated to the cursor position."
         (`(cleared-screen)
          (mistty--with-live-buffer term-buf
            (funcall (mistty--term-alacritty-after-clear-screen term))))
+        (`(reset)
+         (mistty--with-live-buffer term-buf
+           (funcall (mistty--term-alacritty-after-reset term))))
         (`(cleared-scrollback)
          (mistty--with-live-buffer term-buf
            (with-current-buffer (mistty--term-alacritty-buf term)

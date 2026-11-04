@@ -170,9 +170,13 @@ fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: String) -> Res
 ///
 /// - `(kbd ,enabled) to report that the Kitty Keyboard Protocol was enabled/disabled
 /// - `(bracketed-paste ,enabled) to report that bracketed paste was enabled/disabled
+/// - `(fullscreen ,enabled) to report that fullscreen (alt screen) was enabled/disabled
 /// - `(mouse ,mode) to report mouse mode change, nil (off) 'click, 'drag, 'motion
 /// - `(title ,title) to report window title set or clear (title is nil)
 /// - `(cwd ,url) to report workig directory set (as a file: url) or clear (url is nil)
+/// - `(cleared-screen) to report that the screen was cleared
+/// - `(cleared-scrollback) to report that the scrollback was cleared
+/// - `(reset) to report that the terminal was reset
 /// - `(start-prompt ,source ,start
 ///    to report a prompt start with:
 ///    - source 'osc133 'bracketed-paste or 'prompt_sp start

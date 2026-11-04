@@ -44,6 +44,7 @@ emacs::use_symbols! {
     fullscreen_sym => "fullscreen"
     cleared_screen_sym => "cleared-screen"
     cleared_scrollback_sym => "cleared-scrollback"
+    reset_sym => "reset"
     colon_allow_clearing_scrollback => ":allow-clearing-scrollback"
     colon_osc52 => ":osc52"
     only_copy
@@ -133,6 +134,11 @@ pub(crate) enum VTermChange {
 
     /// Scrollback has been cleared
     ClearedScrollback,
+
+    /// Terminal has been reset. This is generally accompanied by
+    /// changes for clearing state, such as keyboard mode, bracketed
+    /// paste or clearing the scrollback.
+    Reset,
 }
 
 /// Mouse mode reported to the lisp side
@@ -160,6 +166,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::Cwd(Some(url)) => env.list((cwd_sym, url)),
             VTermChange::ClearedScreen => env.cons(cleared_screen_sym, ()),
             VTermChange::ClearedScrollback => env.cons(cleared_scrollback_sym, ()),
+            VTermChange::Reset => env.cons(reset_sym, ()),
         }
     }
 }
@@ -1020,6 +1027,7 @@ impl<'a> Handler for HandlerProxy<'a> {
             .reset(self.vterm.screen_top_scrolline());
         self.vterm.inner.reset_state();
         init_grid(self.vterm.inner.grid_mut());
+        self.vterm.record(VTermChange::Reset);
     }
 
     fn reverse_index(&mut self) {
@@ -1546,7 +1554,7 @@ mod tests {
         fixture.handler().reset_state();
 
         // the three screen lines are now in scrollback
-        let vterm = &fixture.vterm;
+        let vterm = &mut fixture.vterm;
         assert_eq!(3, vterm.scrollback_row_count());
         assert_eq!(
             vec!["line 1", "line 2", "line 3"],
@@ -1565,6 +1573,64 @@ mod tests {
         for line in 0..=vterm.bottommost_line().0 {
             assert!(vterm.grid()[Line(line)].is_clear());
         }
+
+        assert_eq!(vec![VTermChange::Reset], vterm.collect_changes().unwrap());
+        assert_eq!(Vec::<VTermChange>::new(), vterm.collect_changes().unwrap());
+    }
+
+    #[test]
+    fn reset_clears_scrollback_when_allowed() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.vterm.set_options(VTermOptions {
+            allow_clearing_scrollback: true,
+            ..Default::default()
+        });
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3");
+        fixture.process_bytes(b"\x1bc");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(0, vterm.scrollback_row_count());
+        assert_eq!(0, vterm.grid().history_size());
+        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
+        for line in 0..=vterm.bottommost_line().0 {
+            assert!(vterm.grid()[Line(line)].is_clear());
+        }
+
+        assert_eq!(
+            vec![VTermChange::ClearedScrollback, VTermChange::Reset],
+            vterm.collect_changes().unwrap()
+        );
+        assert_eq!(Vec::<VTermChange>::new(), vterm.collect_changes().unwrap());
+    }
+
+    #[test]
+    fn reset_resets_modes() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h");
+        assert_eq!(
+            vec![
+                VTermChange::KittyKeyboard(true),
+                VTermChange::BracketedPaste(true),
+                VTermChange::Fullscreen(true),
+                VTermChange::Mouse(MouseMode::Click),
+            ],
+            fixture.vterm.collect_changes().unwrap()
+        );
+
+        fixture.process_bytes(b"\x1bc");
+        assert_eq!(
+            vec![
+                VTermChange::KittyKeyboard(false),
+                VTermChange::BracketedPaste(false),
+                VTermChange::Fullscreen(false),
+                VTermChange::Mouse(MouseMode::Off),
+                VTermChange::Reset,
+            ],
+            fixture.vterm.collect_changes().unwrap()
+        );
     }
 
     #[test]

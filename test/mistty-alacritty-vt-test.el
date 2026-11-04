@@ -1541,13 +1541,16 @@
          "17<>\n")
         (mistty-test-content :trim nil :show cursor))))))
 
-(mistty-deftest mistty-alacritty-vt-render-scrollback-after-reset (:features mistty-alacritty-vt :shell none)
+(mistty-deftest mistty-alacritty-vt-render-scrollback-after-reset
+    (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil))
         (cursor (make-marker)))
     (mistty-alacritty-vt-enable-scrollback vterm)
 
     (mistty-alacritty-vt-process-bytes vterm "Baa, baa, black sheep\r\n")
     (mistty-alacritty-vt-process-bytes vterm "have you any wool?\ecreset.")
+    (should (equal '((reset))
+                   (mistty-alacritty-vt-collect-changes vterm)))
 
     (ert-with-test-buffer ()
       (goto-char (point-min))

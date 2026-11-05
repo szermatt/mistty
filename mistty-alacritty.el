@@ -336,12 +336,7 @@ Returns the process."
   (when (get-buffer-process (current-buffer))
     (error "A process is already attached to the buffer"))
   (mistty-log "LAUNCH %s %s" program args)
-  (let ((process-environment
-         (nconc
-          (list (concat "TERM=" (mistty-alacritty--TERM))
-                (concat "INSIDE_EMACS=" emacs-version))
-          process-environment))
-        (process-connection-type t)
+  (let ((process-connection-type t)
 	(inhibit-eol-conversion t)
 	(coding-system-for-read 'binary))
     (jit-lock-mode nil) ;; in case this was turned on by a hook

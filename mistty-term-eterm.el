@@ -1023,18 +1023,20 @@ Must be called from the term buffer."
                                 erase-char
                                 (substring stty-command (match-end 0))))))
               (let* ((process-environment
-                      ;; TERMINFO references a local file. This is
-                      ;; not useful on a remote host, so let's
-                      ;; remove it. A description of the terminal is
-                      ;; available in TERMCAP.
-                      (if (file-remote-p default-directory)
-                          (delq nil
-                                (mapcar (lambda (var)
-                                          (if (string-prefix-p "TERMINFO=" var)
-                                              nil
-                                            var))
-                                        process-environment))
-                        process-environment))
+                      (append
+                       (with-connection-local-variables mistty-process-env)
+                       ;; TERMINFO references a local file. This is
+                       ;; not useful on a remote host, so let's
+                       ;; remove it. A description of the terminal is
+                       ;; available in TERMCAP.
+                       (if (file-remote-p default-directory)
+                           (delq nil
+                                 (mapcar (lambda (var)
+                                           (if (string-prefix-p "TERMINFO=" var)
+                                               nil
+                                             var))
+                                         process-environment))
+                         process-environment)))
                      (proc (apply #'start-file-process name buffer program program-args)))
 
                 ;; start-file-process doesn't always respect

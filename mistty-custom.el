@@ -53,6 +53,23 @@ For example:
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-process-env '("COLORTERM=truecolor")
+  "Environment variables to set for processes started by MisTTY.
+
+Each element should be a string of the form \"VAR=value\" to be
+added to `process-environment' when starting the terminal process.
+
+The default, \\='(\"COLORTERM=truecolor\") lets some applications know
+that the terminal supports 24bit colors.
+
+This variable can be set as a connection-local variable when using
+TRAMP.
+
+Warning: Environment variables set in `mistty-process-env' overwrite the
+value set by `mistty-alacritty-term-name' or `mistty-set-EMACS'."
+  :group 'mistty
+  :type '(repeat string))
+
 (defcustom mistty-multi-line-continue-prompts
   '("^    *\\.\\.\\.: " ; ipython
     )

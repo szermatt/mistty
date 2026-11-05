@@ -126,10 +126,14 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
       (setq-local mistty--prompt-cell prompt-cell)
       (setq-local scroll-margin 0)
       (let ((process-environment
-             (if (with-connection-local-variables mistty-set-EMACS)
-                 (cons (format "EMACS=%s" emacs-version)
-                       process-environment)
-               process-environment)))
+             (append
+              (with-connection-local-variables mistty-process-env)
+              (list (concat "TERM=" (mistty-alacritty--TERM))
+                    (concat "INSIDE_EMACS=" emacs-version))
+              (if (with-connection-local-variables mistty-set-EMACS)
+                  (cons (format "EMACS=%s" emacs-version)
+                        process-environment)
+                process-environment))))
         (mistty-alacritty--exec name program args width height))
       (let* ((proc (get-buffer-process term-buffer))
              (term (mistty--make-term-alacritty

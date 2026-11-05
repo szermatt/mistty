@@ -220,3 +220,46 @@
     (mistty-with-test-buffer (:cd (concat tramp-prefix home) :type eterm)
       (mistty-send-text "if test -n \"$EMACS\"; then echo set; else echo unset; fi")
       (should (equal "set" (mistty-send-and-capture-command-output))))))
+
+(ert-deftest mistty-tramp-test-process-env/alacritty ()
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (home (file-name-directory "/"))
+         (default-directory (concat tramp-prefix home))
+         (connection-local-profile-alist nil)
+         (connection-local-criteria-alist nil))
+
+    (mistty-with-test-buffer (:cd (concat tramp-prefix home) :type alacritty)
+      (mistty-send-text "echo $COLORTERM")
+      (should (equal "truecolor" (mistty-send-and-capture-command-output))))
+
+    (connection-local-set-profile-variables
+     'test-profile
+     '((mistty-process-env . ("COLORTERM=24bit" "FOO=bar"))))
+    (connection-local-set-profiles (mistty-test-tramp-protocol) 'test-profile)
+
+    (mistty-with-test-buffer (:cd (concat tramp-prefix home) :type alacritty)
+      (mistty-send-text "echo $COLORTERM $FOO")
+      (should (equal "24bit bar" (mistty-send-and-capture-command-output))))))
+
+(ert-deftest mistty-tramp-test-process-env/eterm ()
+  (let* ((tramp-methods (mistty-test-tramp-methods))
+         (tramp-prefix (mistty-test-tramp-prefix))
+         (home (file-name-directory "/"))
+         (default-directory (concat tramp-prefix home))
+         (connection-local-profile-alist nil)
+         (connection-local-criteria-alist nil))
+
+    (mistty-with-test-buffer (:cd (concat tramp-prefix home) :type eterm)
+      (mistty-send-text "echo $COLORTERM")
+      (should (equal "truecolor" (mistty-send-and-capture-command-output))))
+
+    (connection-local-set-profile-variables
+     'test-profile
+     '((mistty-process-env . ("COLORTERM=24bit" "FOO=bar"))))
+    (connection-local-set-profiles (mistty-test-tramp-protocol) 'test-profile)
+
+    (mistty-with-test-buffer (:cd (concat tramp-prefix home) :type eterm)
+      (mistty-send-text "echo $COLORTERM $FOO")
+      (should (equal "24bit bar" (mistty-send-and-capture-command-output))))))
+

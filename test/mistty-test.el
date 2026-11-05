@@ -8939,3 +8939,14 @@ precmd_functions+=(prompt_header)
       :mouse-ev 'mouse-1 (turtles-coords "(kb)" :mode-line (current-buffer))
       (should-not mistty--secondary-mode-map-override))))
 
+(mistty-deftest mistty-test-process-env (:type all)
+  (mistty-send-text "echo $COLORTERM")
+  (should (equal "truecolor" (mistty-send-and-capture-command-output)))
+
+  (let ((mistty-process-env '("COLORTERM=24bit" "TERM=custom-term"))
+        (mistty-alacritty-term-name "xterm-256color"))
+    (mistty-with-test-buffer ()
+      (mistty-send-text "echo $COLORTERM $TERM")
+      (should (equal "24bit custom-term" (mistty-send-and-capture-command-output))))))
+
+

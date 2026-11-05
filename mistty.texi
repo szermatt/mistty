@@ -209,6 +209,7 @@ see @ref{b,,Directory Tracking}.
 @quotation
 
 @geindex variable; mistty-terminal-type
+@geindex variable; mistty-alacritty-term-name
 @geindex variable; mistty-install-dir
 @geindex variable; mistty-install-keep-output
 @end quotation
@@ -301,6 +302,11 @@ This allows you to set the @cite{TERM} environment variable to
 @cite{alacritty} which supports 24bit colors. Without it, alacritty
 will still work, with @cite{TERM} set to @cite{xterm-256color} or @cite{xterm}.
 
+If the @cite{alacritty} terminfo is installed, MisTTY uses @cite{alacritty}
+automatically; otherwise it falls back to @cite{xterm-256color}. You can
+also configure the @cite{TERM} value explicitly using @code{M-x
+customize-option mistty-alacritty-term-name}.
+
 Check if this isn’t already installed:
 
 @example
@@ -345,6 +351,7 @@ their behavior and arguments:
 @geindex command; mistty-create-other-window
 @geindex command; mistty-other-window
 @geindex variable; mistty-shell-command
+@geindex variable; mistty-process-env
 @geindex variable; explicit-shell-file-name
 @geindex variable; shell-file-name
 @geindex variable; mistty-buffer-name
@@ -369,6 +376,10 @@ the environment variables
 @geindex SHELL
 @geindex environment variable; SHELL
 @code{SHELL}.
+
+Additional environment variables for the process can be configured
+as a list of @code{"VAR=value"} strings using @code{M-x
+customize-option mistty-process-env}.
 
 With a prefix argument, this command asks for a directory for the
 new shell, instead of using the current buffer’s current
@@ -970,7 +981,9 @@ colors, but @cite{xterm}, for example, doesn’t.
 Support for 24bit colors in applications also require the termcap
 entry to have support for that, such as @cite{alacritty}, @cite{eterm-color},
 @cite{xterm-direct}, but some application require additional setting, such
-as setting the environment variable @cite{COLORTERM=truecolor}.
+as setting the environment variable @cite{COLORTERM=truecolor}. MisTTY sets
+@cite{COLORTERM=truecolor} by default via @code{M-x customize-option
+mistty-process-env}.
 
 @node Terminal Size,Completion-at-point,Colors,Usage
 @anchor{usage size}@anchor{23}@anchor{usage terminal-size}@anchor{24}
@@ -1159,11 +1172,12 @@ that host. The value of @code{mistty-shell-command} or
 @code{explicit-shell-file-name} is interpreted as a local file within
 that host, which might not always work.
 
-To run different shells on different hosts, define different
-connection local profiles that set @code{mistty-shell-command} and
-bind them to the TRAMP host, machine or user you want, as shown in the
-example below. This is described in details in the `Emacs Lisp'
-manual, in the section `Connection Local Variables'.
+To run different shells or set different environment variables on
+different hosts, define different connection local profiles that set
+@code{mistty-shell-command} or @code{mistty-process-env} and bind them to
+the TRAMP host, machine or user you want, as shown in the example
+below. This is described in details in the `Emacs Lisp' manual, in the
+section `Connection Local Variables'.
 
 Example:
 

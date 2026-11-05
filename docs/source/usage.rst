@@ -31,6 +31,7 @@ Module with Alacritty
 
   .. index::
      pair: variable; mistty-terminal-type
+     pair: variable; mistty-alacritty-term-name
      pair: variable; mistty-install-dir
      pair: variable; mistty-install-keep-output
 
@@ -110,6 +111,11 @@ You can also compile the module locally by following these steps:
    `alacritty` which supports 24bit colors. Without it, alacritty
    will still work, with `TERM` set to `xterm-256color` or `xterm`.
 
+   If the `alacritty` terminfo is installed, MisTTY uses `alacritty`
+   automatically; otherwise it falls back to `xterm-256color`. You can
+   also configure the `TERM` value explicitly using :kbd:`M-x
+   customize-option mistty-alacritty-term-name`.
+
    Check if this isn't already installed:
 
    .. code-block:: bash
@@ -153,6 +159,7 @@ their behavior and arguments:
      pair: command; mistty-create-other-window
      pair: command; mistty-other-window
      pair: variable; mistty-shell-command
+     pair: variable; mistty-process-env
      pair: variable; explicit-shell-file-name
      pair: variable; shell-file-name
      pair: variable; mistty-buffer-name
@@ -166,6 +173,10 @@ mistty-create : command
     ``mistty-shell-command`` is not set, MisTTY falls back to
     ``explicit-shell-file-name``, ``shell-file-name``, then
     the environment variables :envvar:`ESHELL` and :envvar:`SHELL`.
+
+    Additional environment variables for the process can be configured
+    as a list of ``"VAR=value"`` strings using :kbd:`M-x
+    customize-option mistty-process-env`.
 
     With a prefix argument, this command asks for a directory for the
     new shell, instead of using the current buffer's current
@@ -678,7 +689,9 @@ colors, but `xterm`, for example, doesn't.
 Support for 24bit colors in applications also require the termcap
 entry to have support for that, such as `alacritty`, `eterm-color`,
 `xterm-direct`, but some application require additional setting, such
-as setting the environment variable `COLORTERM=truecolor`.
+as setting the environment variable `COLORTERM=truecolor`. MisTTY sets
+`COLORTERM=truecolor` by default via :kbd:`M-x customize-option
+mistty-process-env`.
 
 .. _size:
 
@@ -840,11 +853,12 @@ that host. The value of ``mistty-shell-command`` or
 ``explicit-shell-file-name`` is interpreted as a local file within
 that host, which might not always work.
 
-To run different shells on different hosts, define different
-connection local profiles that set ``mistty-shell-command`` and
-bind them to the TRAMP host, machine or user you want, as shown in the
-example below. This is described in details in the *Emacs Lisp*
-manual, in the section *Connection Local Variables*.
+To run different shells or set different environment variables on
+different hosts, define different connection local profiles that set
+``mistty-shell-command`` or ``mistty-process-env`` and bind them to
+the TRAMP host, machine or user you want, as shown in the example
+below. This is described in details in the *Emacs Lisp* manual, in the
+section *Connection Local Variables*.
 
 Example:
 

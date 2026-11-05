@@ -185,7 +185,7 @@ is interrupted."
 CTX is the context passed to the current processor."
   (funcall (mistty--accum-ctx-push-down-f ctx) str))
 
-(defun mistty--make-accumulator (dest)
+(defun mistty--make-accumulator (dest &optional immediate-preproc)
   "Make an accumulator that sends process output to DEST.
 
 An accumulator is a function with the signature (PROC DATA) that is
@@ -194,6 +194,9 @@ transforms process data before sending it to DEST.
 
 DEST is the process filter function, with the same signature (PROC DATA)
 that'll be eventually called.
+
+If IMMEDIATE-PREPROC is non-nil, pre-process and flush immediately, just
+delay post-processing.
 
 The return value of this type is also an oclosure of type
 mistty--accum whose slots can be accessed."
@@ -424,10 +427,14 @@ mistty--accum whose slots can be accessed."
         (mistty-with-errors-logged "process filter"
           (mistty--fifo-enqueue unprocessed data)
           (cl-incf unprocessed-bytes (length data))
+          (when immediate-preproc
+            (process-data proc)
+            (flush proc))
 
           (when (toplevel-accumulator-p proc)
-            (process-data proc)
-            (flush proc)
+            (unless immediate-preproc
+              (process-data proc)
+              (flush proc))
             (post-process proc)))))))
 
 (defun mistty--split-incomplete-chars (str)

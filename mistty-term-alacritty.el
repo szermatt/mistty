@@ -141,7 +141,8 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                     :prompt-cell prompt-cell
                     :request-report-mouse request-report-mouse))
              (accum (mistty--make-accumulator
-                     (mistty--term-alacritty-filter term))))
+                     (mistty--term-alacritty-filter term)
+                     'immediate-preproc)))
         (set-process-filter proc accum)
         (process-put proc 'mistty-term term)
 

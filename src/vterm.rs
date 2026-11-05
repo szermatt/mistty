@@ -112,7 +112,11 @@ impl VTermProcessor {
         let cols = vterm.columns();
         let mut start = 0;
         loop {
-            match self.prompt_detector.detect_prompt_sp(cols, &bytes[start..]) {
+            match self
+                .prompt_detector
+                .detect_prompt_sp(cols, &bytes[start..])
+                .map(|idx| start + idx)
+            {
                 Some(breakpoint) => {
                     self.process_bytes_internal(vterm, &bytes[start..breakpoint]);
                     self.prompt_detector.handle_prompt_sp(vterm);
@@ -2017,5 +2021,15 @@ mod tests {
             Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
+    }
+
+    #[test]
+    fn process_bytes_multiple_prompt_sp() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes("a⏎         \r$ b⏎         \r$ ".as_bytes());
+
+        assert_eq!("a⏎", row_to_string(&fixture.vterm.grid()[Line(0)]));
+        assert_eq!("$ b⏎", row_to_string(&fixture.vterm.grid()[Line(1)]));
+        assert_eq!("$ ", row_to_string(&fixture.vterm.grid()[Line(2)]));
     }
 }

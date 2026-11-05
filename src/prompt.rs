@@ -395,6 +395,21 @@ mod tests {
     }
 
     #[test]
+    fn fix_multiple_prompt_sp() {
+        let mut fixture = Fixture::setup();
+        // This test cover the case where multiple prompt_sp are
+        // processed in the same byte array.
+        fixture.process_bytes(
+            "ok⏎                   \r$ echo ok\nok⏎                   \r$ ".as_bytes(),
+        );
+
+        assert_eq!("ok⏎", fixture.row_to_string(Line(0)));
+        assert_eq!("$ echo ok", fixture.row_to_string(Line(1)));
+        assert_eq!("ok⏎", fixture.row_to_string(Line(2)));
+        assert_eq!("$ ", fixture.row_to_string(Line(3)));
+    }
+
+    #[test]
     fn detect_bracketed_paste() {
         let mut fixture = Fixture::setup();
         fixture.process_bytes(b"\x1b[?2004h$ ");

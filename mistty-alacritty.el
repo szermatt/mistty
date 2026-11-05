@@ -124,6 +124,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-render-screen nil (term cursor))
 (declare-function mistty-alacritty-vt-resize nil (term w h))
 (declare-function mistty-alacritty-vt-scrollback-line-count nil (term))
+(declare-function mistty-alacritty-vt-scrolline-at-screen-top nil (term))
 (declare-function mistty-alacritty-vt-terminal-line-for-scrolline nil (term scrolline))
 (declare-function mistty-alacritty-vt-update-options nil (term options-plist))
 (declare-function mistty-alacritty-vt-write-scrollback nil (term))
@@ -366,7 +367,7 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
       ;; start-file-process doesn't always respect
       ;; coding-system-for-read. Force it.
       (set-process-coding-system proc 'binary (cdr (process-coding-system proc)))
-      (set-process-sentinel proc #'mistty-alacritty--sentinel)
+      (set-process-sentinel proc nil)
       (set-process-filter proc t))))
 
 (defun mistty-alacritty--render (vterm)
@@ -385,19 +386,6 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
       (when (process-live-p proc)
         (set-marker (process-mark proc) mistty-alacritty--cursor))))
   (goto-char mistty-alacritty--cursor))
-
-(defun mistty-alacritty--sentinel (proc msg)
-  "Update buffer when PROC has exited.
-
-MSG is displayed at the end of the buffer, to let the user know the
-process is dead."
-  (when (memq (process-status proc) '(signal exit))
-    (mistty--with-live-buffer (process-buffer proc)
-      (save-excursion
-        (goto-char (point-max))
-        (insert "\nProcess " msg)))
-    (set-process-buffer proc nil)
-    (delete-process proc)))
 
 (defun mistty-alacritty--TERM ()
   "Choose a value for the TERM env variable.

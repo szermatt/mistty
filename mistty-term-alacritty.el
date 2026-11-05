@@ -83,8 +83,11 @@
   ;; function to call after resetting the terminal
   after-reset
 
-  ;;; function to call to clear scrollback
-  clear-scrollback)
+  ;; function to call to clear scrollback
+  clear-scrollback
+
+  ;; status message, set after the process died
+  process-status)
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'alacritty)) name command
@@ -157,20 +160,7 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (unless clear-scrollback (error ":clear-scrollback required"))
         (setf (mistty--term-alacritty-clear-scrollback term) clear-scrollback)
 
-        ;; Detect changes made to the terminal above the sync scrolline, which
-        ;; means that the sync scrolline needs to be updated.
-        ;; TODO: re-think and move at least partially into the module.
-        (mistty--accum-add-around-process-filter
-         accum
-         (lambda (func)
-           (if (mistty--term-alacritty-fs term)
-               (funcall func)
-
-             (let ((limit (funcall sync-scrolline)))
-               (when (mistty--detect-change-before-scrolline
-                      func (mistty--term-alacritty-buf term) limit)
-                 (mistty-log "DETECTED BUFFER CHANGE, above %s" limit)
-                 (setf (mistty--term-alacritty-change-before-scrolline term) t))))))
+        (ignore sync-scrolline)
 
         term))))
 
@@ -199,10 +189,9 @@ Unknown options are ignored."
   (with-current-buffer (mistty--term-alacritty-buf term)
     mistty-alacritty--home))
 
-(cl-defmethod mistty--term-screen-top-scrolline ((term mistty--term-alacritty))
+(cl-defmethod mistty--term-scrolline-at-screen-top ((term mistty--term-alacritty))
   "Return the scrolline number of the first line of TERM's terminal."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    mistty--scrolline-home-num))
+  (mistty-alacritty-vt-scrolline-at-screen-top (mistty--term-alacritty-vterm term)))
 
 (cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-alacritty))
   "Return non-nil prompt detection should be enabled in TERM."
@@ -220,11 +209,16 @@ Unknown options are ignored."
   "Return the terminal line and column of the cursor in TERM."
   (mistty-alacritty-vt-cursor (mistty--term-alacritty-vterm term)))
 
-(cl-defmethod mistty--term-sentinel-func ((_term mistty--term-alacritty))
+(cl-defmethod mistty--term-sentinel-func ((term mistty--term-alacritty))
   "Return the default sentinel of the process.
 
 The actual sentinel may different from this."
-  #'mistty-alacritty--sentinel)
+  (lambda (proc msg)
+    (when (memq (process-status proc) '(signal exit))
+      (mistty-log "PROCESS %s" msg)
+      (setf (mistty--term-alacritty-process-status term) msg)
+      (set-process-buffer proc nil)
+      (delete-process proc))))
 
 (cl-defmethod mistty--term-resize ((term mistty--term-alacritty) width height)
   "Resize TERM to WIDTH columns and HEIGHT lines."
@@ -285,11 +279,6 @@ CURSOR-MARKER is updated to the cursor position."
          (setf (mistty--term-alacritty-fs term) val)
          (if val
              (funcall (mistty--term-alacritty-enter-fullscreen term) nil)
-
-           ;; Render to terminal buffer now, just after leaving fullscreen, since rendering
-           ;; in the process filter was skipped in fullscreen mode.
-           (mistty--with-live-buffer term-buf
-             (mistty-alacritty--render vterm))
            (funcall (mistty--term-alacritty-leave-fullscreen term))))
         (`(start-prompt ,source ,start)
          (mistty--with-live-buffer term-buf
@@ -341,10 +330,21 @@ CURSOR-MARKER is updated to the cursor position."
 
       ;; normal mode, with support for prompts
       (mistty--with-live-buffer term-buf
+        (when (mistty--detect-change-before-scrolline
+               (lambda () ;; Refresh terminal buffer before sync
+                 (mistty-alacritty--render vterm))
+               term-buf
+               sync-scrolline)
+
+          ;; Detected changes made to the terminal above the sync
+          ;; scrolline, which means that the sync scrolline needs to
+          ;; be updated. TODO: re-think and move at least partially
+          ;; into the module.
+          (setf (mistty--term-alacritty-change-before-scrolline term) t))
+
         (let ((home-marker mistty-alacritty--home)
               (home-scrolline mistty--scrolline-home-num)
-              (proc (mistty--term-alacritty-proc term))
-              (source-buffer (current-buffer)))
+              (proc (mistty--term-alacritty-proc term)))
           ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
           (cond
            ((< sync-scrolline home-scrolline)
@@ -357,13 +357,13 @@ CURSOR-MARKER is updated to the cursor position."
             (pcase-setq
              `(,sync-pos . ,sync-scrolline)
              (mistty--realign-buffers
-              source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
+              term-buf home-scrolline dest-buffer sync-pos sync-scrolline))))
 
           (setf (mistty--term-alacritty-change-before-scrolline term) nil)
 
           (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
             (mistty--sync-buffer
-             source-buffer source-sync-pos
+             term-buf source-sync-pos
              dest-buffer sync-pos
              keep-markers)
 
@@ -379,7 +379,12 @@ CURSOR-MARKER is updated to the cursor position."
                   (add-text-properties
                    last-newline (point-max)
                    '(mistty-skip empty-lines-at-eob
-                                 yank-handler (nil "" nil nil)))))))))))
+                                 yank-handler (nil "" nil nil)))))
+
+              (when-let* ((msg (mistty--term-alacritty-process-status term)))
+                (save-excursion
+                  (goto-char (point-max))
+                  (insert "\nProcess " msg)))))))))
 
   (cons sync-pos sync-scrolline))
 
@@ -437,14 +442,10 @@ The filter updates the vterm and optionally renders to the terminal
 buffer."
   (lambda (proc str)
     (mistty-log "RECV %S" str)
-    (let ((vterm (mistty--term-alacritty-vterm term))
-          (buf (mistty--term-alacritty-buf term)))
+    (let ((vterm (mistty--term-alacritty-vterm term)))
       (when-let* ((reply (mistty-alacritty-vt-process-bytes vterm str)))
         (mistty-log "REPLY %S" reply)
-        (process-send-string proc reply))
-      (unless (mistty--term-alacritty-fs term)
-        (mistty--with-live-buffer buf
-          (mistty-alacritty--render vterm))))))
+        (process-send-string proc reply)))))
 
 (cl-defmethod mistty--term-translate-mouse ((term mistty--term-alacritty) ev move-posn sync-pos)
   "Translate a mouse event for TERM into an escape sequence or nil.

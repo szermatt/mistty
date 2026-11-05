@@ -995,7 +995,10 @@ buffer is used."
         (let ((before (match-string 1 mode-line))
               (process (match-string 2 mode-line))
               (after (match-string 3 mode-line)))
-          (concat (replace-regexp-in-string "[ \t]+" " " before)
+          (concat (replace-regexp-in-string
+                   "\\(All\\|Top\\|Bot\\|[0-9]?[0-9]%\\)"
+                   "\\\\(All\\\\|Top\\\\|Bot\\\\|[0-9]?[0-9]%\\\\)"
+                   (replace-regexp-in-string "[ \t]+" " " before))
                   "(" process ")"
                   (replace-regexp-in-string "---+" "---" after)))
       (error "Invalid mode-line: %S" mode-line))))

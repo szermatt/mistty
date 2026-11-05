@@ -32,6 +32,7 @@
           after-clear-screen
           clear-scrollback
           sync-scrolline
+          show-cursor
           request-report-mouse)
   "Create a new term buffer of the given TYPE with name NAME.
 
@@ -60,6 +61,9 @@ AFTER-CLEAR-SCREEN is to be called after the screen has been cleared.
 CLEAR-SCROLLBACK is to be called after the screen has been cleared.
 
 SYNC-SCROLLINE is a function that returns the current sync scrolline.
+
+SHOW-CURSOR is passed a boolean to show (non-nil) or hide (nil) the
+cursor.
 
 REQUEST-REPORT-MOUSE is a function that the terminal can use to request
 which mouse events should be reported `mistty--term-translate-mouse'. It

@@ -1668,6 +1668,22 @@
     (mistty-alacritty-vt-process-bytes vterm "\e[?1000l")
     (should (null (mistty-alacritty-vt-collect-changes vterm)))))
 
+(mistty-deftest mistty-alacritty-vt-report-show-cursor
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
+    (mistty-alacritty-vt-process-bytes vterm "\e[?25h")
+    (should (null (mistty-alacritty-vt-collect-changes vterm)))
+
+    (mistty-alacritty-vt-process-bytes vterm "\e[?25l")
+    (should (equal '((cursor nil))
+                   (mistty-alacritty-vt-collect-changes vterm)))
+    (should (null (mistty-alacritty-vt-collect-changes vterm)))
+
+    (mistty-alacritty-vt-process-bytes vterm "\e[?25h")
+    (should (equal '((cursor t))
+                   (mistty-alacritty-vt-collect-changes vterm)))
+    (should (null (mistty-alacritty-vt-collect-changes vterm)))))
+
 (mistty-deftest mistty-alacritty-vt-mouse-seq-disabled
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))

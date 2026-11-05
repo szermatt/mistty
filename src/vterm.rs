@@ -41,6 +41,7 @@ emacs::use_symbols! {
     motion_sym => "motion"
     nil_sym => "nil"
     cwd_sym => "cwd"
+    cursor_sym => "cursor"
     fullscreen_sym => "fullscreen"
     cleared_screen_sym => "cleared-screen"
     cleared_scrollback_sym => "cleared-scrollback"
@@ -175,6 +176,9 @@ pub(crate) enum VTermChange {
     /// changes for clearing state, such as keyboard mode, bracketed
     /// paste or clearing the scrollback.
     Reset,
+
+    /// Show or hide the cursor.
+    ShowCursor(bool),
 }
 
 /// Mouse mode reported to the lisp side
@@ -203,6 +207,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::ClearedScreen => env.cons(cleared_screen_sym, ()),
             VTermChange::ClearedScrollback => env.cons(cleared_scrollback_sym, ()),
             VTermChange::Reset => env.cons(reset_sym, ()),
+            VTermChange::ShowCursor(on) => env.list((cursor_sym, on)),
         }
     }
 }
@@ -670,6 +675,11 @@ impl VTerm {
                     MouseMode::Off
                 },
             ));
+        }
+
+        let cursor_on = mode.intersects(TermMode::SHOW_CURSOR);
+        if cursor_on != before.intersects(TermMode::SHOW_CURSOR) {
+            reports.push(VTermChange::ShowCursor(cursor_on));
         }
 
         reports
@@ -1633,13 +1643,14 @@ mod tests {
     fn reset_resets_modes() {
         let mut fixture = Fixture::setup();
 
-        fixture.process_bytes(b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h");
+        fixture.process_bytes(b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h\x1b[?25l");
         assert_eq!(
             vec![
                 VTermChange::KittyKeyboard(true),
                 VTermChange::BracketedPaste(true),
                 VTermChange::Fullscreen(true),
                 VTermChange::Mouse(MouseMode::Click),
+                VTermChange::ShowCursor(false),
             ],
             fixture.vterm.collect_changes().unwrap()
         );
@@ -1651,6 +1662,7 @@ mod tests {
                 VTermChange::BracketedPaste(false),
                 VTermChange::Fullscreen(false),
                 VTermChange::Mouse(MouseMode::Off),
+                VTermChange::ShowCursor(true),
                 VTermChange::Reset,
             ],
             fixture.vterm.collect_changes().unwrap()
@@ -1998,6 +2010,38 @@ mod tests {
         fixture.process_bytes(b"\x1b[?1003l");
         assert_eq!(
             vec![VTermChange::Mouse(MouseMode::Off)],
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_show_cursor() {
+        let mut fixture = Fixture::setup();
+
+        // Cursor is shown by default; enabling it again produces no change.
+        fixture.process_bytes(b"\x1b[?25h");
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?25l");
+        assert_eq!(
+            vec![VTermChange::ShowCursor(false)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?25h");
+        assert_eq!(
+            vec![VTermChange::ShowCursor(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
             fixture.vterm.collect_mode_changes()
         );
     }

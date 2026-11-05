@@ -86,6 +86,9 @@
   ;; function to call to clear scrollback
   clear-scrollback
 
+  ;; function to call to show or hide cursor
+  show-cursor
+
   ;; status message, set after the process died
   process-status)
 
@@ -99,6 +102,7 @@
    after-reset
    clear-scrollback
    sync-scrolline
+   show-cursor
    request-report-mouse)
   "Create an alacritty-type terminal with the given NAME and COMMAND.
 
@@ -112,6 +116,7 @@ ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
 AFTER-RESET is called after the terminal was reset
 SYNC-SCROLLINE returns the current sync scrolline.
+SHOW-CURSOR shows (non-nil argument) or hides (nil argument) the cursor
 REQUEST-REPORT-MOUSE controls mouse reporting."
   (let* ((width (or width 80))
          (height (or height 24))
@@ -164,6 +169,9 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
 
         (unless clear-scrollback (error ":clear-scrollback required"))
         (setf (mistty--term-alacritty-clear-scrollback term) clear-scrollback)
+
+        (unless show-cursor (error ":show-cursor required"))
+        (setf (mistty--term-alacritty-show-cursor term) show-cursor)
 
         (ignore sync-scrolline)
 
@@ -277,6 +285,8 @@ CURSOR-MARKER is updated to the cursor position."
         (`(mouse ,val)
          (setf (mistty--term-alacritty-mouse term) val)
          (funcall (mistty--term-alacritty-request-report-mouse term) val))
+        (`(cursor ,val)
+         (funcall (mistty--term-alacritty-show-cursor term) val))
         (`(bracketed-paste ,val)
          (mistty--with-live-buffer term-buf
            (setq mistty-bracketed-paste val)))

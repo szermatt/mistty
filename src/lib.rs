@@ -178,6 +178,7 @@ fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: String) -> Res
 /// - `(bracketed-paste ,enabled) to report that bracketed paste was enabled/disabled
 /// - `(fullscreen ,enabled) to report that fullscreen (alt screen) was enabled/disabled
 /// - `(mouse ,mode) to report mouse mode change, nil (off) 'click, 'drag, 'motion
+/// - `(cursor ,enabled) to report that the cursor was shown/hidden
 /// - `(title ,title) to report window title set or clear (title is nil)
 /// - `(cwd ,url) to report workig directory set (as a file: url) or clear (url is nil)
 /// - `(cleared-screen) to report that the screen was cleared

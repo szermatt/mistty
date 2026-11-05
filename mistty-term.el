@@ -182,28 +182,6 @@ the last set of properties to be registered is applied."
           (delq cell
                 mistty--term-properties-to-add-alist))))
 
-
-(defun mistty--add-toggle-cursor (accum &rest bufs)
-  "Configure ACCUM to show/hide cursor in BUFS."
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI "?25h")
-   (lambda (_ _)
-     (mistty-log "Show cursor")
-     (dolist (buf bufs)
-       (mistty--with-live-buffer buf
-         (mistty-log "Show Cursor in %s" major-mode)
-         (mistty--show-cursor)))))
-  (mistty--accum-add-processor
-   accum
-   '(seq CSI "?25l")
-   (lambda (_ _)
-     (mistty-log "Hide cursor")
-     (dolist (buf bufs)
-       (mistty--with-live-buffer buf
-         (mistty-log "Hide cursor in %s" major-mode)
-         (mistty--hide-cursor))))))
-
 (defun mistty--hide-cursor ()
   "Temporarily hide the cursor.
 

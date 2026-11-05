@@ -427,6 +427,7 @@ to call `mistty--term-postprocess'.")
    after-reset
    clear-scrollback
    sync-scrolline
+   show-cursor
    request-report-mouse)
   "Create an eterm-based terminal called NAME.
 
@@ -441,6 +442,7 @@ AFTER-CLEAR-SCREEN is called after the screen is cleared.
 AFTER-RESET is called after the terminal was reset
 CLEAR-SCROLLBACK clears scrollback in the work buffer
 SYNC-SCROLLINE returns the current sync scrolline.
+SHOW-CURSOR shows (non-nil argument) or hides (nil argument) the cursor
 REQUEST-REPORT-MOUSE controls mouse reporting."
   (ignore request-report-mouse)
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
@@ -609,6 +611,26 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                       func (mistty--term-eterm-buf term) limit)
                  (mistty-log "DETECTED BUFFER CHANGE, above %s" limit)
                  (setf (mistty--term-eterm-change-before-scrolline term) t)))))))
+
+        (unless show-cursor (error ":show-cursor required"))
+        (mistty--accum-add-processor
+         accum
+         '(seq CSI "?25h")
+         (lambda (_ _)
+           (mistty-log "Show cursor")
+           (if (mistty--term-eterm-fs term)
+               (mistty--with-live-buffer (mistty--term-eterm-buf term)
+                 (mistty--show-cursor))
+             (funcall show-cursor t))))
+        (mistty--accum-add-processor
+         accum
+         '(seq CSI "?25l")
+         (lambda (_ _)
+           (mistty-log "Hide cursor")
+           (if (mistty--term-eterm-fs term)
+               (mistty--with-live-buffer (mistty--term-eterm-buf term)
+                 (mistty--hide-cursor))
+             (funcall show-cursor nil))))
 
         term))))
 

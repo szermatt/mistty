@@ -971,6 +971,12 @@ window."
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
                       mistty--scrolline-home-num))
+                  :show-cursor
+                  (lambda (show)
+                    (mistty--with-live-buffer work-buffer
+                      (if show
+                          (mistty--show-cursor)
+                        (mistty--hide-cursor))))
                   :request-report-mouse
                   (lambda (val)
                     (mistty--with-live-buffer work-buffer
@@ -986,7 +992,6 @@ window."
                       (mistty--update-secondary-mode)))))
            (term-buffer (mistty--term-buf term))
            (accum (process-filter (mistty--term-proc term))))
-      (mistty--add-toggle-cursor accum work-buffer term-buffer)
       (mistty--add-sync-buffers accum work-buffer)
 
       (with-current-buffer term-buffer

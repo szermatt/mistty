@@ -8911,18 +8911,20 @@ precmd_functions+=(prompt_header)
 (mistty-deftest mistty-test-button-to-toggle-fullscreen-keyboard
     (:selected t :type alacritty :turtles t)
   (let ((mistty-tag-theme 'textual))
+    (delete-other-windows)
     (mistty-test-rename-buffer "test-mode-line")
     (mistty--send-string
      mistty-proc "printf '\\e[?1049h'; read -p 'FS'\n")
     (mistty-wait-for-output :start (point-min) :regexp "^FS")
 
     (should (eq 'full (mistty--secondary-mode)))
+    (should (redisplay t)) ;; update window start
     (force-mode-line-update)
     (turtles-interaction
       (turtles-with-grab-buffer (:mode-line (selected-window))
         (should (equal
                  (mistty-test-trim-mode-line
-                  "-UUU:**- F1  test-mode-line   58%  [(misTTY fullscreen [kb])] ------")
+                  "-UUU:**- F1  test-mode-line   Top  [(misTTY fullscreen [kb])] ------")
                  (mistty-test-trim-mode-line))))
 
       :mouse-ev 'mouse-1 (turtles-coords "[kb]" :mode-line (current-buffer))
@@ -8931,7 +8933,7 @@ precmd_functions+=(prompt_header)
       (turtles-with-grab-buffer (:mode-line (selected-window))
         (should (equal
                  (mistty-test-trim-mode-line
-                  "-UUU:**- F1  test-mode-line   58%  [(misTTY fullscreen (kb))] ------")
+                  "-UUU:**- F1  test-mode-line   Top  [(misTTY fullscreen (kb))] ------")
                  (mistty-test-trim-mode-line))))
 
       :mouse-ev 'mouse-1 (turtles-coords "(kb)" :mode-line (current-buffer))

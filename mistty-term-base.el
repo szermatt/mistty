@@ -91,7 +91,7 @@ ignored."
 
 The marker is only valid in the terminal buffer.")
 
-(cl-defgeneric mistty--term-screen-top-scrolline (term)
+(cl-defgeneric mistty--term-scrolline-at-screen-top (term)
   "Return the scrolline for he start of TERM's terminal.")
 
 (cl-defgeneric mistty--term-detect-prompt-p (term)

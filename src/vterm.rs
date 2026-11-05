@@ -401,13 +401,13 @@ impl VTerm {
     }
 
     /// Scrolline at the top of the screen, `Line(0)`.
-    pub(crate) fn screen_top_scrolline(&self) -> Scrolline {
+    pub(crate) fn scrolline_at_screen_top(&self) -> Scrolline {
         self.base_scrolline + self.scrollback_rows().filter(|r| !r.is_wrapped()).count()
     }
 
     /// Scrolline that correspond to the line the cursor is on.
     pub(crate) fn scrolline_at_cursor(&self) -> Scrolline {
-        self.screen_top_scrolline()
+        self.scrolline_at_screen_top()
             + self
                 .grid()
                 .count_scrollines(Line(0), self.grid().cursor.point.line)
@@ -462,7 +462,7 @@ impl VTerm {
             }
             Some(v) => v,
         };
-        let new_base = self.screen_top_scrolline();
+        let new_base = self.scrolline_at_screen_top();
 
         self.scrollback.clear();
         self.inner.grid_mut().clear_history();
@@ -1044,7 +1044,7 @@ impl<'a> Handler for HandlerProxy<'a> {
             self.vterm.record(VTermChange::ClearedScrollback);
         }
         self.prompt_detector
-            .reset(self.vterm.screen_top_scrolline());
+            .reset(self.vterm.scrolline_at_screen_top());
         self.vterm.inner.reset_state();
         init_grid(self.vterm.inner.grid_mut());
         self.vterm.record(VTermChange::Reset);
@@ -1613,7 +1613,7 @@ mod tests {
         let vterm = &mut fixture.vterm;
         assert_eq!(0, vterm.scrollback_row_count());
         assert_eq!(0, vterm.grid().history_size());
-        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(3), vterm.scrolline_at_screen_top());
         for line in 0..=vterm.bottommost_line().0 {
             assert!(vterm.grid()[Line(line)].is_clear());
         }
@@ -1680,7 +1680,7 @@ mod tests {
     #[test]
     fn screen_top_scrolline_empty() {
         let vterm = VTerm::new(10, 3, VTermOptions::default());
-        assert_eq!(Scrolline(0), vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(0), vterm.scrolline_at_screen_top());
     }
 
     #[test]
@@ -1692,13 +1692,13 @@ mod tests {
         fixture.process_bytes(b"line 1 is long\r\nline 2\r\nline 3 is long\r\n");
         // writing 3 terminal lines puts everything above into history
         fixture.process_bytes(b"line 4\r\nline 5\r\n");
-        assert_eq!(Scrolline(3), fixture.vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(3), fixture.vterm.scrolline_at_screen_top());
         assert_eq!(5, fixture.vterm.scrollback_row_count());
 
         // 2 more scrollines scroll into history
         fixture.process_bytes(b"line 6 is long\r\nline 7");
         let vterm = &fixture.vterm;
-        assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(5), vterm.scrolline_at_screen_top());
         assert_eq!(7, vterm.scrollback_row_count());
     }
 
@@ -1708,14 +1708,14 @@ mod tests {
         fixture.vterm.enable_scrollback();
 
         fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
-        assert_eq!(Scrolline(3), fixture.vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(3), fixture.vterm.scrolline_at_screen_top());
 
         fixture.vterm.clear_scrollback();
         assert_eq!(Scrolline(3), fixture.vterm.base_scrolline());
-        assert_eq!(Scrolline(3), fixture.vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(3), fixture.vterm.scrolline_at_screen_top());
 
         fixture.process_bytes(b"line 6\r\nline 7\r\n");
-        assert_eq!(Scrolline(5), fixture.vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(5), fixture.vterm.scrolline_at_screen_top());
     }
 
     #[test]
@@ -1749,7 +1749,7 @@ mod tests {
         fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
 
         let vterm = &fixture.vterm;
-        assert_eq!(Scrolline(3), vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(3), vterm.scrolline_at_screen_top());
         assert_eq!(
             Some(Line(-3)),
             vterm.terminal_line_for_scrolline(Scrolline(0))
@@ -1787,7 +1787,7 @@ mod tests {
 
         fixture.process_bytes(b"line 6\r\nline 7\r\n");
         let vterm = &fixture.vterm;
-        assert_eq!(Scrolline(5), vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(5), vterm.scrolline_at_screen_top());
 
         assert_eq!(
             Some(Line(-5)),
@@ -1851,7 +1851,7 @@ mod tests {
         fixture.process_bytes(b"A long line....\r\nline 2\r\n");
 
         let vterm = &mut fixture.vterm;
-        assert_eq!(Scrolline(0), vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(0), vterm.scrolline_at_screen_top());
         assert_eq!(
             Some(Line(0)),
             vterm.terminal_line_for_scrolline(Scrolline(0))
@@ -1863,7 +1863,7 @@ mod tests {
 
         // Put screen content into scrollback, make sure it still works.
         vterm.inner.clear_screen(ansi::ClearMode::All);
-        assert_eq!(Scrolline(2), vterm.screen_top_scrolline());
+        assert_eq!(Scrolline(2), vterm.scrolline_at_screen_top());
         assert_eq!(
             Some(Line(-3)),
             vterm.terminal_line_for_scrolline(Scrolline(0))

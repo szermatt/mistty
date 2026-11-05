@@ -639,7 +639,7 @@ Any other option is ignored."
   (with-current-buffer (mistty--term-eterm-buf term)
     term-home-marker))
 
-(cl-defmethod mistty--term-screen-top-scrolline ((term mistty--term-eterm))
+(cl-defmethod mistty--term-scrolline-at-screen-top ((term mistty--term-eterm))
   "Return the scrolline displayed in the first line of TERM's terminal."
   (with-current-buffer (mistty--term-eterm-buf term)
     (mistty--scrolline-at term-home-marker)))

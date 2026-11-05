@@ -275,10 +275,6 @@ Detected dead spaces are marked with the text property \\='mistty-skip
                   ;; in case the buffer is accessed before rendering again
                   (put-text-property (point) eol 'mistty-skip 'dead))))))))))
 
-(defun mistty--term-scrolline-at-screen-start()
-  "Scrolline at the top of the screen."
-  mistty--scrolline-home-num)
-
 (defun mistty-call-term-mode-hook ()
   "Call the functions registered to `term-mode-hook'.
 

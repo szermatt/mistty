@@ -1517,7 +1517,7 @@ kept."
       ((win (get-buffer-window mistty-work-buffer))
        (screen-start-scrolline
         (mistty--with-live-buffer mistty-term-buffer
-          (mistty--term-scrolline-at-screen-start)))
+          (mistty--term-scrolline-at-screen-top mistty--term)))
        (screen-start-pos
         (mistty--with-live-buffer mistty-work-buffer
           (mistty--find-scrolline screen-start-scrolline))))
@@ -1728,7 +1728,8 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
       (mistty-log "SPECIAL PROMPT done"))))
 
   (unless (mistty--active-prompt)
-    (let ((screen-start (mistty--term-scrolline-at-screen-start)))
+    (let ((screen-start
+           (mistty--term-scrolline-at-screen-top mistty--term)))
       (when (< mistty--scrolline-home-num screen-start)
         ;; Next time, only sync the visible portion of the terminal.
         (mistty--maybe-move-sync-mark screen-start)))))

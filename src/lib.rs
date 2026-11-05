@@ -99,6 +99,12 @@ fn update_options(term: &mut VTermFacade, options_plist: Value<'_>) -> Result<()
     Ok(())
 }
 
+/// Return the scrolline that correspond to the top of the screen.
+#[defun]
+fn scrolline_at_screen_top(term: &VTermFacade) -> Result<Scrolline> {
+    Ok(term.vterm.scrolline_at_screen_top())
+}
+
 /// Tell the virtual terminal to track scrollback.
 ///
 /// Scrollback must rendered at regular intervals using

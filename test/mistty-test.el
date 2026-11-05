@@ -6652,8 +6652,8 @@ function prompt {
 
       ;; both are still valid, even though one is outside the screen,
       ;; at this point; it's still below the sync mark
-      (let ((screen-start (with-current-buffer mistty-term-buffer
-                            (mistty--term-scrolline-at-screen-start))))
+      (let ((screen-start (mistty--term-scrolline-at-screen-top
+                           mistty--term)))
         (should (< one screen-start))
         (should (> two screen-start)))
 
@@ -7447,7 +7447,7 @@ precmd_functions+=(prompt_header)
    (>= (mistty--count-lines
         (point-min)
         (mistty--find-scrolline
-         (mistty--term-screen-top-scrolline mistty--term)))
+         (mistty--term-scrolline-at-screen-top mistty--term)))
        30))
   ;; but the term buffer kept only a few
   (with-current-buffer mistty-term-buffer

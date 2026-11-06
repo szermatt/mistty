@@ -230,14 +230,6 @@ fn clear_to_eol(env: &Env, term: &mut VTermFacade, line: i32, beg_chars: usize) 
     Ok(())
 }
 
-/// Clear terminal history.
-#[defun]
-pub(crate) fn clear_scrollback(term: &mut VTermFacade) -> Result<()> {
-    term.vterm.clear_scrollback();
-
-    Ok(())
-}
-
 /// Return the number of terminal lines in the scrollback.
 #[defun]
 fn scrollback_line_count(term: &VTermFacade) -> Result<usize> {
@@ -265,7 +257,8 @@ pub(crate) fn write_scrollback(env: &Env, term: &mut VTermFacade) -> Result<usiz
 ///
 /// Rendering is done in the current buffer in the range from point to
 /// end of buffer (or earlier if narrowing is enabled), starting with
-/// the scrollback lines, then the screen itself.
+/// the scrollback lines, then the screen itself. Scrollback kept
+/// terminal-side is cleared.
 ///
 /// `cursor_marker` is set to the cursor position.
 ///
@@ -281,7 +274,10 @@ pub(crate) fn render<'a>(
     term: &mut VTermFacade,
     cursor_marker: Value,
 ) -> Result<Value<'a>> {
-    render::render(env, &mut term.vterm, cursor_marker)
+    let result = render::render(env, &mut term.vterm, cursor_marker)?;
+    term.vterm.clear_scrollback();
+
+    Ok(result)
 }
 
 /// Render the terminal content on the current buffer.

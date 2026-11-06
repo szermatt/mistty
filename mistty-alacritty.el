@@ -112,7 +112,6 @@ for some reason."
 (declare-function mistty-alacritty-vt-version nil ())
 (declare-function mistty-alacritty-vt-cleanup-prompt-sp nil (term pos))
 (declare-function mistty-alacritty-vt-clear-to-eol nil (term line col))
-(declare-function mistty-alacritty-vt-clear-scrollback nil (term))
 (declare-function mistty-alacritty-vt-collect-changes nil (term))
 (declare-function mistty-alacritty-vt-cursor nil (term))
 (declare-function mistty-alacritty-vt-enable-scrollback nil (term))
@@ -371,7 +370,6 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
     (goto-char mistty-alacritty--home)
     (pcase-let ((`(,screen-top . ,scrollines)
                  (mistty-alacritty-vt-render vterm mistty-alacritty--cursor)))
-      (mistty-alacritty-vt-clear-scrollback vterm)
       (mistty-log "RENDER @%s (+%s)"
                   mistty--scrolline-home-num
                   (- scrollines mistty--scrolline-home-num))

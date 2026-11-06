@@ -625,7 +625,6 @@
                      (mistty-alacritty-vt-render vterm cursor)))
           (should (equal 2 scrollines))
           (should (> new-top screen-top))
-          (mistty-alacritty-vt-clear-scrollback vterm)
           (set-marker screen-top new-top))
         (should
          (equal
@@ -827,7 +826,8 @@
     (mistty-alacritty-vt-process-bytes term "\r\n11")
     (mistty-alacritty-vt-process-bytes term "\r\n12")
     (should (equal 3 (mistty-alacritty-vt-scrollback-line-count term)))
-    (mistty-alacritty-vt-clear-scrollback term)
+    (ert-with-test-buffer ()
+      (mistty-alacritty-vt-render term (make-marker)))
     (should (equal 0 (mistty-alacritty-vt-scrollback-line-count term)))))
 
 (mistty-deftest mistty-alacritty-vt-cursor (:features mistty-alacritty-vt :shell none)
@@ -882,7 +882,6 @@
         (goto-char screen-top)
         (set-marker
          screen-top (car (mistty-alacritty-vt-render vterm cursor)))
-        (mistty-alacritty-vt-clear-scrollback vterm)
         (should
          (equal
           (concat
@@ -907,7 +906,6 @@
         (goto-char screen-top)
         (set-marker
          screen-top (car (mistty-alacritty-vt-render vterm cursor)))
-        (mistty-alacritty-vt-clear-scrollback vterm)
         (should
          (equal
           (concat
@@ -932,7 +930,6 @@
         (goto-char screen-top)
         (set-marker
          screen-top (car (mistty-alacritty-vt-render vterm cursor)))
-        (mistty-alacritty-vt-clear-scrollback vterm)
         (should
          (equal
           (concat
@@ -954,7 +951,6 @@
         (goto-char screen-top)
         (set-marker
          screen-top (car (mistty-alacritty-vt-render vterm cursor)))
-        (mistty-alacritty-vt-clear-scrollback vterm)
         (should
          (equal
           (concat
@@ -976,7 +972,6 @@
         (goto-char screen-top)
         (set-marker
          screen-top (car (mistty-alacritty-vt-render vterm cursor)))
-        (mistty-alacritty-vt-clear-scrollback vterm)
         (should
          (equal
           (concat

@@ -7966,6 +7966,68 @@ precmd_functions+=(prompt_header)
               (mistty-test-translate-mouse
                `(down-mouse-1 ,target-posn 1))))))
 
+(mistty-deftest mistty-translate-mouse-clicks-vertical-split
+    (:type alacritty :shell fish :selected t :turtles t)
+
+    (save-excursion
+      (delete-other-windows)
+      (let ((left (selected-window))
+            (right (split-window-horizontally)))
+      (set-window-buffer left (get-buffer "*scratch*"))
+      (select-window right)))
+
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+
+    (mistty-send-text "echo hello")
+
+    (should (redisplay t)) ;; for posn-at-point
+    (should (equal 22 (mistty--term-lines mistty--term)))
+    (should (equal 39 (mistty--term-columns mistty--term)))
+
+    ;; target the 2nd 'l' in echo, on terminal at column 10 line 4 on
+    ;; window at column 8 line 2
+    (let* ((target (mistty-test-pos-after "hel"))
+           (target-posn (posn-at-point target)))
+      (should target-posn)
+      (should
+       (equal "\33[<0;11;5M"
+              (mistty-test-translate-mouse
+               `(down-mouse-1 ,target-posn 1))))))
+
+(mistty-deftest mistty-translate-mouse-clicks-left-margin
+    (:type alacritty :shell fish :selected t :turtles t)
+
+  (delete-other-windows)
+  (setq left-margin-width 4)
+  (set-window-buffer (selected-window) (current-buffer))
+  
+  (mistty-send-text "echo one")
+  (mistty-send-and-wait-for-prompt)
+
+  (mistty-send-text "echo two")
+  (mistty-send-and-wait-for-prompt)
+
+  (mistty-send-text "echo hello")
+
+  (turtles-with-grab-buffer (:frame t)
+                            (mistty-log "FRAME:\n%s\nEOF" (buffer-string)))
+
+  (should (redisplay t)) ;; for posn-at-point
+
+  ;; target the 2nd 'l' in echo, on terminal at column 10 line 4 on
+  ;; window at column 8 line 2
+  (let* ((target (mistty-test-pos-after "hel"))
+         (target-posn (posn-at-point target)))
+    (should target-posn)
+    (should
+     (equal "\33[<0;11;5M"
+            (mistty-test-translate-mouse
+             `(down-mouse-1 ,target-posn 1))))))
+
 (mistty-deftest mistty-translate-mouse-clicks-with-header-line
     (:type alacritty :shell fish :selected t :turtles t)
 

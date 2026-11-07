@@ -519,8 +519,7 @@ Return nil if conversion fails."
                   ;; not at buffer end
                   (not (looking-at-p "\n*\\'"))))))
 
-        (setq term-x (+ (/ (car win-x-y) (default-font-width))
-                        (window-left-column win)))
+        (setq term-x (/ (car win-x-y) (default-font-width)))
         (setq term-y (mistty--alacritty-terminal-line-at-pos
                       term buffer-pos sync-pos))
         (unless at-buffer-pos-line

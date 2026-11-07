@@ -878,18 +878,23 @@
           (mistty-test-content
            :show screen-top :show-property '(term-line-wrap t))))
 
+        (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
+
+        ;; The wrapped line starts moving into scrollback ("Baa, baa, black shee").
+        ;; Because it is wrapped and not finished, it is not written to scrollback,
+        ;; but retained in scrollback and rendered by render() as part of the terminal.
         (mistty-alacritty-vt-process-bytes vterm "\r\n4")
         (goto-char screen-top)
-        (set-marker
-         screen-top (car (mistty-alacritty-vt-render vterm cursor)))
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+        (should (equal 1 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
           (concat
-           "Baa, baa, black shee[\n]"
-           ;; The scrollback line above must end with a newline, even
-           ;; tough it's wrapped, because the next line is a terminal
-           ;; line. The newline must be marked as 'term-line-wrap.
-           "<>p have you any wool?[\n]"
+           "<>Baa, baa, black shee[\n]"
+           "p have you any wool?[\n]"
            " Yes sir, yes, sir t[\n]"
            "hree bags full!\n"
            "One for the Master\n"
@@ -902,18 +907,20 @@
           (mistty-test-content
            :show screen-top :show-property '(term-line-wrap t))))
 
+        ;; Second line of wrapped line moves into scrollback.
         (mistty-alacritty-vt-process-bytes vterm "\r\n5")
         (goto-char screen-top)
-        (set-marker
-         screen-top (car (mistty-alacritty-vt-render vterm cursor)))
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+        (should (equal 2 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
           (concat
-           "Baa, baa, black sheep have you any wool?[\n]"
-           ;; The newline within sheep, above, must have been removed
-           ;; when writing the scrollback as now both terminal lines
-           ;; are part of the scrollback portion of the buffer.
-           "<> Yes sir, yes, sir t[\n]"
+           "<>Baa, baa, black shee[\n]"
+           "p have you any wool?[\n]"
+           " Yes sir, yes, sir t[\n]"
            "hree bags full!\n"
            "One for the Master\n"
            "and one for the Dame\n"
@@ -926,15 +933,21 @@
           (mistty-test-content
            :show screen-top :show-property '(term-line-wrap t))))
 
+        ;; Third line of wrapped line moves into scrollback.
         (mistty-alacritty-vt-process-bytes vterm "\r\n6")
         (goto-char screen-top)
-        (set-marker
-         screen-top (car (mistty-alacritty-vt-render vterm cursor)))
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+        (should (equal 3 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
           (concat
-           "Baa, baa, black sheep have you any wool? Yes sir, yes, sir t[\n]"
-           "<>hree bags full!\n"
+           "<>Baa, baa, black shee[\n]"
+           "p have you any wool?[\n]"
+           " Yes sir, yes, sir t[\n]"
+           "hree bags full!\n"
            "One for the Master\n"
            "and one for the Dame\n"
            "0\n"
@@ -947,10 +960,16 @@
           (mistty-test-content
            :show screen-top :show-property '(term-line-wrap t))))
 
+        ;; Fourth (and last) line of wrapped line moves into scrollback ("hree bags full!").
+        ;; Now the wrapped line is complete, so all parts are written to scrollback by
+        ;; write_scrollback as a single unwrapped line, and screen-top moves past it.
         (mistty-alacritty-vt-process-bytes vterm "\r\n7")
         (goto-char screen-top)
-        (set-marker
-         screen-top (car (mistty-alacritty-vt-render vterm cursor)))
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 1 scrollines))
+          (set-marker screen-top new-top))
+        (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
           (concat
@@ -968,10 +987,14 @@
           (mistty-test-content
            :show screen-top :show-property '(term-line-wrap t))))
 
+        ;; Next regular line moves into scrollback.
         (mistty-alacritty-vt-process-bytes vterm "\r\n8")
         (goto-char screen-top)
-        (set-marker
-         screen-top (car (mistty-alacritty-vt-render vterm cursor)))
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 2 scrollines))
+          (set-marker screen-top new-top))
+        (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
           (concat
@@ -989,6 +1012,160 @@
            "8")
           (mistty-test-content
            :show screen-top :show-property '(term-line-wrap t))))))))
+
+(mistty-deftest mistty-alacritty-vt-render-wrapped-rerender (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-enable-scrollback vterm)
+    (mistty-alacritty-vt-process-bytes vterm "\r12345678901234567890wrapped line")
+    (dotimes (i 9)
+      (mistty-alacritty-vt-process-bytes vterm (format "\r\nline %d" i)))
+    (ert-with-test-buffer ()
+      (let ((screen-top (copy-marker (point-min))))
+        (goto-char screen-top)
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+        (let ((expected (concat
+                         "<>12345678901234567890[\n]"
+                         "wrapped line\n"
+                         "line 0\n"
+                         "line 1\n"
+                         "line 2\n"
+                         "line 3\n"
+                         "line 4\n"
+                         "line 5\n"
+                         "line 6\n"
+                         "line 7\n"
+                         "line 8")))
+          (should (equal expected (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))
+          (should (equal 1 (mistty-alacritty-vt-scrollback-line-count vterm)))
+
+          ;; Re-render without byte changes: the unfinished line must still be present and identical
+          (goto-char screen-top)
+          (pcase-let ((`(,new-top . ,scrollines)
+                       (mistty-alacritty-vt-render vterm cursor)))
+            (should (equal 0 scrollines))
+            (set-marker screen-top new-top))
+          (should (equal expected (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))
+          (should (equal 1 (mistty-alacritty-vt-scrollback-line-count vterm)))
+
+          ;; Re-render again
+          (goto-char screen-top)
+          (pcase-let ((`(,new-top . ,scrollines)
+                       (mistty-alacritty-vt-render vterm cursor)))
+            (should (equal 0 scrollines))
+            (set-marker screen-top new-top))
+          (should (equal expected (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))
+          (should (equal 1 (mistty-alacritty-vt-scrollback-line-count vterm))))))))
+
+(mistty-deftest mistty-alacritty-vt-render-tag-switch-render-screen (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-enable-scrollback vterm)
+    (mistty-alacritty-vt-process-bytes vterm "\r12345678901234567890wrapped line")
+    (dotimes (i 9)
+      (mistty-alacritty-vt-process-bytes vterm (format "\r\nline %d" i)))
+    (ert-with-test-buffer ()
+      (let ((screen-top (copy-marker (point-min))))
+        (goto-char screen-top)
+        ;; 1. render with unfinished line spanning scrollback (Line -1) and terminal
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+        (should (equal (concat
+                        "<>12345678901234567890[\n]"
+                        "wrapped line\n"
+                        "line 0\n"
+                        "line 1\n"
+                        "line 2\n"
+                        "line 3\n"
+                        "line 4\n"
+                        "line 5\n"
+                        "line 6\n"
+                        "line 7\n"
+                        "line 8")
+                       (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))
+
+        ;; 2. Switch to render-screen. A full render of the screen is
+        ;; required even though there was no damage.
+        (goto-char screen-top)
+        (mistty-alacritty-vt-render-screen vterm cursor)
+        (should (equal (concat
+                        "wrapped line\n"
+                        "line 0\n"
+                        "line 1\n"
+                        "line 2\n"
+                        "line 3\n"
+                        "line 4\n"
+                        "line 5\n"
+                        "line 6\n"
+                        "line 7\n"
+                        "line 8")
+                       (mistty-test-content :show-property '(term-line-wrap t))))
+
+        ;; 3. Switch back to render. A full render of the screen is
+        ;; required again even though there was no damage.
+        (goto-char (point-min))
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+        (should (equal (concat
+                        "<>12345678901234567890[\n]"
+                        "wrapped line\n"
+                        "line 0\n"
+                        "line 1\n"
+                        "line 2\n"
+                        "line 3\n"
+                        "line 4\n"
+                        "line 5\n"
+                        "line 6\n"
+                        "line 7\n"
+                        "line 8")
+                       (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))))))
+
+(mistty-deftest mistty-alacritty-vt-render-wrapped-partial-damage (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-enable-scrollback vterm)
+    (mistty-alacritty-vt-process-bytes vterm "\r12345678901234567890wrapped line")
+    (dotimes (i 9)
+      (mistty-alacritty-vt-process-bytes vterm (format "\r\nline %d" i)))
+    (ert-with-test-buffer ()
+      (let ((screen-top (copy-marker (point-min))))
+        (goto-char screen-top)
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+
+        (put-text-property (point-min) (point-max) 'existing t)
+
+        ;; modify line 8
+        (mistty-alacritty-vt-process-bytes vterm " mod")
+        (goto-char screen-top)
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
+
+        (should (equal (concat
+                        "[12345678901234567890\n"
+                        "wrapped line\n"
+                        "line 0\n"
+                        "line 1\n"
+                        "line 2\n"
+                        "line 3\n"
+                        "line 4\n"
+                        "line 5\n"
+                        "line 6\n"
+                        "line 7\n]"
+                        ;; only line 8 was re-rendered
+                        "line 8 mod\n")
+                       (mistty-test-content :show-property '(existing t) :trim nil)))))))
 
 (mistty-deftest mistty-alacritty-vt-render-mistty-clear (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))

@@ -1,5 +1,5 @@
 use crate::gridext::{self, CellExt, RowExt};
-use crate::vterm::{RenderTag, VTerm};
+use crate::vterm::{RenderIndex, VTerm};
 use crate::{gridext::GridExt, types::BufferPos};
 use alacritty_terminal::{
     Grid,
@@ -8,7 +8,7 @@ use alacritty_terminal::{
     term::cell::{Cell, Flags, Hyperlink},
     vte::ansi::{Color, NamedColor, Rgb},
 };
-use emacs::{Env, Result, Value};
+use emacs::{Env, IntoLisp, Result, Transfer, Value};
 use std::{cmp::max, collections::HashMap, str::FromStr};
 
 emacs::use_functions! {
@@ -146,24 +146,13 @@ impl ToggleProperty {
 }
 
 /// Write scrollback lines to the current buffer.
-pub(crate) fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
+pub(crate) fn write_scrollback<'a>(
+    env: &Env,
+    term: &'a VTerm,
+    iter: impl Iterator<Item = &'a Row<Cell>>,
+) -> Result<usize> {
     if term.scrollback_row_count() == 0 {
         return Ok(0);
-    }
-    if term.continue_wrapped_line() {
-        // TODO: move this logic elisp-side
-        let c = env.call(char_before, [])?;
-        if c.is_not_nil()
-            && c.into_rust::<i32>()? == 10 // nl
-            && env
-                .call(
-                    get_text_property,
-                    (BufferPos::point(env)? - 1, term_line_wrap),
-                )?
-                .is_not_nil()
-        {
-            env.call(delete_char, (-1,))?;
-        }
     }
     let mut as_string =
         String::with_capacity(term.scrollback_row_count() * (term.grid().last_column().0 * 2 + 1));
@@ -171,7 +160,7 @@ pub(crate) fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_SCROLLBACK);
     let mut pos = origin;
     let mut scrollines = 0;
-    for row in term.scrollback_rows() {
+    for row in iter {
         if let Some(right_col) = last_written_cell(row) {
             for (_, cell) in row.iter_to(right_col + 1) {
                 let cell_pos = pos;
@@ -189,12 +178,6 @@ pub(crate) fn write_scrollback(env: &Env, term: &mut VTerm) -> Result<usize> {
     }
     env.call(insert, (as_string,))?;
     tracker.apply(env, pos)?;
-    if term.scrollback_ends_with_wrapline().unwrap_or(false) {
-        env.call(
-            insert,
-            (env.call(propertize, ("\n", term_line_wrap, true))?,),
-        )?;
-    }
 
     Ok(scrollines)
 }
@@ -205,13 +188,23 @@ pub(crate) fn render<'a>(
     term: &mut VTerm,
     cursor_marker: Value,
 ) -> Result<Value<'a>> {
-    let history_scrollines = write_scrollback(env, term)?;
+    let mut unfinished_lines = 0;
+    for row in term.scrollback_rows().rev() {
+        if row.is_wrapped() {
+            unfinished_lines += 1;
+        } else {
+            break;
+        }
+    }
+    let scrollback_lines = term.scrollback_row_count() - unfinished_lines;
+    write_scrollback(env, term, term.scrollback_rows().take(scrollback_lines))?;
+    term.retain_scrollback_lines(unfinished_lines);
 
     let mut render = Render::init(env, term)?;
-    render.render()?;
+    render.render(Line(-(unfinished_lines as i32)))?;
     render.move_cursor_marker(cursor_marker)?;
 
-    env.cons(render.start, term.base_scrolline() + history_scrollines)
+    env.cons(render.start, term.base_scrolline())
 }
 
 /// Render the terminal content on the current buffer.
@@ -249,16 +242,16 @@ impl<'a> Render<'a> {
     }
 
     /// Render the screen, skipping blank lines at the end (prompt mode).
-    fn render(&mut self) -> Result<()> {
+    fn render(&mut self, first: Line) -> Result<()> {
         let last_written = last_written_line(self.term.grid()).unwrap_or(Line(0));
-        self.render_internal(last_written)?;
+        self.render_internal(first, last_written)?;
 
         Ok(())
     }
 
     /// Render the whole screen (fullscreen mode).
     fn render_screen(&mut self) -> Result<()> {
-        self.render_internal(self.term.bottommost_line())?;
+        self.render_internal(Line(0), self.term.bottommost_line())?;
 
         Ok(())
     }
@@ -275,7 +268,11 @@ impl<'a> Render<'a> {
         Ok(())
     }
 
-    fn render_internal(&mut self, last_line_to_render: Line) -> Result<()> {
+    fn render_internal(
+        &mut self,
+        first_line_to_render: Line,
+        last_line_to_render: Line,
+    ) -> Result<()> {
         let env = self.env;
         // Since we always want to render the line the cursor is
         // on we might need to render lines past
@@ -285,9 +282,12 @@ impl<'a> Render<'a> {
 
         let damage = self.term.damaged_lines();
         if let Some(damage) = damage
-            && self.check_tag(env)?
+            && self.check_tag(
+                env,
+                RenderTag::new(self.term.current_render_index(), first_line_to_render),
+            )?
         {
-            let mut line_at_point = Line(0);
+            let mut line_at_point = first_line_to_render;
             for line in damage
                 .into_iter()
                 .filter(|l| *l <= last_line_to_render)
@@ -318,9 +318,10 @@ impl<'a> Render<'a> {
             }
         } else {
             env.call(delete_region, (self.start, BufferPos::point_max(env)?))?;
-            self.render_lines(Line(0), actual_last_line + 1)?;
+            self.render_lines(first_line_to_render, actual_last_line + 1)?;
         }
-        self.write_tag(env)?;
+        let index = self.term.next_render_index();
+        self.write_tag(env, RenderTag::new(index, first_line_to_render))?;
 
         self.term.reset_damage();
 
@@ -331,24 +332,19 @@ impl<'a> Render<'a> {
     ///
     /// If the tag matches, we'll trust damage information and only
     /// render the modified lines.
-    fn check_tag(&mut self, env: &Env) -> Result<bool> {
-        let tag: Option<&RenderTag> = env
+    fn check_tag(&mut self, env: &Env, expected: RenderTag) -> Result<bool> {
+        let found: Option<&RenderTag> = env
             .call(get_text_property, (self.start, mistty_render_tag_sym))?
             .into_rust()?;
-        Ok(tag.is_some_and(|t| self.term.render_tag().matches(t)))
+        Ok(found.is_some_and(|v| expected.matches(v)))
     }
 
     /// Write a tag at the beginning of the rendered region to be used
     /// by the next operation.
-    fn write_tag(&mut self, env: &Env) -> Result<()> {
+    fn write_tag(&mut self, env: &Env, tag: RenderTag) -> Result<()> {
         env.call(
             put_text_property,
-            (
-                self.start,
-                self.start + 1,
-                mistty_render_tag_sym,
-                self.term.next_render_tag(),
-            ),
+            (self.start, self.start + 1, mistty_render_tag_sym, tag),
         )?;
         Ok(())
     }
@@ -369,7 +365,7 @@ impl<'a> Render<'a> {
         let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_TERMINAL);
         let mut as_string = String::with_capacity((end.0 - beg.0) as usize * (last_column.0 + 1));
         let mut pos = origin;
-        for (line, row) in grid.ranged_iter(beg, end) {
+        for (line, row) in self.term.row_range(beg, end) {
             let last_written = last_written_cell(row).map(|c| c + 1);
             let end_col = if line == cursor_point.line
                 && last_written.is_none_or(|v| v < cursor_point.column)
@@ -912,6 +908,38 @@ fn face_color(env: &Env, face: &emacs::OnceGlobalRef, fg: bool) -> Result<String
         )?
         .into_rust()?;
     Ok(hex)
+}
+
+/// Tag identifying a render operation, stored in an Emacs text
+/// property to check whether it's safe to render only the damaged
+/// portions of the terminal.
+#[derive(Copy, Clone, Debug, Default)]
+struct RenderTag {
+    index: RenderIndex,
+    first_line: Line,
+}
+
+impl RenderTag {
+    fn new(index: RenderIndex, first_line: Line) -> Self {
+        Self { index, first_line }
+    }
+
+    /// Check whether another tag matches the current one
+    fn matches(&self, other: &Self) -> bool {
+        self.index.matches(&other.index) && other.first_line == self.first_line
+    }
+}
+
+impl Transfer for RenderTag {
+    fn type_name() -> &'static str {
+        "mistty:RenderTag"
+    }
+}
+
+impl<'e> IntoLisp<'e> for RenderTag {
+    fn into_lisp(self, env: &'e Env) -> Result<Value<'e>> {
+        Box::new(self).into_lisp(env)
+    }
 }
 
 #[cfg(test)]

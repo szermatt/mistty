@@ -126,7 +126,6 @@ for some reason."
 (declare-function mistty-alacritty-vt-scrolline-at-screen-top nil (term))
 (declare-function mistty-alacritty-vt-terminal-line-for-scrolline nil (term scrolline))
 (declare-function mistty-alacritty-vt-update-options nil (term options-plist))
-(declare-function mistty-alacritty-vt-write-scrollback nil (term))
 
 (defvar-local mistty-alacritty--cursor nil
   "Marker that tracks the cursor position.

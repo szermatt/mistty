@@ -21,7 +21,8 @@ use alacritty_terminal::{
     },
     vte::ansi::{self, Attr, Color, Handler, NamedPrivateMode, PrivateMode, Processor},
 };
-use emacs::{Env, IntoLisp, Result, Transfer, Value};
+use either::Either;
+use emacs::{Env, IntoLisp, Result, Value};
 use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 emacs::use_functions! {
@@ -61,11 +62,11 @@ const SCROLLBACK_SIZE: usize = 100000;
 /// property to check whether it's safe to render only the damaged
 /// portions of the terminal.
 #[derive(Copy, Clone, Debug, Default)]
-pub(crate) struct RenderTag {
+pub(crate) struct RenderIndex {
     count: usize,
 }
 
-impl RenderTag {
+impl RenderIndex {
     /// Check whether another tag matches the current one
     pub(crate) fn matches(&self, other: &Self) -> bool {
         self.count == other.count
@@ -74,18 +75,6 @@ impl RenderTag {
     /// Increment the tag count.
     fn increment(&mut self) {
         self.count = self.count.wrapping_add(1);
-    }
-}
-
-impl Transfer for RenderTag {
-    fn type_name() -> &'static str {
-        "mistty:RenderTag"
-    }
-}
-
-impl<'e> IntoLisp<'e> for RenderTag {
-    fn into_lisp(self, env: &'e Env) -> Result<Value<'e>> {
-        Box::new(self).into_lisp(env)
     }
 }
 
@@ -258,13 +247,12 @@ impl VTermOptions {
 pub(crate) struct VTerm {
     inner: Term<EventAccumulator>,
     events: Rc<RefCell<VecDeque<Event>>>,
-    continues_wrapped_line: bool,
 
     /// Current option values.
     options: VTermOptions,
 
     scrollback_enabled: bool,
-    tag: RenderTag,
+    render_index: RenderIndex,
 
     /// Scrolline that corresponds to the first terminal line
     ///
@@ -313,10 +301,9 @@ impl VTerm {
         Self {
             inner,
             events,
-            continues_wrapped_line: false,
-            scrollback_enabled: false,
             base_scrolline: Scrolline(0),
-            tag: RenderTag::default(),
+            scrollback_enabled: false,
+            render_index: RenderIndex::default(),
             scrollback: vec![],
             extra_damage: GridDamage::new(),
             last_cell: None,
@@ -464,36 +451,29 @@ impl VTerm {
     /// This clears both the scrollback stored in [VTerm] as the
     /// history stored in the grid.
     pub(crate) fn clear_scrollback(&mut self) {
-        let wrapped = match self.scrollback_ends_with_wrapline() {
-            None => {
-                // Scrollback is already empty
-                return;
-            }
-            Some(v) => v,
-        };
         let new_base = self.scrolline_at_screen_top();
 
         self.scrollback.clear();
         self.inner.grid_mut().clear_history();
 
-        self.continues_wrapped_line = wrapped;
         self.base_scrolline = new_base;
     }
 
-    /// Check whether the last line cleared by the previous call to
-    /// [VTerm::clear_scrollback] ended within a line that was
-    /// wrapped, the first line scrollback or, if the scrollback is
-    /// empty, on the terminal, continues an existing line.
-    pub(crate) fn continue_wrapped_line(&self) -> bool {
-        self.continues_wrapped_line
-    }
+    /// Clear scrollback, but keep the last `line_count` lines.
+    pub(crate) fn retain_scrollback_lines(&mut self, line_count: usize) {
+        if line_count == 0 {
+            self.clear_scrollback();
+            return;
+        }
 
-    /// Check whether existing scrollback data ends in an incomplete line.
-    ///
-    /// This takes into account the rows from [Self::scrollback] then
-    /// the rows from the grid, before line 0.
-    pub(crate) fn scrollback_ends_with_wrapline(&self) -> Option<bool> {
-        self.last_scrollback_row().map(|row| row.is_wrapped())
+        self.move_history();
+        let drain_range = 0..(self.scrollback.len() - line_count);
+        let removed_scrollines = self.scrollback[drain_range.clone()]
+            .iter()
+            .filter(|r| !r.is_wrapped())
+            .count();
+        self.scrollback.drain(drain_range);
+        self.base_scrolline += removed_scrollines;
     }
 
     /// Store grid history into [VTerm]'s scrollback buffer.
@@ -523,22 +503,10 @@ impl VTerm {
     /// This returns the rows from [Self::scrollback] then the rows
     /// from the grid, before line 0. There are
     /// [VTerm::scrollback_row_count] rows.
-    pub(crate) fn scrollback_rows(&self) -> impl Iterator<Item = &Row<Cell>> {
+    pub(crate) fn scrollback_rows(&self) -> impl DoubleEndedIterator<Item = &Row<Cell>> {
         self.scrollback
             .iter()
             .chain(self.inner.grid().history_iter().map(|(_, row)| row))
-    }
-
-    /// Return the last scrollback line, if any.
-    ///
-    /// This takes into account the rows from [Self::scrollback] then
-    /// the rows from the grid, before line 0.
-    fn last_scrollback_row(&self) -> Option<&Row<Cell>> {
-        if self.inner.grid().history_size() > 0 {
-            Some(&self.inner.grid()[Line(-1)])
-        } else {
-            self.scrollback.last()
-        }
     }
 
     /// Return all rows, from scrollback to the end of the screen.
@@ -553,6 +521,29 @@ impl VTerm {
             .enumerate()
             .map(move |(i, r)| (start_line + (i as i32), r))
             .chain(self.grid().screen_iter())
+    }
+
+    /// Return a subset of the rows.
+    ///
+    /// This includes rows in scrollback as well as rows on the screen. Rows in scrollback are indexed
+    /// as [Line] with negative values, even when they're not on the grid anymore.
+    ///
+    /// Panics if give invalid or out-of-bounds `start` and `end`.
+    pub(crate) fn row_range(
+        &self,
+        start: Line,
+        end: Line,
+    ) -> impl Iterator<Item = (Line, &Row<Cell>)> {
+        assert!(start <= end, "Invalid row range {start} > {end}");
+        if start.0 >= 0 {
+            Either::Left(self.grid().ranged_iter(start, end))
+        } else {
+            let min_start = Line(-(self.scrollback_row_count() as i32));
+            assert!(start >= min_start, "Invalid row range {start} too low");
+            let skip_count = (start.0 - min_start.0) as usize;
+            let take_count = (end.0 - start.0) as usize;
+            Either::Right(self.all_rows().skip(skip_count).take(take_count))
+        }
     }
 
     /// Return the last line available in the virtual terminal, that
@@ -686,15 +677,15 @@ impl VTerm {
     }
 
     /// Return the tag that identifies the last render operation.
-    pub(crate) fn render_tag(&self) -> RenderTag {
-        self.tag
+    pub(crate) fn current_render_index(&self) -> RenderIndex {
+        self.render_index
     }
 
     /// Increment and return a tag that identifies a render operation.
-    pub(crate) fn next_render_tag(&mut self) -> RenderTag {
-        self.tag.increment();
+    pub(crate) fn next_render_index(&mut self) -> RenderIndex {
+        self.render_index.increment();
 
-        self.tag.clone()
+        self.render_index
     }
 
     /// Clear the given line from the given char to end of line.
@@ -1297,7 +1288,6 @@ mod tests {
 
         assert_eq!(0, vterm.scrollback_row_count());
         assert_eq!(0, vterm.scrollback_rows().count());
-        assert!(vterm.last_scrollback_row().is_none());
     }
 
     #[test]
@@ -1313,7 +1303,6 @@ mod tests {
         let vterm = &fixture.vterm;
         assert_eq!(0, vterm.scrollback_row_count());
         assert_eq!(0, vterm.scrollback_rows().count());
-        assert!(vterm.last_scrollback_row().is_none());
     }
 
     #[test]
@@ -1333,10 +1322,6 @@ mod tests {
                 .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
-        );
-        assert_eq!(
-            row_to_string(vterm.last_scrollback_row().expect("last_row")),
-            "line 3"
         );
     }
 
@@ -1363,10 +1348,6 @@ mod tests {
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
-        assert_eq!(
-            row_to_string(vterm.last_scrollback_row().expect("last_row")),
-            "line 3"
-        );
     }
 
     #[test]
@@ -1390,10 +1371,6 @@ mod tests {
                 .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
-        );
-        assert_eq!(
-            row_to_string(vterm.last_scrollback_row().expect("last_row")),
-            "line 5"
         );
     }
 
@@ -1422,10 +1399,6 @@ mod tests {
                 .map(row_to_string)
                 .collect::<Vec<String>>()
         );
-        assert_eq!(
-            row_to_string(vterm.last_scrollback_row().expect("last_row")),
-            "line 5"
-        );
     }
 
     #[test]
@@ -1445,6 +1418,179 @@ mod tests {
 
         assert_eq!(0, vterm.grid().history_size());
         assert_eq!(0, vterm.scrollback_row_count());
+    }
+
+    #[test]
+    fn retain_scrollback_lines_zero() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(5, vterm.scrollback_row_count());
+        vterm.retain_scrollback_lines(0);
+
+        assert_eq!(0, vterm.scrollback_row_count());
+        assert_eq!(Scrolline(5), vterm.base_scrolline());
+    }
+
+    #[test]
+    fn retain_scrollback_lines_subset() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+
+        let vterm = &mut fixture.vterm;
+        assert_eq!(5, vterm.scrollback_row_count());
+
+        // Retain the last 2 lines ("line 4", "line 5")
+        vterm.retain_scrollback_lines(2);
+
+        assert_eq!(2, vterm.scrollback_row_count());
+        assert_eq!(
+            vec!["line 4", "line 5"],
+            vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<String>>()
+        );
+        // Drained 3 non-wrapped lines, so base_scrolline is now 3
+        assert_eq!(Scrolline(3), vterm.base_scrolline());
+        assert_eq!(
+            vec![
+                (Line(-2), "line 4".to_string()),
+                (Line(-1), "line 5".to_string()),
+            ],
+            vterm
+                .row_range(Line(-2), Line(0))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn retain_scrollback_lines_with_wrapped() {
+        let mut fixture = Fixture::setup(); // 10x3
+        fixture.vterm.enable_scrollback();
+
+        // The large line is split
+        fixture.process_bytes(b"123456789012345\r\nline 2");
+        assert_eq!(0, fixture.vterm.scrollback_row_count());
+        assert_eq!(
+            Vec::<String>::new(),
+            fixture
+                .vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec!["1234567890", "12345", "line 2"],
+            fixture
+                .vterm
+                .grid()
+                .screen_iter()
+                .map(|(_, r)| row_to_string(r))
+                .collect::<Vec<_>>()
+        );
+        assert!(fixture.vterm.grid()[Line(0)].is_wrapped());
+        assert!(!fixture.vterm.grid()[Line(1)].is_wrapped());
+
+        // The first part of the large line goes into scrollback.
+        fixture.process_bytes(b"\r\nline 3");
+        assert_eq!(1, fixture.vterm.scrollback_row_count());
+        assert_eq!(
+            vec!["1234567890"],
+            fixture
+                .vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<_>>()
+        );
+        assert!(fixture.vterm.scrollback_rows().next().unwrap().is_wrapped());
+        assert_eq!(
+            vec!["12345", "line 2", "line 3"],
+            fixture
+                .vterm
+                .grid()
+                .screen_iter()
+                .map(|(_, r)| row_to_string(r))
+                .collect::<Vec<_>>()
+        );
+        assert!(!fixture.vterm.grid()[Line(0)].is_wrapped());
+
+        // Both parts of the large line are now in scrallbock
+        fixture.process_bytes(b"\r\nline 4");
+        assert_eq!(2, fixture.vterm.scrollback_row_count());
+        assert_eq!(
+            vec!["1234567890", "12345"],
+            fixture
+                .vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<_>>()
+        );
+        let scrollback: Vec<_> = fixture.vterm.scrollback_rows().collect();
+        assert!(scrollback[0].is_wrapped());
+        assert!(!scrollback[1].is_wrapped());
+        assert_eq!(
+            vec!["line 2", "line 3", "line 4"],
+            fixture
+                .vterm
+                .grid()
+                .screen_iter()
+                .map(|(_, r)| row_to_string(r))
+                .collect::<Vec<_>>()
+        );
+
+        // Keep only one line of scrollbock
+        fixture.vterm.retain_scrollback_lines(1);
+        assert_eq!(1, fixture.vterm.scrollback_row_count());
+        assert_eq!(
+            vec!["12345"],
+            fixture
+                .vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<_>>()
+        );
+        assert!(!fixture.vterm.scrollback_rows().next().unwrap().is_wrapped());
+        assert_eq!(
+            vec!["line 2", "line 3", "line 4"],
+            fixture
+                .vterm
+                .grid()
+                .screen_iter()
+                .map(|(_, r)| row_to_string(r))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(Scrolline(0), fixture.vterm.base_scrolline());
+
+        // Clear scrollback
+        fixture.vterm.retain_scrollback_lines(0);
+        assert_eq!(0, fixture.vterm.scrollback_row_count());
+        assert_eq!(
+            Vec::<String>::new(),
+            fixture
+                .vterm
+                .scrollback_rows()
+                .map(row_to_string)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec!["line 2", "line 3", "line 4"],
+            fixture
+                .vterm
+                .grid()
+                .screen_iter()
+                .map(|(_, r)| row_to_string(r))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(Scrolline(1), fixture.vterm.base_scrolline());
     }
 
     #[test]
@@ -1596,10 +1742,6 @@ mod tests {
                 .scrollback_rows()
                 .map(row_to_string)
                 .collect::<Vec<String>>()
-        );
-        assert_eq!(
-            row_to_string(vterm.last_scrollback_row().expect("last_row")),
-            "line 3"
         );
 
         // the screen is clear
@@ -1892,6 +2034,134 @@ mod tests {
             Some(Line(0)),
             vterm.terminal_line_for_scrolline(Scrolline(2))
         );
+    }
+
+    #[test]
+    fn row_range_screen() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3");
+
+        let vterm = &fixture.vterm;
+        assert_eq!(
+            vec![
+                (Line(0), "line 1".to_string()),
+                (Line(1), "line 2".to_string()),
+            ],
+            vterm
+                .row_range(Line(0), Line(2))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![(Line(1), "line 2".to_string())],
+            vterm
+                .row_range(Line(1), Line(2))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn row_range_scrollback() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.move_history();
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+
+        let vterm = &fixture.vterm;
+        // Scrollback has 5 lines: -5 to -1.
+        // Lines -5..-3 are in VTerm.scrollback, -2..-1 in grid history.
+        assert_eq!(
+            vec![
+                (Line(-5), "line 1".to_string()),
+                (Line(-4), "line 2".to_string()),
+            ],
+            vterm
+                .row_range(Line(-5), Line(-3))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![
+                (Line(-3), "line 3".to_string()),
+                (Line(-2), "line 4".to_string()),
+                (Line(-1), "line 5".to_string()),
+            ],
+            vterm
+                .row_range(Line(-3), Line(0))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn row_range_spanning_scrollback_and_screen() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.move_history();
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+
+        let vterm = &fixture.vterm;
+        assert_eq!(
+            vec![
+                (Line(-2), "line 4".to_string()),
+                (Line(-1), "line 5".to_string()),
+                (Line(0), "line 6".to_string()),
+                (Line(1), "line 7".to_string()),
+            ],
+            vterm
+                .row_range(Line(-2), Line(2))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn row_range_empty() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        let vterm = &fixture.vterm;
+        assert_eq!(0, vterm.row_range(Line(1), Line(1)).count());
+        assert_eq!(0, vterm.row_range(Line(-2), Line(-2)).count());
+    }
+
+    #[test]
+    #[should_panic]
+    fn row_range_inverted() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        let vterm = &fixture.vterm;
+        vterm.row_range(Line(2), Line(-1)).count();
+    }
+
+    #[test]
+    #[should_panic]
+    fn row_range_out_of_bounds_upper() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        let vterm = &fixture.vterm;
+        vterm.row_range(Line(0), Line(100)).count();
+    }
+
+    #[test]
+    #[should_panic]
+    fn row_range_out_of_bounds_lower() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        let vterm = &fixture.vterm;
+        vterm.row_range(Line(-100), Line(1)).count();
     }
 
     #[test]

@@ -236,23 +236,6 @@ fn scrollback_line_count(term: &VTermFacade) -> Result<usize> {
     Ok(term.vterm.scrollback_row_count())
 }
 
-/// Write scrollback lines to the current buffer.
-///
-/// This function writes any scrollback line kept in the virtual
-/// terminal to the current buffer at the current point and leaves the
-/// point at the end of the written lines.
-///
-/// It returns the number of lines written. This might be smaller that
-/// the number of the corresponding terminal lines if some lines were
-/// wrapped.
-///
-/// If scrollback is disabled on the virtual terminal, this call
-/// always returns 0 and does nothing.
-#[defun]
-pub(crate) fn write_scrollback(env: &Env, term: &mut VTermFacade) -> Result<usize> {
-    render::write_scrollback(env, &mut term.vterm)
-}
-
 /// Render the state of the terminal in a way Emacs understands.
 ///
 /// Rendering is done in the current buffer in the range from point to
@@ -275,7 +258,6 @@ pub(crate) fn render<'a>(
     cursor_marker: Value,
 ) -> Result<Value<'a>> {
     let result = render::render(env, &mut term.vterm, cursor_marker)?;
-    term.vterm.clear_scrollback();
 
     Ok(result)
 }

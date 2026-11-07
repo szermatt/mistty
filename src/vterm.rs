@@ -461,18 +461,50 @@ impl VTerm {
 
     /// Clear scrollback, but keep the last `line_count` lines.
     pub(crate) fn retain_scrollback_lines(&mut self, line_count: usize) {
+        let total = self.scrollback_row_count();
+        if line_count >= total {
+            return;
+        }
+
         if line_count == 0 {
             self.clear_scrollback();
             return;
         }
 
-        self.move_history();
-        let drain_range = 0..(self.scrollback.len() - line_count);
-        let removed_scrollines = self.scrollback[drain_range.clone()]
-            .iter()
-            .filter(|r| !r.is_wrapped())
-            .count();
-        self.scrollback.drain(drain_range);
+        let drop_count = total - line_count;
+        let mut removed_scrollines = 0;
+
+        let drop_from_scrollback = drop_count.min(self.scrollback.len());
+        if drop_from_scrollback > 0 {
+            removed_scrollines += self.scrollback[0..drop_from_scrollback]
+                .iter()
+                .filter(|r| !r.is_wrapped())
+                .count();
+            self.scrollback.drain(0..drop_from_scrollback);
+        }
+
+        // Drop from the grid. It's worth it to keep scrollback lines
+        // in the grid as much as possible, and just call
+        // move_history() at the beginning of this function, as
+        // alacritty will then re-flow these lines when the terminal
+        // is resized.
+        let drop_from_grid = drop_count - drop_from_scrollback;
+        if drop_from_grid > 0 {
+            let grid = self.inner.grid_mut();
+            let grid_history_size = grid.history_size();
+            let keep_in_grid = grid_history_size - drop_from_grid;
+            for (_, row) in grid.ranged_iter(
+                Line(-(grid_history_size as i32)),
+                Line(-(keep_in_grid as i32)),
+            ) {
+                if !row.is_wrapped() {
+                    removed_scrollines += 1;
+                }
+            }
+            grid.update_history(keep_in_grid);
+            grid.update_history(SCROLLBACK_SIZE);
+        }
+
         self.base_scrolline += removed_scrollines;
     }
 
@@ -1591,6 +1623,47 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         assert_eq!(Scrolline(1), fixture.vterm.base_scrolline());
+    }
+
+    #[test]
+    fn test_update_history_shrinks_oldest() {
+        let mut fixture = Fixture::setup(); // 10x3
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        assert_eq!(3, fixture.vterm.grid().history_size());
+        assert_eq!("line 1", row_to_string(&fixture.vterm.grid()[Line(-3)]));
+        assert_eq!("line 2", row_to_string(&fixture.vterm.grid()[Line(-2)]));
+        assert_eq!("line 3", row_to_string(&fixture.vterm.grid()[Line(-1)]));
+
+        fixture.vterm.inner.grid_mut().update_history(1);
+        fixture
+            .vterm
+            .inner
+            .grid_mut()
+            .update_history(SCROLLBACK_SIZE);
+
+        assert_eq!(1, fixture.vterm.grid().history_size());
+        assert_eq!("line 3", row_to_string(&fixture.vterm.grid()[Line(-1)]));
+    }
+
+    #[test]
+    fn test_reflow_wrapped_in_history_on_resize() {
+        let mut fixture = Fixture::setup(); // 10x3
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"123456789012345\r\nline 2\r\nline 3");
+        assert_eq!(1, fixture.vterm.grid().history_size());
+        assert_eq!("1234567890", row_to_string(&fixture.vterm.grid()[Line(-1)]));
+
+        fixture.vterm.resize(20, 3);
+        assert_eq!(0, fixture.vterm.grid().history_size());
+        assert_eq!(
+            "123456789012345",
+            row_to_string(&fixture.vterm.grid()[Line(0)])
+        );
+        assert_eq!("line 2", row_to_string(&fixture.vterm.grid()[Line(1)]));
+        assert_eq!("line 3", row_to_string(&fixture.vterm.grid()[Line(2)]));
     }
 
     #[test]

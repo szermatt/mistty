@@ -1253,6 +1253,110 @@
                        "\n")
                (mistty-test-content :trim nil))))))
 
+(mistty-deftest mistty-alacritty-vt-resize-wrapped-in-scrollback
+    (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker))
+        screen-top)
+    (mistty-alacritty-vt-enable-scrollback term)
+    (ert-with-test-buffer ()
+      (mistty-alacritty-vt-process-bytes
+       term "\rBaa, baa, black sheep have you any wool?")
+      (mistty-alacritty-vt-process-bytes term " Yes sir, yes, sir three bags full!")
+      (mistty-alacritty-vt-process-bytes term "\r\nOne for the Master")
+      (mistty-alacritty-vt-process-bytes term "\r\nand one for the Dame")
+      (dotimes (i 4)
+        (mistty-alacritty-vt-process-bytes term (format "\r\n%d" i)))
+      (mistty-alacritty-vt-process-bytes term "\r\n4")
+      (setq scree-top (mistty-alacritty-vt-render term cursor))
+      (should (equal 1 (mistty-alacritty-vt-scrollback-line-count term)))
+      (should
+       (equal
+        (concat
+         "Baa, baa, black shee[\n]"
+         "p have you any wool?[\n]"
+         " Yes sir, yes, sir t[\n]"
+         "hree bags full!\n"
+         "One for the Master\n"
+         "and one for the Dame\n"
+         "0\n"
+         "1\n"
+         "2\n"
+         "3\n"
+         "4")
+        (mistty-test-content :show screen-top
+                             :show-property '(term-line-wrap t))))
+
+      (mistty-alacritty-vt-resize term 30 10)
+      (goto-char (point-min))
+      (setq screen-top (car (mistty-alacritty-vt-render term cursor)))
+      (should (equal 0 (mistty-alacritty-vt-scrollback-line-count term)))
+      (should
+       (equal
+        (concat
+         "<>Baa, baa, black sheep have you[\n]"
+         " any wool? Yes sir, yes, sir t[\n]"
+         "hree bags full!\n"
+         "One for the Master\n"
+         "and one for the Dame\n"
+         "0\n"
+         "1\n"
+         "2\n"
+         "3\n"
+         "4")
+        (mistty-test-content :show screen-top
+                             :show-property '(term-line-wrap t))))
+
+      (mistty-alacritty-vt-resize term 15 10)
+      (goto-char (point-min))
+      (setq screen-top (car (mistty-alacritty-vt-render term cursor)))
+      (should (equal 4 (mistty-alacritty-vt-scrollback-line-count term)))
+      (should
+       (equal
+        (concat
+         "<>Baa, baa, black[\n]"
+         " sheep have you[\n]"
+         " any wool? Yes [\n]"
+         "sir, yes, sir t[\n]"
+         "hree bags full!\n"
+         "One for the Mas[\n]"
+         "ter\n"
+         "and one for the[\n]"
+         " Dame\n"
+         "0\n"
+         "1\n"
+         "2\n"
+         "3\n"
+         "4")
+        (mistty-test-content :show screen-top
+                             :show-property '(term-line-wrap t))))
+
+      ;; Make the first scrolline scroll out completely at the same
+      ;; time as the screen is resized. This tests what happens when
+      ;; there is scrollback to discard as well as scrollback to keep.
+      (mistty-alacritty-vt-process-bytes term "\r\n5\r\n6\r\n7")
+      (mistty-alacritty-vt-resize term 10 10)
+
+      (goto-char (point-min))
+      (setq screen-top (car (mistty-alacritty-vt-render term cursor)))
+      (should
+       (equal
+        (concat
+         "Baa, baa, black sheep have you any wool? Yes sir, yes, sir three bags full!\n"
+         "One for the Master\n"
+         "<>and one fo[\n]"
+         "r the Dame\n"
+         "0\n"
+         "1\n"
+         "2\n"
+         "3\n"
+         "4\n"
+         "5\n"
+         "6\n"
+         "7")
+        (mistty-test-content :show screen-top
+                             :show-property '(term-line-wrap t)))))))
+
 
 (mistty-deftest mistty-alacritty-vt-clear-to-eol (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))

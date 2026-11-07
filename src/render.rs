@@ -359,11 +359,11 @@ impl<'a> Render<'a> {
     pub(crate) fn render_lines(&mut self, beg: Line, end: Line) -> Result<()> {
         let env = self.env;
         let grid = self.term.grid();
-        let last_column = grid.last_column();
         let cursor_point = grid.cursor.point;
         let origin = BufferPos::point(env)?;
         let mut tracker = PropertyTracker::new(origin, ToggleProperty::ON_TERMINAL);
-        let mut as_string = String::with_capacity((end.0 - beg.0) as usize * (last_column.0 + 1));
+        let mut as_string =
+            String::with_capacity((end.0 - beg.0) as usize * (grid.last_column().0 + 1));
         let mut pos = origin;
         for (line, row) in self.term.row_range(beg, end) {
             let last_written = last_written_cell(row).map(|c| c + 1);
@@ -413,7 +413,7 @@ impl<'a> Render<'a> {
                     self.cursor_pos = Some(cell_pos);
                 }
             }
-            if end_col <= last_column {
+            if end_col < row.len() {
                 tracker.track_change(pos, &row[end_col]);
             }
             if indent_end == Some(end_col) {

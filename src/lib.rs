@@ -356,6 +356,27 @@ pub(crate) fn kitty_key_seq<'e>(
     }
 }
 
+/// Start a regexp prompt and make it current, return true if a
+/// prompt was created.
+///
+/// The change will *not* be reported in the next call to
+/// `mistty-alacritty-vt-collect-change`.
+#[defun]
+fn start_regexp_prompt(term: &mut VTermFacade, start: usize) -> Result<bool> {
+    Ok(term.processor.start_regexp_prompt(Scrolline(start)))
+}
+
+/// End a regexp prompt.
+///
+/// The change will *not* be reported in the next call to
+/// `mistty-alacritty-vt-collect-change`.
+#[defun]
+fn end_regexp_prompt(term: &mut VTermFacade) -> Result<()> {
+    term.processor.end_regexp_prompt();
+
+    Ok(())
+}
+
 /// Create a `Column` that's guaranteed to be a valid line for the
 /// terminal that is inside the range [0, bottommost_line].
 fn line_range_check(env: &Env, val: i32, term: &VTermFacade) -> Result<Line> {

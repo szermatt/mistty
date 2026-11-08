@@ -504,6 +504,14 @@ fullscreen mode."
        (mistty-alacritty-vt-mouse-seq
         vterm 'release 1 [] x y)))))
 
+(cl-defmethod mistty--term-start-regexp-prompt ((term mistty--term-alacritty) start)
+  "Start a regexp prompt for TERM at START and make it current."
+  (mistty-alacritty-vt-start-regexp-prompt (mistty--term-alacritty-vterm term) start))
+
+(cl-defmethod mistty--term-end-regexp-prompt ((term mistty--term-alacritty))
+  "End the current regexp prompt for TERM, if any."
+    (mistty-alacritty-vt-end-regexp-prompt (mistty--term-alacritty-vterm term)))
+
 (defun mistty--alacritty-mouse-event-params (term ev move-posn sync-pos)
   "Convert EV for TERM to parameters for `mistty-alacritty-vt-translate-mouse'.
 

@@ -96,6 +96,23 @@ impl VTermProcessor {
         self.prompt_detector.collect()
     }
 
+    /// Start a regexp prompt and make it current, return true if a
+    /// prompt was created.
+    ///
+    /// The change will *not* be reported in the next call to
+    /// [collect_prompt_change].
+    pub(crate) fn start_regexp_prompt(&mut self, start: Scrolline) -> bool {
+        self.prompt_detector.start_regexp_prompt(start)
+    }
+
+    /// End a regexp prompt.
+    ///
+    /// The change will *not* be reported in the next call to
+    /// [collect_prompt_change].
+    pub(crate) fn end_regexp_prompt(&mut self) {
+        self.prompt_detector.end_regexp_prompt()
+    }
+
     /// Update the terminal and processor state from the given teminal
     /// sequence.
     pub(crate) fn process_bytes(&mut self, vterm: &mut VTerm, bytes: &[u8]) {

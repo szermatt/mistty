@@ -16,6 +16,7 @@ emacs::use_functions! {
 
 emacs::use_symbols! {
     osc133_sym => "osc133"
+    regexp_sym => "regexp"
     start_prompt_sym => "start-prompt"
     end_prompt_sym => "end-prompt"
     update_prompt_sym => "update-prompt"
@@ -75,6 +76,7 @@ impl<'e> IntoLisp<'e> for PromptChange {
 /// Prompt source, ordered from less to most trustworthy.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub(crate) enum PromptSource {
+    Regexp,
     BracketedPaste,
     Osc133,
 }
@@ -84,6 +86,7 @@ impl<'e> IntoLisp<'e> for PromptSource {
         match self {
             PromptSource::BracketedPaste => Ok(bracketed_paste_sym.bind(env)),
             PromptSource::Osc133 => Ok(osc133_sym.bind(env)),
+            PromptSource::Regexp => Ok(regexp_sym.bind(env)),
         }
     }
 }
@@ -109,6 +112,7 @@ pub(crate) struct PromptDetector {
 }
 
 /// Keep track of the current prompt.
+#[derive(PartialEq, Eq, Debug)]
 pub(crate) struct Prompt {
     pub(crate) start: Scrolline,
     pub(crate) source: PromptSource,
@@ -132,6 +136,29 @@ impl PromptDetector {
     /// Return the prompts that were detected since last collected.
     pub(crate) fn collect(&mut self) -> Vec<PromptChange> {
         std::mem::take(&mut self.prompts)
+    }
+
+    /// Start a regexp prompt and make it current, return true if a
+    /// prompt was created.
+    ///
+    /// The change will *not* be reported in the next call to
+    /// [PromptDetector::collect].
+    pub(crate) fn start_regexp_prompt(&mut self, start: Scrolline) -> bool {
+        if !self.current.is_none() {
+            return false;
+        }
+
+        self.set_current(PromptSource::Regexp, start);
+
+        true
+    }
+
+    /// End a regexp prompt.
+    ///
+    /// The change will *not* be reported in the next call to
+    /// [PromptDetector::collect].
+    pub(crate) fn end_regexp_prompt(&mut self) {
+        self.current.take_if(|p| p.source == PromptSource::Regexp);
     }
 
     /// Add a new prompt and update `last_prompt_scrolline`.
@@ -280,16 +307,20 @@ impl PromptDetector {
                 // Replace
                 self.push(PromptChange::End(start));
 
-                self.current = Some(Prompt { source, start });
+                self.set_current(source, start);
                 self.push(PromptChange::Start(source, start));
             }
             None => {
                 // Create new
-                self.current = Some(Prompt { source, start });
+                self.set_current(source, start);
                 self.push(PromptChange::Start(source, start));
             }
             _ => {} // Ignore
         }
+    }
+
+    fn set_current(&mut self, source: PromptSource, start: Scrolline) {
+        self.current = Some(Prompt { source, start });
     }
 
     fn end_prompt(&mut self, source: PromptSource, end: Scrolline) {
@@ -375,6 +406,12 @@ mod tests {
         fn row_to_string(&self, line: Line) -> String {
             testing::row_to_string(&self.vterm.grid()[line])
         }
+    }
+
+    #[test]
+    fn prompt_source_precedence() {
+        assert!(PromptSource::Regexp < PromptSource::BracketedPaste);
+        assert!(PromptSource::BracketedPaste < PromptSource::Osc133);
     }
 
     #[test]
@@ -700,6 +737,99 @@ mod tests {
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
         assert_eq!(
             Vec::<PromptChange>::new(),
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn regexp_prompt_start_and_end() {
+        let mut detector = PromptDetector::new();
+        assert_eq!(None, detector.current_prompt());
+
+        assert!(detector.start_regexp_prompt(Scrolline(5)));
+        let current = detector
+            .current_prompt()
+            .expect("should have current prompt");
+        assert_eq!(current.source, PromptSource::Regexp);
+        assert_eq!(current.start, Scrolline(5));
+        assert_eq!(Vec::<PromptChange>::new(), detector.collect());
+
+        // Ignore start_regexp_prompt if there already is one.
+        assert!(!detector.start_regexp_prompt(Scrolline(6)));
+        assert_eq!(detector.current_prompt().unwrap().start, Scrolline(5));
+
+        detector.end_regexp_prompt();
+        assert_eq!(None, detector.current_prompt());
+        assert_eq!(Vec::<PromptChange>::new(), detector.collect());
+
+        assert!(detector.start_regexp_prompt(Scrolline(10)));
+        assert_eq!(detector.current_prompt().unwrap().start, Scrolline(10));
+    }
+
+    #[test]
+    fn start_regexp_prompt_fails_when_prompt_active() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07");
+        assert!(!fixture.processor.start_regexp_prompt(Scrolline(0)));
+
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"\x1b[?2004h$ ");
+        assert!(!fixture.processor.start_regexp_prompt(Scrolline(0)));
+    }
+
+    #[test]
+    fn detect_osc133_overwrites_regexp_prompt() {
+        let mut fixture = Fixture::setup();
+        assert!(fixture.processor.start_regexp_prompt(Scrolline(0)));
+        assert_eq!(
+            Vec::<PromptChange>::new(),
+            fixture.processor.collect_prompt_changes()
+        );
+
+        fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07");
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(0), Column(2))),
+                    ..PromptOptions::default()
+                }),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+
+        fixture.processor.end_regexp_prompt(); // does nothing
+
+        fixture.process_bytes(b"echo ok\r\n\x1b]133;C\x07");
+        assert_eq!(
+            vec![PromptChange::End(Scrolline(1))],
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn detect_bracketed_paste_overwrites_regexp_prompt() {
+        let mut fixture = Fixture::setup();
+        assert!(fixture.processor.start_regexp_prompt(Scrolline(0)));
+        assert_eq!(
+            Vec::<PromptChange>::new(),
+            fixture.processor.collect_prompt_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?2004h$ ");
+        assert_eq!(
+            vec![PromptChange::Start(
+                PromptSource::BracketedPaste,
+                Scrolline(0)
+            )],
+            fixture.processor.collect_prompt_changes()
+        );
+
+        fixture.processor.end_regexp_prompt(); // does nothing
+
+        fixture.process_bytes(b"echo ok\r\n\x1b[?2004l");
+        assert_eq!(
+            vec![PromptChange::End(Scrolline(1))],
             fixture.processor.collect_prompt_changes()
         );
     }

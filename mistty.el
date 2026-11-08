@@ -2012,6 +2012,8 @@ It also marks the prompt region with the text property
                         (mistty--prompt-end prompt)
                         prompt-beg
                         prompt-end)
+            (when (eq 'regexp (mistty--prompt-source prompt))
+              (mistty--term-end-regexp-prompt mistty--term))
             (mistty--mark-continue-prompts prompt prompt-beg)
             (mistty--mark-right-prompt prompt-beg)
             (mistty--mark-prompt-fields prompt prompt-beg)
@@ -4076,6 +4078,8 @@ can later be created with `mistty--realize-possible-prompt'."
   (when (and (not (mistty--prompt))
              (mistty--maybe-move-sync-mark
               (mistty--prompt-start prompt)))
+    (mistty--term-start-regexp-prompt
+     mistty--term (mistty--prompt-start prompt))
     (setf (mistty--prompt) prompt)
     (setf (mistty--prompt-realized prompt) t)
     (mistty-log "Realized %s prompt #%s [%s-] @%s"

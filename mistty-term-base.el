@@ -231,6 +231,14 @@ fullscreen mode."
 
   nil)
 
+(cl-defgeneric mistty--term-start-regexp-prompt (_term _start)
+  "Start a regexp prompt for TERM at START and make it current."
+  nil)
+
+(cl-defgeneric mistty--term-end-regexp-prompt (_term)
+  "End the current regexp prompt for TERM, if any."
+  nil)
+
 (provide 'mistty-term-base)
 
 ;;; mistty-term-base.el ends here

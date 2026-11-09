@@ -171,8 +171,16 @@ previously made are still in place to optimize its operations.
 CURSOR-MARKER must be a marker. It will be updated with the position of
 the cursor on DEST-BUFFER.")
 
-(cl-defgeneric mistty--term-clear-to-eol (term pos)
-  "Mark spaces in TERM from POS to end-of-line as unmodified.")
+(cl-defgeneric mistty--term-detect-dead-spaces-after-insert (term content scrolline pos-in-line)
+  "Mark dead trailing spaces left in TERM after inserting CONTENT.
+
+When inserting a newline in an existing line, the terminal often just
+overwrites the existing characters with space instead of re-creating the
+line properly. The result are spaces that should be skipped.
+
+SCROLLINE is the scrolline at which CONTENT was inserted in the terminal
+buffer and POS-IN-LINE is the character position within that scrolline where it
+was inserted.")
 
 (cl-defgeneric mistty--term-changed (term beg end)
   "Mark the region of TERM between BEG and END as requiring post-processing."

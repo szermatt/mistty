@@ -2410,7 +2410,6 @@ This is meant to be added to ==\'before-change-functions."
         (calling-buffer (current-buffer))
         (can-click-to-move (mistty--can-click-to-move-p))
         (term mistty--term)
-        (term-buffer mistty-term-buffer)
         (inhibit-moves mistty--special-prompt)
         (beg (make-marker))
         (old-end (make-marker))
@@ -2701,13 +2700,11 @@ This is meant to be added to ==\'before-change-functions."
          (after-insert-and-delete ()
            (setq waiting-for-last-change nil)
            (mistty--update-backstage)
-           (let ((beg-scrolline (mistty--scrolline-at beg))
-                 (beg-after-bol (1+ (- beg (mistty--bol beg)))))
-             (mistty--with-live-buffer term-buffer
-               (mistty--detect-dead-spaces-after-insert
-                mistty--term
-                content (+ (mistty--find-scrolline beg-scrolline)
-                           beg-after-bol))))
+           (mistty--term-detect-dead-spaces-after-insert
+            term
+            content
+            (mistty--scrolline-at beg)
+            (- beg (mistty--bol beg)))
 
            ;; Move right prompt just like the shell would, to avoid it
            ;; confusing the sync happening after applying all

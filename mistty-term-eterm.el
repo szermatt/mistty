@@ -756,11 +756,41 @@ CURSOR-MARKER is updated to the cursor position."
 
       (cons sync-pos sync-scrolline))))
 
-(cl-defmethod mistty--term-clear-to-eol ((_term mistty--term-eterm) _pos)
-  "Does nothing.
+(cl-defmethod mistty--term-detect-dead-spaces-after-insert
+  ((term mistty--term-eterm) content scrolline pos-in-line)
+  "Mark dead trailing spaces left in TERM after inserting CONTENT.
 
-This is not needed as it's enough to clear the text properties for eterm.")
+When inserting a newline in an existing line, the terminal often just
+overwrites the existing characters with space instead of re-creating the
+line properly. The result are spaces that should be skipped.
 
+SCROLLINE is the scrolline at which CONTENT was inserted in the terminal
+buffer and POS-IN-LINE is the character position within that scrolline where it
+was inserted."
+  (mistty--with-live-buffer (mistty--term-buf term)
+    (let ((beg (+ (mistty--find-scrolline scrolline)
+                  pos-in-line))
+          (lines (split-string content "\n")))
+      (when (length> lines 1)
+        (let ((first-line (car lines)))
+          (let ((real-trailing-ws 0))
+            (while (string-suffix-p " " first-line)
+              (cl-incf real-trailing-ws)
+              (setq first-line (substring first-line 0 -1)))
+            (save-excursion
+              (goto-char beg)
+              (let ((eol (pos-eol)))
+                (goto-char eol)
+                (skip-chars-backward " " beg)
+                (dotimes (_ real-trailing-ws)
+                  (when (eq ?\  (char-after (point)))
+                    (goto-char (1+ (point)))))
+                (let ((inhibit-read-only t)
+                      (inhibit-modification-hooks t))
+                  (when (> eol (point))
+                    (mistty-log "@%s [%s-%s) %s dead spaces, %s real"
+                                (point) (pos-bol) eol (- eol (point)) real-trailing-ws)
+                    (put-text-property (point) eol 'mistty-skip 'dead)))))))))))
 
 (cl-defmethod mistty--term-changed ((_term mistty--term-eterm) beg end)
   "Report that the region between BEG and END changed on the terminal buffer."

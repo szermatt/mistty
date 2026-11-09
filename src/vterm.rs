@@ -14,7 +14,7 @@ use alacritty_terminal::{
     Grid, Term,
     event::{Event, EventListener},
     grid::{Dimensions, Row},
-    index::{Line, Point},
+    index::{Column, Line, Point},
     term::{
         ClipboardType, Config, Osc52, TermMode,
         cell::{Cell, Flags},
@@ -872,16 +872,61 @@ impl VTerm {
         self.render_index
     }
 
-    /// Clear the given line from the given char to end of line.
-    pub(crate) fn clear_to_eol(&mut self, line: Line, beg_chars: usize) {
-        let mut chars = 0;
-        for cell in &mut self.grid_mut()[line] {
-            if chars >= beg_chars && cell.c == ' ' {
-                cell.flags.set(Flags::DIM, false);
-            }
-            chars += cell.char_count();
+    /// Clear dead trailing spaces left on `scrolline` after inserting `content`
+    /// at character position `pos_in_line` within `scrolline`.
+    pub(crate) fn detect_dead_spaces_after_insert(
+        &mut self,
+        content: &str,
+        scrolline: Scrolline,
+        pos_in_line: usize,
+    ) {
+        let Some((first_line, _)) = content.split_once('\n') else {
+            return;
+        };
+        let real_trailing_ws = first_line
+            .chars()
+            .rev()
+            .take_while(|&c| c == ' ')
+            .count();
+
+        let Some(line) = self.terminal_line_for_scrolline(scrolline) else {
+            return;
+        };
+        if line < Line(0) {
+            return;
         }
-        self.extra_damage.add(line);
+
+        let row = &self.grid()[line];
+        let Some((end_col, _)) = row.iter().rev().find(|(_, cell)| !cell.is_clear()) else {
+            return;
+        };
+
+        let mut chars: usize = row
+            .iter_to(end_col + 1)
+            .map(|(_, cell)| cell.char_count())
+            .sum();
+        let mut clear_from = end_col + 1;
+        for (col, cell) in row.iter_to(end_col + 1).rev() {
+            let cell_chars = cell.char_count();
+            if cell.c == ' ' && cell_chars == 1 && chars - cell_chars >= pos_in_line {
+                chars -= cell_chars;
+                clear_from = col;
+            } else {
+                break;
+            }
+        }
+
+        clear_from = (clear_from + real_trailing_ws).min(end_col + 1);
+        if clear_from <= end_col {
+            let row = &mut self.grid_mut()[line];
+            for col in clear_from.0..=end_col.0 {
+                let cell = &mut row[Column(col)];
+                if cell.c == ' ' {
+                    cell.flags.set(Flags::DIM, false);
+                }
+            }
+            self.extra_damage.add(line);
+        }
     }
 
     /// Return the set of lines to refresh, `None` to refresh the whole screen.
@@ -3108,5 +3153,139 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn detect_dead_spaces_after_insert_newline() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(40, 4);
+        // Simulate "$ echo \"hello, " followed by 18 dead spaces
+        fixture.process_bytes(b"$ echo \"hello,                   \r\nworld, andthe rest");
+        fixture.vterm.damaged_lines();
+        fixture.vterm.reset_damage();
+
+        fixture
+            .vterm
+            .detect_dead_spaces_after_insert("\n", Scrolline(0), 15);
+
+        assert_eq!(
+            "$ echo \"hello, ",
+            row_to_string(&fixture.vterm.grid()[Line(0)])
+        );
+        assert_eq!(
+            Some(vec![Line(0), Line(1)]),
+            fixture.vterm.damaged_lines()
+        );
+    }
+
+    #[test]
+    fn detect_dead_spaces_after_insert_keeps_real_trailing_spaces() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(40, 4);
+        // Simulate "world, and" followed by 8 spaces (1 real, 7 dead)
+        fixture.process_bytes(b"$ echo \"hello, \r\nworld, and        \r\nthe rest");
+        fixture.vterm.damaged_lines();
+        fixture.vterm.reset_damage();
+
+        fixture
+            .vterm
+            .detect_dead_spaces_after_insert(" \n", Scrolline(1), 10);
+
+        assert_eq!("world, and ", row_to_string(&fixture.vterm.grid()[Line(1)]));
+        assert_eq!(
+            Some(vec![Line(1), Line(2)]),
+            fixture.vterm.damaged_lines()
+        );
+    }
+
+    #[test]
+    fn detect_dead_spaces_after_insert_with_text_before_newline() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(40, 4);
+        fixture.process_bytes(b"$ echo foo     \r\nbar");
+        fixture.vterm.damaged_lines();
+        fixture.vterm.reset_damage();
+
+        fixture
+            .vterm
+            .detect_dead_spaces_after_insert("foo \nbar", Scrolline(0), 7);
+
+        assert_eq!("$ echo foo ", row_to_string(&fixture.vterm.grid()[Line(0)]));
+        assert_eq!(
+            Some(vec![Line(0), Line(1)]),
+            fixture.vterm.damaged_lines()
+        );
+    }
+
+    #[test]
+    fn detect_dead_spaces_after_insert_no_newline_is_noop() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(40, 4);
+        fixture.process_bytes(b"$ echo \"hello,    \r\nnext");
+        fixture.vterm.damaged_lines();
+        fixture.vterm.reset_damage();
+
+        fixture
+            .vterm
+            .detect_dead_spaces_after_insert("   ", Scrolline(0), 15);
+
+        assert_eq!(
+            "$ echo \"hello,    ",
+            row_to_string(&fixture.vterm.grid()[Line(0)])
+        );
+        // Only cursor line (Line(1)) is damaged, not Line(0)
+        assert_eq!(Some(vec![Line(1)]), fixture.vterm.damaged_lines());
+    }
+
+    #[test]
+    fn detect_dead_spaces_after_insert_no_dead_spaces_is_noop() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(40, 4);
+        fixture.process_bytes(b"world, and \r\nthe rest");
+        fixture.vterm.damaged_lines();
+        fixture.vterm.reset_damage();
+
+        fixture
+            .vterm
+            .detect_dead_spaces_after_insert(" \n", Scrolline(0), 10);
+
+        assert_eq!("world, and ", row_to_string(&fixture.vterm.grid()[Line(0)]));
+        // Only cursor line (Line(1)) is damaged, not Line(0)
+        assert_eq!(Some(vec![Line(1)]), fixture.vterm.damaged_lines());
+    }
+
+    #[test]
+    fn detect_dead_spaces_after_insert_wide_chars() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(40, 4);
+        // "e\u{030A}a\u{0300} \u{5BDB}\u{5BDB} " (5 cells, 7 chars: 'e'+'\u{030A}', 'a'+'\u{0300}', ' ', '寬', '寬', ' ') + 4 dead spaces
+        fixture.process_bytes("e\u{030A}a\u{0300} \u{5BDB}\u{5BDB}     \r\nnext".as_bytes());
+        fixture.vterm.damaged_lines();
+        fixture.vterm.reset_damage();
+
+        // Insert " \n" at char offset 7 (after the second '寬', which is at char offset 6:
+        // 'e'(0)+'\u{030A}'(1), 'a'(2)+'\u{0300}'(3), ' '(4), '寬'(5), '寬'(6))
+        fixture
+            .vterm
+            .detect_dead_spaces_after_insert(" \n", Scrolline(0), 7);
+
+        assert_eq!(
+            "e\u{030A}a\u{0300} \u{5BDB}\u{5BDB} ",
+            row_to_string(&fixture.vterm.grid()[Line(0)])
+        );
+        assert_eq!(
+            Some(vec![Line(0), Line(1)]),
+            fixture.vterm.damaged_lines()
+        );
+
+        // Also verify wide character at the end of line is not treated as a space via its wide spacer
+        fixture.vterm.reset_damage();
+        fixture
+            .vterm
+            .detect_dead_spaces_after_insert("\n", Scrolline(0), 5);
+        assert_eq!(
+            "e\u{030A}a\u{0300} \u{5BDB}\u{5BDB}",
+            row_to_string(&fixture.vterm.grid()[Line(0)])
+        );
     }
 }

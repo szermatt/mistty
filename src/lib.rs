@@ -15,21 +15,11 @@ use crate::{
     types::Scrolline,
     vterm::{VTerm, VTermOptions, VTermProcessor},
 };
-use alacritty_terminal::index::Line;
 use emacs::{Env, IntoLisp, Result, Value, Vector, defun};
-use std::{fmt::Debug, ops::RangeBounds};
 
 pub(crate) const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 emacs::plugin_is_GPL_compatible!();
-
-emacs::use_functions! {
-    symbol_value
-}
-emacs::use_symbols! {
-    args_out_of_range
-    nil
-}
 
 /// VTerm type kept Emacs-side.
 ///
@@ -220,12 +210,17 @@ fn cursor<'a>(env: &'a Env, term: &VTermFacade) -> Result<Value<'a>> {
     env.cons(point.line.0, point.column.0)
 }
 
-/// Mark spaces at the given line between beg_chars and end_chars as clear.
+/// Clear dead trailing spaces left on `scrolline` after inserting `content`
+/// at character position `pos_in_line` within `scrolline`.
 #[defun]
-fn clear_to_eol(env: &Env, term: &mut VTermFacade, line: i32, beg_chars: usize) -> Result<()> {
-    let line = line_range_check(env, line, term)?;
-
-    term.vterm.clear_to_eol(line, beg_chars);
+fn detect_dead_spaces_after_insert(
+    term: &mut VTermFacade,
+    content: String,
+    scrolline: usize,
+    pos_in_line: usize,
+) -> Result<()> {
+    term.vterm
+        .detect_dead_spaces_after_insert(&content, Scrolline(scrolline), pos_in_line);
 
     Ok(())
 }
@@ -381,28 +376,6 @@ fn end_regexp_prompt(term: &mut VTermFacade) -> Result<()> {
     term.processor.end_regexp_prompt(&mut term.vterm);
 
     Ok(())
-}
-
-/// Create a `Column` that's guaranteed to be a valid line for the
-/// terminal that is inside the range [0, bottommost_line].
-fn line_range_check(env: &Env, val: i32, term: &VTermFacade) -> Result<Line> {
-    range_check(env, "line", val, 0..=term.vterm.bottommost_line().0).map(Line)
-}
-
-/// Return a column guaranteed to be within [0, last_column] or
-/// throw an error
-pub(crate) fn range_check<T>(env: &Env, typename: &'static str, val: i32, range: T) -> Result<i32>
-where
-    T: RangeBounds<i32> + Debug,
-{
-    if !range.contains(&val) {
-        return env.signal(
-            args_out_of_range,
-            (format!("{typename}: value out of range {range:?}"), val),
-        );
-    }
-
-    Ok(val)
 }
 
 /// Log a debug message elisp-side (best effort).

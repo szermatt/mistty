@@ -402,14 +402,23 @@ CURSOR-MARKER is updated to the cursor position."
       ;; unwind-protect cleanup
       (set-marker sync-pos nil))))
 
-(cl-defmethod mistty--term-clear-to-eol ((term mistty--term-alacritty) pos)
-  "Mark spaces in TERM as cleared from POS to the end of the line."
-  (let ((vterm (mistty--term-alacritty-vterm term)))
-    (mistty--with-live-buffer (mistty--term-alacritty-buf term)
-      (when (> pos mistty-alacritty--home)
-        (mistty-alacritty-vt-clear-to-eol vterm
-                                          (mistty--count-lines mistty-alacritty--home pos)
-                                          (- pos (mistty--bol pos)))))))
+
+(cl-defmethod mistty--term-detect-dead-spaces-after-insert
+  ((term mistty--term-alacritty) content scrolline pos-in-line)
+  "Mark dead trailing spaces left in TERM after inserting CONTENT.
+
+When inserting a newline in an existing line, the terminal often just
+overwrites the existing characters with space instead of re-creating the
+line properly. The result are spaces that should be skipped.
+
+SCROLLINE is the scrolline at which CONTENT was inserted in the terminal
+buffer and POS-IN-LINE is the character position within that scrolline where it
+was inserted."
+  (mistty-alacritty-vt-detect-dead-spaces-after-insert
+   (mistty--term-alacritty-vterm term)
+   content
+   scrolline
+   pos-in-line))
 
 (cl-defmethod mistty--term-truncate-buffer ((term mistty--term-alacritty) scrolline-limit)
   "Truncate the terminal buffer of TERM, if necessary.

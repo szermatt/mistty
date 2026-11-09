@@ -111,7 +111,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-alt-screen-p nil (term))
 (declare-function mistty-alacritty-vt-version nil ())
 (declare-function mistty-alacritty-vt-cleanup-prompt-sp nil (term pos))
-(declare-function mistty-alacritty-vt-clear-to-eol nil (term line col))
+(declare-function mistty-alacritty-vt-detect-dead-spaces-after-insert nil (term content scrolline pos-in-line))
 (declare-function mistty-alacritty-vt-collect-changes nil (term))
 (declare-function mistty-alacritty-vt-cursor nil (term))
 (declare-function mistty-alacritty-vt-enable-scrollback nil (term))

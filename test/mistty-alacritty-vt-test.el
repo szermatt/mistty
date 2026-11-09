@@ -1524,63 +1524,6 @@
         (mistty-test-content :show screen-top
                              :show-property '(term-line-wrap t)))))))
 
-
-(mistty-deftest mistty-alacritty-vt-clear-to-eol (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
-        (cursor (make-marker)))
-    (ert-with-test-buffer ()
-      (mistty-alacritty-vt-process-bytes term "foo     \r\nbar          \r\n")
-      (mistty-alacritty-vt-render term cursor 0)
-      (should (equal
-               (concat "foo     \n"
-                       "bar          \n"
-                       "<>\n")
-               (mistty-test-content
-                :trim nil
-                :show cursor
-                :show-property '(mistty-clear t))))
-
-      (mistty-alacritty-vt-clear-to-eol term 0 5)
-      (mistty-alacritty-vt-clear-to-eol term 1 3)
-      (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor 0)
-
-      (should (equal
-               (concat "foo  \n"
-                       "bar\n"
-                       "<>\n")
-               (mistty-test-content
-                :trim nil
-                :show cursor
-                :show-property '(mistty-clear t)))))))
-
-(mistty-deftest mistty-alacritty-vt-clear-to-eol-unicode (:features mistty-alacritty-vt :shell none)
-  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
-        (cursor (make-marker)))
-    (ert-with-test-buffer ()
-      ;; This makes sure the unicode characters don't mess up the
-      ;; char-to-column computations.
-
-      ;; wide char (1 char, 2 columns)
-      (mistty-alacritty-vt-process-bytes term "\xF0\x9F\x9F\xA7(1)    \r\n")
-      ;; combining chars (2 chars, 1 column)
-      (mistty-alacritty-vt-process-bytes term "e\xcc\x81te\xcc\x81(2)    \r\n")
-      (mistty-alacritty-vt-render term cursor 0)
-
-      (let ((one (mistty-test-pos-after "(1)"))
-            (two (mistty-test-pos-after "(2)")))
-        (mistty-alacritty-vt-clear-to-eol term 0 (- one (mistty--bol one)))
-        (mistty-alacritty-vt-clear-to-eol term 1 (- two (mistty--bol two)))
-        (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor 0)
-
-        (should (equal
-                 (concat
-                  "\U0001F7E7(1)\n"
-                  "e\u0301te\u0301(2)\n"
-                  "\n")
-                 (mistty-test-content :trim nil)))))))
-
 (mistty-deftest mistty-alacritty-vt-mark-indent (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))

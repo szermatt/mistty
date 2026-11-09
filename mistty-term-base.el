@@ -171,6 +171,17 @@ previously made are still in place to optimize its operations.
 CURSOR-MARKER must be a marker. It will be updated with the position of
 the cursor on DEST-BUFFER.")
 
+(cl-defgeneric mistty--term-sync-backstage (term sync-scrolline)
+  "Render TERM into the current buffer from SYNC-SCROLLINE.
+
+The entire buffer content is rewritten to match the content of the
+terminal starting at SYNC-SCROLLINE in a way that keeps marker positions
+as much as possible.
+
+The point is set at the cursor position, as long as the cursor is at or
+below SYNC-SCROLLINE, otherwise the cursor is moved to the beginning of
+the buffer after sync.")
+
 (cl-defgeneric mistty--term-detect-dead-spaces-after-insert (term content scrolline pos-in-line)
   "Mark dead trailing spaces left in TERM after inserting CONTENT.
 

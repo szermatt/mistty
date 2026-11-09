@@ -756,6 +756,29 @@ CURSOR-MARKER is updated to the cursor position."
 
       (cons sync-pos sync-scrolline))))
 
+(defvar-local mistty--term-eterm-backstage-cursor nil)
+
+(cl-defmethod mistty--term-sync-backstage ((term mistty--term-eterm) sync-scrolline)
+  "Render TERM into the current buffer from SYNC-SCROLLINE.
+
+The entire current buffer is rewritten to match the content of the
+terminal starting at SYNC-SCROLLINE in a way that keeps marker positions
+as much as possible.
+
+The point is set at the cursor position, as long as the cursor is at or
+below SYNC-SCROLLINE, otherwise the cursor is moved to the beginning of
+the buffer after sync."
+  (let ((cursor mistty--term-eterm-backstage-cursor))
+    (if cursor
+        (set-marker cursor (point-min))
+
+      (setq cursor (copy-marker (point-min)))
+      (setq mistty--term-eterm-backstage-cursor cursor))
+    (mistty--term-sync
+     term (current-buffer) (point-min) sync-scrolline
+     'keep-markers cursor)
+    (goto-char cursor)))
+
 (cl-defmethod mistty--term-detect-dead-spaces-after-insert
   ((term mistty--term-eterm) content scrolline pos-in-line)
   "Mark dead trailing spaces left in TERM after inserting CONTENT.

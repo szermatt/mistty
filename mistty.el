@@ -4131,10 +4131,7 @@ The current buffer must be a backstage buffer, created by
 
 The point is set to the equivalent of proc marker
 position (cursor) in the buffer."
-  (mistty--term-sync
-   mistty--term (current-buffer) (point-min) mistty--scrolline-home-num
-   'keep-markers mistty--cursor)
-  (goto-char mistty--cursor))
+  (mistty--term-sync-backstage mistty--term mistty--scrolline-home-num))
 
 (defun mistty--delete-backstage (backstage)
   "Gets rid of a BACKSTAGE buffer."

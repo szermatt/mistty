@@ -363,7 +363,9 @@ pub(crate) fn kitty_key_seq<'e>(
 /// `mistty-alacritty-vt-collect-change`.
 #[defun]
 fn start_regexp_prompt(term: &mut VTermFacade, start: usize) -> Result<bool> {
-    Ok(term.processor.start_regexp_prompt(Scrolline(start)))
+    Ok(term
+        .processor
+        .start_regexp_prompt(&mut term.vterm, Scrolline(start)))
 }
 
 /// End a regexp prompt.
@@ -372,7 +374,7 @@ fn start_regexp_prompt(term: &mut VTermFacade, start: usize) -> Result<bool> {
 /// `mistty-alacritty-vt-collect-change`.
 #[defun]
 fn end_regexp_prompt(term: &mut VTermFacade) -> Result<()> {
-    term.processor.end_regexp_prompt();
+    term.processor.end_regexp_prompt(&mut term.vterm);
 
     Ok(())
 }

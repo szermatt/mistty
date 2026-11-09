@@ -352,31 +352,22 @@ information to align the two buffers.
 Return (cons SYNC-POS SYNC-SCROLLINE) with the new proposed values of
 the sync position in DEST-BUFFER and the corresponding scrolline."
   (mistty--with-live-buffer dest-buffer
-    (let ((prop (save-excursion
-                  (goto-char sync-pos)
-                  (text-property-search-backward
-                   'mistty-scrolline
-                   home-scrolline ;; goal
-                   (lambda (goal val)
-                     (and val (<= val goal)))))))
+    (pcase-let* ((`(,pos . ,actual) (mistty--find-marked-scrolline home-scrolline)))
       (cond
        ;; Found exact scrolline, align there or below if rows match
-       ((and prop (= home-scrolline (prop-match-value prop)))
+       ((and pos actual (= actual home-scrolline))
         (pcase-setq `(,sync-pos . ,sync-scrolline)
                     (mistty--skip-identical-rows
-                     (prop-match-beginning prop)
-                     home-scrolline
-                     source-buffer))
+                     pos home-scrolline source-buffer))
         (mistty-log "REALIGN scrolline %s to pos %s; terminal [%s-]"
                     sync-scrolline sync-pos home-scrolline))
 
        ;; Found scrolline < goal, align at line after
-       (prop
-        (let ((found-pos (mistty--bol (prop-match-beginning prop) 2)))
+       ((and pos actual)
           (mistty-log "REALIGN APPROXIMATE scrolline %s to pos %s; terminal [%s-]"
-                      home-scrolline found-pos home-scrolline)
-          (setq sync-pos found-pos
-                sync-scrolline home-scrolline)))
+                      home-scrolline pos home-scrolline)
+          (setq sync-pos pos
+                sync-scrolline home-scrolline))
 
        ;; Couldn't find beginning. It might have been deleted. Sync
        ;; whole buffer.
@@ -387,6 +378,37 @@ the sync position in DEST-BUFFER and the corresponding scrolline."
               sync-scrolline home-scrolline))))
 
     (cons sync-pos sync-scrolline)))
+
+(defun mistty--find-marked-scrolline (scrolline)
+  "Find a scrolline using the \\='mistty-scrollback mark.
+
+This function is meant to find SCROLLINE in the scrollback buffer zone,
+which might have been modified. If SCROLLINE <
+`mistty--scrolline-home-num', this function returns nil.
+
+Return nil or (cons POS ACTUAL) with ACTUAL possibly being smaller than
+SCROLLINE."
+  (let ((prop (save-excursion
+                (goto-char mistty--scrolline-home-mark)
+                (text-property-search-backward
+                 'mistty-scrolline
+                 scrolline ;; goal
+                 (lambda (goal val)
+                   (and val (<= val goal)))))))
+    (cond
+     ;; Found exact scrolline, align there or below if rows match
+     ((and prop (= scrolline (prop-match-value prop)))
+      (cons (prop-match-beginning prop) scrolline))
+
+     ;; Found actual < scrolline, return the position at the end of
+     ;; actual, which we report as actual+1.
+     (prop
+      (cons
+       (min (mistty--bol (prop-match-beginning prop) 2)
+            mistty--scrolline-home-mark)
+       (1+ (prop-match-value prop))))
+
+     (t nil))))
 
 (defun mistty--sync-buffer
     (source-buffer source-pos dest-buffer dest-pos keep-markers)

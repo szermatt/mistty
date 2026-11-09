@@ -46,6 +46,7 @@ emacs::use_symbols! {
     fullscreen_sym => "fullscreen"
     cleared_screen_sym => "cleared-screen"
     cleared_scrollback_sym => "cleared-scrollback"
+    modified_sym => "modified"
     reset_sym => "reset"
     colon_allow_clearing_scrollback => ":allow-clearing-scrollback"
     colon_osc52 => ":osc52"
@@ -101,16 +102,16 @@ impl VTermProcessor {
     ///
     /// The change will *not* be reported in the next call to
     /// [collect_prompt_change].
-    pub(crate) fn start_regexp_prompt(&mut self, start: Scrolline) -> bool {
-        self.prompt_detector.start_regexp_prompt(start)
+    pub(crate) fn start_regexp_prompt(&mut self, vterm: &mut VTerm, start: Scrolline) -> bool {
+        self.prompt_detector.start_regexp_prompt(vterm, start)
     }
 
     /// End a regexp prompt.
     ///
     /// The change will *not* be reported in the next call to
     /// [collect_prompt_change].
-    pub(crate) fn end_regexp_prompt(&mut self) {
-        self.prompt_detector.end_regexp_prompt()
+    pub(crate) fn end_regexp_prompt(&mut self, vterm: &mut VTerm) {
+        self.prompt_detector.end_regexp_prompt(vterm)
     }
 
     /// Update the terminal and processor state from the given teminal
@@ -185,6 +186,13 @@ pub(crate) enum VTermChange {
 
     /// Show or hide the cursor.
     ShowCursor(bool),
+
+    /// Report that a scrolline above the target scrolline has been
+    /// unexpectedly modified.
+    ///
+    /// The target scrolline is set with
+    /// [VTerm::track_modifications_above].
+    Modified(Scrolline),
 }
 
 /// Mouse mode reported to the lisp side
@@ -214,6 +222,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::ClearedScrollback => env.cons(cleared_scrollback_sym, ()),
             VTermChange::Reset => env.cons(reset_sym, ()),
             VTermChange::ShowCursor(on) => env.list((cursor_sym, on)),
+            VTermChange::Modified(scrolline) => env.list((modified_sym, scrolline)),
         }
     }
 }
@@ -299,6 +308,29 @@ pub(crate) struct VTerm {
 
     /// Terminal mode at the time of the last call to [VTerm::collect_changes].
     last_collected_mode: TermMode,
+
+    /// Track terminal modifications above a given scrolline.
+    modification_tracker: Option<ModificationTracker>,
+}
+
+/// Track changes above a given scrolline
+struct ModificationTracker {
+    target: Scrolline,
+
+    /// Hashes of scrollines above the target.
+    ///
+    /// The hash is computed using fnv1a_32.
+    ///
+    /// - index 0 is the hash of scrolline target-1
+    /// - index 1 is the hash of scrolline target-2
+    ///
+    /// and so one. These hashes are captured when the target is set,
+    /// based on the scrolline currently visible on the terminal.
+    ///
+    /// Note that the hashes might reach scrolline below the current
+    /// scrolline at screen top, depending on when it was created.
+    /// These should be ignored.
+    hashes: Vec<u32>,
 }
 
 impl VTerm {
@@ -327,6 +359,7 @@ impl VTerm {
             last_collected_mode: TermMode::default(),
             changes: vec![],
             options,
+            modification_tracker: None,
         }
     }
 
@@ -595,6 +628,35 @@ impl VTerm {
         }
     }
 
+    /// Return lines within the given scrolline ranges.
+    ///
+    /// Panics if given invalid or out-of-bounds `start` and `end`.
+    pub(crate) fn scrolline_range(
+        &self,
+        start: Scrolline,
+        end: Scrolline,
+    ) -> impl Iterator<Item = (Line, &Row<Cell>)> {
+        assert!(start <= end, "Invalid scrolline range {start} > {end}");
+        assert!(
+            start >= self.base_scrolline,
+            "Invalid scrolline {start}, before base."
+        );
+
+        let mut cur = self.base_scrolline();
+        self.all_rows()
+            .map(move |(l, r)| {
+                let sl = cur;
+                if !r.is_wrapped() {
+                    cur += 1;
+                }
+
+                (sl, l, r)
+            })
+            .skip_while(move |(sl, _, _)| *sl < start)
+            .take_while(move |(sl, _, _)| *sl < end)
+            .map(|(_, l, r)| (l, r))
+    }
+
     /// Return the last line available in the virtual terminal, that
     /// corresponds to the bottom of the screen.
     #[inline]
@@ -670,10 +732,69 @@ impl VTerm {
         Ok(pty_writes)
     }
 
+    /// Tell VTerm to report modifications above the given `target` scrolline.
+    ///
+    /// Tracking modification only applies to the main buffer.
+    pub(crate) fn track_modifications_above(&mut self, target: Scrolline) {
+        let screen_top = self.scrolline_at_screen_top();
+        if target <= screen_top {
+            self.modification_tracker = None;
+            return;
+        }
+
+        let alt_buf = self.mode().intersects(TermMode::ALT_SCREEN);
+        if alt_buf {
+            self.inner.swap_alt();
+        }
+
+        self.modification_tracker = Some(match self.modification_tracker.take() {
+            // create new
+            None => ModificationTracker {
+                target,
+                hashes: self.hash_lines(screen_top, target),
+            },
+            // restrict existing. It is important to keep existing
+            // hashes and not recompute them as the current scrolline
+            // data might have already changed since then.
+            Some(mut t) if t.target > target => {
+                t.hashes.drain(0..(t.target - target));
+                t.target = target;
+
+                t
+            }
+            // expand existing.
+            Some(mut t) if t.target < target && t.target > screen_top => {
+                let mut new_hashes = self.hash_lines(t.target, target);
+                t.hashes.truncate(t.target - screen_top);
+                new_hashes.append(&mut t.hashes);
+                std::mem::swap(&mut t.hashes, &mut new_hashes);
+                t.target = target;
+
+                t
+            }
+            // replace existing
+            Some(t) if t.target < target => ModificationTracker {
+                target,
+                hashes: self.hash_lines(screen_top, target),
+            },
+            // tracker.target = target, keep it
+            Some(t) => t,
+        });
+
+        if alt_buf {
+            self.inner.swap_alt();
+        }
+        assert_eq!(alt_buf, self.mode().intersects(TermMode::ALT_SCREEN));
+    }
+
     /// Collect events to send back to the lisp side.
     pub(crate) fn collect_changes<'e>(&mut self) -> Result<Vec<VTermChange>> {
         let mut changes = self.collect_mode_changes();
         changes.append(&mut self.changes);
+
+        if let Some(modified) = self.detect_modifications() {
+            changes.push(VTermChange::Modified(modified));
+        }
 
         Ok(changes)
     }
@@ -777,6 +898,64 @@ impl VTerm {
     /// Record a change to report to the next call to [VTerm::collect_changes].
     fn record(&mut self, change: VTermChange) {
         self.changes.push(change)
+    }
+
+    /// Hashes of scrollines betwen start (inclusive) and end
+    /// (exclusive).
+    ///
+    /// The hash is computed using fnv1a_32.
+    ///
+    /// The hashes are returned in the reverse order, from end to start:
+    ///
+    /// - index 0 is the hash of scrolline end-1
+    /// - index 1 is the hash of scrolline end-2
+    /// - ...
+    /// - index N is the hash of scrolline end
+    fn hash_lines(&self, start: Scrolline, end: Scrolline) -> Vec<u32> {
+        assert!(!self.mode().intersects(TermMode::ALT_SCREEN));
+
+        let mut hashes = vec![];
+        let mut hasher = Fnv1aHasher::new();
+        let mut buf = String::new();
+        for (_, row) in self.scrolline_range(start, end) {
+            for (_, cell) in row.iter() {
+                cell.append_content(&mut buf);
+                hasher.add(&buf);
+                buf.clear();
+            }
+            if !row.is_wrapped() {
+                hashes.push(hasher.take());
+            }
+        }
+        hashes.reverse();
+
+        hashes
+    }
+
+    /// If tracking modification, check the current buffer and report the earliest
+    /// tracked scrolline that was modified.
+    fn detect_modifications(&mut self) -> Option<Scrolline> {
+        if !self.mode().intersects(TermMode::ALT_SCREEN)
+            && let Some(tracker) = &self.modification_tracker
+        {
+            let screen_top = self.scrolline_at_screen_top();
+            if tracker.target > screen_top {
+                let hashes = self.hash_lines(screen_top, tracker.target);
+                if let Some(index) = std::iter::zip(&tracker.hashes, hashes)
+                    .enumerate()
+                    .filter(|(_, (h1, h2))| **h1 != *h2)
+                    .last()
+                    .map(|(index, _)| index)
+                {
+                    let modified = tracker.target - index - 1;
+
+                    self.track_modifications_above(modified);
+                    return Some(modified);
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -1102,6 +1281,7 @@ impl<'a> Handler for HandlerProxy<'a> {
         self.vterm.inner.reset_state();
         init_grid(self.vterm.inner.grid_mut());
         self.vterm.record(VTermChange::Reset);
+        self.vterm.modification_tracker = None;
     }
 
     fn reverse_index(&mut self) {
@@ -1298,6 +1478,37 @@ impl<'a> Handler for HandlerProxy<'a> {
     /// OSC 7
     fn set_cwd(&mut self, url: Option<&str>) {
         self.vterm.record(VTermChange::Cwd(url.map(str::to_string)));
+    }
+}
+
+/// Compute FNV-1a hash for a series of strings.
+struct Fnv1aHasher {
+    hash: u32,
+}
+
+const FNV1_BASE: u32 = 0x811c9dc5;
+
+impl Fnv1aHasher {
+    fn new() -> Self {
+        Fnv1aHasher { hash: FNV1_BASE }
+    }
+
+    /// Add the given string to the hash.
+    fn add(&mut self, data: &str) {
+        let mut hash = self.hash;
+        for byte in data.as_bytes() {
+            hash ^= *byte as u32;
+            hash = hash.wrapping_mul(0x01000193);
+        }
+        self.hash = hash;
+    }
+
+    /// Return the current hash value and reset the hasher.
+    fn take(&mut self) -> u32 {
+        let val = self.hash;
+        self.hash = FNV1_BASE;
+
+        val
     }
 }
 
@@ -2255,6 +2466,125 @@ mod tests {
     }
 
     #[test]
+    fn scrolline_range() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.move_history();
+        fixture.process_bytes(b"line 6\r\nline 7\r\n");
+
+        let vterm = &fixture.vterm;
+        assert_eq!(
+            vec![
+                (Line(-2), "line 4".to_string()),
+                (Line(-1), "line 5".to_string()),
+                (Line(0), "line 6".to_string()),
+                (Line(1), "line 7".to_string()),
+            ],
+            vterm
+                .scrolline_range(Scrolline(3), Scrolline(7))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn scrolline_range_with_wrapped_lines() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 4);
+        fixture.vterm.enable_scrollback();
+
+        fixture.process_bytes(b"A long line....\r\nline 2\r\n");
+
+        let vterm = &fixture.vterm;
+        assert_eq!(
+            vec![
+                (Line(0), "A long lin".to_string()),
+                (Line(1), "e....".to_string()),
+            ],
+            vterm
+                .scrolline_range(Scrolline(0), Scrolline(1))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![(Line(2), "line 2".to_string())],
+            vterm
+                .scrolline_range(Scrolline(1), Scrolline(2))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![
+                (Line(0), "A long lin".to_string()),
+                (Line(1), "e....".to_string()),
+                (Line(2), "line 2".to_string()),
+            ],
+            vterm
+                .scrolline_range(Scrolline(0), Scrolline(2))
+                .map(|(l, r)| (l, row_to_string(r)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn scrolline_range_empty() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        let vterm = &fixture.vterm;
+        assert_eq!(0, vterm.scrolline_range(Scrolline(1), Scrolline(1)).count());
+        assert_eq!(0, vterm.scrolline_range(Scrolline(3), Scrolline(3)).count());
+    }
+
+    #[test]
+    fn scrolline_range_end_beyond_available() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"line 1\r\nline 2\r\n");
+
+        // return available rows up to the end
+        let vterm = &fixture.vterm;
+        let rows = vterm
+            .scrolline_range(Scrolline(0), Scrolline(100))
+            .map(|(l, r)| (l, row_to_string(r)))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            vec![
+                (Line(0), "line 1".to_string()),
+                (Line(1), "line 2".to_string()),
+                (Line(2), "".to_string()),
+            ],
+            rows
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn scrolline_range_inverted() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+
+        let vterm = &fixture.vterm;
+        vterm.scrolline_range(Scrolline(3), Scrolline(1)).count();
+    }
+
+    #[test]
+    #[should_panic]
+    fn scrolline_range_before_base() {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5\r\n");
+        fixture.vterm.clear_scrollback();
+
+        let vterm = &fixture.vterm;
+        assert_eq!(Scrolline(3), vterm.base_scrolline());
+        vterm.scrolline_range(Scrolline(0), Scrolline(4)).count();
+    }
+
+    #[test]
     fn collect_mode_changes_kkp() {
         let mut fixture = Fixture::setup();
         assert_eq!(
@@ -2435,5 +2765,334 @@ mod tests {
         assert_eq!("a⏎", row_to_string(&fixture.vterm.grid()[Line(0)]));
         assert_eq!("$ b⏎", row_to_string(&fixture.vterm.grid()[Line(1)]));
         assert_eq!("$ ", row_to_string(&fixture.vterm.grid()[Line(2)]));
+    }
+
+    #[test]
+    fn track_modifications_above() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 4);
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4");
+
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.process_bytes(b"\x1b[2;1HX"); // change line 1
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(1))],
+            fixture.vterm.collect_changes()?
+        );
+        // target is now scrolline 1
+
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.process_bytes(b"\x1b[1;1HY"); // change line 0
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(0))],
+            fixture.vterm.collect_changes()?
+        );
+        // tracking is stopped
+
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+        fixture.process_bytes(b"\x1b[1;2HZ");
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_above_wrapped_line() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 5);
+        fixture.process_bytes(b"0123456789wrapped\r\nshort 1\r\nshort 2");
+
+        assert_eq!(
+            Some(Line(0)),
+            fixture.vterm.terminal_line_for_scrolline(Scrolline(0))
+        );
+        assert_eq!(
+            Some(Line(2)),
+            fixture.vterm.terminal_line_for_scrolline(Scrolline(1))
+        );
+        assert_eq!(
+            Some(Line(3)),
+            fixture.vterm.terminal_line_for_scrolline(Scrolline(2))
+        );
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.process_bytes(b"\x1b[2;1HX"); // row 1, scrolline 0
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(0))],
+            fixture.vterm.collect_changes()?
+        );
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+        fixture.process_bytes(b"\x1b[1;1HY"); // row 0, scrolline 0
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(0))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_above_at_or_below_target_ignored() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 4);
+        fixture.process_bytes(b"line 1\r\nline 2\r\nline 3\r\nline 4");
+
+        fixture.vterm.track_modifications_above(Scrolline(1));
+
+        // line 1 and 2 are modified. They're ignored.
+        fixture.process_bytes(b"\x1b[2;1HX\x1b[3;1HY");
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.process_bytes(b"\x1b[1;1HZ"); // line 0
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(0))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_above_earliest_modification_reported() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 5);
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2\r\nline 3\r\nline 4");
+
+        fixture.vterm.track_modifications_above(Scrolline(4));
+
+        // Line 3 and 1 are modified, but only 1, the earliest, is reported.
+        fixture.process_bytes(b"\x1b[4;1HA\x1b[2;1HB");
+
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(1))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_restricted_multiple_times() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 6);
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5");
+
+        fixture.vterm.track_modifications_above(Scrolline(5));
+        fixture.vterm.track_modifications_above(Scrolline(4));
+        fixture.vterm.track_modifications_above(Scrolline(2));
+
+        fixture.process_bytes(b"\x1b[3;1HX"); // line 2, ignored
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.process_bytes(b"\x1b[2;1HY"); // line 1, detected
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(1))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_restriction_preserves_earlier_modifications() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 6);
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5");
+
+        fixture.vterm.track_modifications_above(Scrolline(5));
+
+        fixture.process_bytes(b"\x1b[2;1HX"); // line 1
+
+        fixture.vterm.track_modifications_above(Scrolline(4));
+        fixture.vterm.track_modifications_above(Scrolline(3));
+
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(1))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_expanded_multiple_times() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 6);
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5");
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+        fixture.vterm.track_modifications_above(Scrolline(3));
+        fixture.vterm.track_modifications_above(Scrolline(5));
+
+        fixture.process_bytes(b"\x1b[4;1HX"); // line 3
+
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(3))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_expansion_preserves_earlier_modifications() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 6);
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5");
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+        fixture.process_bytes(b"\x1b[2;1HA"); // line 1
+
+        fixture.vterm.track_modifications_above(Scrolline(4));
+        fixture.process_bytes(b"\x1b[4;1HB"); // line 3
+
+        fixture.vterm.track_modifications_above(Scrolline(5));
+        fixture.process_bytes(b"\x1b[3;1HC"); // line 2
+
+        // 1 is the earliest change, it is the one reported.
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(1))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_oscillates() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 6);
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5");
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+        fixture.vterm.track_modifications_above(Scrolline(5));
+        fixture.vterm.track_modifications_above(Scrolline(3));
+        fixture.vterm.track_modifications_above(Scrolline(4));
+        fixture.vterm.track_modifications_above(Scrolline(3));
+
+        fixture.process_bytes(b"\x1b[4;1HX"); // line 3, igored
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.process_bytes(b"\x1b[3;1HY"); // line 2
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(2))],
+            fixture.vterm.collect_changes()?
+        );
+
+        fixture.process_bytes(b"\x1b[1;1HZ"); // line 0
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(0))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_changes_with_wrapped_lines() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 7);
+        fixture.process_bytes(b"0123456789wrap0\r\n0123456789wrap1\r\nline 2\r\nline 3");
+        assert_eq!(
+            Some(Line(0)),
+            fixture.vterm.terminal_line_for_scrolline(Scrolline(0))
+        );
+        assert_eq!(
+            Some(Line(2)),
+            fixture.vterm.terminal_line_for_scrolline(Scrolline(1))
+        );
+        assert_eq!(
+            Some(Line(4)),
+            fixture.vterm.terminal_line_for_scrolline(Scrolline(2))
+        );
+        assert_eq!(
+            Some(Line(5)),
+            fixture.vterm.terminal_line_for_scrolline(Scrolline(3))
+        );
+
+        fixture.vterm.track_modifications_above(Scrolline(1));
+        fixture.vterm.track_modifications_above(Scrolline(3));
+        fixture.vterm.track_modifications_above(Scrolline(2));
+
+        fixture.process_bytes(b"\x1b[4;1HX"); // row 3, scrolline 1
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(1))],
+            fixture.vterm.collect_changes()?
+        );
+
+        fixture.process_bytes(b"\x1b[2;1HY"); // row 1, scrolline 0
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(0))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_changes_across_scrolling() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.enable_scrollback();
+        fixture.vterm.resize(10, 3);
+
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2");
+        assert_eq!(Scrolline(0), fixture.vterm.scrolline_at_screen_top());
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+
+        // scroll screen
+        fixture.process_bytes(b"\r\nline 3\r\nline 4\r\nline 5");
+        let screen_top = fixture.vterm.scrolline_at_screen_top();
+        assert_eq!(Scrolline(3), screen_top);
+
+        fixture.vterm.track_modifications_above(Scrolline(6));
+
+        fixture.process_bytes(b"\x1b[2;1HX"); // row 1, scrolline 4
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(4))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn track_modifications_target_changes_with_alt_screen() -> Result<()> {
+        let mut fixture = Fixture::setup();
+        fixture.vterm.resize(10, 4);
+        fixture.process_bytes(b"line 0\r\nline 1\r\nline 2\r\nline 3");
+
+        fixture.vterm.track_modifications_above(Scrolline(2));
+
+        fixture.process_bytes(b"\x1b[?1049h"); // alt_screen on
+
+        // clear mode changes
+        fixture.vterm.collect_changes()?;
+
+        fixture.vterm.track_modifications_above(Scrolline(3));
+
+        // ignore modifications in alt screen
+        fixture.process_bytes(b"\x1b[2;1HX");
+        assert!(fixture.vterm.collect_changes()?.is_empty());
+
+        fixture.process_bytes(b"\x1b[?1049l"); // alt_screen off
+        let changes = fixture.vterm.collect_changes()?;
+        assert!(changes.contains(&VTermChange::Fullscreen(false)));
+
+        fixture.process_bytes(b"\x1b[2;1HY"); // line 1
+        assert_eq!(
+            vec![VTermChange::Modified(Scrolline(1))],
+            fixture.vterm.collect_changes()?
+        );
+
+        Ok(())
     }
 }

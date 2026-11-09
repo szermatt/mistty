@@ -5741,7 +5741,8 @@ function prompt {
     (should (or (equal "$ prompt\n<>Got: bar\n$" content)
                 (equal "$ prompt\nGot: bar\n<>$" content)))))
 
-(mistty-deftest mistty-test-recovery-clear-before-prompt-removed-buffer-start (:shell ((bash mistty-test-clear-before-prompt)) :type all)
+(mistty-deftest mistty-test-recovery-clear-before-prompt-removed-buffer-start/eterm
+    (:shell ((bash mistty-test-clear-before-prompt)) :type eterm)
   (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
 
@@ -5758,12 +5759,34 @@ function prompt {
    (mistty--detect-possible-prompt))
   (mistty-send-text "bar")
 
-  ;; The deleted prompt reappeared.
+  ;; The deleted prompt reappeared; this is an artifact of how
+  ;; recovery works on eterm.
   (should (equal "$ echo one\none\n$ echo two\ntwo\n$ prompt\n====\n==== ----\nPrompt: bar"
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-recovery-clear-before-prompt-removed-before-prompt
-    (:shell ((bash mistty-test-clear-before-prompt)) :type all)
+(mistty-deftest mistty-test-recovery-clear-before-prompt-removed-buffer-start/alacritty
+    (:shell ((bash mistty-test-clear-before-prompt)) :type alacritty)
+  (mistty-send-text "echo one")
+  (mistty-send-and-wait-for-prompt)
+
+  (mistty-send-text "echo two")
+  (mistty-send-and-wait-for-prompt)
+
+  (delete-region (mistty-test-pos "$ echo one")
+                 (mistty-test-pos-after "\none\n"))
+
+  (mistty-send-text "prompt")
+  (mistty-send-command)
+  (mistty-wait-for-output :str "Prompt: ")
+  (mistty--realize-possible-prompt
+   (mistty--detect-possible-prompt))
+  (mistty-send-text "bar")
+
+  (should (equal "$ echo two\ntwo\n$ prompt\n====\n==== ----\nPrompt: bar"
+                 (mistty-test-content))))
+
+(mistty-deftest mistty-test-recovery-clear-before-prompt-removed-before-prompt/eterm
+    (:shell ((bash mistty-test-clear-before-prompt)) :type eterm)
   (dotimes (i 20)
     (mistty-send-text (format "echo %d" i))
     (mistty-send-and-wait-for-prompt))
@@ -5786,9 +5809,33 @@ function prompt {
                  (mistty-test-content
                   :start (mistty-test-pos "$ echo 19")))))
 
+(mistty-deftest mistty-test-recovery-clear-before-prompt-removed-before-prompt/alacritty
+    (:shell ((bash mistty-test-clear-before-prompt)) :type alacritty)
+  (dotimes (i 20)
+    (mistty-send-text (format "echo %d" i))
+    (mistty-send-and-wait-for-prompt))
+
+  (mistty-send-text "echo deleteme")
+  (mistty-send-and-wait-for-prompt)
+
+  (delete-region (mistty-test-pos "$ echo deleteme")
+                 (mistty-test-pos-after "\ndeleteme"))
+
+  (mistty-send-text "prompt")
+  (mistty-send-command)
+  (mistty-wait-for-output :str "Prompt: ")
+  (mistty--realize-possible-prompt
+   (mistty--detect-possible-prompt))
+  (mistty-send-text "bar")
+
+  ;; The deleted prompt stays deleted.
+  (should (equal "$ echo 19\n19\n\n$ prompt\n====\n==== ----\nPrompt: bar"
+                 (mistty-test-content
+                  :start (mistty-test-pos "$ echo 19")))))
+
 (mistty-deftest
-    mistty-test-recovery-clear-before-prompt-removed-almost-everything-before-prompt
-    (:shell ((bash mistty-test-clear-before-prompt)) :type all)
+    mistty-test-recovery-clear-before-prompt-removed-almost-everything-before-prompt/eterm
+    (:shell ((bash mistty-test-clear-before-prompt)) :type eterm)
   (mistty-send-text "echo keep me")
   (mistty-send-and-wait-for-prompt)
 
@@ -5807,10 +5854,34 @@ function prompt {
   (mistty-send-text "bar")
 
   ;; Some of the deleted prompts reappeared, because a change before
-  ;; Prompt: was detected.
+  ;; Prompt: was detected; the recovery goes a little too far.
   (should (equal "$ echo 19\n19\n$ prompt\n====\n==== ----\nPrompt: bar"
                  (mistty-test-content
                   :start (mistty-test-pos "$ echo 19")))))
+
+(mistty-deftest
+    mistty-test-recovery-clear-before-prompt-removed-almost-everything-before-prompt/alacritty
+    (:shell ((bash mistty-test-clear-before-prompt)) :type alacritty)
+  (mistty-send-text "echo keep me")
+  (mistty-send-and-wait-for-prompt)
+
+  (dotimes (i 20)
+    (mistty-send-text (format "echo %d" i))
+    (mistty-send-and-wait-for-prompt))
+
+  (delete-region (mistty-test-pos "$ echo 1")
+                 (mistty-test-pos-after "\n19"))
+
+  (mistty-send-text "prompt")
+  (mistty-send-command)
+  (mistty-wait-for-output :str "Prompt: ")
+  (mistty--realize-possible-prompt
+   (mistty--detect-possible-prompt))
+  (mistty-send-text "bar")
+
+  ;; The deleted prompts stay deleted.
+  (should (equal "$ echo keep me\nkeep me\n$ echo 0\n0\n\n$ prompt\n====\n==== ----\nPrompt: bar"
+                 (mistty-test-content))))
 
 (mistty-deftest mistty-issue47 (:type all :shell ((bash "
 function prompt {

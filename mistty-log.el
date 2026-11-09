@@ -131,8 +131,7 @@ returned by `float-time'. It defaults to the current time.
 
 Calling this function creates `mistty-log-buffer' if it doesn't
 exit already."
-  (let ((event-time (or event-time (float-time)))
-        (calling-buffer (current-buffer)))
+  (let ((event-time (or event-time (float-time))))
     (cond
 
      ;; not enabled; add to backlog
@@ -152,7 +151,7 @@ exit already."
         (setq-local window-point-insertion-type t)
         (goto-char (point-max))
         (insert-before-markers
-         (propertize (mistty--log-header event-time calling-buffer)
+         (propertize (mistty--log-header event-time)
                      'face 'mistty-log-header-face))
         (insert-before-markers
          (propertize
@@ -165,7 +164,7 @@ exit already."
      ;; enabled; batch: output
      ((and mistty-log mistty-log-to-messages)
       (message "%s %s"
-               (mistty--log-header event-time calling-buffer)
+               (mistty--log-header event-time)
                (mistty--log-format format-str args))))))
 
 (defun mistty--log-format (format-str args)
@@ -180,15 +179,15 @@ This is used to include terminal data."
         (print-length nil))
     (apply #'format format-str args)))
 
-(defun mistty--log-header (event-time buf)
+(defun mistty--log-header (event-time)
   "Format a header for the function `mistty-log'.
 
-The header include EVENT-TIME and the name of BUF."
-  (format "[%s] %3.3f "
-          (buffer-name buf)
-          (- event-time
-             (or mistty--log-start-time
-                 (setq mistty--log-start-time event-time)))))
+The header include EVENT-TIME in microseconds."
+  (format "%06d "
+          (round (* (- event-time
+                (or mistty--log-start-time
+                    (setq mistty--log-start-time event-time)))
+                    100000))))
 
 (defmacro mistty-with-errors-logged (context &rest body)
   "Catch and log errors thrown in CONTEXT while evaluating BODY.

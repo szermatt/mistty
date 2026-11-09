@@ -348,7 +348,7 @@ CURSOR-MARKER is updated to the cursor position."
                 (save-excursion
                   (mistty-log "RENDER FULLSCREEN")
                   (goto-char sync-pos)
-                  (mistty-alacritty-vt-render-screen vterm cursor-marker)
+                  (mistty-alacritty-vt-render-screen vterm cursor-marker 0)
                   (put-text-property sync-pos (point-max) 'read-only t)))
 
             ;; normal mode, with support for prompts

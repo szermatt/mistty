@@ -243,6 +243,9 @@ fn scrollback_line_count(term: &VTermFacade) -> Result<usize> {
 /// the scrollback lines, then the screen itself. Scrollback kept
 /// terminal-side is cleared.
 ///
+/// SKIP_ABOVE, a scrolline, tells render to skip rendering of
+/// everything below that scrolline. Set it to 0 to not skip anything.
+///
 /// `cursor_marker` is set to the cursor position.
 ///
 /// The point is not conserved. Wrap this call inside a
@@ -256,8 +259,9 @@ pub(crate) fn render<'a>(
     env: &'a Env,
     term: &mut VTermFacade,
     cursor_marker: Value,
+    skip_above: usize,
 ) -> Result<Value<'a>> {
-    let result = render::render(env, &mut term.vterm, cursor_marker)?;
+    let result = render::render(env, &mut term.vterm, cursor_marker, Scrolline(skip_above))?;
 
     Ok(result)
 }

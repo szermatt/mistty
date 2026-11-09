@@ -1,4 +1,5 @@
 use crate::gridext::{self, CellExt, RowExt};
+use crate::types::Scrolline;
 use crate::vterm::{RenderIndex, VTerm};
 use crate::{gridext::GridExt, types::BufferPos};
 use alacritty_terminal::{
@@ -187,24 +188,34 @@ pub(crate) fn render<'a>(
     env: &'a Env,
     term: &mut VTerm,
     cursor_marker: Value,
+    skip_above: Scrolline,
 ) -> Result<Value<'a>> {
-    let mut unfinished_lines = 0;
-    for row in term.scrollback_rows().rev() {
-        if row.is_wrapped() {
-            unfinished_lines += 1;
-        } else {
-            break;
-        }
+    let screen_top = term.scrolline_at_screen_top();
+    if skip_above < screen_top {
+        write_scrollback(
+            env,
+            term,
+            term.scrolline_range(max(term.base_scrolline(), skip_above), screen_top)
+                .map(|(_, row)| row),
+        )?;
     }
-    let scrollback_lines = term.scrollback_row_count() - unfinished_lines;
-    write_scrollback(env, term, term.scrollback_rows().take(scrollback_lines))?;
-    term.retain_scrollback_lines(unfinished_lines);
+
+    term.flush_scrollback();
+    // Some rows may remain in scrollback after flushing that are part
+    // of the 1st scrolline; they should be rendered as terminal rows.
+    let mut first_line = Line(-(term.scrollback_row_count() as i32));
+
+    if skip_above > screen_top {
+        first_line = term
+            .terminal_line_for_scrolline(skip_above)
+            .unwrap_or(term.bottommost_line() + 1);
+    }
 
     let mut render = Render::init(env, term)?;
-    render.render(Line(-(unfinished_lines as i32)))?;
+    render.render(first_line)?;
     render.move_cursor_marker(cursor_marker)?;
 
-    env.cons(render.start, term.base_scrolline())
+    env.cons(render.start, max(screen_top, skip_above))
 }
 
 /// Render the terminal content on the current buffer.
@@ -290,11 +301,12 @@ impl<'a> Render<'a> {
             let mut line_at_point = first_line_to_render;
             for line in damage
                 .into_iter()
-                .filter(|l| *l <= last_line_to_render)
+                .filter(|l| *l >= first_line_to_render && *l <= last_line_to_render)
                 .chain(
                     // Render lines past last_written, as necessary to
                     // render the cursor line.
-                    (last_line_to_render.0 + 1..=cursor_line.0).map(Line),
+                    (max(first_line_to_render.0, last_line_to_render.0 + 1)..=cursor_line.0)
+                        .map(Line),
                 )
             {
                 let line_pos = BufferPos::bol(env, line - line_at_point)?;
@@ -311,14 +323,19 @@ impl<'a> Render<'a> {
                 env.call(
                     delete_region,
                     (
-                        BufferPos::bol(env, actual_last_line + 1 - line_at_point)?,
+                        BufferPos::bol(
+                            env,
+                            max(first_line_to_render, actual_last_line + 1) - line_at_point,
+                        )?,
                         BufferPos::point_max(env)?,
                     ),
                 )?;
             }
         } else {
             env.call(delete_region, (self.start, BufferPos::point_max(env)?))?;
-            self.render_lines(first_line_to_render, actual_last_line + 1)?;
+            if first_line_to_render <= actual_last_line {
+                self.render_lines(first_line_to_render, actual_last_line + 1)?;
+            }
         }
         let index = self.term.next_render_index();
         self.write_tag(env, RenderTag::new(index, first_line_to_render))?;
@@ -342,10 +359,12 @@ impl<'a> Render<'a> {
     /// Write a tag at the beginning of the rendered region to be used
     /// by the next operation.
     fn write_tag(&mut self, env: &Env, tag: RenderTag) -> Result<()> {
-        env.call(
-            put_text_property,
-            (self.start, self.start + 1, mistty_render_tag_sym, tag),
-        )?;
+        if BufferPos::point_max(env)? > self.start {
+            env.call(
+                put_text_property,
+                (self.start, self.start + 1, mistty_render_tag_sym, tag),
+            )?;
+        }
         Ok(())
     }
 

@@ -120,7 +120,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-make-vterm nil (w h options-plist))
 (declare-function mistty-alacritty-vt-mouse-seq nil (term action button mods line column))
 (declare-function mistty-alacritty-vt-process-bytes nil (term bytes))
-(declare-function mistty-alacritty-vt-render nil (term cursor))
+(declare-function mistty-alacritty-vt-render nil (term cursor skip_above))
 (declare-function mistty-alacritty-vt-render-screen nil (term cursor))
 (declare-function mistty-alacritty-vt-resize nil (term w h))
 (declare-function mistty-alacritty-vt-scrollback-line-count nil (term))
@@ -370,7 +370,7 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
   (save-excursion
     (goto-char mistty-alacritty--home)
     (pcase-let ((`(,screen-top . ,scrollines)
-                 (mistty-alacritty-vt-render vterm mistty-alacritty--cursor)))
+                 (mistty-alacritty-vt-render vterm mistty-alacritty--cursor 0)))
       (mistty-log "RENDER @%s (+%s)"
                   mistty--scrolline-home-num
                   (- scrollines mistty--scrolline-home-num))

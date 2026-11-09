@@ -30,7 +30,7 @@
         (insert "---\n") ; before point; will not be overwritten
         (save-excursion
           (insert "===\n")) ; after point; will be overwritten
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -47,6 +47,173 @@
            "9<>\n")
           (mistty-test-content :trim nil :show cursor))))))
 
+(mistty-deftest mistty-alacritty-vt-render-skip-above-screen (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    ;; fill the screen with 10 lines (0 to 9)
+    (mistty-alacritty-vt-process-bytes term "\r0 ")
+    (dotimes (i 9)
+      (mistty-alacritty-vt-process-bytes term (format "\r\n%d" (1+ i))))
+    (ert-with-test-buffer ()
+      ;; skip above line 4 (lines 0..3 are skipped)
+      (should (equal (cons (point-min) 4)
+                     (mistty-alacritty-vt-render term cursor 4)))
+      (should
+       (equal
+        (concat
+         "4\n"
+         "5\n"
+         "6\n"
+         "7\n"
+         "8\n"
+         "9<>\n")
+        (mistty-test-content :trim nil :show cursor))))
+
+    ;; skip above line 8 (lines 0..7 are skipped)
+    (erase-buffer)
+    (should (equal (cons (point-min) 8)
+                   (mistty-alacritty-vt-render term cursor 8)))
+    (should
+     (equal
+      (concat
+       "8\n"
+       "9<>\n")
+      (mistty-test-content :trim nil :show cursor)))))
+
+(mistty-deftest mistty-alacritty-vt-render-skip-above-damage (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-process-bytes term "\r0")
+    (dotimes (i 9)
+      (mistty-alacritty-vt-process-bytes term (format "\r\n%d" (1+ i))))
+    (ert-with-test-buffer ()
+      ;; First render skipping lines 0..3
+      (should (equal (cons (point-min) 4)
+                     (mistty-alacritty-vt-render term cursor 4)))
+      (should
+       (equal
+        "4\n5\n6\n7\n8\n9<>\n"
+        (mistty-test-content :trim nil :show cursor)))
+
+      ;; Mark existing text with a property to detect re-rendering
+      (put-text-property (point-min) (point-max) 'existing 1)
+
+      ;; Modify line 6 on the screen
+      ;; Cursor is on line 9. Move 3 lines up (\e[3A) to line 6, write "x"
+      (mistty-alacritty-vt-process-bytes term "\e[3A\rx")
+      (goto-char (point-min))
+      (should (equal (cons (point-min) 4)
+                     (mistty-alacritty-vt-render term cursor 4)))
+      (should
+       (equal
+        "[4\n5\n]x<>\n[7\n8\n]9\n"
+        (mistty-test-content :trim nil :show cursor :show-property '(existing 1))))
+
+      ;; Now modify line 1, which is above skip_above (4)
+      (mistty-alacritty-vt-process-bytes term "\e[5A\ry")
+      (goto-char (point-min))
+      (should (equal (cons (point-min) 4)
+                     (mistty-alacritty-vt-render term cursor 4)))
+      (should
+       (equal
+        "4\n5\nx\n7\n8\n9\n"
+        (mistty-test-content :trim nil))))))
+
+(mistty-deftest mistty-alacritty-vt-render-skip-above-scrollback (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-enable-scrollback term)
+    ;; Write 20 lines (0 to 19): 10 in scrollback (0..9), 10 on screen (10..19)
+    (mistty-alacritty-vt-process-bytes term "\r0")
+    (dotimes (i 19)
+      (mistty-alacritty-vt-process-bytes term (format "\r\n%d" (1+ i))))
+    (ert-with-test-buffer ()
+      ;; skip above line 5: scrollback 0..4 skipped, 5..9 rendered, screen 10..19 rendered
+      (should (equal (cons 11 10)
+                     (mistty-alacritty-vt-render term cursor 5)))
+      ;; Screen begins after "5\n6\n7\n8\n9\n" (which is 10 chars, 1-based pos 11)
+      (should
+       (equal
+        (concat
+         "5\n6\n7\n8\n9\n"
+         "10\n11\n12\n13\n14\n15\n16\n17\n18\n19<>\n")
+        (mistty-test-content :trim nil :show cursor)))))
+
+  ;; Now test skipping all scrollback (skip_above = screen_top = 10)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-enable-scrollback term)
+    (mistty-alacritty-vt-process-bytes term "\r0")
+    (dotimes (i 19)
+      (mistty-alacritty-vt-process-bytes term (format "\r\n%d" (1+ i))))
+    (ert-with-test-buffer ()
+      (should (equal (cons (point-min) 10)
+                     (mistty-alacritty-vt-render term cursor 10)))
+      (should
+       (equal
+        "10\n11\n12\n13\n14\n15\n16\n17\n18\n19<>\n"
+        (mistty-test-content :trim nil :show cursor))))))
+
+(mistty-deftest mistty-alacritty-vt-render-skip-above-wrapped-lines (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 10 10 nil))
+        (cursor (make-marker)))
+    (mistty-alacritty-vt-enable-scrollback term)
+    ;; Line 0: wraps into 2 terminal lines
+    (mistty-alacritty-vt-process-bytes term "0123456789abcde\r\n")
+    ;; Line 1: normal line
+    (mistty-alacritty-vt-process-bytes term "line 1\r\n")
+    ;; Line 2: wraps into 2 terminal lines
+    (mistty-alacritty-vt-process-bytes term "fghijklmnofghij\r\n")
+    ;; Line 3: normal line
+    (mistty-alacritty-vt-process-bytes term "line 3")
+    (ert-with-test-buffer ()
+      ;; Skip above scrolline 1: skips wrapped line 0, renders line 1, wrapped line 2, line 3
+      (should (equal (cons (point-min) 1)
+                     (mistty-alacritty-vt-render term cursor 1)))
+      (should
+       (equal
+        (concat
+         "line 1\n"
+         "fghijklmno\nfghij\n"
+         "line 3<>\n")
+        (mistty-test-content :trim nil :show cursor)))
+
+      ;; Skip above scrolline 2: skips line 0 and line 1, renders wrapped line 2 and line 3
+      (erase-buffer)
+      (should (equal (cons (point-min) 2)
+                     (mistty-alacritty-vt-render term cursor 2)))
+      (should
+       (equal
+        (concat
+         "fghijklmno\nfghij\n"
+         "line 3<>\n")
+        (mistty-test-content :trim nil :show cursor))))))
+
+(mistty-deftest mistty-alacritty-vt-render-skip-above-beyond (:features mistty-alacritty-vt :shell none)
+  (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
+        (cursor (make-marker)))
+    ;; Fill only 5 lines (0 to 4)
+    (mistty-alacritty-vt-process-bytes term "\r0")
+    (dotimes (i 4)
+      (mistty-alacritty-vt-process-bytes term (format "\r\n%d" (1+ i))))
+    (ert-with-test-buffer ()
+      ;; skip above line 4 (the cursor/last-written line): only line 4 is rendered
+      (should (equal (cons (point-min) 4)
+                     (mistty-alacritty-vt-render term cursor 4)))
+      (should (equal "4<>\n" (mistty-test-content :trim nil :show cursor)))
+
+      ;; skip above line 6 (beyond last written line & cursor, but within screen height)
+      (erase-buffer)
+      (should (equal (cons (point-min) 6)
+                     (mistty-alacritty-vt-render term cursor 6)))
+      (should (equal "" (mistty-test-content :trim nil)))
+
+      ;; skip above line 50 (beyond total screen lines)
+      (erase-buffer)
+      (should (equal (cons (point-min) 50)
+                     (mistty-alacritty-vt-render term cursor 50)))
+      (should (equal "" (mistty-test-content :trim nil))))))
+
 (mistty-deftest mistty-alacritty-vt-render-to-last-nonblank (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     ;; fill the screen
@@ -56,7 +223,7 @@
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
         ;; render only up to the last written line
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -72,7 +239,7 @@
         ;; now be rendered.
         (mistty-alacritty-vt-process-bytes term "\e[3B")
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -90,7 +257,7 @@
         ;; The cursor comes back up, so blank lines disappear.
         (mistty-alacritty-vt-process-bytes term "\e[3A")
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -105,7 +272,7 @@
         ;; The number of written lines shrink
         (mistty-alacritty-vt-process-bytes term "\e[2A\e[0J")
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -118,7 +285,7 @@
         ;; The number of written lines expands
         (mistty-alacritty-vt-process-bytes term "\r\n4\r\n5\r\n6")
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -140,7 +307,7 @@
     (goto-char (point-min))
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -159,7 +326,7 @@
         ;; move cursor 3 lines up, 2 columns right
         (mistty-alacritty-vt-process-bytes term "\e[3A\e[2C")
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -204,7 +371,7 @@
                       (nth 0 entry)
                       (nth 1 entry)
                       (symbol-name (nth 2 entry)))))
-      (mistty-alacritty-vt-render term (make-marker))
+      (mistty-alacritty-vt-render term (make-marker) 0)
       (turtles-with-grab-buffer ()
         (goto-char (point-min))
         (dolist (entry colors)
@@ -220,7 +387,7 @@
  (ert-with-test-buffer ()
    (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes term "\e[31mred\e[0m, \e[37m\e[42mgreen\e[0m, \e[34mblue\e[0m.")
-    (mistty-alacritty-vt-render term (make-marker))
+    (mistty-alacritty-vt-render term (make-marker) 0)
     (turtles-with-grab-buffer ()
       (goto-char (point-min))
       (should
@@ -255,7 +422,7 @@
     (mistty-alacritty-vt-process-bytes
      term "\e[38;2;237;237;216m\e[48;2;97;35;196mcolorful\e[0m!")
     (goto-char (point-min))
-    (mistty-alacritty-vt-render term (make-marker))
+    (mistty-alacritty-vt-render term (make-marker) 0)
     (turtles-with-grab-buffer ()
       (goto-char (point-min))
       (should
@@ -273,7 +440,7 @@
  (ert-with-test-buffer ()
    (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-process-bytes term "\e[1mbold, \e[3mitalic\e[0m,\r\n\e[4munderline\e[0m,\r\n\e[7minverse\e[0m.")
-    (mistty-alacritty-vt-render term (make-marker))
+    (mistty-alacritty-vt-render term (make-marker) 0)
 
     (goto-char (point-min))
     (should
@@ -306,7 +473,7 @@
              "\e[0mline4---------------\r\n"))
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
           (should
            (equal (concat "line1---------------\n"
                           "line2---------------\n"
@@ -364,7 +531,7 @@
     (goto-char (point-min))
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -383,7 +550,7 @@
         ;; move cursor 3 lines up, 2 columns right
         (mistty-alacritty-vt-process-bytes term "\r\e[3A\e[2Cmodified\r\e[2A\e[2C")
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -411,7 +578,7 @@
     (mistty-alacritty-vt-process-bytes term "\e[1ma\e[0m\xF0\x9F\x9F\xA7\e[4msquare\e[0m!\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         ;; Alacritty puts fake columns around wide chars to keep the column aligned. Make
         ;; sure these don't appear in the Emacs text.
         (should
@@ -440,7 +607,7 @@
                   "\e[0m\r\nline 2"))
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (turtles-with-grab-buffer ()
           (should
            (equal "line1             \U0001F7E7\nline 2"
@@ -470,7 +637,7 @@
                   "\e[0m\r\nline 2"))
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (turtles-with-grab-buffer ()
           (should
            (equal "line1             \u26a0\ufe0f\nline 2"
@@ -501,7 +668,7 @@
                   "\r\nline 2"))
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         ;; This test makes sure that the line is wrapped at the right
         ;; place, exactly after the unicode character, which takes 2
         ;; columns.
@@ -516,7 +683,7 @@
      term (concat "A " (encode-coding-string "\u26a0\ufe0f" 'utf-8) "! Something is wrong.\r\n"))
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
 
         (should (equal "A \u26a0\ufe0f! Something is wrong." (mistty-test-content)))
         (mistty-test-goto " Something")
@@ -528,7 +695,7 @@
     (mistty-alacritty-vt-process-bytes term "<\t> !\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should (equal "<       > !" (mistty-test-content)))))))
 
 (mistty-deftest mistty-alacritty-vt-render-unicode-combining-characters (:features mistty-alacritty-vt :shell none)
@@ -536,7 +703,7 @@
     (mistty-alacritty-vt-process-bytes term "\e[1mc'e\xcc\x81tait\e[0m \e[4ml'e\xcc\x81te\xcc\x81\e[0m!\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         ;; The following makes sure that the text properties are
         ;; applied to the right portion of the text, despite the
         ;; calculations being possibly thrown off by and é (e\u0301)
@@ -557,7 +724,7 @@
      term "https://example.com/\xe2\x80\x8b\e[1mvery\e[0m/\xe2\x80\x8blong/\xe2\x80\x8b\e[1mpath\e[0m.\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         ;; The zerowidth chars must be there. They must not have
         ;; thrown off the text property computations.
         (should
@@ -574,7 +741,7 @@
      "\e[1m\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7\e[0m.\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         ;; The joiner must not have thrown off the text property
         ;; computations (no matter how alacritty decided to render
         ;; it.)
@@ -597,7 +764,7 @@
       (let ((cursor (make-marker))
             (screen-top (copy-marker (point-min))))
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (should (equal (point-min) new-top)))
         (should
@@ -622,7 +789,7 @@
         ;; of the buffer
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 2 scrollines))
           (should (> new-top screen-top))
           (set-marker screen-top new-top))
@@ -652,7 +819,7 @@
         ;; are written, so 5 scrollines.
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 5 scrollines))
           (should (> new-top screen-top))
           (set-marker screen-top new-top))
@@ -692,7 +859,7 @@
       (mistty-alacritty-vt-process-bytes vterm (format "\r\n%d" i)))
 
     (ert-with-test-buffer ()
-      (let ((screen-top (car (mistty-alacritty-vt-render vterm (make-marker)))))
+      (let ((screen-top (car (mistty-alacritty-vt-render vterm (make-marker) 0))))
         (should (equal "  foo  bar   \n"
                        (buffer-substring-no-properties (point-min) screen-top)))))))
 
@@ -708,7 +875,7 @@
 
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render vterm cursor)
+        (mistty-alacritty-vt-render vterm cursor 0)
         (should
          (equal
           (concat
@@ -730,7 +897,7 @@
 
         (goto-char (point-min))
         (pcase-let ((`(,new-top . ,scollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           ;; There's no scrollback to write
           (should (equal 0 scollines))
           (should (equal (point-min) new-top)))
@@ -764,7 +931,7 @@
     (mistty-alacritty-vt-process-bytes vterm "\r\nand one for the Dame")
 
     (ert-with-test-buffer ()
-      (mistty-alacritty-vt-render vterm cursor)
+      (mistty-alacritty-vt-render vterm cursor 0)
       (should (equal
        (concat
         "Baa, baa, [\n]black shee[\n]p have you[\n] any wool?[\n] Yes sir, [\n]yes, sir t[\n]hree bags [\n]full!\n"
@@ -803,7 +970,7 @@
     (ert-with-test-buffer ()
       (goto-char (point-min))
       (pcase-let ((`(,new-top . ,scollines)
-                   (mistty-alacritty-vt-render vterm (make-marker))))
+                   (mistty-alacritty-vt-render vterm (make-marker) 0)))
         (should (equal 3 scollines))
         (should (equal
                  (concat
@@ -827,7 +994,7 @@
     (mistty-alacritty-vt-process-bytes term "\r\n12")
     (should (equal 3 (mistty-alacritty-vt-scrollback-line-count term)))
     (ert-with-test-buffer ()
-      (mistty-alacritty-vt-render term (make-marker)))
+      (mistty-alacritty-vt-render term (make-marker) 0))
     (should (equal 0 (mistty-alacritty-vt-scrollback-line-count term)))))
 
 (mistty-deftest mistty-alacritty-vt-cursor (:features mistty-alacritty-vt :shell none)
@@ -854,14 +1021,14 @@
             (screen-top (copy-marker (point-min))))
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scollines))
           (set-marker screen-top new-top))
         (dotimes (i 4)
           (mistty-alacritty-vt-process-bytes vterm (format "\r\n%d" i))
           (goto-char screen-top)
           (set-marker
-           screen-top (car (mistty-alacritty-vt-render vterm cursor))))
+           screen-top (car (mistty-alacritty-vt-render vterm cursor 0))))
         (should
          (equal
           (concat
@@ -886,7 +1053,7 @@
         (mistty-alacritty-vt-process-bytes vterm "\r\n4")
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
         (should (equal 1 (mistty-alacritty-vt-scrollback-line-count vterm)))
@@ -911,7 +1078,7 @@
         (mistty-alacritty-vt-process-bytes vterm "\r\n5")
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
         (should (equal 2 (mistty-alacritty-vt-scrollback-line-count vterm)))
@@ -937,7 +1104,7 @@
         (mistty-alacritty-vt-process-bytes vterm "\r\n6")
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
         (should (equal 3 (mistty-alacritty-vt-scrollback-line-count vterm)))
@@ -966,7 +1133,7 @@
         (mistty-alacritty-vt-process-bytes vterm "\r\n7")
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 1 scrollines))
           (set-marker screen-top new-top))
         (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
@@ -991,7 +1158,7 @@
         (mistty-alacritty-vt-process-bytes vterm "\r\n8")
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 2 scrollines))
           (set-marker screen-top new-top))
         (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
@@ -1024,7 +1191,7 @@
       (let ((screen-top (copy-marker (point-min))))
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
         (let ((expected (concat
@@ -1045,7 +1212,7 @@
           ;; Re-render without byte changes: the unfinished line must still be present and identical
           (goto-char screen-top)
           (pcase-let ((`(,new-top . ,scrollines)
-                       (mistty-alacritty-vt-render vterm cursor)))
+                       (mistty-alacritty-vt-render vterm cursor 0)))
             (should (equal 0 scrollines))
             (set-marker screen-top new-top))
           (should (equal expected (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))
@@ -1054,7 +1221,7 @@
           ;; Re-render again
           (goto-char screen-top)
           (pcase-let ((`(,new-top . ,scrollines)
-                       (mistty-alacritty-vt-render vterm cursor)))
+                       (mistty-alacritty-vt-render vterm cursor 0)))
             (should (equal 0 scrollines))
             (set-marker screen-top new-top))
           (should (equal expected (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))
@@ -1072,7 +1239,7 @@
         (goto-char screen-top)
         ;; 1. render with unfinished line spanning scrollback (Line -1) and terminal
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
         (should (equal (concat
@@ -1110,7 +1277,7 @@
         ;; required again even though there was no damage.
         (goto-char (point-min))
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
         (should (equal (concat
@@ -1138,7 +1305,7 @@
       (let ((screen-top (copy-marker (point-min))))
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
 
@@ -1148,7 +1315,7 @@
         (mistty-alacritty-vt-process-bytes vterm " mod")
         (goto-char screen-top)
         (pcase-let ((`(,new-top . ,scrollines)
-                     (mistty-alacritty-vt-render vterm cursor)))
+                     (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
 
@@ -1171,7 +1338,7 @@
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
     (ert-with-test-buffer ()
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should (equal
                (concat "<>\n")
                (mistty-test-content
@@ -1186,7 +1353,7 @@
       ;; removed, unless the cursor is on that point.
       (mistty-alacritty-vt-process-bytes term "\e[2Chello,  \e[2Cworld. \r\n")
       (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should (equal
                (concat "[  ]hello,  [  ]world. \n"
                        "<>\n")
@@ -1198,7 +1365,7 @@
       ;; mistty-clear must be reset when cells are cleared
       (mistty-alacritty-vt-process-bytes term "\e[H\e[2J")
       (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should (equal
                (concat "<>\n")
                (mistty-test-content
@@ -1215,7 +1382,7 @@
       ;; and \e[22m must not clear DIM (but they must clear BOLD).
       (mistty-alacritty-vt-process-bytes
        term "\e[1mf\e[0moo\r\n\e[1mb\e[22mar\r\n\e[2mnot dim\e[0m\r\n")
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
 
       (should (equal
                (concat "foo\n"
@@ -1237,7 +1404,7 @@
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-process-bytes term "Baa, baa, black sheep have you any wool?\r\n")
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should (equal
                (concat "Baa, baa, black shee\n"
                        "p have you any wool?\n"
@@ -1246,7 +1413,7 @@
 
       (mistty-alacritty-vt-resize term 30 8)
       (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should (equal
                (concat "Baa, baa, black sheep have you\n"
                        " any wool?\n"
@@ -1268,12 +1435,12 @@
       (dotimes (i 4)
         (mistty-alacritty-vt-process-bytes term (format "\r\n%d" i)))
       (mistty-alacritty-vt-process-bytes term "\r\n4")
-      (setq scree-top (mistty-alacritty-vt-render term cursor))
+      (setq screen-top (car (mistty-alacritty-vt-render term cursor 0)))
       (should (equal 1 (mistty-alacritty-vt-scrollback-line-count term)))
       (should
        (equal
         (concat
-         "Baa, baa, black shee[\n]"
+         "<>Baa, baa, black shee[\n]"
          "p have you any wool?[\n]"
          " Yes sir, yes, sir t[\n]"
          "hree bags full!\n"
@@ -1289,7 +1456,7 @@
 
       (mistty-alacritty-vt-resize term 30 10)
       (goto-char (point-min))
-      (setq screen-top (car (mistty-alacritty-vt-render term cursor)))
+      (setq screen-top (car (mistty-alacritty-vt-render term cursor 0)))
       (should (equal 0 (mistty-alacritty-vt-scrollback-line-count term)))
       (should
        (equal
@@ -1309,7 +1476,7 @@
 
       (mistty-alacritty-vt-resize term 15 10)
       (goto-char (point-min))
-      (setq screen-top (car (mistty-alacritty-vt-render term cursor)))
+      (setq screen-top (car (mistty-alacritty-vt-render term cursor 0)))
       (should (equal 4 (mistty-alacritty-vt-scrollback-line-count term)))
       (should
        (equal
@@ -1338,7 +1505,7 @@
       (mistty-alacritty-vt-resize term 10 10)
 
       (goto-char (point-min))
-      (setq screen-top (car (mistty-alacritty-vt-render term cursor)))
+      (setq screen-top (car (mistty-alacritty-vt-render term cursor 0)))
       (should
        (equal
         (concat
@@ -1363,7 +1530,7 @@
         (cursor (make-marker)))
     (ert-with-test-buffer ()
       (mistty-alacritty-vt-process-bytes term "foo     \r\nbar          \r\n")
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should (equal
                (concat "foo     \n"
                        "bar          \n"
@@ -1376,7 +1543,7 @@
       (mistty-alacritty-vt-clear-to-eol term 0 5)
       (mistty-alacritty-vt-clear-to-eol term 1 3)
       (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
 
       (should (equal
                (concat "foo  \n"
@@ -1398,14 +1565,14 @@
       (mistty-alacritty-vt-process-bytes term "\xF0\x9F\x9F\xA7(1)    \r\n")
       ;; combining chars (2 chars, 1 column)
       (mistty-alacritty-vt-process-bytes term "e\xcc\x81te\xcc\x81(2)    \r\n")
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
 
       (let ((one (mistty-test-pos-after "(1)"))
             (two (mistty-test-pos-after "(2)")))
         (mistty-alacritty-vt-clear-to-eol term 0 (- one (mistty--bol one)))
         (mistty-alacritty-vt-clear-to-eol term 1 (- two (mistty--bol two)))
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
 
         (should (equal
                  (concat
@@ -1421,7 +1588,7 @@
       (mistty-alacritty-vt-process-bytes
        term
        "$ for i in a b c\r\n\e[3Cecho\e[2C$i\r\n\e[3C")
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should
        (equal
         (concat
@@ -1435,7 +1602,7 @@
        term
        "call\e[2C$i\r\ndone")
       (goto-char (point-min))
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should
        (equal
         (concat
@@ -1458,7 +1625,7 @@
              "\e[21G> right\e[1G$ echo foo\r\n"
              "\e[24G> right\e[1G"))
     (ert-with-test-buffer ()
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -1498,7 +1665,7 @@
       (mistty-alacritty-vt-process-bytes
        term
        "hello \e]8;;http://www.example.com/world\e\\world\e]8;;\e\\ !")
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (goto-char (point-min))
       (search-forward "world")
       (let* ((hello-beg (match-beginning 0))
@@ -1519,7 +1686,7 @@
        term
        (concat "\e]8;;http://www.example.com/hello\e\\hello \e]8;;\e\\"
                "\e]8;;http://www.example.com/world\e\\world\e]8;;\e\\ !"))
-      (mistty-alacritty-vt-render term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (goto-char (point-min))
       (search-forward "hello")
       (should (equal "http://www.example.com/hello" (button-get (button-at (match-beginning 0)) 'browse-url-data)))
@@ -1537,7 +1704,7 @@
              '((title "window-title"))
              (mistty-alacritty-vt-collect-changes term)))
     (ert-with-test-buffer ()
-       (mistty-alacritty-vt-render term cursor)
+       (mistty-alacritty-vt-render term cursor 0)
        (should (equal "foobar" (mistty-test-content))))))
 
 (mistty-deftest mistty-alacritty-vt-osc52-update-kill-ring (:features mistty-alacritty-vt :shell none)
@@ -1632,7 +1799,7 @@
     (mistty-alacritty-vt-process-bytes term "baa, baa\r\nblack sheep\r\nhave you any wool?\r\n")
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -1645,7 +1812,7 @@
         (mistty-alacritty-vt-process-bytes term "yes, sir!")
         (put-text-property (point-min) (point-max) 'existing 1)
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -1659,7 +1826,7 @@
         (mistty-alacritty-vt-process-bytes term "\r\e[2A\e[6Ctiger")
         (put-text-property (point-min) (point-max) 'existing 2)
         (goto-char (point-min))
-        (mistty-alacritty-vt-render term cursor)
+        (mistty-alacritty-vt-render term cursor 0)
         (should
          (equal
           (concat
@@ -1680,7 +1847,7 @@
                 (cursor (make-marker)))
             (with-current-buffer bufa
               (goto-char (point-min))
-              (mistty-alacritty-vt-render term cursor)
+              (mistty-alacritty-vt-render term cursor 0)
               (should
                (equal
                 (concat
@@ -1695,7 +1862,7 @@
             (with-current-buffer bufb
               (mistty-alacritty-vt-process-bytes term "yes, sir!\r\n")
               (goto-char (point-min))
-              (mistty-alacritty-vt-render term cursor)
+              (mistty-alacritty-vt-render term cursor 0)
               (should
                (equal
                 (concat
@@ -1710,7 +1877,7 @@
             (with-current-buffer bufb
               (mistty-alacritty-vt-process-bytes term "yes, sir!\r\n")
               (goto-char (point-min))
-              (mistty-alacritty-vt-render term cursor)
+              (mistty-alacritty-vt-render term cursor 0)
               (should
                (equal
                 (concat
@@ -1726,7 +1893,7 @@
             (with-current-buffer bufa
               (mistty-alacritty-vt-process-bytes term "three bags full!\r\n")
               (goto-char (point-min))
-              (mistty-alacritty-vt-render term cursor)
+              (mistty-alacritty-vt-render term cursor 0)
               (should
                (equal
                 (concat
@@ -1830,7 +1997,7 @@
 
     (ert-with-test-buffer ()
       (goto-char (point-min))
-      (let ((screen-top (car (mistty-alacritty-vt-render vterm cursor))))
+      (let ((screen-top (car (mistty-alacritty-vt-render vterm cursor 0))))
         (should (equal
                  (concat
                   "Baa, baa, black sheep\n"
@@ -2094,7 +2261,7 @@
 
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
-        (mistty-alacritty-vt-render vterm cursor)
+        (mistty-alacritty-vt-render vterm cursor 0)
         (should
          (equal "11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n"
                 (mistty-test-content :trim nil)))))))

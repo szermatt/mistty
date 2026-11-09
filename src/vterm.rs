@@ -509,8 +509,22 @@ impl VTerm {
         self.base_scrolline = new_base;
     }
 
+    /// Remove everything but the beginning of the first scrolline
+    /// from scrollback.
+    pub(crate) fn flush_scrollback(&mut self) {
+        let mut unfinished_lines = 0;
+        for row in self.scrollback_rows().rev() {
+            if row.is_wrapped() {
+                unfinished_lines += 1;
+            } else {
+                break;
+            }
+        }
+        self.retain_scrollback_lines(unfinished_lines);
+    }
+
     /// Clear scrollback, but keep the last `line_count` lines.
-    pub(crate) fn retain_scrollback_lines(&mut self, line_count: usize) {
+    fn retain_scrollback_lines(&mut self, line_count: usize) {
         let total = self.scrollback_row_count();
         if line_count >= total {
             return;

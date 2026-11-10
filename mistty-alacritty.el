@@ -116,6 +116,7 @@ for some reason."
 (declare-function mistty-alacritty-vt-cursor nil (term))
 (declare-function mistty-alacritty-vt-enable-scrollback nil (term))
 (declare-function mistty-alacritty-vt-end-regexp-prompt nil (term))
+(declare-function mistty-alacritty-vt-flush-scrollback nil (term))
 (declare-function mistty-alacritty-vt-kitty-key-seq nil (term key mods basic-type))
 (declare-function mistty-alacritty-vt-make-vterm nil (w h options-plist))
 (declare-function mistty-alacritty-vt-mode-alist nil (term))
@@ -372,6 +373,7 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
     (goto-char mistty-alacritty--home)
     (pcase-let ((`(,screen-top . ,scrollines)
                  (mistty-alacritty-vt-render vterm mistty-alacritty--cursor 0)))
+      (mistty-alacritty-vt-flush-scrollback vterm)
       (mistty-log "RENDER @%s (+%s)"
                   mistty--scrolline-home-num
                   (- scrollines mistty--scrolline-home-num))

@@ -767,6 +767,7 @@
                      (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (should (equal (point-min) new-top)))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should
          (equal
           (concat
@@ -793,6 +794,7 @@
           (should (equal 2 scrollines))
           (should (> new-top screen-top))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should
          (equal
           (concat
@@ -823,6 +825,7 @@
           (should (equal 5 scrollines))
           (should (> new-top screen-top))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should
          (equal
           (concat
@@ -876,6 +879,7 @@
     (ert-with-test-buffer ()
       (let ((cursor (make-marker)))
         (mistty-alacritty-vt-render vterm cursor 0)
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should
          (equal
           (concat
@@ -979,7 +983,7 @@
                   "and one for the Dame")
                  (mistty-test-content :end new-top)))))))
 
-(mistty-deftest mistty-alacritty-vt-clear-scrollback (:features mistty-alacritty-vt :shell none)
+(mistty-deftest mistty-alacritty-vt-flush-scrollback (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil)))
     (mistty-alacritty-vt-enable-scrollback term)
 
@@ -993,8 +997,7 @@
     (mistty-alacritty-vt-process-bytes term "\r\n11")
     (mistty-alacritty-vt-process-bytes term "\r\n12")
     (should (equal 3 (mistty-alacritty-vt-scrollback-line-count term)))
-    (ert-with-test-buffer ()
-      (mistty-alacritty-vt-render term (make-marker) 0))
+    (mistty-alacritty-vt-flush-scrollback term)
     (should (equal 0 (mistty-alacritty-vt-scrollback-line-count term)))))
 
 (mistty-deftest mistty-alacritty-vt-cursor (:features mistty-alacritty-vt :shell none)
@@ -1024,11 +1027,14 @@
                      (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scollines))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
+
         (dotimes (i 4)
           (mistty-alacritty-vt-process-bytes vterm (format "\r\n%d" i))
           (goto-char screen-top)
           (set-marker
-           screen-top (car (mistty-alacritty-vt-render vterm cursor 0))))
+           screen-top (car (mistty-alacritty-vt-render vterm cursor 0)))
+          (mistty-alacritty-vt-flush-scrollback vterm))
         (should
          (equal
           (concat
@@ -1056,6 +1062,7 @@
                      (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should (equal 1 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
@@ -1081,6 +1088,7 @@
                      (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should (equal 2 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
@@ -1107,6 +1115,7 @@
                      (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 0 scrollines))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should (equal 3 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
@@ -1136,6 +1145,7 @@
                      (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 1 scrollines))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal
@@ -1161,6 +1171,7 @@
                      (mistty-alacritty-vt-render vterm cursor 0)))
           (should (equal 2 scrollines))
           (set-marker screen-top new-top))
+        (mistty-alacritty-vt-flush-scrollback vterm)
         (should (equal 0 (mistty-alacritty-vt-scrollback-line-count vterm)))
         (should
          (equal

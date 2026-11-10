@@ -199,17 +199,13 @@ pub(crate) fn render<'a>(
                 .map(|(_, row)| row),
         )?;
     }
-
-    term.flush_scrollback();
-    // Some rows may remain in scrollback after flushing that are part
-    // of the 1st scrolline; they should be rendered as terminal rows.
-    let mut first_line = Line(-(term.scrollback_row_count() as i32));
-
-    if skip_above > screen_top {
-        first_line = term
-            .terminal_line_for_scrolline(skip_above)
-            .unwrap_or(term.bottommost_line() + 1);
-    }
+    let first_line = if skip_above <= screen_top {
+        term.terminal_line_for_scrolline(screen_top)
+            .unwrap_or(Line(0))
+    } else {
+        term.terminal_line_for_scrolline(skip_above)
+            .unwrap_or(term.bottommost_line() + 1)
+    };
 
     let mut render = Render::init(env, term)?;
     render.render(first_line)?;

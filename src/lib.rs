@@ -241,12 +241,25 @@ fn scrollback_line_count(term: &VTermFacade) -> Result<usize> {
     Ok(term.vterm.scrollback_row_count())
 }
 
+/// Remove everything but the beginning of the first scrolline from
+/// scrollback.
+///
+/// Call this to avoid [render] rendering the same scrollback lines
+/// when called multiple times.
+#[defun]
+fn flush_scrollback(term: &mut VTermFacade) -> Result<()> {
+    term.vterm.flush_scrollback();
+
+    Ok(())
+}
+
 /// Render the state of the terminal in a way Emacs understands.
 ///
 /// Rendering is done in the current buffer in the range from point to
 /// end of buffer (or earlier if narrowing is enabled), starting with
-/// the scrollback lines, then the screen itself. Scrollback kept
-/// terminal-side is cleared.
+/// the scrollback lines, then the screen itself.
+///
+/// To clear scrollback that was rendered, call [flush_scrollback].
 ///
 /// SKIP_ABOVE, a scrolline, tells render to skip rendering of
 /// everything below that scrolline. Set it to 0 to not skip anything.

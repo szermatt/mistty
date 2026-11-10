@@ -188,13 +188,6 @@ SCROLLINE is the scrolline at which CONTENT was inserted in the terminal
 buffer and POS-IN-LINE is the character position within that scrolline where it
 was inserted.")
 
-(cl-defgeneric mistty--term-changed (term beg end)
-  "Mark the region of TERM between BEG and END as requiring post-processing."
-
-  (ignore term beg end)
-
-  nil)
-
 (cl-defgeneric mistty--term-translate-key (term key &optional n)
   "Generate the key byte sequence for TERM.
 

@@ -813,10 +813,6 @@ was inserted."
                                 (point) (pos-bol) eol (- eol (point)) real-trailing-ws)
                     (put-text-property (point) eol 'mistty-skip 'dead)))))))))))
 
-(cl-defmethod mistty--term-changed ((_term mistty--term-eterm) beg end)
-  "Report that the region between BEG and END changed on the terminal buffer."
-  (mistty--changed beg end))
-
 (cl-defmethod mistty--term-translate-key ((_term mistty--term-eterm) key &optional n)
   "Generate the key byte sequence for TERM.
 
@@ -1365,7 +1361,7 @@ Detected prompts can be found in `mistty-prompt'."
                 (scrolline (mistty--scrolline-at-point)))
            (mistty--register-prompt 'bracketed-paste scrolline)
            (when (> (pos-eol) start-pos)
-             (mistty--term-changed term start-pos (pos-eol))))
+             (mistty--changed start-pos (pos-eol))))
          (setq mistty-bracketed-paste t)))
      (mistty--accum-ctx-push-down ctx str)))
 

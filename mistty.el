@@ -1491,15 +1491,6 @@ terminal region of WORK-BUFFER in sync with the terminal."
      (mistty--with-live-buffer work-buffer
        (mistty--maybe-truncate-when-idle))))
 
-  ;; Truncate term buffer
-  (mistty--accum-add-post-processor
-   accum
-   (lambda ()
-     (mistty--with-live-buffer work-buffer
-       (when mistty--term
-         (mistty--term-truncate-buffer
-          mistty--term mistty--scrolline-home-num)))))
-
   ;; Resize terminal
   (mistty--accum-add-post-processor
    accum

@@ -632,6 +632,17 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                  (mistty--hide-cursor))
              (funcall show-cursor nil))))
 
+        (mistty--accum-add-post-processor
+         accum
+         (lambda ()
+           (with-current-buffer (mistty--term-eterm-buf term)
+               (when (> term-home-marker 1000)
+                 (run-with-idle-timer
+                  0 nil
+                  (lambda ()
+                    (with-current-buffer (mistty--term-eterm-buf term)
+                      (mistty--truncate-buffer term-home-marker))))))))
+
         term))))
 
 (cl-defmethod mistty--term-update-options ((term mistty--term-eterm) &rest plist)
@@ -805,14 +816,6 @@ was inserted."
 (cl-defmethod mistty--term-changed ((_term mistty--term-eterm) beg end)
   "Report that the region between BEG and END changed on the terminal buffer."
   (mistty--changed beg end))
-
-(cl-defmethod mistty--term-truncate-buffer ((term mistty--term-eterm) scrolline-limit)
-  "Truncate the terminal buffer of TERM, if necessary.
-
-Always keep SCROLLINE-LIMIT and below."
-  (with-current-buffer (mistty--term-eterm-buf term)
-    (when (>= scrolline-limit mistty--scrolline-home-num)
-      (mistty--truncate-buffer term-home-marker))))
 
 (cl-defmethod mistty--term-translate-key ((_term mistty--term-eterm) key &optional n)
   "Generate the key byte sequence for TERM.
@@ -1564,6 +1567,23 @@ and then call FUNC to clear scrollback stored in the work buffer."
               (inhibit-modification-hooks t))
           (delete-region (point-min) term-home-marker)))
       (funcall func))))
+
+(defun mistty--truncate-buffer (home-marker)
+  "Truncate the buffer before HOME-MARKER.
+
+If there's more than 1000 chars in the buffer before the given marker,
+truncate the buffer at a BOL, leaving at least 200 chars."
+  (when (> home-marker 1000)
+    (save-excursion
+      (goto-char (- home-marker 200))
+      (goto-char (pos-bol))
+      (unless (bobp)
+        (mistty-log "[term] truncate %s chars of scrollback, leaving %s."
+                    (- (point) (point-min))
+                    (- home-marker (point)))
+        (let ((inhibit-read-only t)
+              (inhibit-modification-hooks t))
+          (delete-region (point-min) (point)))))))
 
 (provide 'mistty-term-eterm)
 

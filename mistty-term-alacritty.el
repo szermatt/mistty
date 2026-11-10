@@ -444,9 +444,6 @@ was inserted."
    scrolline
    pos-in-line))
 
-(cl-defmethod mistty--term-truncate-buffer ((_term mistty--term-alacritty) _scrolline-limit)
-  "Does nothing.")
-
 (cl-defmethod mistty--term-translate-key ((term mistty--term-alacritty) key &optional n)
   "Generate the key byte sequence for TERM.
 

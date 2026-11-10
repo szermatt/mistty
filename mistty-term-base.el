@@ -195,11 +195,6 @@ was inserted.")
 
   nil)
 
-(cl-defgeneric mistty--term-truncate-buffer (term scrolline-limit)
-  "Truncate TERM's buffer, if necessary.
-
-Always keep SCROLLINE-LIMIT and below.")
-
 (cl-defgeneric mistty--term-translate-key (term key &optional n)
   "Generate the key byte sequence for TERM.
 

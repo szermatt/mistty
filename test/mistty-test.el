@@ -7518,10 +7518,12 @@ precmd_functions+=(prompt_header)
                      "[\n]")
              (mistty-test-content :trim nil :show-property '(mistty-scrolline 14))))))
 
-(mistty-deftest mistty-truncate-term-buffer
+(mistty-deftest mistty-truncate-term-buffer/eterm
     (:term-size '(125 . 25) :type eterm)
   (mistty-send-text "for i in $(seq 0 55); do echo $(head -c 100 </dev/zero| tr '\\0' '-'); done")
   (mistty-send-and-wait-for-prompt)
+  (ert-run-idle-timers)
+
   ;; there are about 30 lines above screen top on the work buffer
   (should
    (>= (mistty--count-lines

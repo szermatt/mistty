@@ -355,61 +355,40 @@ SCROLLINE."
 
      (t nil))))
 
-(defun mistty--sync-buffer
-    (source-buffer source-pos dest-buffer dest-pos keep-markers)
+(defun mistty--sync-buffers
+    (source-buffer source-pos dest-buffer dest-pos)
   "Copy SOURCE-BUFFER from SOURCE-POS to eob to DEST-BUFFER.
 
 The text and text properties of the region from DEST-POS to eob is
-overwritten. If KEEP-MARKERS is non-nil, the function attempt to keep
+overwritten. This function attempt to keep
 markers point and overlays as it rewrites the text."
-  (if (not keep-markers)
-      ;; Quicker version of sync-buffer that doesn't bother with
-      ;; markers.
-      (mistty--with-live-buffer dest-buffer
-        (save-restriction
-          (widen)
-          (let ((old-point (when (< (point) dest-pos (point-max))
-                             (point))))
-            (goto-char dest-pos)
-            (delete-region dest-pos (point-max))
-            (insert-buffer-substring source-buffer source-pos)
-            (if old-point
-                ;; old-point was before dest-pos. Restore it.
-                (goto-char old-point)
-              ;; copy point position from source buffer, if possible
-              (goto-char (+ dest-pos
-                            (max 0 (with-current-buffer source-buffer
-                                     (- (point) source-pos)))))))))
+  (mistty--with-live-buffer source-buffer
+    (save-restriction
+      (narrow-to-region source-pos (point-max))
+      (let ((properties (mistty--save-properties (point-min))))
+        (with-current-buffer dest-buffer
+          (let ((old-point (and (< (point) dest-pos) (point))))
+            (save-restriction
+              (narrow-to-region dest-pos (point-max))
+              (if (eval-when-compile (>= emacs-major-version 31))
+                  (let ((point-marker (or mistty--point-marker
+                                          (setq mistty--point-marker (make-marker)))))
+                    (set-marker point-marker (point))
+                    (set-marker-insertion-type point-marker nil)
+                    (replace-region-contents (point-min) (point-max) source-buffer 0.2)
+                    (goto-char point-marker)
+                    (move-marker point-marker nil))
+                ;; Before Emacs 31, replace-region-contents could
+                ;; not take a buffer as source.
+                (replace-buffer-contents source-buffer 0.2))
+              (mistty--restore-properties properties (point-min)))
 
-    ;; Complete but expensive version of sync-buffer that conserves
-    ;; markers.
-    (mistty--with-live-buffer source-buffer
-      (save-restriction
-        (narrow-to-region source-pos (point-max))
-        (let ((properties (mistty--save-properties (point-min))))
-          (with-current-buffer dest-buffer
-            (let ((old-point (and (< (point) dest-pos) (point))))
-              (save-restriction
-                (narrow-to-region dest-pos (point-max))
-                (if (eval-when-compile (>= emacs-major-version 31))
-                    (let ((point-marker (or mistty--point-marker
-                                            (setq mistty--point-marker (make-marker)))))
-                      (set-marker point-marker (point))
-                      (set-marker-insertion-type point-marker nil)
-                      (replace-region-contents (point-min) (point-max) source-buffer 0.2)
-                      (goto-char point-marker)
-                      (move-marker point-marker nil))
-                  ;; Before Emacs 31, replace-region-contents could
-                  ;; not take a buffer as source.
-                  (replace-buffer-contents source-buffer 0.2))
-                (mistty--restore-properties properties (point-min)))
-
-              ;; If the point was outside the sync region, restore it,
-              ;; as it has been moved by narrow-to-region . Otherwise,
-              ;; trust replace-buffer-contents to do something
-              ;; reasonable with it.
-              (when old-point
-                (goto-char old-point)))))))))
+            ;; If the point was outside the sync region, restore it,
+            ;; as it has been moved by narrow-to-region . Otherwise,
+            ;; trust replace-buffer-contents to do something
+            ;; reasonable with it.
+            (when old-point
+              (goto-char old-point))))))))
 
 
 (defun mistty--save-properties (start)

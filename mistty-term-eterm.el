@@ -744,13 +744,9 @@ CURSOR-MARKER is updated to the cursor position."
       (let ((source-sync-pos (or (mistty--find-scrolline sync-scrolline)
                                  (mistty--find-scrolline home-scrolline)))
             (column-count term-width))
-        (mistty--sync-buffer
-         source-buffer
-         source-sync-pos
-         dest-buffer
-         sync-pos
-         keep-markers)
-
+        (if keep-markers
+            (mistty--sync-buffers source-buffer source-sync-pos dest-buffer sync-pos)
+          (mistty--copy-buffers source-buffer source-sync-pos dest-buffer sync-pos))
 
         (mistty--with-live-buffer dest-buffer
           (set-marker cursor-marker
@@ -1580,6 +1576,30 @@ truncate the buffer at a BOL, leaving at least 200 chars."
         (let ((inhibit-read-only t)
               (inhibit-modification-hooks t))
           (delete-region (point-min) (point)))))))
+
+
+(defun mistty--copy-buffers
+    (source-buffer source-pos dest-buffer dest-pos)
+  "Copy SOURCE-BUFFER from SOURCE-POS to eob to DEST-BUFFER.
+
+This function attempts to keep the point where it is if it imhhhhhhhhhy6 before
+DEST-POST, otherwise, it moves moves it to the same position as in
+SOURCE-BUFFER."
+  (mistty--with-live-buffer dest-buffer
+    (save-restriction
+      (widen)
+      (let ((old-point (when (< (point) dest-pos (point-max))
+                         (point))))
+        (goto-char dest-pos)
+        (delete-region dest-pos (point-max))
+        (insert-buffer-substring source-buffer source-pos)
+        (if old-point
+            ;; old-point was before dest-pos. Restore it.
+            (goto-char old-point)
+          ;; copy point position from source buffer, if possible
+          (goto-char (+ dest-pos
+                        (max 0 (with-current-buffer source-buffer
+                                 (- (point) source-pos))))))))))
 
 (provide 'mistty-term-eterm)
 

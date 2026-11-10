@@ -366,7 +366,7 @@ CURSOR-MARKER is updated to the cursor position."
                          (with-current-buffer term-buf
                            (goto-char 1)
                            (mistty-alacritty-vt-render vterm cursor-marker sync-scrolline))))
-              (mistty--sync-buffer term-buf 1 dest-buffer sync-pos 'keep-markers)
+              (mistty--sync-buffers term-buf 1 dest-buffer sync-pos)
               (set-marker cursor-marker
                           (+ sync-pos (1- cursor-marker))
                           dest-buffer)
@@ -419,7 +419,7 @@ the buffer after sync."
       (set-marker cursor (point-min))
       (goto-char (point-min))
       (mistty-alacritty-vt-render vterm cursor sync-scrolline))
-    (mistty--sync-buffer term-buf 1 (current-buffer) 1 'keep-markers)
+    (mistty--sync-buffers term-buf 1 (current-buffer) 1)
     (mistty-term-alacritty-mark-final-newline (point-min))
 
     ;; even though the cursor is for term-buf, right now, the position

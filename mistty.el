@@ -2069,8 +2069,7 @@ SCROLLINE is the scrolline at BEG."
        (setq mistty-goto-cursor-next-time t)
        (setq mistty--interacted t)
        (mistty--interact-send interact "\C-m")
-       (mistty--interact-wait-for-output-then
-        #'mistty--interact-done)))))
+       (mistty--interact-done)))))
 
 (defun mistty-newline (&optional n)
   "Send one ore more newlines that won't submit the current command.
@@ -2099,7 +2098,7 @@ SCROLLINE is the scrolline at BEG."
                    (progn
                      (setq mistty-goto-cursor-next-time t)
                      (mistty--interact-send interact nl-seq)
-                     (mistty--interact-wait-for-output-then #'mistty--interact-done))
+                     (mistty--interact-done))
                  (insert nls)
                  (mistty--interact-done)))))
 
@@ -2201,9 +2200,7 @@ This is meant to be bound to `mistty--send-function' for `mistty-mode'
 buffers."
   (mistty--require-proc)
   (mistty-log "KEY %s %s" (key-description key) n)
-  (let* ((fire-and-forget (or mistty--special-prompt
-                              (string-match "^[[:graph:]]+$" translated-key)))
-         (positional (or positional (mistty-positional-p key))))
+  (let* ((positional (or positional (mistty-positional-p key))))
     (cond
      ((and (buffer-live-p mistty-work-buffer)
            (not (buffer-local-value
@@ -2225,9 +2222,7 @@ buffers."
            (setq mistty-goto-cursor-next-time t)
            (mistty--maybe-add-key-to-undo n key (mistty-cursor))
            (mistty--interact-send interact translated-key)
-           (if fire-and-forget
-               (mistty--interact-done)
-             (mistty--interact-wait-for-output-then #'mistty--interact-done))))))
+           (mistty--interact-done)))))
 
      ((process-live-p mistty-proc)
       (mistty--send-string mistty-proc translated-key))
@@ -2280,7 +2275,7 @@ buffers."
                (setq mistty-goto-cursor-next-time t)
                (mistty--interact-send
                 interact (mistty--term-translate-key mistty--term [?\C-a]))
-               (mistty--interact-wait-for-output-then #'mistty--interact-done))
+               (mistty--interact-done))
            (beginning-of-line n)
            (mistty--interact-done)))))))
 
@@ -2334,7 +2329,7 @@ buffers."
                (setq mistty-goto-cursor-next-time t)
                (mistty--interact-send
                 interact (mistty--term-translate-key mistty--term [?\C-e]))
-               (mistty--interact-wait-for-output-then #'mistty--interact-done))
+               (mistty--interact-done))
            (end-of-line n)
            (mistty--interact-done)))))))
 

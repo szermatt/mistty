@@ -261,10 +261,12 @@ CURSOR-MARKER is updated to the cursor position."
           (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
             (mistty-log "EV %s" ev)
             (pcase ev
-              (`(title ,title)
+              ;; terminal changes
+
+              (`(title . ,title)
                (mistty--with-live-buffer term-buf
                  (setq ansi-osc-window-title title)))
-              (`(cwd ,url)
+              (`(cwd . ,url)
                (when url
                  (mistty--with-live-buffer term-buf
                    (mistty-osc7 "7" url))))
@@ -278,21 +280,32 @@ CURSOR-MARKER is updated to the cursor position."
                (setq cleared-scrollback t)
                (mistty--with-live-buffer term-buf
                  (funcall (mistty--term-alacritty-clear-scrollback term))))
-              (`(kkp ,val)
+              (`(kkp . ,val)
                (setf (mistty--term-alacritty-kkp term) val))
-              (`(mouse ,val)
+              (`(mouse . ,val)
                (setf (mistty--term-alacritty-mouse term) val)
                (funcall (mistty--term-alacritty-request-report-mouse term) val))
-              (`(cursor ,val)
+              (`(cursor . ,val)
                (funcall (mistty--term-alacritty-show-cursor term) val))
-              (`(bracketed-paste ,val)
+              (`(bracketed-paste . ,val)
                (mistty--with-live-buffer term-buf
                  (setq mistty-bracketed-paste val)))
-              (`(fullscreen ,val)
+              (`(fullscreen . ,val)
                (setf (mistty--term-alacritty-fs term) val)
                (if val
                    (funcall (mistty--term-alacritty-enter-fullscreen term) nil)
                  (funcall (mistty--term-alacritty-leave-fullscreen term))))
+              (`(modified . ,val)
+               (when (< val sync-scrolline)
+                 (mistty--with-live-buffer dest-buffer
+                   (setq sync-scrolline val)
+                   (set-marker sync-pos
+                               (or (car (mistty--find-marked-scrolline val))
+                                   (point-min)))
+                   (mistty-log "REALIGN to %s@%s"
+                               sync-scrolline (marker-position sync-pos)))))
+
+              ;; prompt changes
               (`(start-prompt ,source ,start)
                (mistty--with-live-buffer term-buf
                  (let ((prompt (mistty--prompt)))
@@ -329,15 +342,6 @@ CURSOR-MARKER is updated to the cursor position."
                                (mistty--prompt-start prompt)
                                (mistty--prompt-end prompt)
                                val))))
-              (`(modified ,val)
-               (when (< val sync-scrolline)
-                 (mistty--with-live-buffer dest-buffer
-                   (setq sync-scrolline val)
-                   (set-marker sync-pos
-                               (or (car (mistty--find-marked-scrolline val))
-                                   (point-min)))
-                   (mistty-log "REALIGN to %s@%s"
-                               sync-scrolline (marker-position sync-pos)))))
 
               (_ (error "Unhandled event: %S" ev))))
 

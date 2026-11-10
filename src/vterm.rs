@@ -207,22 +207,22 @@ pub(crate) enum MouseMode {
 impl<'e> IntoLisp<'e> for VTermChange {
     fn into_lisp(self, env: &'e Env) -> Result<Value<'e>> {
         match self {
-            VTermChange::KittyKeyboard(on) => env.list((kkp_sym, on)),
-            VTermChange::BracketedPaste(on) => env.list((bracketed_paste_sym, on)),
-            VTermChange::Fullscreen(on) => env.list((fullscreen_sym, on)),
-            VTermChange::Mouse(MouseMode::Motion) => env.list((mouse_sym, motion_sym)),
-            VTermChange::Mouse(MouseMode::Drag) => env.list((mouse_sym, drag_sym)),
-            VTermChange::Mouse(MouseMode::Click) => env.list((mouse_sym, click_sym)),
-            VTermChange::Mouse(MouseMode::Off) => env.list((mouse_sym, nil_sym)),
-            VTermChange::Title(None) => env.list((title_sym, nil_sym)),
-            VTermChange::Title(Some(title)) => env.list((title_sym, title)),
-            VTermChange::Cwd(None) => env.list((cwd_sym, nil_sym)),
-            VTermChange::Cwd(Some(url)) => env.list((cwd_sym, url)),
+            VTermChange::KittyKeyboard(on) => env.cons(kkp_sym, on),
+            VTermChange::BracketedPaste(on) => env.cons(bracketed_paste_sym, on),
+            VTermChange::Fullscreen(on) => env.cons(fullscreen_sym, on),
+            VTermChange::Mouse(MouseMode::Motion) => env.cons(mouse_sym, motion_sym),
+            VTermChange::Mouse(MouseMode::Drag) => env.cons(mouse_sym, drag_sym),
+            VTermChange::Mouse(MouseMode::Click) => env.cons(mouse_sym, click_sym),
+            VTermChange::Mouse(MouseMode::Off) => env.cons(mouse_sym, nil_sym),
+            VTermChange::Title(None) => env.cons(title_sym, nil_sym),
+            VTermChange::Title(Some(title)) => env.cons(title_sym, title),
+            VTermChange::Cwd(None) => env.cons(cwd_sym, nil_sym),
+            VTermChange::Cwd(Some(url)) => env.cons(cwd_sym, url),
             VTermChange::ClearedScreen => env.cons(cleared_screen_sym, ()),
             VTermChange::ClearedScrollback => env.cons(cleared_scrollback_sym, ()),
             VTermChange::Reset => env.cons(reset_sym, ()),
-            VTermChange::ShowCursor(on) => env.list((cursor_sym, on)),
-            VTermChange::Modified(scrolline) => env.list((modified_sym, scrolline)),
+            VTermChange::ShowCursor(on) => env.cons(cursor_sym, on),
+            VTermChange::Modified(scrolline) => env.cons(modified_sym, scrolline),
         }
     }
 }
@@ -813,51 +813,20 @@ impl VTerm {
         Ok(changes)
     }
 
+    /// Report current terminal modes as [VTermChange] that can be turned into an alist.
+    ///
+    /// The result is a subset of what [collect_changes] returns.
+    pub(crate) fn mode_alist(&self) -> Vec<VTermChange> {
+        mode_diff(TermMode::NONE, *self.mode())
+    }
+
     /// Report changes to [TermMode] since the last call to [VTerm::collect_mode_changes].
     fn collect_mode_changes(&mut self) -> Vec<VTermChange> {
-        let mut reports = vec![];
-        let mode = *self.mode();
         let before = self.last_collected_mode;
+        let mode = *self.mode();
         self.last_collected_mode = mode;
 
-        let kkp_on = mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
-        if kkp_on != before.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
-            reports.push(VTermChange::KittyKeyboard(kkp_on));
-        }
-
-        let bp_on = mode.intersects(TermMode::BRACKETED_PASTE);
-        if bp_on != before.intersects(TermMode::BRACKETED_PASTE) {
-            reports.push(VTermChange::BracketedPaste(bp_on));
-        }
-
-        let fs_on = mode.intersects(TermMode::ALT_SCREEN);
-        if fs_on != before.intersects(TermMode::ALT_SCREEN) {
-            reports.push(VTermChange::Fullscreen(fs_on));
-        }
-
-        let mouse_flags =
-            TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION;
-        let mouse = mode.intersection(mouse_flags);
-        if mouse != before.intersection(mouse_flags) {
-            reports.push(VTermChange::Mouse(
-                if mouse.intersects(TermMode::MOUSE_MOTION) {
-                    MouseMode::Motion
-                } else if mouse.intersects(TermMode::MOUSE_DRAG) {
-                    MouseMode::Drag
-                } else if mouse.intersects(TermMode::MOUSE_REPORT_CLICK) {
-                    MouseMode::Click
-                } else {
-                    MouseMode::Off
-                },
-            ));
-        }
-
-        let cursor_on = mode.intersects(TermMode::SHOW_CURSOR);
-        if cursor_on != before.intersects(TermMode::SHOW_CURSOR) {
-            reports.push(VTermChange::ShowCursor(cursor_on));
-        }
-
-        reports
+        mode_diff(before, mode)
     }
 
     /// Return the tag that identifies the last render operation.
@@ -883,11 +852,7 @@ impl VTerm {
         let Some((first_line, _)) = content.split_once('\n') else {
             return;
         };
-        let real_trailing_ws = first_line
-            .chars()
-            .rev()
-            .take_while(|&c| c == ' ')
-            .count();
+        let real_trailing_ws = first_line.chars().rev().take_while(|&c| c == ' ').count();
 
         let Some(line) = self.terminal_line_for_scrolline(scrolline) else {
             return;
@@ -1016,6 +981,48 @@ impl VTerm {
 
         None
     }
+}
+
+/// Report changes between `before` and `mode`.
+fn mode_diff(before: TermMode, mode: TermMode) -> Vec<VTermChange> {
+    let mut reports = vec![];
+    let kkp_on = mode.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL);
+    if kkp_on != before.intersects(TermMode::KITTY_KEYBOARD_PROTOCOL) {
+        reports.push(VTermChange::KittyKeyboard(kkp_on));
+    }
+
+    let bp_on = mode.intersects(TermMode::BRACKETED_PASTE);
+    if bp_on != before.intersects(TermMode::BRACKETED_PASTE) {
+        reports.push(VTermChange::BracketedPaste(bp_on));
+    }
+
+    let fs_on = mode.intersects(TermMode::ALT_SCREEN);
+    if fs_on != before.intersects(TermMode::ALT_SCREEN) {
+        reports.push(VTermChange::Fullscreen(fs_on));
+    }
+
+    let mouse_flags = TermMode::MOUSE_REPORT_CLICK | TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION;
+    let mouse = mode.intersection(mouse_flags);
+    if mouse != before.intersection(mouse_flags) {
+        reports.push(VTermChange::Mouse(
+            if mouse.intersects(TermMode::MOUSE_MOTION) {
+                MouseMode::Motion
+            } else if mouse.intersects(TermMode::MOUSE_DRAG) {
+                MouseMode::Drag
+            } else if mouse.intersects(TermMode::MOUSE_REPORT_CLICK) {
+                MouseMode::Click
+            } else {
+                MouseMode::Off
+            },
+        ));
+    }
+
+    let cursor_on = mode.intersects(TermMode::SHOW_CURSOR);
+    if cursor_on != before.intersects(TermMode::SHOW_CURSOR) {
+        reports.push(VTermChange::ShowCursor(cursor_on));
+    }
+
+    reports
 }
 
 /// Build [Config] for [Term].
@@ -3172,10 +3179,7 @@ mod tests {
             "$ echo \"hello, ",
             row_to_string(&fixture.vterm.grid()[Line(0)])
         );
-        assert_eq!(
-            Some(vec![Line(0), Line(1)]),
-            fixture.vterm.damaged_lines()
-        );
+        assert_eq!(Some(vec![Line(0), Line(1)]), fixture.vterm.damaged_lines());
     }
 
     #[test]
@@ -3192,10 +3196,7 @@ mod tests {
             .detect_dead_spaces_after_insert(" \n", Scrolline(1), 10);
 
         assert_eq!("world, and ", row_to_string(&fixture.vterm.grid()[Line(1)]));
-        assert_eq!(
-            Some(vec![Line(1), Line(2)]),
-            fixture.vterm.damaged_lines()
-        );
+        assert_eq!(Some(vec![Line(1), Line(2)]), fixture.vterm.damaged_lines());
     }
 
     #[test]
@@ -3211,10 +3212,7 @@ mod tests {
             .detect_dead_spaces_after_insert("foo \nbar", Scrolline(0), 7);
 
         assert_eq!("$ echo foo ", row_to_string(&fixture.vterm.grid()[Line(0)]));
-        assert_eq!(
-            Some(vec![Line(0), Line(1)]),
-            fixture.vterm.damaged_lines()
-        );
+        assert_eq!(Some(vec![Line(0), Line(1)]), fixture.vterm.damaged_lines());
     }
 
     #[test]
@@ -3273,10 +3271,7 @@ mod tests {
             "e\u{030A}a\u{0300} \u{5BDB}\u{5BDB} ",
             row_to_string(&fixture.vterm.grid()[Line(0)])
         );
-        assert_eq!(
-            Some(vec![Line(0), Line(1)]),
-            fixture.vterm.damaged_lines()
-        );
+        assert_eq!(Some(vec![Line(0), Line(1)]), fixture.vterm.damaged_lines());
 
         // Also verify wide character at the end of line is not treated as a space via its wide spacer
         fixture.vterm.reset_damage();

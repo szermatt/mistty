@@ -1644,7 +1644,7 @@
     (should (null (mistty-alacritty-vt-process-bytes
                    term "foo\e]0;window-title\e\\bar")))
     (should (equal
-             '((title "window-title"))
+             '((title . "window-title"))
              (mistty-alacritty-vt-collect-changes term)))
     (ert-with-test-buffer ()
        (mistty-alacritty-vt-render term cursor 0)
@@ -1953,7 +1953,7 @@
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on the kitty keyboard protocol
     (mistty-alacritty-vt-process-bytes vterm "\e[>1u")
-    (should (equal '((kkp t)) (mistty-alacritty-vt-collect-changes vterm)))
+    (should (equal '((kkp . t)) (mistty-alacritty-vt-collect-changes vterm)))
     ;; push some flag
     (mistty-alacritty-vt-process-bytes vterm "\e[>8u")
     (should (equal nil (mistty-alacritty-vt-collect-changes vterm)))
@@ -1964,14 +1964,14 @@
     (should (equal nil (mistty-alacritty-vt-collect-changes vterm)))
     ;; turn off the kitty keyboard protocol
     (mistty-alacritty-vt-process-bytes vterm "\e[<u")
-    (should (equal '((kkp nil)) (mistty-alacritty-vt-collect-changes vterm)))))
+    (should (equal '((kkp . nil)) (mistty-alacritty-vt-collect-changes vterm)))))
 
 (mistty-deftest mistty-alacritty-vt-kitty-key-seq
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on the kitty keyboard protocol
     (mistty-alacritty-vt-process-bytes vterm "\e[>1u")
-    (should (equal '((kkp t)) (mistty-alacritty-vt-collect-changes vterm)))
+    (should (equal '((kkp . t)) (mistty-alacritty-vt-collect-changes vterm)))
 
     (pcase-dolist
         (`(,expected ,key)
@@ -2027,7 +2027,7 @@
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on all flags of the kitty keyboard protocol
     (mistty-alacritty-vt-process-bytes vterm "\e[>29u")
-    (should (equal '((kkp t))
+    (should (equal '((kkp . t))
                    (mistty-alacritty-vt-collect-changes vterm)))
 
     ;; but only one flag was actually enabled
@@ -2039,15 +2039,15 @@
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; turn on mouse reporting
     (mistty-alacritty-vt-process-bytes vterm "\e[?1000h")
-    (should (equal '((mouse click))
+    (should (equal '((mouse . click))
                    (mistty-alacritty-vt-collect-changes vterm)))
     ;; ask also for button events
     (mistty-alacritty-vt-process-bytes vterm "\e[?1002h")
-    (should (equal '((mouse drag))
+    (should (equal '((mouse . drag))
                    (mistty-alacritty-vt-collect-changes vterm)))
     ;; ask for all events
     (mistty-alacritty-vt-process-bytes vterm "\e[?1003h")
-    (should (equal '((mouse motion))
+    (should (equal '((mouse . motion))
                    (mistty-alacritty-vt-collect-changes vterm)))
 
     ;; deactivate
@@ -2061,12 +2061,12 @@
     (should (null (mistty-alacritty-vt-collect-changes vterm)))
 
     (mistty-alacritty-vt-process-bytes vterm "\e[?25l")
-    (should (equal '((cursor nil))
+    (should (equal '((cursor . nil))
                    (mistty-alacritty-vt-collect-changes vterm)))
     (should (null (mistty-alacritty-vt-collect-changes vterm)))
 
     (mistty-alacritty-vt-process-bytes vterm "\e[?25h")
-    (should (equal '((cursor t))
+    (should (equal '((cursor . t))
                    (mistty-alacritty-vt-collect-changes vterm)))
     (should (null (mistty-alacritty-vt-collect-changes vterm)))))
 
@@ -2081,7 +2081,7 @@
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     ;; Send clicks and drag
     (mistty-alacritty-vt-process-bytes vterm "\e[?1002h")
-    (should (equal '((mouse drag))
+    (should (equal '((mouse . drag))
                    (mistty-alacritty-vt-collect-changes vterm)))
 
     (pcase-dolist
@@ -2126,7 +2126,7 @@
 
     ;; Send clicks and drag
     (mistty-alacritty-vt-process-bytes vterm "\e[?1002h")
-    (should (equal '((mouse drag))
+    (should (equal '((mouse . drag))
                    (mistty-alacritty-vt-collect-changes vterm)))
 
     ;; Select SGR format
@@ -2208,3 +2208,19 @@
         (should
          (equal "11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n"
                 (mistty-test-content :trim nil)))))))
+
+(mistty-deftest mistty-alacritty-vt-mode-alist
+    (:features mistty-alacritty-vt :shell none)
+    (let ((vterm (mistty-alacritty-vt-make-vterm 20 10 nil)))
+      (should (equal '((cursor . t)) (mistty-alacritty-vt-mode-alist vterm)))
+
+      (mistty-alacritty-vt-process-bytes vterm "\e[?2004h") ; bracketed paste
+      (mistty-alacritty-vt-process-bytes vterm "\e[?1049h") ; fullscreen
+      (mistty-alacritty-vt-process-bytes vterm "\e[?1000h") ; mouse click
+      (mistty-alacritty-vt-process-bytes vterm "\e[?25l")   ; hide cursor
+
+      (let ((mode-alist (mistty-alacritty-vt-mode-alist vterm)))
+        (should (alist-get 'bracketed-paste mode-alist))
+        (should (alist-get 'fullscreen mode-alist))
+        (should (equal 'click (alist-get 'mouse mode-alist)))
+        (should-not (alist-get 'cursor mode-alist)))))

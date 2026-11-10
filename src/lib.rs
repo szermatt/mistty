@@ -164,15 +164,16 @@ fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: String) -> Res
 ///
 /// Events can be:
 ///
-/// - `(kbd ,enabled) to report that the Kitty Keyboard Protocol was enabled/disabled
-/// - `(bracketed-paste ,enabled) to report that bracketed paste was enabled/disabled
-/// - `(fullscreen ,enabled) to report that fullscreen (alt screen) was enabled/disabled
-/// - `(mouse ,mode) to report mouse mode change, nil (off) 'click, 'drag, 'motion
-/// - `(cursor ,enabled) to report that the cursor was shown/hidden
-/// - `(title ,title) to report window title set or clear (title is nil)
-/// - `(cwd ,url) to report workig directory set (as a file: url) or clear (url is nil)
+/// - `(kbd . ,enabled) to report that the Kitty Keyboard Protocol was enabled/disabled
+/// - `(bracketed-paste . ,enabled) to report that bracketed paste was enabled/disabled
+/// - `(fullscreen . ,enabled) to report that fullscreen (alt screen) was enabled/disabled
+/// - `(mouse . ,mode) to report mouse mode change, nil (off) 'click, 'drag, 'motion
+/// - `(cursor . ,enabled) to report that the cursor was shown/hidden
+/// - `(title . ,title) to report window title set or clear (title is nil)
+/// - `(cwd . ,url) to report working directory set (as a file: url) or clear (url is nil)
 /// - `(cleared-screen) to report that the screen was cleared
 /// - `(cleared-scrollback) to report that the scrollback was cleared
+/// - `(modified . ,scrolline) to report unexpected modification on the given scrollie
 /// - `(reset) to report that the terminal was reset
 /// - `(start-prompt ,source ,start
 ///    to report a prompt start with:
@@ -183,19 +184,28 @@ fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: String) -> Res
 /// - `(end-prompt ,source ,end)
 #[defun]
 fn collect_changes<'a>(env: &'a Env, term: &mut VTermFacade) -> Result<Value<'a>> {
-    let mut result = ().into_lisp(env)?;
-
-    let events = term.vterm.collect_changes()?;
-    for event in events.into_iter().rev() {
-        result = env.cons(event, result)?;
-    }
-
-    let prompts = term.processor.collect_prompt_changes();
-    for prompt in prompts.into_iter().rev() {
-        result = env.cons(prompt, result)?;
-    }
+    let mut result = to_list(env, term.vterm.collect_changes()?)?;
+    result = build_list(term.processor.collect_prompt_changes(), result)?;
 
     Ok(result)
+}
+
+/// Return a plist of the terminal modes.
+///
+/// The modes match the changes reported by collect_changes.
+///
+/// Reported modes:
+/// - `(bracketed-paste . nil/t)`
+/// - `(fullscreen . nil/t)`
+/// - `(mouse . nil/click/drag/motion)`
+/// - `(cursor . nil/t)`
+/// - `(kbd . nil/t)`
+/// - `(show-cursor . nil/t)`
+///
+/// Unreported modes default to nil
+#[defun]
+fn mode_alist<'a>(env: &'a Env, term: &VTermFacade) -> Result<Value<'a>> {
+    to_list(env, term.vterm.mode_alist())
 }
 
 /// Return the position of the cursor as (LINE, COLUMN).
@@ -379,6 +389,31 @@ fn end_regexp_prompt(term: &mut VTermFacade) -> Result<()> {
 }
 
 /// Log a debug message elisp-side (best effort).
-pub fn mistty_log<S: AsRef<str>>(env: &Env, message: S) {
+pub(crate) fn mistty_log<S: AsRef<str>>(env: &Env, message: S) {
     let _ = env.call("mistty-log", (message.as_ref(),));
+}
+
+/// Turn an iterable type into a list.
+fn to_list<'e, T, U>(env: &'e Env, vals: T) -> Result<Value<'e>>
+where
+    T: IntoIterator<Item = U>,
+    U: IntoLisp<'e>,
+    <T as IntoIterator>::IntoIter: DoubleEndedIterator,
+{
+    build_list(vals, ().into_lisp(env)?)
+}
+
+/// Turn an iterable type into a list that ends with `rest`.
+fn build_list<'e, T, U>(list: T, mut rest: Value<'e>) -> Result<Value<'e>>
+where
+    T: IntoIterator<Item = U>,
+    U: IntoLisp<'e>,
+    <T as IntoIterator>::IntoIter: DoubleEndedIterator,
+{
+    let env = rest.env;
+    for event in list.into_iter().rev() {
+        rest = env.cons(event, rest)?;
+    }
+
+    Ok(rest)
 }

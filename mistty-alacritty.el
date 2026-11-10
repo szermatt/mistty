@@ -294,11 +294,7 @@ Call `mistty-alacritty-exec' to create the virtual terminal and start the
 process."
   ;; Face is set manually; disable font-lock mode
   (font-lock-mode -1)
-  (jit-lock-mode nil)
-  (setq mistty-alacritty--cursor (copy-marker (point-min)))
-  (setq mistty-alacritty--home (copy-marker (point-min)))
-  (set-marker-insertion-type mistty-alacritty--home nil)
-  (mistty--init-scrolline mistty-alacritty--home 0))
+  (jit-lock-mode nil))
 
 (defun mistty-alacritty-available-p ()
   "Check whether the module is available.
@@ -366,23 +362,6 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
       (set-process-coding-system proc 'binary (cdr (process-coding-system proc)))
       (set-process-sentinel proc nil)
       (set-process-filter proc t))))
-
-(defun mistty-alacritty--render (vterm)
-  "Render the virtual terminal VTERM on the current buffer."
-  (save-excursion
-    (goto-char mistty-alacritty--home)
-    (pcase-let ((`(,screen-top . ,scrollines)
-                 (mistty-alacritty-vt-render vterm mistty-alacritty--cursor 0)))
-      (mistty-alacritty-vt-flush-scrollback vterm)
-      (mistty-log "RENDER @%s (+%s)"
-                  mistty--scrolline-home-num
-                  (- scrollines mistty--scrolline-home-num))
-      (setq mistty--scrolline-home-num scrollines)
-      (set-marker mistty-alacritty--home screen-top))
-    (when-let* ((proc (get-buffer-process (current-buffer))))
-      (when (process-live-p proc)
-        (set-marker (process-mark proc) mistty-alacritty--cursor))))
-  (goto-char mistty-alacritty--cursor))
 
 (defun mistty-alacritty--TERM ()
   "Choose a value for the TERM env variable.

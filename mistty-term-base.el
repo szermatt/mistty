@@ -90,11 +90,6 @@ ignored."
 (cl-defgeneric mistty--term-proc (term)
   "Return the TERM's process.")
 
-(cl-defgeneric mistty--term-screen-top-pos (term)
-  "Return the marker for the start of TERM's terminal.
-
-The marker is only valid in the terminal buffer.")
-
 (cl-defgeneric mistty--term-scrolline-at-screen-top (term)
   "Return the scrolline for he start of TERM's terminal.")
 
@@ -171,16 +166,16 @@ previously made are still in place to optimize its operations.
 CURSOR-MARKER must be a marker. It will be updated with the position of
 the cursor on DEST-BUFFER.")
 
-(cl-defgeneric mistty--term-sync-backstage (term sync-scrolline)
+(cl-defgeneric mistty--term-sync-backstage (term sync-scrolline cursor)
   "Render TERM into the current buffer from SYNC-SCROLLINE.
 
 The entire buffer content is rewritten to match the content of the
 terminal starting at SYNC-SCROLLINE in a way that keeps marker positions
 as much as possible.
 
-The point is set at the cursor position, as long as the cursor is at or
-below SYNC-SCROLLINE, otherwise the cursor is moved to the beginning of
-the buffer after sync.")
+The marker CURSOR is set at the cursor position, as long as the cursor
+is at or below SYNC-SCROLLINE, otherwise the cursor is moved to the
+beginning of the buffer after sync.")
 
 (cl-defgeneric mistty--term-detect-dead-spaces-after-insert (term content scrolline pos-in-line)
   "Mark dead trailing spaces left in TERM after inserting CONTENT.

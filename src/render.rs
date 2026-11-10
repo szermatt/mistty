@@ -270,6 +270,9 @@ impl<'a> Render<'a> {
     fn move_cursor_marker(&mut self, cursor_marker: Value) -> Result<()> {
         if let Some(cursor_pos) = &self.cursor_pos {
             self.env.call(set_marker, (cursor_marker, *cursor_pos))?;
+        } else {
+            // This might happen, with skip_above > screen-top, but it is suspicious.
+            super::mistty_log(self.env, "NO CURSOR POSITION");
         }
 
         Ok(())

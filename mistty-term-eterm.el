@@ -656,11 +656,6 @@ Any other option is ignored."
   "Return TERM's process."
   (mistty--term-eterm-proc term))
 
-(cl-defmethod mistty--term-screen-top-pos ((term mistty--term-eterm))
-  "Return the position of the top of the screen in TERM's process buffer."
-  (with-current-buffer (mistty--term-eterm-buf term)
-    term-home-marker))
-
 (cl-defmethod mistty--term-scrolline-at-screen-top ((term mistty--term-eterm))
   "Return the scrolline displayed in the first line of TERM's terminal."
   (with-current-buffer (mistty--term-eterm-buf term)
@@ -756,28 +751,20 @@ CURSOR-MARKER is updated to the cursor position."
 
       (cons sync-pos sync-scrolline))))
 
-(defvar-local mistty--term-eterm-backstage-cursor nil)
-
-(cl-defmethod mistty--term-sync-backstage ((term mistty--term-eterm) sync-scrolline)
+(cl-defmethod mistty--term-sync-backstage ((term mistty--term-eterm) sync-scrolline cursor)
   "Render TERM into the current buffer from SYNC-SCROLLINE.
 
 The entire current buffer is rewritten to match the content of the
 terminal starting at SYNC-SCROLLINE in a way that keeps marker positions
 as much as possible.
 
-The point is set at the cursor position, as long as the cursor is at or
+The marker CURSOR is set at the cursor position, as long as the cursor is at or
 below SYNC-SCROLLINE, otherwise the cursor is moved to the beginning of
 the buffer after sync."
-  (let ((cursor mistty--term-eterm-backstage-cursor))
-    (if cursor
-        (set-marker cursor (point-min))
-
-      (setq cursor (copy-marker (point-min)))
-      (setq mistty--term-eterm-backstage-cursor cursor))
-    (mistty--term-sync
-     term (current-buffer) (point-min) sync-scrolline
-     'keep-markers cursor)
-    (goto-char cursor)))
+  (mistty--term-sync
+   term (current-buffer) (point-min) sync-scrolline
+   'keep-markers cursor)
+  (goto-char cursor))
 
 (cl-defmethod mistty--term-detect-dead-spaces-after-insert
   ((term mistty--term-eterm) content scrolline pos-in-line)

@@ -1957,7 +1957,7 @@
   (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
   ;; This is what clear sends with TERM=alacritty, but in tests, TERM=xterm-256color
-  (mistty-send-text "printf '\\e[3J\\e[H\\e[2J'")
+  (mistty-send-text "printf '\\e[H\\e[2J\\e[3J'")
   (mistty-send-command)
 
   ;; The normal mistty-send-and-wait-for-prompt doesn't work here,
@@ -6676,11 +6676,17 @@ function prompt {
 
 (defun mistty--cursor-scrolline ()
   "Return the scrolline position of the cursor."
-  (with-current-buffer mistty-term-buffer
-    (mistty--scrolline-at (point))))
+  (mistty--scrolline-at (mistty-cursor)))
 
-(mistty-deftest mistty-test-scrolline-after-scrolling
-    (:term-size '(79 . 22) :type all :turtles t)
+(mistty-deftest mistty-test-scrolline-after-scrolling/eterm
+    (:term-size '(79 . 22) :type eterm :turtles t)
+  (mistty-test-scrolline-after-scrolling 'test-term-buf))
+
+(mistty-deftest mistty-test-scrolline-after-scrolling/alacritty
+    (:term-size '(79 . 22) :type alacritty :turtles t)
+  (mistty-test-scrolline-after-scrolling nil))
+
+(defun mistty-test-scrolline-after-scrolling (test-term-buf)
   (save-restriction
     (let (one two)
       (mistty--send-string
@@ -6698,26 +6704,28 @@ function prompt {
       (mistty-wait-for-output :str "line 10")
       (mistty-send-text "one")
       (setq one (mistty--cursor-scrolline))
-      (mistty-log "one scrolline=%s" one)
 
       ;; scrolline one is valid on both buffers
       (should (equal "one" (mistty-test-line-at-scrolline one)))
-      (should (equal "one" (with-current-buffer mistty-term-buffer
-                             (mistty-test-line-at-scrolline one))))
+      (when test-term-buf
+        (should (equal "one" (with-current-buffer mistty-term-buffer
+                               (mistty-test-line-at-scrolline one)))))
 
       (mistty--send-string mistty-proc "\n")
       (mistty-wait-for-output :str "line 20")
 
       (should (equal "one" (mistty-test-line-at-scrolline one)))
-      (should (equal "one" (with-current-buffer mistty-term-buffer
-                             (mistty-test-line-at-scrolline one))))
+      (when test-term-buf
+        (should (equal "one" (with-current-buffer mistty-term-buffer
+                               (mistty-test-line-at-scrolline one)))))
 
       (mistty-send-text "two")
       (setq two (mistty--cursor-scrolline))
 
       (should (equal "two" (mistty-test-line-at-scrolline two)))
-      (with-current-buffer mistty-term-buffer
-        (should (equal "two" (mistty-test-line-at-scrolline two))))
+      (when test-term-buf
+        (with-current-buffer mistty-term-buffer
+          (should (equal "two" (mistty-test-line-at-scrolline two)))))
       (mistty--send-string mistty-proc "\n")
       (mistty-wait-for-output :str "line 30")
 
@@ -6729,8 +6737,9 @@ function prompt {
         (should (> two screen-start)))
 
       (should (equal "two" (mistty-test-line-at-scrolline two)))
-      (with-current-buffer mistty-term-buffer
-        (should (equal "two" (mistty-test-line-at-scrolline two))))
+      (when test-term-buf
+        (with-current-buffer mistty-term-buffer
+          (should (equal "two" (mistty-test-line-at-scrolline two)))))
 
       (mistty-send-and-wait-for-prompt
        :send (lambda ()
@@ -6741,7 +6750,7 @@ function prompt {
       (should (> mistty-sync-marker (mistty--find-scrolline two))))))
 
 (mistty-deftest mistty-test-scrolline-after-scrolling-long-lines
-    (:term-size '(79 . 23) :type all :turtles t)
+    (:term-size '(79 . 23) :type eterm :turtles t)
   (save-restriction
     (let (one)
       ;; Each line counts double, as it is split by term.
@@ -7510,7 +7519,7 @@ precmd_functions+=(prompt_header)
              (mistty-test-content :trim nil :show-property '(mistty-scrolline 14))))))
 
 (mistty-deftest mistty-truncate-term-buffer
-    (:term-size '(125 . 25) :type all)
+    (:term-size '(125 . 25) :type eterm)
   (mistty-send-text "for i in $(seq 0 55); do echo $(head -c 100 </dev/zero| tr '\\0' '-'); done")
   (mistty-send-and-wait-for-prompt)
   ;; there are about 30 lines above screen top on the work buffer
@@ -7523,9 +7532,7 @@ precmd_functions+=(prompt_header)
   ;; but the term buffer kept only a few
   (with-current-buffer mistty-term-buffer
     (should
-     (<= (mistty--count-lines
-          (point-min)
-          (mistty--term-screen-top-pos mistty--term))
+     (<= (mistty--count-lines (point-min) term-home-marker)
          10))))
 
 (mistty-deftest mistty-test-osc-8 (:type all)

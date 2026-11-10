@@ -80,9 +80,6 @@
   ;; function to call after resetting the terminal
   after-reset
 
-  ;; function to call to clear scrollback
-  clear-scrollback
-
   ;; function to call to show or hide cursor
   show-cursor
 
@@ -164,13 +161,10 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
         (unless after-reset (error ":after-reset required"))
         (setf (mistty--term-alacritty-after-reset term) after-reset)
 
-        (unless clear-scrollback (error ":clear-scrollback required"))
-        (setf (mistty--term-alacritty-clear-scrollback term) clear-scrollback)
-
         (unless show-cursor (error ":show-cursor required"))
         (setf (mistty--term-alacritty-show-cursor term) show-cursor)
 
-        (ignore sync-scrolline)
+        (ignore sync-scrolline clear-scrollback)
 
         term))))
 
@@ -193,11 +187,6 @@ Unknown options are ignored."
 (cl-defmethod mistty--term-proc ((term mistty--term-alacritty))
   "Return TERM's associated process."
   (mistty--term-alacritty-proc term))
-
-(cl-defmethod mistty--term-screen-top-pos ((term mistty--term-alacritty))
-  "Return the position of the terminal in TERM's terminal buffer."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    mistty-alacritty--home))
 
 (cl-defmethod mistty--term-scrolline-at-screen-top ((term mistty--term-alacritty))
   "Return the scrolline number of the first line of TERM's terminal."
@@ -254,8 +243,7 @@ CURSOR-MARKER is updated to the cursor position."
   (let ((vterm (mistty--term-alacritty-vterm term))
         (term-buf (mistty--term-alacritty-buf term))
         (sync-pos (mistty--with-live-buffer dest-buffer
-                    (copy-marker sync-pos)))
-        cleared-scrollback)
+                    (copy-marker sync-pos))))
     (unwind-protect
         (progn
           (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
@@ -271,15 +259,12 @@ CURSOR-MARKER is updated to the cursor position."
                  (mistty--with-live-buffer term-buf
                    (mistty-osc7 "7" url))))
               (`(cleared-screen)
-               (mistty--with-live-buffer term-buf
-                 (funcall (mistty--term-alacritty-after-clear-screen term))))
+               (funcall (mistty--term-alacritty-after-clear-screen term)))
               (`(reset)
-               (mistty--with-live-buffer term-buf
-                 (funcall (mistty--term-alacritty-after-reset term))))
+               (funcall (mistty--term-alacritty-after-reset term)))
               (`(cleared-scrollback)
-               (setq cleared-scrollback t)
-               (mistty--with-live-buffer term-buf
-                 (funcall (mistty--term-alacritty-clear-scrollback term))))
+               (mistty--with-live-buffer dest-buffer
+                 (delete-region (point-min) sync-pos)))
               (`(kkp . ,val)
                (setf (mistty--term-alacritty-kkp term) val))
               (`(mouse . ,val)
@@ -346,87 +331,100 @@ CURSOR-MARKER is updated to the cursor position."
               (_ (error "Unhandled event: %S" ev))))
 
           ;; Sync or render
-          (if (mistty--term-alacritty-fs term)
-              ;; fullscreen mode, without support for prompts
-              (mistty--with-live-buffer dest-buffer
-                (save-excursion
-                  (mistty-log "RENDER FULLSCREEN")
-                  (goto-char sync-pos)
-                  (mistty-alacritty-vt-render-screen vterm cursor-marker)
-                  (put-text-property sync-pos (point-max) 'read-only t)))
+          (cond
+           ;; fullscreen mode, without support for prompts
+           ((mistty--term-alacritty-fs term)
+            (mistty--with-live-buffer dest-buffer
+              (save-excursion
+                (mistty-log "RENDER FULLSCREEN")
+                (goto-char sync-pos)
+                (mistty-alacritty-vt-render-screen vterm cursor-marker)
+                (put-text-property sync-pos (point-max) 'read-only t))))
 
-            ;; normal mode, with support for prompts
-            (mistty--with-live-buffer term-buf
-              (mistty-alacritty--render vterm)
+           ;; direct mode, outside of a prompt
+           ((not keep-markers)
+            (mistty--with-live-buffer dest-buffer
+              (let ((old-point (when (< (point) sync-pos (point-max))
+                                 (point))))
+                (goto-char sync-pos)
+                (pcase-let ((`(,new-start . ,new-scrolline)
+                             (mistty-alacritty-vt-render vterm cursor-marker sync-scrolline)))
+                  (mistty-log "DIRECT RENDER [%s,..) POS %s (+%s)"
+                              sync-scrolline
+                              (marker-position sync-pos)
+                              (- new-scrolline sync-scrolline))
+                  (set-marker sync-pos new-start)
+                  (setq sync-scrolline new-scrolline))
+                (if old-point
+                    (goto-char old-point)
+                  (goto-char cursor-marker)))))
 
-              (when cleared-scrollback
-                (mistty-log "CLEAR SCROLLBACK (alacritty)")
-                (when-let* ((home mistty-alacritty--home))
-                  (when (> home (point-min))
-                    (delete-region (point-min) home))))
+           ;; On a prompt, rendering first to term-buf then syncing,
+           ;; to keep markers.
+           (t
+            (pcase-let ((`(,new-start . ,new-scrolline)
+                         (with-current-buffer term-buf
+                           (goto-char 1)
+                           (mistty-alacritty-vt-render vterm cursor-marker sync-scrolline))))
+              (mistty--sync-buffer term-buf 1 dest-buffer sync-pos 'keep-markers)
+              (set-marker cursor-marker
+                          (+ sync-pos (1- cursor-marker))
+                          dest-buffer)
+              (set-marker sync-pos
+                          (+ sync-pos (1- new-start))
+                          dest-buffer)
+              (setq sync-scrolline new-scrolline)
 
-              (let ((home-marker mistty-alacritty--home)
-                    (home-scrolline mistty--scrolline-home-num)
-                    (proc (mistty--term-alacritty-proc term)))
-                (when (< sync-scrolline home-scrolline)
-                  (pcase-let ((`(,pos . ,scrolline)
-                               (mistty--catchup
-                                home-marker home-scrolline dest-buffer
-                                sync-pos sync-scrolline)))
-                    (set-marker sync-pos pos dest-buffer)
-                    (setq sync-scrolline scrolline)))
+              (mistty-alacritty-vt-flush-scrollback vterm)
+              (when (> new-start 1)
+                (mistty--with-live-buffer term-buf
+                  ;; Clear scrollback to allow partial rendering next
+                  ;; time. This must be done after computing the
+                  ;; positions to not mess with the cursor marker.
+                  (delete-region (point-min) new-start))))))
 
-                (let ((source-sync-pos (mistty--find-scrolline sync-scrolline)))
-                  (mistty--sync-buffer
-                   term-buf source-sync-pos
-                   dest-buffer sync-pos
-                   keep-markers)
+          (mistty-term-alacritty-mark-final-newline sync-pos)
 
-                  (mistty--with-live-buffer dest-buffer
-                    (set-marker cursor-marker
-                                (+ sync-pos
-                                   (- (process-mark proc) source-sync-pos)))
-
-                    ;; When rendering, alacritty always render a final newline. Mark it.
-                    (let ((last-newline (1- (point-max))))
-                      (when (and (> last-newline sync-pos)
-                                 (eq ?\n (char-after last-newline)))
-                        (add-text-properties
-                         last-newline (point-max)
-                         '(mistty-skip empty-lines-at-eob
-                                       yank-handler (nil "" nil nil)))))
-
-                    (when-let* ((msg (mistty--term-alacritty-process-status term)))
-                      (save-excursion
-                        (goto-char (point-max))
-                        (insert "\nProcess " msg))))))))
+          ;; Report process status, if necessary
+          (when-let* ((msg (mistty--term-alacritty-process-status term)))
+            (save-excursion
+              (goto-char (point-max))
+              (insert "\nProcess " msg)))
 
           (cons (marker-position sync-pos) sync-scrolline))
 
       ;; unwind-protect cleanup
       (set-marker sync-pos nil))))
 
-(defvar-local mistty--term-alacritty-backstage-cursor nil)
 
-(cl-defmethod mistty--term-sync-backstage ((term mistty--term-alacritty) sync-scrolline)
+(cl-defmethod mistty--term-sync-backstage ((term mistty--term-alacritty) sync-scrolline cursor)
   "Render TERM into the current buffer from SYNC-SCROLLINE.
 
 The entire current buffer is rewritten to match the content of the
 terminal starting at SYNC-SCROLLINE in a way that keeps marker positions
 as much as possible.
 
-The point is set at the cursor position, as long as the cursor is at or
+The marker CURSOR is set at the cursor position, as long as the cursor is at or
 below SYNC-SCROLLINE, otherwise the cursor is moved to the beginning of
 the buffer after sync."
-  (let ((cursor mistty--term-alacritty-backstage-cursor))
-    (if cursor
-        (set-marker cursor (point-min))
+  (let* ((vterm (mistty--term-alacritty-vterm term))
+         (term-buf (mistty--term-alacritty-buf term))
+         (mode-alist (mistty-alacritty-vt-mode-alist vterm)))
+    (when (alist-get 'fullscreen mode-alist)
+      (error "Terminal entered fullscreen mode; replay not possible"))
+    (setq mistty-bracketed-paste (alist-get 'bracketed-paste mode-alist))
 
-      (setq cursor (copy-marker (point-min)))
-      (setq mistty--term-alacritty-backstage-cursor cursor))
-    (mistty--term-sync
-     term (current-buffer) (point-min) sync-scrolline
-     'keep-markers cursor)
+    ;; replace-region-contents updates markers automatically
+    (with-current-buffer term-buf
+      (set-marker cursor (point-min))
+      (goto-char (point-min))
+      (mistty-alacritty-vt-render vterm cursor sync-scrolline))
+    (mistty--sync-buffer term-buf 1 (current-buffer) 1 'keep-markers)
+    (mistty-term-alacritty-mark-final-newline (point-min))
+
+    ;; even though the cursor is for term-buf, right now, the position
+    ;; is the same.
+    (set-marker cursor (marker-position cursor))
     (goto-char cursor)))
 
 (cl-defmethod mistty--term-detect-dead-spaces-after-insert
@@ -446,13 +444,8 @@ was inserted."
    scrolline
    pos-in-line))
 
-(cl-defmethod mistty--term-truncate-buffer ((term mistty--term-alacritty) scrolline-limit)
-  "Truncate the terminal buffer of TERM, if necessary.
-
-Always keep SCROLLINE-LIMIT and below."
-  (with-current-buffer (mistty--term-alacritty-buf term)
-    (when (>= scrolline-limit mistty--scrolline-home-num)
-      (mistty--truncate-buffer mistty-alacritty--home))))
+(cl-defmethod mistty--term-truncate-buffer ((_term mistty--term-alacritty) _scrolline-limit)
+  "Does nothing.")
 
 (cl-defmethod mistty--term-translate-key ((term mistty--term-alacritty) key &optional n)
   "Generate the key byte sequence for TERM.
@@ -658,6 +651,18 @@ SYNC-POS marks the beginning of the terminal zone."
                          (mistty--term-alacritty-vterm term)
                          (mistty--scrolline-at-point))))
         (+ line (mistty--count-lines sync-pos buffer-pos))))))
+
+(defun mistty-term-alacritty-mark-final-newline (sync-pos)
+  "Mark the final newline rendered by alacritty as \\='empty-lines-at-eob.
+
+Newline is only marked if after SYNC-POS."
+  (let ((last-newline (1- (point-max))))
+    (when (and (> last-newline sync-pos)
+               (eq ?\n (char-after last-newline)))
+      (add-text-properties
+       last-newline (point-max)
+       '(mistty-skip empty-lines-at-eob
+                     yank-handler (nil "" nil nil))))))
 
 (provide 'mistty-term-alacritty)
 

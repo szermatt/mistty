@@ -5,6 +5,7 @@
 ;;   https://emacs-eldev.github.io/eldev/#_getting_started
 
 (eldev-use-package-archive 'gnu-elpa)
+(eldev-use-package-archive 'melpa)
 
 (setq eldev-build-treat-warnings-as-errors t)
 (setf eldev-project-loading-mode 'byte-compiled)
@@ -82,16 +83,7 @@
  :teardown (setq eldev-build-treat-warnings-as-errors t
                  eldev-build-suppress-warnings nil))
 
-;; Dependency disabled while investigating issues with adding the
-;; dependency on VC and in some Emacs versions.
-;;
-;; (eldev-add-extra-dependencies '(test emacs) 'nerd-icons)
-;; (eldev-use-vc-repository
-;;  'nerd-icons :github "rainstormstudio/nerd-icons.el" :commit "0.1.0"
-;;  :setup (setq eldev-build-treat-warnings-as-errors nil
-;;               eldev-build-suppress-warnings t)
-;;  :teardown (setq eldev-build-treat-warnings-as-errors t
-;;                  eldev-build-suppress-warnings nil))
+(eldev-add-extra-dependencies '(test emacs) 'nerd-icons)
 
 ;;; Testing options
 ;;

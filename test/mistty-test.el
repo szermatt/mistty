@@ -2582,7 +2582,7 @@
       (should (equal "$ toto<>\ntoto0  toto1  toto2"
                      (mistty-test-content :start start :show (point)))))))
 
-(mistty-deftest mistty-test-revert-replace-after-prompt (:shell zsh :type all :slow t)
+(mistty-deftest mistty-test-revert-replace-after-prompt (:shell zsh :type all)
   (dotimes (i 10)
     (mistty-send-text (format "function toto%d { echo %d; };" i i))
     (mistty-send-and-wait-for-prompt))
@@ -2591,6 +2591,7 @@
     (mistty-send-text "toto")
     (mistty-run-command
      (mistty-tab-command))
+    (mistty-wait-for-output :regexp "toto8 +toto9")
     (mistty-run-command
      (save-excursion
        (goto-char (mistty-cursor))

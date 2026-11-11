@@ -705,13 +705,13 @@ text to be inserted there."
 The interaction waits for TEXT, but never sends it, so it'll wait
 forever - or until the test calls mistty--send-text directly."
   (mistty--interact stuck (interact)
-    (cl-labels ((loop (&optional _)
+    (cl-labels ((loopit (&optional _)
                   (save-excursion
                     (goto-char (mistty-cursor))
                     (if (looking-back (regexp-quote text) nil)
                         (mistty--interact-done)
-                    (throw 'mistty--interact-return #'loop)))))
-      (loop))))
+                    (throw 'mistty--interact-return #'loopit)))))
+      (loopit))))
 
 (defun mistty-test-freeze-queue ()
   "Freezes `mistty-queue'.
@@ -726,11 +726,11 @@ redraw everything."
     (mistty--enqueue
      mistty--queue
      (mistty--interact freeze (interact)
-       (cl-labels ((loop (&optional _)
+       (cl-labels ((loopit (&optional _)
                      (if can-continue
                          (mistty--interact-done)
-                       (throw 'mistty--interact-return #'loop))))
-         (loop))))
+                       (throw 'mistty--interact-return #'loopit))))
+         (loopit))))
 
     (lambda ()
       (setq can-continue t)

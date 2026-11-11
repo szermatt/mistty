@@ -2229,9 +2229,11 @@
       (mistty-alacritty-vt-process-bytes vterm "\e[?1049h") ; fullscreen
       (mistty-alacritty-vt-process-bytes vterm "\e[?1000h") ; mouse click
       (mistty-alacritty-vt-process-bytes vterm "\e[?25l")   ; hide cursor
+      (mistty-alacritty-vt-process-bytes vterm "\e[?1004h") ; report focus
 
       (let ((mode-alist (mistty-alacritty-vt-mode-alist vterm)))
         (should (alist-get 'bracketed-paste mode-alist))
         (should (alist-get 'fullscreen mode-alist))
         (should (equal 'click (alist-get 'mouse mode-alist)))
-        (should-not (alist-get 'cursor mode-alist)))))
+        (should-not (alist-get 'cursor mode-alist))
+        (should (alist-get 'report-focus mode-alist)))))

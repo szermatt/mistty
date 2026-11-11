@@ -43,6 +43,7 @@ emacs::use_symbols! {
     nil_sym => "nil"
     cwd_sym => "cwd"
     cursor_sym => "cursor"
+    report_focus_sym => "report-focus"
     fullscreen_sym => "fullscreen"
     cleared_screen_sym => "cleared-screen"
     cleared_scrollback_sym => "cleared-scrollback"
@@ -187,6 +188,9 @@ pub(crate) enum VTermChange {
     /// Show or hide the cursor.
     ShowCursor(bool),
 
+    /// If true, the application wants focus in/out reported.
+    ReportFocus(bool),
+
     /// Report that a scrolline above the target scrolline has been
     /// unexpectedly modified.
     ///
@@ -222,6 +226,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::ClearedScrollback => env.cons(cleared_scrollback_sym, ()),
             VTermChange::Reset => env.cons(reset_sym, ()),
             VTermChange::ShowCursor(on) => env.cons(cursor_sym, on),
+            VTermChange::ReportFocus(on) => env.cons(report_focus_sym, on),
             VTermChange::Modified(scrolline) => env.cons(modified_sym, scrolline),
         }
     }
@@ -1020,6 +1025,11 @@ fn mode_diff(before: TermMode, mode: TermMode) -> Vec<VTermChange> {
     let cursor_on = mode.intersects(TermMode::SHOW_CURSOR);
     if cursor_on != before.intersects(TermMode::SHOW_CURSOR) {
         reports.push(VTermChange::ShowCursor(cursor_on));
+    }
+
+    let cursor_on = mode.intersects(TermMode::FOCUS_IN_OUT);
+    if cursor_on != before.intersects(TermMode::FOCUS_IN_OUT) {
+        reports.push(VTermChange::ReportFocus(cursor_on));
     }
 
     reports
@@ -2152,7 +2162,7 @@ mod tests {
     fn reset_resets_modes() {
         let mut fixture = Fixture::setup();
 
-        fixture.process_bytes(b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h\x1b[?25l");
+        fixture.process_bytes(b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h\x1b[?25l\x1b[?1004h]");
         assert_eq!(
             vec![
                 VTermChange::KittyKeyboard(true),
@@ -2160,6 +2170,7 @@ mod tests {
                 VTermChange::Fullscreen(true),
                 VTermChange::Mouse(MouseMode::Click),
                 VTermChange::ShowCursor(false),
+                VTermChange::ReportFocus(true),
             ],
             fixture.vterm.collect_changes().unwrap()
         );
@@ -2172,6 +2183,7 @@ mod tests {
                 VTermChange::Fullscreen(false),
                 VTermChange::Mouse(MouseMode::Off),
                 VTermChange::ShowCursor(true),
+                VTermChange::ReportFocus(false),
                 VTermChange::Reset,
             ],
             fixture.vterm.collect_changes().unwrap()
@@ -2794,6 +2806,37 @@ mod tests {
         fixture.process_bytes(b"\x1b[?25h");
         assert_eq!(
             vec![VTermChange::ShowCursor(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_report_focus() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b[?1004l");
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?1004h");
+        assert_eq!(
+            vec![VTermChange::ReportFocus(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?1004l");
+        assert_eq!(
+            vec![VTermChange::ReportFocus(false)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(

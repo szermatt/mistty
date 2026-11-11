@@ -33,7 +33,8 @@
           clear-scrollback
           sync-scrolline
           show-cursor
-          request-report-mouse)
+          request-report-mouse
+          report-focus)
   "Create a new term buffer of the given TYPE with name NAME.
 
 The buffer runs COMMAND, a list containing the program to run and its
@@ -69,7 +70,10 @@ REQUEST-REPORT-MOUSE is a function that the terminal can use to request
 which mouse events should be reported `mistty--term-translate-mouse'. It
 takes one argument that is either nil (deactivated), \\='click (press
 and release events), \\='drag (press, release, and mouse movement with
-pointer down), \\='motion (all mouse events).")
+pointer down), \\='motion (all mouse events).
+
+REPORT-FOCUS is passed a boolean to ask for focus events to be
+reported (non-nil) or not (nil).")
 
 (cl-defgeneric mistty--term-update-options (term &rest plist)
   "Set TERM options.

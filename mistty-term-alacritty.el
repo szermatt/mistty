@@ -83,6 +83,10 @@
   ;; function to call to show or hide cursor
   show-cursor
 
+  ;; function to call when reporting focus in/out events is requested
+  ;; or turned off.
+  report-focus
+
   ;; status message, set after the process died
   process-status)
 
@@ -97,7 +101,8 @@
    clear-scrollback
    sync-scrolline
    show-cursor
-   request-report-mouse)
+   request-report-mouse
+   report-focus)
   "Create an alacritty-type terminal with the given NAME and COMMAND.
 
 If WIDTH and HEIGHT are specified, they'll be used as terminal line and
@@ -111,7 +116,8 @@ AFTER-CLEAR-SCREEN is called after the screen is cleared.
 AFTER-RESET is called after the terminal was reset
 SYNC-SCROLLINE returns the current sync scrolline.
 SHOW-CURSOR shows (non-nil argument) or hides (nil argument) the cursor
-REQUEST-REPORT-MOUSE controls mouse reporting."
+REQUEST-REPORT-MOUSE controls mouse reporting.
+REPORT-FOCUS control reporting of focus in/out events."
   (let* ((width (or width 80))
          (height (or height 24))
          ;; Take terminal options from possibly buffer-local values
@@ -163,6 +169,9 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
 
         (unless show-cursor (error ":show-cursor required"))
         (setf (mistty--term-alacritty-show-cursor term) show-cursor)
+
+        (unless report-focus (error ":report-focus required"))
+        (setf (mistty--term-alacritty-report-focus term) report-focus)
 
         (ignore sync-scrolline clear-scrollback)
 
@@ -272,6 +281,8 @@ CURSOR-MARKER is updated to the cursor position."
                (funcall (mistty--term-alacritty-request-report-mouse term) val))
               (`(cursor . ,val)
                (funcall (mistty--term-alacritty-show-cursor term) val))
+              (`(report-focus . ,val)
+               (funcall (mistty--term-alacritty-report-focus term) val))
               (`(bracketed-paste . ,val)
                (mistty--with-live-buffer term-buf
                  (setq mistty-bracketed-paste val)))

@@ -428,7 +428,8 @@ to call `mistty--term-postprocess'.")
    clear-scrollback
    sync-scrolline
    show-cursor
-   request-report-mouse)
+   request-report-mouse
+   report-focus)
   "Create an eterm-based terminal called NAME.
 
 COMMAND is run in the terminal and its size is set to WIDTH x HEIGHT,
@@ -443,7 +444,8 @@ AFTER-RESET is called after the terminal was reset
 CLEAR-SCROLLBACK clears scrollback in the work buffer
 SYNC-SCROLLINE returns the current sync scrolline.
 SHOW-CURSOR shows (non-nil argument) or hides (nil argument) the cursor
-REQUEST-REPORT-MOUSE controls mouse reporting."
+REQUEST-REPORT-MOUSE controls mouse reporting.
+REPORT-FOCUS control whether focus changes should be reported."
   (ignore request-report-mouse)
   (let ((term-buffer (generate-new-buffer name 'inhibit-buffer-hooks)))
     (with-current-buffer term-buffer
@@ -631,6 +633,20 @@ REQUEST-REPORT-MOUSE controls mouse reporting."
                (mistty--with-live-buffer (mistty--term-eterm-buf term)
                  (mistty--hide-cursor))
              (funcall show-cursor nil))))
+
+        (unless report-focus (error ":report-focus required"))
+        (mistty--accum-add-processor
+         accum
+         '(seq CSI "?1004h")
+         (lambda (_ _)
+           (mistty-log "Report Focus ON")
+           (funcall report-focus t)))
+        (mistty--accum-add-processor
+         accum
+         '(seq CSI "?1004l")
+         (lambda (_ _)
+           (mistty-log "Report Focus OFF")
+           (funcall report-focus nil)))
 
         (mistty--accum-add-post-processor
          accum

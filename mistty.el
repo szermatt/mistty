@@ -555,6 +555,12 @@ split buffer fullscreen mode.")
 
 This is updated after each refresh.")
 
+(defvar-local mistty--report-focus nil
+  "Report focus in/out events if non-nil.")
+
+(defvar-local mistty--focused nil
+  "Non-nil if there is at least one buffer window with focus.")
+
 (defvar-local mistty--mouse-reporting nil
   "Whether mouse events should be reported to the terminal.
 
@@ -818,6 +824,9 @@ This map is active whenever the current buffer is in MisTTY mode."
 
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
+  (add-function :after after-focus-change-function #'mistty--check-frame-focus)
+  (add-hook 'window-selection-change-functions #'mistty--check-window-focus nil t)
+  (add-hook 'window-buffer-change-functions #'mistty--check-window-focus nil t)
 
   (setq mistty--cursor (copy-marker (point-min)))
   (setq mistty-sync-marker (point-max-marker))
@@ -977,6 +986,13 @@ window."
                       (if show
                           (mistty--show-cursor)
                         (mistty--hide-cursor))))
+                  :report-focus
+                  (lambda (report)
+                    (mistty--with-live-buffer work-buffer
+                      (unless (eq (not (not report))
+                                  (not (not mistty--report-focus)))
+                        (setq mistty--report-focus (not (not report)))
+                        (mistty--report-focus))))
                   :request-report-mouse
                   (lambda (val)
                     (mistty--with-live-buffer work-buffer
@@ -1000,7 +1016,8 @@ window."
         (add-hook 'mistty-end-capture-keyboard-hook
                   #'mistty--update-secondary-mode nil t))
 
-      (mistty--attach term)))
+      (mistty--attach term)
+      (mistty--check-buffer-focus (current-buffer))))
   (mistty--wrap-capf-functions)
   (mistty--update-secondary-mode)
   (run-hooks 'mistty-after-process-start-hook))
@@ -3711,6 +3728,8 @@ splits the buffers into a scrollback buffer and a terminal buffer."
       (setq mistty-fullscreen (if split 'split t))
       (mistty--with-live-buffer mistty-term-buffer
         (when split
+          (add-hook 'window-selection-change-functions #'mistty--check-window-focus nil t)
+          (add-hook 'window-buffer-change-functions #'mistty--check-window-focus nil t)
           (mistty--term-setup-buffer mistty--term t)
           (mistty-fullscreen-mode 1))
         (setq mistty-fullscreen (if split 'split t)))
@@ -4925,6 +4944,55 @@ If DELTA is negative, the window height is increased."
                 (mistty-log "TRACKING MOUSE OFF (drag)")
 
                 nil))))))))
+
+(defun mistty--check-frame-focus ()
+  "Check and report whether focus was lost or gained for all buffer."
+  (dolist (buf (buffer-list))
+    (mistty--check-buffer-focus buf)))
+
+(defun mistty--check-window-focus (win)
+  "Check and report whether focus was lost or gained for WIN.
+
+This function check WIN's buffer and WIN's old buffer. It is meant to be
+used in hooks that report change to the selection or buffer of WIN."
+  (let ((cur (window-buffer win))
+        (old (window-buffer win)))
+  (mistty--check-buffer-focus cur)
+  (when (and (windowp old) (not (eq cur old)))
+    (mistty--check-buffer-focus old))))
+
+(defun mistty--check-buffer-focus (buf)
+  "Check and report whether focus was lost or gained for BUF."
+  (when (mistty-buffer-p buf)
+    (with-current-buffer buf
+      (let ((focused
+             (not (not
+                   (seq-some
+                    (lambda (w)
+                      (let ((f (window-frame w)))
+                        (and
+                         (frame-focus-state f)
+                         (eq w (frame-selected-window f)))))
+                    (get-buffer-window-list buf nil t))))))
+
+        ;; We always track focus in mistty-work-buffer, even in split
+        ;; fullscreen mode.
+        (mistty--with-live-buffer mistty-work-buffer
+          (unless (eq focused (not (not mistty--focused)))
+            (setq mistty--focused focused)
+            (mistty--report-focus)))))))
+
+(defun mistty--report-focus ()
+  "Report focus to the application, if enabled."
+  (let ((proc (mistty--term-proc mistty--term)))
+    ;; Not using mistty-proc, as this function should work even in
+    ;; split fullscreen mode.
+    (when (and mistty--report-focus (process-live-p proc))
+      (pcase-let ((`(,seq . ,msg) (if mistty--focused
+                                      '("\e[I" . "IN")
+                                    '("\e[O" . "OUT"))))
+        (mistty-log "SEND %S (FOCUS %s)" seq msg)
+        (process-send-string proc seq)))))
 
 (provide 'mistty)
 

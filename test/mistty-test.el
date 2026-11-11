@@ -9044,3 +9044,94 @@ precmd_functions+=(prompt_header)
       (should (equal "24bit custom-term" (mistty-send-and-capture-command-output))))))
 
 
+(mistty-deftest mistty-report-focus (:type all :turtles t :selected t)
+  (let* ((buf (current-buffer))
+         (win (selected-window))
+         (frame (window-frame win)))
+    (should mistty--focused) ; buffer window is selected
+    
+    (mistty--send-string
+     mistty-proc
+     (concat "printf '\\e[?1004h'; "
+             "for i in a b c;"
+             " do read -p '### ' -N 3 $i >/dev/null;"
+             " printf \"\\rreceived $i\\n\";"
+             "done"))
+    (mistty-send-command)
+    (mistty-wait-for-output :regexp "^received a")
+    (should mistty--report-focus)
+    
+    (other-window 1)
+    (should-not (eq win (frame-selected-window frame)))
+    ;; redisplay triggers window-selection-change-functions to report
+    ;; selection change
+    (redisplay t)
+    
+    (with-current-buffer buf
+
+      (mistty-wait-for-output :regexp "^received b")
+      (should-not mistty--focused))
+
+    (select-window win)
+    (should (eq win (frame-selected-window frame)))
+    (redisplay t)
+
+    (with-current-buffer buf
+      (mistty-wait-for-output :regexp "^received c")
+      (should mistty--focused)
+
+      (mistty-send-text "echo -n \"$a$b$c\" | xxd")
+      (mistty-send-and-wait-for-prompt)
+      
+      (should
+       (equal
+        "00000000: 1b5b 491b 5b4f 1b5b 49                   .[I.[O.[I"
+        (mistty-test-content
+         :start (mistty--bol (mistty-test-pos "00000000:"))
+         :end (mistty--eol (mistty-test-pos "00000000:")))))
+
+      (mistty--send-string mistty-proc "printf '\\e[?1004ldisabled\\n'")
+      (mistty-send-command)
+      (mistty-wait-for-output :regexp "^disabled")
+      (should-not mistty--report-focus))))
+
+(mistty-deftest mistty-report-focus-split-fullscreen/eterm
+    (:type eterm :turtles t :selected t)
+  (let* ((work-buf mistty-work-buffer)
+         (term-buf mistty-term-buffer)
+         (proc mistty-proc)
+         (win (selected-window))
+         (frame (window-frame win)))
+    (should mistty--focused) ; buffer window is selected
+    
+    (mistty--send-string
+     mistty-proc
+     (concat "printf '\\e[47h'; printf '\\e[?1004h'; "
+             "for i in 1 2;"
+             " do read -p '### ' -N 3 c >/dev/null;"
+             " printf \"\\rreceived $i ${c:2}\\n\";"
+             "done"))
+    (mistty-send-command)
+    (mistty-wait-for-output
+     :proc proc
+     :test
+     (lambda ()
+       (buffer-local-value 'mistty-fullscreen work-buf)))
+
+    (with-current-buffer work-buf
+      (should mistty--focused))
+    (with-current-buffer term-buf
+      (mistty-wait-for-output :regexp "^received 1 I"))
+    (with-current-buffer work-buf
+      (should mistty--report-focus))
+    
+    (other-window 1)
+    (should-not (eq win (frame-selected-window frame)))
+    ;; redisplay triggers window-selection-change-functions to report
+    ;; selection change
+    (redisplay t)
+    
+    (with-current-buffer term-buf
+      (mistty-wait-for-output :regexp "^received 2 O"))
+    (with-current-buffer work-buf
+      (should-not mistty--focused))))

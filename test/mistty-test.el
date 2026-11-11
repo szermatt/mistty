@@ -526,10 +526,12 @@
   (mistty-test-goto "hello")
   (mistty-run-command
    (call-interactively #'mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
   (should (equal (point) (mistty-test-goto "echo")))
 
   (mistty-run-command
    (call-interactively #'mistty-end-of-line-or-goto-cursor))
+  (mistty-wait-for-output :str "world" :cursor-at-end t)
   (should (equal (point) (mistty-test-goto-after "world"))))
 
 (mistty-deftest mistty-test-no-bracketed-paste-bol-eol-in-possible-prompt
@@ -2148,6 +2150,7 @@
 
   (mistty-run-command
    (mistty-send-key 1 "\C-d"))
+  (mistty-wait-for-output :str "$ echo ok")
 
   (should (equal "$ echo <>ok"
                  (mistty-test-content :show (mistty-cursor))))
@@ -2851,7 +2854,7 @@
             (mistty--term-translate-key mistty--term [left] 4)
             (mistty--term-translate-key mistty--term [?\C-k])
             (mistty--maybe-bracketed-str "\n"))))
-  (mistty-wait-for-output :str "rest.")
+  (mistty-wait-for-output :str "rest.\"" :cursor-at-end t)
 
   (mistty-test-multiline-movements))
 
@@ -2872,7 +2875,7 @@
    (insert "\n"))
 
   (mistty--send-string mistty-proc "\C-e.\"")
-  (mistty-wait-for-output :str "rest.")
+  (mistty-wait-for-output :str "rest.\"" :cursor-at-end t)
 
   (mistty-test-multiline-movements))
 
@@ -3501,6 +3504,7 @@
   (mistty-send-text "echo hello")
   (mistty-run-command
    (mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
   (mistty-run-command
    (kill-line))
   (with-temp-buffer
@@ -3619,6 +3623,7 @@
   (mistty-send-text "echo hello")
   (mistty-run-command
    (mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
   (mistty-run-command
    (kill-line))
   (with-temp-buffer
@@ -3655,6 +3660,7 @@
   (mistty-send-text "echo hello")
   (mistty-run-command
    (mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
   (should (string-match "^\$ <>echo hello +< right$" (mistty-test-content :show (mistty-cursor))))
   (mistty-run-command
    (kill-line))
@@ -3666,6 +3672,7 @@
 
   (mistty-run-command
    (mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
 
   (mistty-run-command
    (kill-line))
@@ -3674,6 +3681,7 @@
 
   (mistty-run-command
    (mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
 
   ;; Zsh didn't clean up the spaces after deleting "echo hello,
   ;; world", so there appear to be many trailing spaces that can't
@@ -3690,15 +3698,18 @@
 
   (mistty-run-command
    (mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
 
   (mistty-run-command
    (kill-line))
 
   (mistty-send-text "foo")
   (mistty--send-string mistty-proc "     ")
+  (mistty-wait-for-output :str "foo     " :cursor-at-end t)
 
   (mistty-run-command
    (mistty-beginning-of-line))
+  (mistty-wait-for-output :str "$ " :cursor-at-end t)
 
   (mistty-run-command
    (kill-line))
@@ -6553,6 +6564,7 @@ function prompt {
    (mistty-test-goto "bar"))
   (mistty-run-command
    (mistty-newline))
+  (mistty-wait-for-output :str "\nbar'")
   (should
    (equal "foo\nbar"
           (mistty-send-and-capture-command-output))))
@@ -6567,13 +6579,14 @@ function prompt {
     ;; It might take some time for the shell to fully refresh
     ;; everything and put the right prompt where it belongs, so wait
     ;; for that not just for foo or bar.
-    (mistty-wait-for-output :regexp " echo foo.*right ?$")
+    (mistty-wait-for-output :regexp " echo foo.*right *\n *echo bar" :cursor-at-end t)
 
     (mistty-run-command
      (mistty-test-goto "echo foo"))
 
     (mistty-run-command
      (kill-line))
+    (mistty-wait-for-output :regexp "^\\$  *< right\n *echo bar")
 
     (should (string-match "^\\$ <> *< right\n *echo bar"
                           (mistty-test-content :show (point)))))

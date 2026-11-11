@@ -905,8 +905,7 @@ BEG and END define the region that was modified."
             (add-text-properties (point) beg props)))
         (add-text-properties beg end props)))
 
-    (when mistty-bracketed-paste
-      (mistty--changed beg end))))
+    (mistty--changed beg end)))
 
 (defun mistty--changed (beg end)
   "Mark text between BEG and END as changed, forcing postprocess."

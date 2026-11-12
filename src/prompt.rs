@@ -23,6 +23,7 @@ emacs::use_symbols! {
     bracketed_paste_sym => "bracketed-paste"
     colon_end_sym => ":end"
     colon_user_input_start_sym => ":user-input-start"
+    colon_cmdline_sym => ":cmdline"
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -40,7 +41,11 @@ pub(crate) enum PromptChange {
 
 #[derive(PartialEq, Eq, Debug, Default)]
 pub(crate) struct PromptOptions {
+    /// Position of the start of user input within the prompt.
     pub(crate) user_input_start: Option<(Scrolline, Column)>,
+
+    /// The final command-line, as reported by the shell.
+    pub(crate) cmdline: Option<String>,
 }
 
 impl<'e> IntoLisp<'e> for PromptOptions {
@@ -51,14 +56,20 @@ impl<'e> IntoLisp<'e> for PromptOptions {
 impl<'e> IntoLisp<'e> for &PromptOptions {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<Value<'e>> {
         let nil = ().into_lisp(env)?;
-
         env.call(
             append_fn,
-            (if let Some((scrolline, col)) = &self.user_input_start {
-                env.list((colon_user_input_start_sym, env.cons(scrolline, col.0)?))?
-            } else {
-                nil
-            },),
+            (
+                if let Some((scrolline, col)) = &self.user_input_start {
+                    env.list((colon_user_input_start_sym, env.cons(scrolline, col.0)?))?
+                } else {
+                    nil
+                },
+                if let Some(cmdline) = &self.cmdline {
+                    env.list((colon_cmdline_sym, cmdline))?
+                } else {
+                    nil
+                },
+            ),
         )
     }
 }
@@ -286,6 +297,18 @@ impl PromptDetector {
                 )),
                 ..PromptOptions::default()
             }));
+        }
+    }
+
+    /// Set the command-line of a prompt, decoded and satinized by the shell.
+    pub(crate) fn osc_133_cmdline(&mut self, cmdline: &str) {
+        if let Some(_) = &self.current {
+            if let Ok(cmdline) = percent_encoding::percent_decode_str(cmdline).decode_utf8() {
+                self.push(PromptChange::Update(PromptOptions {
+                    cmdline: Some(cmdline.to_string()),
+                    ..PromptOptions::default()
+                }))
+            }
         }
     }
 
@@ -744,6 +767,84 @@ mod tests {
         assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
         assert_eq!(
             Vec::<PromptChange>::new(),
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn detect_osc133_cmdline() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07");
+        fixture.process_bytes(b"echo ok\r\n");
+        fixture.process_bytes(b"\x1b]133;C;cmdline_url=echo%20ok\x07");
+        fixture.process_bytes(b"ok\r\n");
+        fixture.process_bytes(b"\x1b]133;D;0\x07");
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(0), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::Update(PromptOptions {
+                    cmdline: Some("echo ok".to_string()),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(1)),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn detect_osc133_cmdline_percent_encoded_utf8() {
+        let mut fixture = Fixture::setup();
+        fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07");
+        fixture.process_bytes(b"echo\r\n");
+        fixture.process_bytes(
+            b"\x1b]133;C;cmdline_url=echo%20%22hello%20%E4%B8%96%E7%95%8C%22%0A%25\x07",
+        );
+
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(0), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::Update(PromptOptions {
+                    cmdline: Some("echo \"hello 世界\"\n%".to_string()),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(1)),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+    }
+
+    #[test]
+    fn detect_osc133_cmdline_invalid_utf8_and_no_prompt() {
+        let mut fixture = Fixture::setup();
+        // No active prompt: cmdline_url is ignored.
+        fixture.process_bytes(b"\x1b]133;C;cmdline_url=echo%20ok\x07");
+        assert_eq!(
+            Vec::<PromptChange>::new(),
+            fixture.processor.collect_prompt_changes()
+        );
+
+        // Invalid UTF-8 in cmdline_url: cmdline update is skipped, prompt still ends.
+        fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07echo\r\n");
+        fixture.process_bytes(b"\x1b]133;C;cmdline_url=%FF\x07");
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(0), Column(2))),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(1)),
+            ],
             fixture.processor.collect_prompt_changes()
         );
     }

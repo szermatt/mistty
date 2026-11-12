@@ -256,7 +256,7 @@ CURSOR-MARKER is updated to the cursor position."
     (unwind-protect
         (progn
           (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
-            (mistty-log "EV %s" ev)
+            (mistty-log "EV %S" ev)
             (pcase ev
               ;; terminal changes
 
@@ -328,16 +328,25 @@ CURSOR-MARKER is updated to the cursor position."
                                (mistty--prompt-input-id prompt)
                                (mistty--prompt-start prompt)
                                end))))
-              (`(update-prompt :user-input-start ,val)
+              (`(update-prompt . ,args-plist)
                (mistty--with-live-buffer term-buf
                  (when-let* ((prompt (mistty--prompt)))
-                   (setf (mistty--prompt-user-input-start prompt) val)
-                   (mistty-log "Updated %s prompt #%s [%s-%s] :user-input-start %s"
-                               (mistty--prompt-source prompt)
-                               (mistty--prompt-input-id prompt)
-                               (mistty--prompt-start prompt)
-                               (mistty--prompt-end prompt)
-                               val))))
+                   (when-let* ((val (plist-get args-plist :user-input-start)))
+                     (setf (mistty--prompt-user-input-start prompt) val)
+                     (mistty-log "Updated %s prompt #%s [%s-%s] :user-input-start %s"
+                                 (mistty--prompt-source prompt)
+                                 (mistty--prompt-input-id prompt)
+                                 (mistty--prompt-start prompt)
+                                 (mistty--prompt-end prompt)
+                                 val))
+                   (when-let* ((cmdline (plist-get args-plist :cmdline)))
+                     (setf (mistty--prompt-cmdline prompt) cmdline)
+                     (mistty-log "Updated %s prompt #%s [%s-%s] :cmdline %S"
+                                 (mistty--prompt-source prompt)
+                                 (mistty--prompt-input-id prompt)
+                                 (mistty--prompt-start prompt)
+                                 (mistty--prompt-end prompt)
+                                 cmdline)))))
 
               (_ (error "Unhandled event: %S" ev))))
 

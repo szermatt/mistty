@@ -1541,8 +1541,10 @@ impl<'a> Handler for HandlerProxy<'a> {
     }
 
     /// OSC 133 C
-    fn command_executed(&mut self, __args: ansi::KeyValueArgs<'_>) {
-        // TODO: forward cmdline_url
+    fn command_executed(&mut self, args: ansi::KeyValueArgs<'_>) {
+        if let Some(cmdline) = args.get("cmdline_url") {
+            self.prompt_detector.osc_133_cmdline(cmdline);
+        }
         self.prompt_detector.osc133_command_end(self.vterm);
     }
 

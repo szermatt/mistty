@@ -1692,7 +1692,7 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
               (prompt-end (mistty--prompt-end prompt)))
     (when (and (>= scrolline prompt-end)
                (mistty--maybe-move-sync-mark (mistty--prompt-end prompt)))
-      (mistty-log "Closing %s prompt #%s [%s-%s] (cursor at scrolline %s)"
+      (mistty-log "Closing %s prompt #%s [%s-%s]"
                   (mistty--prompt-source prompt)
                   (mistty--prompt-input-id prompt)
                   (mistty--prompt-start prompt)
@@ -2013,9 +2013,10 @@ It also marks the prompt region with the text property
                                  (mistty--find-scrolline
                                   (mistty--prompt-end prompt)))))
           (when (> prompt-end prompt-beg)
-            (mistty-log "End %s prompt #%s. Mark input range: [%s-%s]/[%s-%s]"
+            (mistty-log "End %s prompt #%s %S Mark input range: [%s-%s]/[%s-%s]"
                         (mistty--prompt-source prompt)
                         (mistty--prompt-input-id prompt)
+                        (mistty--prompt-cmdline prompt)
                         (mistty--prompt-start prompt)
                         (mistty--prompt-end prompt)
                         prompt-beg
@@ -2027,7 +2028,15 @@ It also marks the prompt region with the text property
             (mistty--mark-prompt-fields prompt prompt-beg)
             (put-text-property
              prompt-beg prompt-end
-             'mistty-input-id (mistty--prompt-input-id prompt))))))
+             'mistty-input-id (mistty--prompt-input-id prompt))
+            (when-let* ((cmdline (or (when-let* ((c (mistty--prompt-cmdline prompt)))
+                                       (replace-regexp-in-string
+                                        "\n" "; " c))
+                                     (mistty--extract-command
+                                      prompt-beg prompt-end))))
+              (put-text-property
+               prompt-beg prompt-end
+               'mistty-cmdline cmdline))))))
     (setf (mistty--prompt-archive) nil)))
 
 (defun mistty--prepare-for-scrollback (beg scrolline end)
@@ -2872,7 +2881,8 @@ up (negative)."
                    (cl-incf accepted-count))
 
                  (>= accepted-count n))))))
-      (goto-char (mistty--user-input-start prompt))
+      (goto-char (mistty--user-input-start (nth 0 prompt)
+                                           (nth 1 prompt)))
     (user-error "No next input")))
 
 (defun mistty-previous-input (n)
@@ -2887,7 +2897,8 @@ up (negative)."
                    (cl-incf accepted-count))
 
                  (>= accepted-count n))))))
-      (goto-char (mistty--user-input-start prompt))
+      (goto-char (mistty--user-input-start (nth 0 prompt)
+                                           (nth 1 prompt)))
     (user-error "No previous input")))
 
 (defun mistty-next-output (n)
@@ -2987,11 +2998,9 @@ a buffer with that output."
     (pop-to-buffer buffer)
     buffer))
 
-(defun mistty--user-input-start (prompt-ranges)
+(defun mistty--user-input-start (start end)
   "Find the position of the start of user input within PROMPT-RANGES."
-  (let ((start (nth 0 prompt-ranges))
-        (end (nth 1 prompt-ranges))
-        pos)
+  (let (pos)
     (save-excursion
       (cond
        ;; Prompt is marked.
@@ -3021,13 +3030,23 @@ a buffer with that output."
 (defun mistty--command-for-output (prompt-ranges)
   "Extract command for PROMPT-RANGES, if possible.
 
-Note that this is very unreliable unless the shell issued OSS code B to
-mark the prompt beginning.
+Return nil if no command could be extracted."
+  (when-let* ((pos (text-property-not-all
+                    (nth 0 prompt-ranges)
+                    (nth 1 prompt-ranges)
+                    'mistty-cmdline nil)))
+    (get-text-property pos 'mistty-cmdline)))
+
+(defun mistty--extract-command (beg end)
+  "Extract command from range BEG to END, if possible.
+
+Note that this is unreliable unless the shell issued OSS code B to mark
+the prompt beginning.
 
 Return nil if no command could be extracted."
   (let ((prompt-text (buffer-substring
-                      (mistty--user-input-start prompt-ranges)
-                      (nth 1 prompt-ranges))))
+                      (mistty--user-input-start beg end)
+                      end)))
     (with-temp-buffer
       (insert prompt-text)
 
@@ -4748,7 +4767,8 @@ This is meant to be bound to `imenu-create-index-function'."
                ;; Active prompts
                (push (cons "CURRENT"
                            (funcall maybe-marker
-                                    (mistty--user-input-start prompt)))
+                                    (mistty--user-input-start
+                                     (nth 0 prompt) (nth 1 prompt))))
                      prompt-alist)
 
              ;; Previous prompts
@@ -4760,7 +4780,8 @@ This is meant to be bound to `imenu-create-index-function'."
                (when (> (nth 1 prompt) (nth 0 prompt))
                  (push (cons command
                              (funcall maybe-marker
-                                      (mistty--user-input-start prompt)))
+                                      (mistty--user-input-start (nth 0 prompt)
+                                                                (nth 1 prompt))))
                        prompt-alist)))))))
       `(("Outputs" . ,(nreverse output-alist))
         ("Commands" . ,(nreverse prompt-alist))))))

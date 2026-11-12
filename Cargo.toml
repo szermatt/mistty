@@ -9,6 +9,7 @@ publish = false
 alacritty_terminal = "0.26.0"
 either = "1.19.0"
 emacs = "0.21"
+percent-encoding = "2.3.2"
 qwertty-term-input = "0.4.0"
 
 [lib]

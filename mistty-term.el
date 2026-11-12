@@ -103,7 +103,10 @@ Always access it through the places `mistty--prompt'
 
   ;; Position of the start of the user input, if known.
   ;; This is a (cons scrolline column).
-  user-input-start)
+  user-input-start
+
+  ;; The command executed, as reported by the shell (OSC 133)
+  cmdline)
 
 (defun mistty--active-prompt (&optional cell)
   "Get the value of the current prompt if it is realized.

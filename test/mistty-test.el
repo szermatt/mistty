@@ -7026,6 +7026,60 @@ precmd_functions+=(prompt_header)
   (should (equal "echo one" (mistty--command-for-output
                              (mistty--prompt-ranges-for-current-or-previous-output 3)))))
 
+(defconst mistty-test-zsh-osc133-cmdline "
+function osc133_precmd() {
+      printf '\\033]133;A\\007'
+}
+precmd_functions+=(osc133_precmd)
+
+osc133_cmdline_url=''
+function osc133_preexec() {
+      if [ -n \"$osc133_cmdline_url\" ]; then
+            printf '\\033]133;C;cmdline_url=%s\\007' \"$osc133_cmdline_url\"
+      else
+            printf '\\033]133;C\\007'
+      fi
+}
+preexec_functions+=(osc133_preexec)
+")
+
+(mistty-deftest mistty-osc133-cmdline-url-command-for-output
+    (:type alacritty :shell ((zsh mistty-test-zsh-osc133-cmdline)))
+  ;; Send a percent-encoded cmdline_url that differs from the typed text
+  ;; to verify it is decoded and preferred over `mistty--extract-command'.
+  (mistty-send-text "osc133_cmdline_url='reported%20cmd%20%22%E4%B8%96%E7%95%8C%22'")
+  (mistty-send-and-wait-for-prompt)
+
+  (mistty-send-text "echo one")
+  (mistty-send-and-wait-for-prompt)
+
+  ;; Without cmdline_url, it falls back to `mistty--extract-command'.
+  (mistty-send-text "osc133_cmdline_url=''")
+  (mistty-send-and-wait-for-prompt)
+
+  (mistty-send-text "echo two")
+  (mistty-send-and-wait-for-prompt)
+
+  (should (equal "echo two"
+                 (mistty--command-for-output
+                  (mistty--prompt-ranges-for-current-or-previous-output 1))))
+  (should (equal "reported cmd \"世界\""
+                 (mistty--command-for-output
+                  (mistty--prompt-ranges-for-current-or-previous-output 2)))))
+
+(mistty-deftest mistty-osc133-fish-cmdline (:type alacritty :shell fish)
+  (mistty-send-text "for i in a b c")
+  (mistty-send-command)
+  (mistty-send-text "echo $i")
+  (mistty-send-command)
+  (mistty-send-text "end")
+  (mistty-send-and-wait-for-prompt)
+
+  (should (equal
+           "for i in a b c; echo $i; end"
+           (mistty--command-for-output
+            (mistty--prompt-ranges-for-current-or-previous-output 1)))))
+
 (mistty-deftest mistty-osc133-fish-right-prompt-field
     (:type all :shell ((fish "function fish_prompt; printf '$ \e]133;B\007'; end\n"
                              mistty-test-fish-right-prompt)))
@@ -7306,11 +7360,13 @@ precmd_functions+=(prompt_header)
                    (mapcar #'car
                            (alist-get "Commands" index nil nil #'string=))))))
 
-(mistty-deftest mistty-user-input-start ( :type all)
-  (let ((prompt (lambda ()
-                  (mistty--prompt-ranges-around
-                   (point)
-                   (mistty--active-or-potential-prompt-ranges)))))
+(mistty-deftest mistty-user-input-start (:type all)
+  (let ((user-input-start
+         (lambda ()
+           (let ((p (mistty--prompt-ranges-around
+                     (point)
+                     (mistty--active-or-potential-prompt-ranges))))
+             (mistty--user-input-start (nth 0 p) (nth 1 p))))))
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-and-wait-for-prompt)
@@ -7323,7 +7379,7 @@ precmd_functions+=(prompt_header)
       (mistty-test-content
        :start (pos-bol)
        :end (pos-eol)
-       :show (mistty--user-input-start (funcall prompt)))))
+       :show (funcall user-input-start))))
 
     (mistty-test-goto "echo two")
     (should
@@ -7332,7 +7388,7 @@ precmd_functions+=(prompt_header)
       (mistty-test-content
        :start (pos-bol)
        :end (pos-eol)
-       :show (mistty--user-input-start (funcall prompt)))))
+       :show (funcall user-input-start))))
 
     (forward-line -1)
     (should
@@ -7341,7 +7397,7 @@ precmd_functions+=(prompt_header)
       (mistty-test-content
        :start (pos-bol)
        :end (pos-eol)
-       :show (mistty--user-input-start (funcall prompt)))))
+       :show (funcall user-input-start))))
 
     (mistty-test-goto "echo one")
     (should
@@ -7350,7 +7406,7 @@ precmd_functions+=(prompt_header)
       (mistty-test-content
        :start (pos-bol)
        :end (pos-eol)
-       :show (mistty--user-input-start (funcall prompt)))))))
+       :show (funcall user-input-start))))))
 
 (ert-deftest mistty-test-default-terminal-size/alacritty ()
   (let ((mistty-default-terminal-size '(160 . 50))

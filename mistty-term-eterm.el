@@ -769,6 +769,8 @@ CURSOR-MARKER is updated to the cursor position."
                       (+ sync-pos
                          (- (process-mark proc) source-sync-pos)))
           (mistty--copy-buffer-local-variables '(mistty-bracketed-paste) source-buffer)
+          (mistty--copy-buffer-local-variables
+           mistty-variables-to-copy source-buffer)
           (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
           (mistty--mark-empty-line-at-eob sync-pos)))
 
@@ -1615,6 +1617,15 @@ SOURCE-BUFFER."
           (goto-char (+ dest-pos
                         (max 0 (with-current-buffer source-buffer
                                  (- (point) source-pos))))))))))
+
+(defun mistty--copy-buffer-local-variables (variables source-buffer)
+  "Copy the buffer-local values of VARIABLES between buffers.
+
+Copies values from SOURCE-BUFFER to the current buffer."
+  (dolist (var variables)
+    (when (buffer-local-boundp var source-buffer)
+      (make-local-variable var)
+      (set var (buffer-local-value var source-buffer)))))
 
 (provide 'mistty-term-eterm)
 

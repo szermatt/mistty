@@ -316,12 +316,17 @@ available and otherwise fallback."
 (defcustom mistty-variables-to-copy
   '(default-directory
     ansi-osc-window-title)
-  "List of buffer-local variables to copy from term to mistty.
+  "List of buffer-local variables to copy from term-mode buffer.
+
+These variable are copied from the term-mode buffer used by eterm
+terminals to the mistty-mode buffer when these buffers are synced.
 
 These are typically variable set from OSC handlers, configured in
 `mistty-osc-handlers'. As OSC handlers run in the terminal
 buffer, they need to be copied to be available in the main MisTTY
-buffer."
+buffer.
+
+This option is ignored for alacritty terminals."
   :type '(list variable)
   :group 'mistty)
 

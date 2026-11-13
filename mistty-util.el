@@ -305,15 +305,6 @@ Return nil if there are no entry."
       nil
     str))
 
-(defun mistty--copy-buffer-local-variables (variables source-buffer)
-  "Copy the buffer-local values of VARIABLES between buffers.
-
-Copies values from SOURCE-BUFFER to the current buffer."
-  (dolist (var variables)
-    (when (buffer-local-boundp var source-buffer)
-      (make-local-variable var)
-      (set var (buffer-local-value var source-buffer)))))
-
 (provide 'mistty-util)
 
 ;;; mistty-util.el ends here

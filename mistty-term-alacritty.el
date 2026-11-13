@@ -261,11 +261,11 @@ CURSOR-MARKER is updated to the cursor position."
               ;; terminal changes
 
               (`(title . ,title)
-               (mistty--with-live-buffer term-buf
+               (mistty--with-live-buffer dest-buffer
                  (setq ansi-osc-window-title title)))
               (`(cwd . ,url)
                (when url
-                 (mistty--with-live-buffer term-buf
+                 (mistty--with-live-buffer dest-buffer
                    (mistty-osc7 "7" url))))
               (`(cleared-screen)
                (funcall (mistty--term-alacritty-after-clear-screen term)))

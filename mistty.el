@@ -1656,10 +1656,6 @@ Also updates prompt and point."
                        (/= sync-scrolline mistty--scrolline-home-num))
                (mistty--set-sync-mark sync-pos sync-scrolline))))
 
-         (mistty--copy-buffer-local-variables
-          mistty-variables-to-copy
-          mistty-term-buffer)
-
          (unless mistty-fullscreen
            (mistty--post-process-prompts on-prompt))
 

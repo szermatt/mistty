@@ -2410,6 +2410,7 @@ This is meant to be added to ==\'before-change-functions."
         ;; the buffer. It must be called when the interaction is
         ;; created, not when it is run
         (modifications (mistty--changeset-modifications cs))
+        (can-move-vertically mistty--can-move-vertically)
         (calling-buffer (current-buffer))
         (can-click-to-move (mistty--can-click-to-move-p))
         (term mistty--term)
@@ -2544,14 +2545,15 @@ This is meant to be added to ==\'before-change-functions."
 
          (move-vertically ()
            (let* ((distance (mistty--vertical-distance (point) target))
-                  (replay-seq (mistty--move-vertically-seq distance)))
+                  (replay-seq (mistty--move-vertically-seq
+                               distance can-move-vertically)))
              (when replay-seq
                (mistty-log "to target: %s -> %s lines: %s (can-move-vertically=%s)"
-                           (point) (marker-position target) distance mistty--can-move-vertically)
+                           (point) (marker-position target) distance can-move-vertically)
                (mistty--interact-send interact (mistty--translate-replay-seq term replay-seq))
                (mistty--interact-wait-for-output-then
                 #'move-horizontally
-                :pred (let ((comparison (cond (mistty--can-move-vertically '=)
+                :pred (let ((comparison (cond (can-move-vertically '=)
                                               ((< distance 0) '<=)
                                               (t '>=))))
                         (lambda ()
@@ -2845,19 +2847,22 @@ left (negative)."
       nil
     `((repeat ,(abs direction) ,(if (< direction 0) '(left) '(right))))))
 
-(defun mistty--move-vertically-seq (direction)
+(defun mistty--move-vertically-seq (direction can-move-vertically)
   "Return a replay sequence to move vertically.
 
 The absolute value of DIRECTION specifies the number of lines
 to move and the sign specifies whether to go down (positive) or
-up (negative)."
+up (negative).
+
+If CAN-MOVE-VERTICALLY, issues up/down keystrokes, otherwise use
+left/right/C-a/C-e."
   (if (zerop direction)
       nil
     `((repeat
       ,(abs direction)
       ,(cond
-        ((and mistty--can-move-vertically (< direction 0)) '(up))
-        ((and mistty--can-move-vertically (> direction 0)) '(down))
+        ((and can-move-vertically (< direction 0)) '(up))
+        ((and can-move-vertically (> direction 0)) '(down))
         ((< direction 0) '(bol left))
         (t '(eol right)))))))
 
@@ -3491,7 +3496,8 @@ Might modify CS before allowing replay."
 
              ;; move vertically
              (let ((distance (mistty--vertical-distance from to)))
-               (let ((replay-seq (mistty--move-vertically-seq distance)))
+               (let ((replay-seq (mistty--move-vertically-seq
+                                  distance mistty--can-move-vertically)))
                  (when replay-seq
                    (mistty-log "cursor to point: %s -> %s lines: %s (can-move-vertically=%s)"
                                from to distance mistty--can-move-vertically)
@@ -3499,9 +3505,10 @@ Might modify CS before allowing replay."
                     interact (mistty--translate-replay-seq term replay-seq))
                    (mistty--interact-wait-for-output-then
                     #'move-horizontally
-                    :pred (let ((comparison (cond (mistty--can-move-vertically '=)
-                                                  ((< distance 0) '<=)
-                                                  (t '>=))))
+                    :pred (let ((comparison
+                                 (cond (mistty--can-move-vertically '=)
+                                       ((< distance 0) '<=)
+                                       (t '>=))))
                             (lambda ()
                               (funcall comparison 0 (mistty--vertical-distance
                                                      (mistty-cursor) to))))))))
@@ -4131,8 +4138,7 @@ The value of the buffer-local variables `mistty-log', and
       (setq-local mistty-proc (mistty--term-proc term))
       (setq-local mistty--cursor (make-marker))
       (mistty--copy-buffer-local-variables
-       '(mistty--can-move-vertically
-         mistty--scrolline-home-num)
+       '(mistty--scrolline-home-num)
        calling-buffer)
       (mistty--update-backstage))
     backstage))

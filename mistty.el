@@ -4129,7 +4129,6 @@ positions stable while the buffer is being modified.
 The value of the buffer-local variables `mistty-log', and
 `mistty-bracketed-paste' are carried over to the backstage buffer."
   (let ((backstage (generate-new-buffer " *mistty-backstage" t))
-        (calling-buffer (current-buffer))
         (sync-scrolline mistty--scrolline-home-num))
     (with-current-buffer backstage
       (setq-local mistty-sync-marker (point-min))
@@ -4137,9 +4136,6 @@ The value of the buffer-local variables `mistty-log', and
       (setq-local mistty--term term)
       (setq-local mistty-proc (mistty--term-proc term))
       (setq-local mistty--cursor (make-marker))
-      (mistty--copy-buffer-local-variables
-       '(mistty--scrolline-home-num)
-       calling-buffer)
       (mistty--update-backstage))
     backstage))
 

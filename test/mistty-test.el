@@ -1893,7 +1893,7 @@
   (should (equal "$ echo one\none\n$ printf '\\ec'\n$ echo two\ntwo\n$"
                  (mistty-test-content))))
 
-(mistty-deftest mistty-test-reset-bracketed-paste-state ( :type all :slow t)
+(mistty-deftest mistty-test-reset-bracketed-paste-state/eterm (:type eterm)
   (mistty--send-string
    mistty-proc
    "p=':'; printf '\\e[?2004hbefore'$p; read; reset; printf 'after'$p; read")
@@ -1907,6 +1907,26 @@
   (should-not mistty-bracketed-paste)
   (should-not (with-current-buffer mistty-term-buffer
                 mistty-bracketed-paste))
+  (mistty--send-string mistty-proc "\n")
+
+  ;; make sure that the next prompt is recognized properly
+  ;; despite bracketed paste having been reset
+  (mistty--send-string mistty-proc "echo hello$p\n")
+  (mistty-wait-for-output :start (point-min) :str "hello:"))
+
+(mistty-deftest mistty-test-reset-bracketed-paste-state/alacritty (:type alacritty)
+  ;; For the alacritty terminal, the value of mistty-bracketed-paste
+  ;; in the term buffer doesn't matter.
+
+  (mistty--send-string
+   mistty-proc
+   "p=':'; printf '\\e[?2004hbefore'$p; read; reset; printf 'after'$p; read")
+  (mistty--send-string mistty-proc "\n")
+  (mistty-wait-for-output :start (point-min) :str "before:")
+  (should mistty-bracketed-paste)
+  (mistty--send-string mistty-proc "\n")
+  (mistty-wait-for-output :start (point-min) :str "after:")
+  (should-not mistty-bracketed-paste)
   (mistty--send-string mistty-proc "\n")
 
   ;; make sure that the next prompt is recognized properly

@@ -768,7 +768,7 @@ CURSOR-MARKER is updated to the cursor position."
           (set-marker cursor-marker
                       (+ sync-pos
                          (- (process-mark proc) source-sync-pos)))
-
+          (mistty--copy-buffer-local-variables '(mistty-bracketed-paste) source-buffer)
           (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
           (mistty--mark-empty-line-at-eob sync-pos)))
 

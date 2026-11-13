@@ -284,7 +284,7 @@ CURSOR-MARKER is updated to the cursor position."
               (`(report-focus . ,val)
                (funcall (mistty--term-alacritty-report-focus term) val))
               (`(bracketed-paste . ,val)
-               (mistty--with-live-buffer term-buf
+               (mistty--with-live-buffer dest-buffer
                  (setq mistty-bracketed-paste val)))
               (`(fullscreen . ,val)
                (setf (mistty--term-alacritty-fs term) val)

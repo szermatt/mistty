@@ -1657,7 +1657,7 @@ Also updates prompt and point."
                (mistty--set-sync-mark sync-pos sync-scrolline))))
 
          (mistty--copy-buffer-local-variables
-          (cons 'mistty-bracketed-paste mistty-variables-to-copy)
+          mistty-variables-to-copy
           mistty-term-buffer)
 
          (unless mistty-fullscreen
@@ -1899,15 +1899,6 @@ Does not update `mistty--can-move-vertically'."
         (when (search-forward-regexp regexp (pos-eol) 'noerror)
           (throw 'mistty-end-loop t)))
       nil)))
-
-(defun mistty--copy-buffer-local-variables (variables source-buffer)
-  "Copy the buffer-local values of VARIABLES between buffers.
-
-Copies values from SOURCE-BUFFER to the current buffer."
-  (dolist (var variables)
-    (when (buffer-local-boundp var source-buffer)
-      (make-local-variable var)
-      (set var (buffer-local-value var source-buffer)))))
 
 (defun mistty--maybe-truncate-when-idle ()
   "Schedule a buffer truncation on an idle timer."
@@ -4140,8 +4131,7 @@ The value of the buffer-local variables `mistty-log', and
       (setq-local mistty-proc (mistty--term-proc term))
       (setq-local mistty--cursor (make-marker))
       (mistty--copy-buffer-local-variables
-       '(mistty-bracketed-paste
-         mistty--can-move-vertically
+       '(mistty--can-move-vertically
          mistty--scrolline-home-num)
        calling-buffer)
       (mistty--update-backstage))

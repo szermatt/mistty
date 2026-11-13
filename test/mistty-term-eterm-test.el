@@ -151,3 +151,178 @@
     (should-not (text-property-any (point-min) (point-max) 'mistty-skip 'trailing))
     (should (string-match "^\\[ + < right \\]$"
                           (mistty-test-content :show-property '(mistty-skip right-prompt))))))
+
+(ert-deftest mistty-register-prompt ()
+  (let* ((cell (mistty--make-prompt-cell))
+         (mistty--eterm (mistty--make-term-eterm :prompt-cell cell)))
+    ;; All these will be merged
+    (mistty--register-prompt 'regexp 10 :end 11 :text "prompt>")
+    (mistty--register-prompt 'prompt_sp 9)
+    (mistty--register-prompt 'bracketed-paste 10)
+    (mistty--register-prompt 'osc133 10 :user-input-start '(11 . 3))
+
+    (should (equal 1 (mistty--prompt-input-id (mistty--get-prompt cell))))
+    (should (equal 'osc133 (mistty--prompt-source (mistty--get-prompt cell))))
+    (should (equal 9 (mistty--prompt-start (mistty--get-prompt cell))))
+    (should (equal nil (mistty--prompt-end (mistty--get-prompt cell))))
+    (should (equal nil (mistty--prompt-text (mistty--get-prompt cell))))
+    (should (equal '(11 . 3) (mistty--prompt-user-input-start (mistty--get-prompt cell))))
+
+    ;; Prompt is properly ended and a new one starts in its place
+    (setf (mistty--prompt-end (mistty--get-prompt cell)) 12)
+    (mistty--register-prompt 'bracketed-paste 12)
+    (should (equal 2 (mistty--prompt-input-id (mistty--get-prompt cell))))
+    (should (equal 'bracketed-paste (mistty--prompt-source (mistty--get-prompt cell))))
+    (should (equal 12 (mistty--prompt-start (mistty--get-prompt cell))))))
+
+
+(ert-deftest mistty--prompt-merge-from ()
+  ;; :input-id, unmodified
+  (let ((p (mistty--make-prompt :input-id 1 :start 10))
+        (other (mistty--make-prompt :input-id 2 :start 10)))
+    (mistty--prompt-merge-from p other)
+    (should (= (mistty--prompt-input-id p) 1)))
+
+  ;; :source, most trusted
+  (let ((p (mistty--make-prompt :source 'regexp :start 10))
+        (other (mistty--make-prompt :source 'osc133 :start 10)))
+    (mistty--prompt-merge-from p other)
+    (should (eq (mistty--prompt-source p) 'osc133)))
+
+  (let ((p (mistty--make-prompt :source 'osc133 :start 10))
+        (other (mistty--make-prompt :source 'regexp :start 10)))
+    (mistty--prompt-merge-from p other)
+    (should (eq (mistty--prompt-source p) 'osc133)))
+
+  (let ((p (mistty--make-prompt :source 'bracketed-paste :start 10))
+        (other (mistty--make-prompt :source 'prompt_sp :start 10)))
+    (mistty--prompt-merge-from p other)
+    (should (eq (mistty--prompt-source p) 'bracketed-paste)))
+
+  ;; :start, minimum
+  (let ((p (mistty--make-prompt :start 10))
+        (other (mistty--make-prompt :start 5)))
+    (mistty--prompt-merge-from p other)
+    (should (= (mistty--prompt-start p) 5)))
+
+  (let ((p (mistty--make-prompt :start 5))
+        (other (mistty--make-prompt :start 10)))
+    (mistty--prompt-merge-from p other)
+    (should (= (mistty--prompt-start p) 5)))
+
+  ;; :end, maximum
+  (let ((p (mistty--make-prompt :start 10 :end 12))
+        (other (mistty--make-prompt :start 10 :end 15)))
+    (mistty--prompt-merge-from p other)
+    (should (= (mistty--prompt-end p) 15)))
+
+  (let ((p (mistty--make-prompt :start 10 :end 15))
+        (other (mistty--make-prompt :start 10 :end 12)))
+    (mistty--prompt-merge-from p other)
+    (should (= (mistty--prompt-end p) 15)))
+
+  (let ((p (mistty--make-prompt :start 10 :end 12))
+        (other (mistty--make-prompt :start 10 :end nil)))
+    (mistty--prompt-merge-from p other)
+    (should (null (mistty--prompt-end p))))
+
+  (let ((p (mistty--make-prompt :start 10 :end nil))
+        (other (mistty--make-prompt :start 10 :end 12)))
+    (mistty--prompt-merge-from p other)
+    (should (null (mistty--prompt-end p))))
+
+  (let ((p (mistty--make-prompt :start 10 :end nil))
+        (other (mistty--make-prompt :start 10 :end nil)))
+    (mistty--prompt-merge-from p other)
+    (should (null (mistty--prompt-end p))))
+
+  ;; :text, keep original but only for 'regexp
+  (let ((p (mistty--make-prompt :source 'regexp :start 10 :text "prompt> "))
+        (other (mistty--make-prompt :source 'regexp :start 10 :text "prompt> ")))
+    (mistty--prompt-merge-from p other)
+    (should (equal (mistty--prompt-text p) "prompt> ")))
+
+  (let ((p (mistty--make-prompt :source 'regexp :start 10 :text "prompt> "))
+        (other (mistty--make-prompt :source 'regexp :start 10 :text nil)))
+    (mistty--prompt-merge-from p other)
+    (should (null (mistty--prompt-text p))))
+
+  (let ((p (mistty--make-prompt :source 'regexp :start 10 :text nil))
+        (other (mistty--make-prompt :source 'regexp :start 10 :text "prompt> ")))
+    (mistty--prompt-merge-from p other)
+    (should (null (mistty--prompt-text p))))
+
+  (let ((p (mistty--make-prompt :source 'osc133 :start 10 :text "prompt> "))
+        (other (mistty--make-prompt :source 'osc133 :start 10 :text "prompt> ")))
+    (mistty--prompt-merge-from p other)
+    (should (null (mistty--prompt-text p))))
+
+  (let ((p (mistty--make-prompt :source 'regexp :start 10 :text "prompt> "))
+        (other (mistty--make-prompt :source 'osc133 :start 10 :text "prompt> ")))
+    (mistty--prompt-merge-from p other)
+    (should (null (mistty--prompt-text p))))
+
+  ;; :user-input-start, most recent value
+  (let ((p (mistty--make-prompt :start 10 :user-input-start '(10 . 2)))
+        (other (mistty--make-prompt :start 10 :user-input-start '(10 . 5))))
+    (mistty--prompt-merge-from p other)
+    (should (equal (mistty--prompt-user-input-start p) '(10 . 5))))
+
+  (let ((p (mistty--make-prompt :start 10 :user-input-start '(10 . 2)))
+        (other (mistty--make-prompt :start 10 :user-input-start nil)))
+    (mistty--prompt-merge-from p other)
+    (should (equal (mistty--prompt-user-input-start p) '(10 . 2)))))
+
+(ert-deftest mistty-set-prompt ()
+  (let ((cell (mistty--make-prompt-cell)))
+    (mistty--set-prompt cell (mistty--make-prompt :input-id 1))
+    (mistty--set-prompt cell (mistty--make-prompt :input-id 2))
+    (mistty--set-prompt cell (mistty--make-prompt :input-id 3))
+    (should (equal 3 (mistty--prompt-input-id (mistty--get-prompt cell))))
+    (should (equal '(2 1) (mapcar #'mistty--prompt-input-id
+                                  (mistty--prompt-cell-archive cell))))
+
+    (should (equal (mistty--prompt-cell-current cell)
+                   (mistty--get-prompt cell)))
+    (should (equal (mistty--prompt-cell-counter cell) 3))
+
+    (mistty--set-prompt cell nil)
+    (should (null (mistty--get-prompt cell)))
+    (should (equal '(3 2 1) (mapcar #'mistty--prompt-input-id
+                                    (mistty--prompt-cell-archive cell))))))
+
+(ert-deftest mistty-set-prompt-archive ()
+  (let ((cell (mistty--make-prompt-cell)))
+    (setf (mistty--prompt-cell-archive cell)
+          (list (mistty--make-prompt :input-id 1)
+                (mistty--make-prompt :input-id 2)))
+    (should (equal '(1 2) (mapcar #'mistty--prompt-input-id
+                                  (mistty--prompt-cell-archive cell))))
+    (setf (mistty--prompt-cell-archive cell) nil)
+    (should (null (mistty--prompt-cell-archive cell)))))
+
+(ert-deftest mistty--prompt-source-order ()
+  (should (mistty--prompt-source< 'osc133 'bracketed-paste))
+  (should (mistty--prompt-source< 'osc133 'prompt_sp))
+  (should (mistty--prompt-source< 'osc133 'regexp))
+  (should (mistty--prompt-source< 'osc133 'unknown))
+
+  (should-not (mistty--prompt-source< 'bracketed-paste 'osc133))
+  (should (mistty--prompt-source< 'bracketed-paste 'prompt_sp))
+  (should (mistty--prompt-source< 'bracketed-paste 'regexp))
+  (should (mistty--prompt-source< 'bracketed-paste 'unknown))
+
+  (should-not (mistty--prompt-source< 'prompt_sp 'osc133))
+  (should-not (mistty--prompt-source< 'prompt_sp 'bracketed-paste))
+  (should (mistty--prompt-source< 'prompt_sp 'regexp))
+  (should (mistty--prompt-source< 'prompt_sp 'unknown))
+
+  (should-not (mistty--prompt-source< 'regexp 'osc133))
+  (should-not (mistty--prompt-source< 'regexp 'bracketed-paste))
+  (should-not (mistty--prompt-source< 'regexp 'prompt_sp))
+  (should (mistty--prompt-source< 'prompt_sp 'unknown))
+
+  (should-not (mistty--prompt-source< 'unknown 'osc133))
+  (should-not (mistty--prompt-source< 'unknown 'bracketed-paste))
+  (should-not (mistty--prompt-source< 'unknown 'prompt_sp))
+  (should-not (mistty--prompt-source< 'unknown 'regexp)))

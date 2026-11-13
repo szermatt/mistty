@@ -128,7 +128,6 @@ REPORT-FOCUS control reporting of focus in/out events."
          (args (cdr command)))
     (with-current-buffer term-buffer
       (mistty-alacritty-mode)
-      (setq-local mistty--prompt-cell prompt-cell)
       (setq-local scroll-margin 0)
       (let ((process-environment
              (append
@@ -303,50 +302,50 @@ CURSOR-MARKER is updated to the cursor position."
 
               ;; prompt changes
               (`(start-prompt ,source ,start)
-               (mistty--with-live-buffer term-buf
-                 (let ((prompt (mistty--prompt)))
-                   (if (and prompt (null (mistty--prompt-end prompt)))
-                       (progn
-                         (setf (mistty--prompt-source prompt) source)
-                         (setf (mistty--prompt-start prompt) start)
-                         (mistty-log "Updated %s prompt #%s [%s-]"
-                                     (mistty--prompt-source prompt)
-                                     (mistty--prompt-input-id prompt)
-                                     (mistty--prompt-start prompt)))
-                     (setq prompt (mistty--make-prompt :source source :start start))
-                     (setf (mistty--prompt) prompt)
-                     (mistty-log "Detected %s prompt #%s [%s-]"
-                                 (mistty--prompt-source prompt)
-                                 (mistty--prompt-input-id prompt)
-                                 (mistty--prompt-start prompt))))))
+               (let* ((cell (mistty--term-alacritty-prompt-cell term))
+                      (prompt (mistty--get-prompt cell)))
+                 (if (and prompt (null (mistty--prompt-end prompt)))
+                     (progn
+                       (setf (mistty--prompt-source prompt) source)
+                       (setf (mistty--prompt-start prompt) start)
+                       (mistty-log "Updated %s prompt #%s [%s-]"
+                                   (mistty--prompt-source prompt)
+                                   (mistty--prompt-input-id prompt)
+                                   (mistty--prompt-start prompt)))
+                   (setq prompt (mistty--make-prompt :source source :start start))
+                   (mistty--set-prompt cell prompt)
+                   (mistty-log "Detected %s prompt #%s [%s-]"
+                               (mistty--prompt-source prompt)
+                               (mistty--prompt-input-id prompt)
+                               (mistty--prompt-start prompt)))))
               (`(end-prompt ,end)
-               (mistty--with-live-buffer term-buf
-                 (when-let* ((prompt (mistty--prompt)))
-                   (setf (mistty--prompt-end prompt) end)
-                   (mistty-log "Ended %s prompt #%s [%s-%s]"
+               (when-let* ((prompt (mistty--get-prompt
+                                    (mistty--term-alacritty-prompt-cell term))))
+                 (setf (mistty--prompt-end prompt) end)
+                 (mistty-log "Ended %s prompt #%s [%s-%s]"
+                             (mistty--prompt-source prompt)
+                             (mistty--prompt-input-id prompt)
+                             (mistty--prompt-start prompt)
+                             end)))
+              (`(update-prompt . ,args-plist)
+               (when-let* ((prompt (mistty--get-prompt
+                                    (mistty--term-alacritty-prompt-cell term))))
+                 (when-let* ((val (plist-get args-plist :user-input-start)))
+                   (setf (mistty--prompt-user-input-start prompt) val)
+                   (mistty-log "Updated %s prompt #%s [%s-%s] :user-input-start %s"
                                (mistty--prompt-source prompt)
                                (mistty--prompt-input-id prompt)
                                (mistty--prompt-start prompt)
-                               end))))
-              (`(update-prompt . ,args-plist)
-               (mistty--with-live-buffer term-buf
-                 (when-let* ((prompt (mistty--prompt)))
-                   (when-let* ((val (plist-get args-plist :user-input-start)))
-                     (setf (mistty--prompt-user-input-start prompt) val)
-                     (mistty-log "Updated %s prompt #%s [%s-%s] :user-input-start %s"
-                                 (mistty--prompt-source prompt)
-                                 (mistty--prompt-input-id prompt)
-                                 (mistty--prompt-start prompt)
-                                 (mistty--prompt-end prompt)
-                                 val))
-                   (when-let* ((cmdline (plist-get args-plist :cmdline)))
-                     (setf (mistty--prompt-cmdline prompt) cmdline)
-                     (mistty-log "Updated %s prompt #%s [%s-%s] :cmdline %S"
-                                 (mistty--prompt-source prompt)
-                                 (mistty--prompt-input-id prompt)
-                                 (mistty--prompt-start prompt)
-                                 (mistty--prompt-end prompt)
-                                 cmdline)))))
+                               (mistty--prompt-end prompt)
+                               val))
+                 (when-let* ((cmdline (plist-get args-plist :cmdline)))
+                   (setf (mistty--prompt-cmdline prompt) cmdline)
+                   (mistty-log "Updated %s prompt #%s [%s-%s] :cmdline %S"
+                               (mistty--prompt-source prompt)
+                               (mistty--prompt-input-id prompt)
+                               (mistty--prompt-start prompt)
+                               (mistty--prompt-end prompt)
+                               cmdline))))
 
               (_ (error "Unhandled event: %S" ev))))
 

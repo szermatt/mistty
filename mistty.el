@@ -577,6 +577,46 @@ It is either:
 - \\='drag, report press, release, and mouse movement with pointer down.
 - \\='motion, report all mouse events.")
 
+(defvar-local mistty--prompt-cell nil
+  "A `mistty--prompt-cell' instance.
+
+This is used to share prompts between the work and term buffers. This is
+accessible from either buffer.
+
+Always access it through the places `mistty--prompt'
+`mistty--prompt-archive' and `mistty--prompt-counter'.")
+
+(defun mistty--active-prompt ()
+  "Get the value of the current prompt if it is realized.
+
+CELL is the prompt cell to check. It defaults to `mistty--prompt-cell'."
+  (when-let* ((cell mistty--prompt-cell)
+              (p (mistty--prompt-cell-current cell)))
+    (when (mistty--prompt-realized p)
+      p)))
+
+(defsubst mistty--prompt ()
+  "Get the value of the current `mistty--prompt' struct or nil."
+  (when-let* ((cell mistty--prompt-cell))
+    (mistty--prompt-cell-current cell)))
+
+(defsubst mistty--prompt-archive ()
+  "Get the list of archived `mistty--prompt' structs."
+  (when-let* ((cell mistty--prompt-cell))
+    (mistty--prompt-cell-archive cell)))
+
+(gv-define-setter mistty--prompt (val)
+  "Sets the value of the current `mistty--prompt' struct to VAL.
+
+This also assigns the slot input-id of VAL.
+
+The old value, if any, is pushed into `mistty--prompt-archive'."
+  `(mistty--set-prompt mistty--prompt-cell ,val))
+
+(gv-define-setter mistty--prompt-archive (val)
+  "Sets the value of `mistty--prompt-archive'."
+  `(setf (mistty--prompt-cell-archive mistty--prompt-cell) ,val))
+
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
 

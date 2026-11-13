@@ -55,22 +55,6 @@ value.
 
 Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
 
-(defvar-local mistty--prompt-cell nil
-  "A `mistty--prompt-cell' instance.
-
-This is used to share prompts between the work and term buffers. This is
-accessible from either buffer.
-
-Always access it through the places `mistty--prompt'
-`mistty--prompt-archive' and `mistty--prompt-counter'.")
-
-(cl-defstruct (mistty--prompt-cell
-               (:constructor mistty--make-prompt-cell
-                             (&aux (counter 0))))
-  current
-  archive
-  counter)
-
 ;; A detected prompt.
 ;;
 ;; This datastructure is shared between the work and term buffer and
@@ -108,49 +92,6 @@ Always access it through the places `mistty--prompt'
   ;; The command executed, as reported by the shell (OSC 133)
   cmdline)
 
-(defun mistty--active-prompt (&optional cell)
-  "Get the value of the current prompt if it is realized.
-
-CELL is the prompt cell to check. It defaults to `mistty--prompt-cell'."
-  (when-let* ((cell (or cell mistty--prompt-cell))
-              (p (mistty--prompt-cell-current cell)))
-    (when (mistty--prompt-realized p)
-      p)))
-
-(defun mistty--prompt ()
-  "Get the value of the current `mistty--prompt' struct or nil."
-  (when-let* ((cell mistty--prompt-cell))
-    (mistty--prompt-cell-current cell)))
-
-(defun mistty--prompt-archive ()
-  "Get the list of archived `mistty--prompt' structs."
-  (when-let* ((cell mistty--prompt-cell))
-    (mistty--prompt-cell-archive cell)))
-
-(defun mistty--prompt-counter ()
-  "Get the number of prompt instances created in this buffer."
-  (when-let* ((cell mistty--prompt-cell))
-    (mistty--prompt-cell-counter cell)))
-
-(gv-define-setter mistty--prompt (val)
-  "Sets the value of the current `mistty--prompt' struct to VAL.
-
-This also assigns the slot input-id of VAL.
-
-The old value, if any, is pushed into `mistty--prompt-archive'."
-  `(let ((val ,val)
-         (c mistty--prompt-cell))
-     (when val
-       (setf (mistty--prompt-input-id val)
-             (cl-incf (mistty--prompt-cell-counter c))))
-     (when-let* ((old (mistty--prompt-cell-current c)))
-       (push old (mistty--prompt-cell-archive c)))
-     (setf (mistty--prompt-cell-current c) val)))
-
-(gv-define-setter mistty--prompt-archive (val)
-  "Sets the value of `mistty--prompt-archive'."
-  `(setf (mistty--prompt-cell-archive mistty--prompt-cell) ,val))
-
 (defun mistty--prompt-contains (prompt scrolline)
   "Return non-nil if SCROLLINE is inside of PROMPT."
   (and (>= scrolline (mistty--prompt-start prompt))
@@ -184,6 +125,30 @@ the last set of properties to be registered is applied."
     (setq mistty--term-properties-to-add-alist
           (delq cell
                 mistty--term-properties-to-add-alist))))
+
+(cl-defstruct (mistty--prompt-cell
+               (:constructor mistty--make-prompt-cell
+                             (&aux (counter 0))))
+  current
+  archive
+  counter)
+
+(defsubst mistty--get-prompt (cell)
+  "Get current prompt from CELL."
+  (mistty--prompt-cell-current cell))
+
+(defsubst mistty--set-prompt (cell prompt)
+  "Set current prompt of CELL to PROMPT.
+
+PROMPT may be a `mistty--prompt' instance or nil.
+
+The old prompt, if any, is pushed into the archive."
+  (when prompt
+    (setf (mistty--prompt-input-id prompt)
+          (cl-incf (mistty--prompt-cell-counter cell))))
+  (when-let* ((old (mistty--prompt-cell-current cell)))
+    (push old (mistty--prompt-cell-archive cell)))
+  (setf (mistty--prompt-cell-current cell) prompt))
 
 (defun mistty--hide-cursor ()
   "Temporarily hide the cursor.

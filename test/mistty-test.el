@@ -6828,23 +6828,6 @@ function prompt {
        :send (lambda ()
                (mistty--send-string mistty-proc "q\n"))))))
 
-(mistty-deftest mistty-prompt-cell ( :type all)
-  (should (eq mistty--prompt-cell
-              (buffer-local-value
-               'mistty--prompt-cell mistty-term-buffer)))
-  (let ((prompt (mistty--make-prompt :source 'test :start 0 :end 1))
-        (other-prompt (mistty--make-prompt :source 'other :start 0 :end 1)))
-    (setf (mistty--prompt) prompt)
-    (should (eq prompt (mistty--prompt)))
-    (with-current-buffer mistty-term-buffer
-      (should (eq prompt (mistty--prompt)))
-      (setf (mistty--prompt) other-prompt))
-    (should (eq other-prompt (mistty--prompt)))
-    (setf (mistty--prompt) nil)
-
-    (with-current-buffer mistty-term-buffer
-      (should (null (mistty--prompt))))))
-
 (defconst mistty-test-zsh-osc133 "
 function osc133_precmd() {
       printf '\033]133;A\007'

@@ -407,10 +407,26 @@ This is allows running `term-mode-hook' or not, from
 This is used to decide whether and on what region of the buffer
 to call `mistty--term-postprocess'.")
 
+(defvar-local mistty--eterm nil
+  "Instance of `mistty--term-eterm' for the current term-mode buffer.")
+
 (cl-defstruct (mistty--term-eterm
                (:constructor mistty--make-term-eterm)
                (:copier nil))
-  proc buf change-before-scrolline fs)
+  ;; shell process
+  proc
+
+  ;; term-mode buffer associated with the process
+  buf
+
+  ;; a prompt--cell instance used to share prompts between the work and the term buffer.
+  prompt-cell
+
+  ;; non-nil if a change was detected above the sync mark
+  change-before-scrolline
+
+  ;; non-nil while in fullscreen mode
+  fs)
 
 (defun mistty--term-eterm-reset (term)
   "Reset internal state."
@@ -462,7 +478,6 @@ REPORT-FOCUS control whether focus changes should be reported."
       (setq-local term-height height)
       (setq-local term-command-function #'mistty--term-command-hook)
       (setq-local mistty--translate-key-function #'mistty--eterm-translate-key)
-      (setq-local mistty--prompt-cell prompt-cell)
       (setq-local scroll-margin 0)
 
       ;; This makes sure the obsolete option
@@ -473,9 +488,13 @@ REPORT-FOCUS control whether focus changes should be reported."
 
       (mistty-term--exec (car command) (cdr command))
       (let* ((proc (get-buffer-process term-buffer))
-             (term (mistty--make-term-eterm :buf term-buffer :proc proc))
+             (term (mistty--make-term-eterm
+                    :buf term-buffer
+                    :proc proc
+                    :prompt-cell prompt-cell))
              (accum (mistty--make-accumulator
                      #'mistty--emulate-terminal)))
+        (setq-local mistty--eterm term)
 
         ;; TRAMP sets adjust-window-size-function to #'ignore, which
         ;; prevents normal terminal resizing from working. This turns
@@ -545,11 +564,13 @@ REPORT-FOCUS control whether focus changes should be reported."
 
              (let ((goto-home (equal str "\e[H\e[J")))
                (mistty--accum-ctx-flush ctx)
-               (if (when-let* ((p (mistty--active-prompt)))
-                     (equal
-                      (mistty--prompt-start p)
-                      (mistty--with-live-buffer (mistty--term-eterm-buf term)
-                        mistty--scrolline-home-num)))
+               (if (when-let* ((p (mistty--get-prompt prompt-cell)))
+                     (and
+                      (mistty--prompt-realized p)
+                      (equal
+                       (mistty--prompt-start p)
+                       (mistty--with-live-buffer (mistty--term-eterm-buf term)
+                         mistty--scrolline-home-num))))
                    (progn
                      (mistty-log "CLEAR PROMPT (%S)" str)
                      (mistty--accum-ctx-push-down
@@ -1355,7 +1376,6 @@ Detected prompts can be found in `mistty-prompt'."
              (mistty--register-prompt 'prompt_sp scrolline)))))
      (mistty--accum-ctx-push-down ctx "\r"))))
 
-
 (defun mistty--add-bracketed-paste-prompt-detection (accum term)
   "Setup ACCUM for bracketed-paste prompt detection for TERM.
 
@@ -1407,7 +1427,8 @@ USER-INPUT-START is (cons scrolline pos) of the start of user input.
 
 Return the new prompt or the modified p prompt. In either case,
 this is the same as what's returned by `mistty--prompt' after this call."
-  (let* ((p (mistty--prompt))
+  (let* ((cell (mistty--term-eterm-prompt-cell mistty--eterm))
+         (p (mistty--get-prompt cell))
          (other (mistty--make-prompt
                  :source source
                  :start start
@@ -1420,7 +1441,7 @@ this is the same as what's returned by `mistty--prompt' after this call."
 
       ;; Register the new prompt
       (setq p other)
-      (setf (mistty--prompt) p))
+      (mistty--set-prompt cell p))
     (mistty-log "%s %s prompt #%s [%s-%s]%s%s"
                 (if overlap "Updated" "Detected")
                 (mistty--prompt-source p)
@@ -1435,7 +1456,8 @@ this is the same as what's returned by `mistty--prompt' after this call."
 
 (defun mistty--end-prompt (source end)
   "End the current prompt if it comes from SOURCE at END."
-  (when-let* ((p (mistty--prompt)))
+  (when-let* ((cell (mistty--term-eterm-prompt-cell mistty--eterm))
+              (p (mistty--get-prompt cell)))
     (when (and (eq source (mistty--prompt-source p))
                (null (mistty--prompt-end p))
                (> end (mistty--prompt-start p)))
@@ -1446,18 +1468,17 @@ this is the same as what's returned by `mistty--prompt' after this call."
                   end)
       (setf (mistty--prompt-end p) end))))
 
-
 (cl-defun mistty--update-prompt (source &key user-input-start)
   "Update the current prompt if it comes from SOURCE."
   (ignore source)
-  (when-let* ((p (mistty--prompt)))
+  (when-let* ((cell (mistty--term-eterm-prompt-cell mistty--eterm))
+              (p (mistty--get-prompt cell)))
     (when user-input-start
       (mistty-log "Updated %s prompt #%s :user-input-start %S"
                   (mistty--prompt-source p)
                   (mistty--prompt-input-id p)
                   user-input-start)
       (setf (mistty--prompt-user-input-start p) user-input-start))))
-
 
 (defun mistty--prompt-source< (a b)
   "Compare prompt sources A and B.
@@ -1530,7 +1551,8 @@ MisTTY supports code A-D:
 
 Everything else is ignored."
   (when (and (length> osc-seq 0))
-    (let ((command-char (aref osc-seq 0)))
+    (let ((command-char (aref osc-seq 0))
+          (cell (mistty--term-eterm-prompt-cell mistty--eterm)))
       (mistty-log "OSC 133 %s" osc-seq)
       (pcase command-char
         (?A ;; start a new command
@@ -1538,13 +1560,13 @@ Everything else is ignored."
          (mistty--register-prompt 'osc133 (mistty--scrolline-at-point)))
 
         (?B ;; end of prompt/start of user input
-         (when-let* ((prompt (mistty--prompt)))
+         (when-let* ((prompt (mistty--get-prompt cell)))
            (setf (mistty--prompt-user-input-start prompt)
                  (cons (mistty--scrolline-at-point)
                        (- (point) (pos-bol))))))
 
         (?C ;; start of command output
-         (when-let* ((prompt (mistty--prompt)))
+         (when-let* ((prompt (mistty--get-prompt cell)))
            (when (eq 'osc133 (mistty--prompt-source prompt))
              (mistty-log "Closed %s prompt #%s [%s-]"
                          (mistty--prompt-source prompt)
@@ -1553,7 +1575,7 @@ Everything else is ignored."
              (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point)))))
 
         (?D ;; end of command (possible anytime after ?A)
-         (when-let* ((prompt (mistty--prompt)))
+         (when-let* ((prompt (mistty--get-prompt cell)))
            (when (and (eq 'osc133 (mistty--prompt-source prompt))
                       (null (mistty--prompt-end prompt)))
              (mistty-log "Aborted %s prompt #%s [%s-]"

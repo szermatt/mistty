@@ -1472,7 +1472,10 @@ a special string describing the new process state."
         (kill-buffer term-buffer)))
 
       (mistty--with-live-buffer work-buffer
-        (mistty--update-secondary-mode))
+        (if mistty-fullscreen
+            ;; leave fullscreen mode and, more importantly, run hooks.
+            (mistty--leave-fullscreen work-buffer)
+          (mistty--update-secondary-mode)))
       (mistty--run-after-process-end-hooks work-buffer proc))))
 
 (defun mistty--run-after-process-end-hooks (buf proc)
@@ -3855,7 +3858,11 @@ When in split-buffer fullscreen mode, this also swaps the buffers back."
             (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer))
 
         ;; single buffer
-        (mistty--add-replay-hooks))
+        (let ((inhibit-read-only t)
+              (inhibit-modification-hooks t))
+          (remove-text-properties mistty-sync-marker (point-max) '(read-only nil)))
+        (when mistty-proc
+          (mistty--add-replay-hooks)))
 
       (setq mistty-fullscreen nil)
       (mistty--with-live-buffer mistty-term-buffer

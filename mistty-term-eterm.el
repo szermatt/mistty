@@ -521,7 +521,7 @@ REPORT-FOCUS control whether focus changes should be reported."
          (lambda (ctx _str)
            (unless (mistty--term-eterm-fs term)
              (mistty--accum-ctx-flush ctx)
-             (funcall enter-fullscreen 'split)
+             (funcall enter-fullscreen nil)
              (setf (mistty--term-eterm-fs term) t))
            (mistty--accum-ctx-push-down ctx "\e[47h")))
 
@@ -641,19 +641,13 @@ REPORT-FOCUS control whether focus changes should be reported."
          '(seq CSI "?25h")
          (lambda (_ _)
            (mistty-log "Show cursor")
-           (if (mistty--term-eterm-fs term)
-               (mistty--with-live-buffer (mistty--term-eterm-buf term)
-                 (mistty--show-cursor))
-             (funcall show-cursor t))))
+           (funcall show-cursor t)))
         (mistty--accum-add-processor
          accum
          '(seq CSI "?25l")
          (lambda (_ _)
            (mistty-log "Hide cursor")
-           (if (mistty--term-eterm-fs term)
-               (mistty--with-live-buffer (mistty--term-eterm-buf term)
-                 (mistty--hide-cursor))
-             (funcall show-cursor nil))))
+           (funcall show-cursor nil)))
 
         (unless report-focus (error ":report-focus required"))
         (mistty--accum-add-processor
@@ -793,7 +787,9 @@ CURSOR-MARKER is updated to the cursor position."
           (mistty--copy-buffer-local-variables
            mistty-variables-to-copy source-buffer)
           (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
-          (mistty--mark-empty-line-at-eob sync-pos)))
+          (mistty--mark-empty-line-at-eob sync-pos)
+          (when (mistty--term-eterm-fs term)
+            (put-text-property sync-pos (point-max) 'read-only t))))
 
       (cons sync-pos sync-scrolline))))
 

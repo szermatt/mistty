@@ -1439,64 +1439,7 @@
          "$")
         (buffer-string))))))
 
-(mistty-deftest mistty-test-enter-split-fullscreen (:selected t :type eterm :turtles t)
-  (let ((bufname (buffer-name))
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
-        (proc mistty-proc))
-    (mistty-send-text "echo one")
-    (mistty-send-and-wait-for-prompt)
-    (mistty-send-text "echo two")
-    (mistty-send-and-wait-for-prompt)
-    (should (executable-find "vi"))
-    (execute-kbd-macro (kbd "v i RET"))
-    (mistty-wait-for-output
-     :proc proc
-     :test
-     (lambda ()
-       (with-current-buffer work-buffer
-         mistty-fullscreen)))
-    (ert-run-idle-timers)
-    (should (eq mistty-term-buffer (window-buffer (selected-window))))
-    (should (equal (concat bufname " scrollback") (buffer-name work-buffer)))
-    (should (equal bufname (buffer-name term-buffer)))
-    (with-current-buffer work-buffer
-      (should (eq 'split mistty-fullscreen)))
-    (with-current-buffer term-buffer
-      (should mistty-fullscreen-mode)
-      (should (eq 'split mistty-fullscreen)))
-    (pop-to-buffer work-buffer)
-    (delete-other-windows)
-    (turtles-with-grab-buffer (:buf work-buffer)
-      ;; Check what the work buffer looks like. Turtles is necessary,
-      ;; since the message is displayed using display properties and
-      ;; not just added to the buffer.
-      (should
-       (equal
-        (concat
-         "$ echo one\n"
-         "one\n"
-         "$ echo two\n"
-         "two\n"
-         "$ vi\n"
-         "\n"
-         "Fullscreen mode ON. C-c C-j switches between terminal and scrollback buffers."
-         )
-        (buffer-string))))
-    (pop-to-buffer term-buffer)
-    (execute-kbd-macro (kbd ": q ! RET"))
-    (mistty-wait-for-output
-     :proc proc
-     :test
-     (lambda ()
-       (not (buffer-local-value 'mistty-fullscreen work-buffer))))
-    (with-current-buffer term-buffer
-      (should-not mistty-fullscreen-mode))
-    (should (eq mistty-work-buffer (window-buffer (selected-window))))
-    (should (equal (concat " mistty tty " bufname) (buffer-name term-buffer)))
-    (should (equal bufname (buffer-name work-buffer)))))
-
-(mistty-deftest mistty-test-enter-single-buffer-fullscreen (:selected t :type alacritty)
+(mistty-deftest mistty-test-enter-fullscreen (:selected t :type all)
   (let ((work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
         (win (selected-window)))
@@ -1512,7 +1455,6 @@
     (should (equal win (get-buffer-window work-buffer)))
     (should-not (get-buffer-window term-buffer))
 
-    ;; mistty-fullscreen is t, not 'split
     (should (eq t mistty-fullscreen))
     (with-current-buffer term-buffer
       (should (eq t mistty-fullscreen)))
@@ -1531,44 +1473,22 @@
     (mistty-wait-for-output
      :start mistty-sync-marker
      :str "$ " :cursor-at-end t)
-    (should (equal "$ vi\n$ <>\n"
-                   (mistty-test-content :trim nil :show (point))))))
+    (should (equal "$ vi\n$ <>"
+                   (mistty-test-content :show (point))))))
 
-(mistty-deftest mistty-test-point-after-leaving-split-fullscreen (:selected t :type eterm)
-  (mistty-send-text "echo hello, world")
-  (mistty-send-and-wait-for-prompt)
+(mistty-deftest mistty-test-enter-fullscreen-47/eterm (:selected t :type eterm)
+  (mistty-test-enter-fullscreen "[47h" "[47l"))
 
-  (let ((work-buffer mistty-work-buffer)
-        (proc mistty-proc))
+(mistty-deftest mistty-test-enter-fullscreen-47-alternative-code/eterm (:selected t :type eterm)
+  (mistty-test-enter-fullscreen "[?47h" "[?47l"))
 
-    (should (executable-find "vi"))
-    (execute-kbd-macro (kbd "v i RET"))
-    (mistty-wait-for-output
-     :proc proc
-     :test
-     (lambda ()
-       (with-current-buffer work-buffer mistty-fullscreen)))
-    (with-current-buffer work-buffer
-      (mistty-test-goto "echo hello")
-      (goto-char (point-min)))
-    (execute-kbd-macro (kbd ": q ! RET"))
-    (mistty-wait-for-output
-     :proc proc
-     :test
-     (lambda ()
-       (not (buffer-local-value 'mistty-fullscreen work-buffer))))
-    (mistty-wait-for-output :start (point-min) :str "vi\n$ ")
+(mistty-deftest mistty-test-enter-fullscreen-1047/eterm (:selected t :type eterm)
+  (mistty-test-enter-fullscreen "[?1047h" "[?1047l"))
 
-    (with-current-buffer work-buffer
-      (should
-       (equal
-        (concat "$ echo hello, world\n"
-                "hello, world\n"
-                "$ vi\n"
-                "<2>$ <><1>")
-        (mistty-test-content :show (list (point) (mistty-cursor) mistty-sync-marker)))))))
+(mistty-deftest mistty-test-enter-fullscreen-1049 (:selected t :type eterm :slow t)
+  (mistty-test-enter-fullscreen "[?1049h" "[?1049l"))
 
-(defun mistty-test-enter-split-fullscreen (on-seq off-seq &optional clear-screen)
+(defun mistty-test-enter-fullscreen (on-seq off-seq)
   (let ((work-buffer mistty-work-buffer)
         (proc mistty-proc))
 
@@ -1581,50 +1501,22 @@
      :test
      (lambda ()
        (buffer-local-value 'mistty-fullscreen work-buffer)))
-    (should (eq mistty-term-buffer (window-buffer (selected-window))))
-
     (execute-kbd-macro (kbd "RET"))
     (mistty-wait-for-output
      :proc proc
      :test
      (lambda ()
        (not (buffer-local-value 'mistty-fullscreen work-buffer))))
-    (should (eq mistty-work-buffer (window-buffer (selected-window))))
+    (mistty-wait-for-output :str "fullscreen off\n$ ")
     (should (equal (concat
                     (format "$ printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off\\n'\n"
                             on-seq off-seq)
-                    (unless clear-screen "Press ENTER:\n")
                     "fullscreen off\n"
                     "$ <>")
                    (with-current-buffer work-buffer
                      (mistty-test-content :show (mistty-cursor)))))))
 
-(ert-deftest mistty-test-enter-split-fullscreen-47/eterm ()
-  :tags '(:slow)
-  ;; 47h/47l clear the screen on eterm but not on alacritty
-  (mistty-with-test-buffer (:selected t :type eterm)
-    (mistty-test-enter-split-fullscreen "[47h" "[47l" 'clear-screen)))
-
-(ert-deftest mistty-test-enter-split-fullscreen-47-alternative-code/eterm ()
-  :tags '(:slow)
-  (mistty-with-test-buffer (:selected t :type eterm)
-    (mistty-test-enter-split-fullscreen "[?47h" "[?47l" 'clear-screen)))
-
-(ert-deftest mistty-test-enter-split-fullscreen-1047/eterm ()
-  :tags '(:slow)
-  (mistty-with-test-buffer (:selected t :type eterm)
-    (mistty-test-enter-split-fullscreen "[?1047h" "[?1047l" 'clear-screen)))
-
-(mistty-deftest mistty-test-enter-split-fullscreen-1049 (:selected t :type eterm :slow t)
-  (mistty-test-enter-split-fullscreen "[?1049h" "[?1049l" 'clear-screen))
-
-(mistty-deftest mistty-test-call-fullscreen-hooks/eterm (:selected t :type eterm)
-  (mistty-test-call-fullscreen-hooks 'split))
-
-(mistty-deftest mistty-test-call-fullscreen-hooks/alacritty (:selected t :type alacritty)
-  (mistty-test-call-fullscreen-hooks t))
-
-(defun mistty-test-call-fullscreen-hooks (value)
+(mistty-deftest mistty-test-call-fullscreen-hooks (:selected t :type all)
   (let ((work-buffer mistty-work-buffer)
         (calls (list)))
 
@@ -1649,7 +1541,7 @@
        (with-current-buffer work-buffer
          mistty-fullscreen)))
 
-    (should (equal `((enter ,value)) calls))
+    (should (equal '((enter t)) calls))
 
     (execute-kbd-macro (kbd ": q ! RET"))
     (mistty-wait-for-output
@@ -1658,9 +1550,9 @@
        (with-current-buffer work-buffer
          (not mistty-fullscreen))))
 
-    (should (equal `((enter ,value) (leave nil)) (nreverse calls)))))
+    (should (equal '((enter t) (leave nil)) (nreverse calls)))))
 
-(mistty-deftest mistty-test-killed-while-split-fullscreen (:type eterm)
+(mistty-deftest mistty-test-killed-while-fullscreen (:type all)
   (let (calls)
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc)
@@ -1677,10 +1569,10 @@
 
     (let ((term-buffer mistty-term-buffer)
           (term-proc mistty-proc))
-      (mistty-send-text "printf '\\e[?47h'; echo fullscreen on; exit")
+      (mistty-send-text "printf '\\e[?1049h'; echo fullscreen on; exit")
       (mistty-send-command)
       (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc))
-    (should (equal '((enter split) (leave nil) (end nil t))
+    (should (equal '((enter t) (leave nil) (end nil t))
                    (nreverse calls)))))
 
 (mistty-deftest mistty-test-live-buffer-p (:type all)
@@ -1689,34 +1581,7 @@
   (with-temp-buffer
     (should (not (mistty-live-buffer-p (current-buffer))))))
 
-(mistty-deftest mistty-test-split-fullscreen-live-buffer-p (:type eterm)
-  (let ((proc mistty-proc)
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer))
-    (mistty-send-text
-     (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
-             "[47h" "[47l"))
-    (mistty-send-command)
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (with-current-buffer work-buffer
-         mistty-fullscreen)))
-
-    (should-not (mistty-live-buffer-p work-buffer))
-    (should (mistty-live-buffer-p term-buffer))
-
-    ;; Cleanup. Without this, the term buffer would not be killed
-    ;; when the work buffer is killed since it's in fullscreen mode,
-    ;; and so considered the main buffer.
-    (mistty--send-string proc "\C-m")
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (with-current-buffer work-buffer
-         (not mistty-fullscreen))))))
-
-(mistty-deftest mistty-single-buffer-fullscreen-live-buffer-p (:type alacritty)
+(mistty-deftest mistty-test-fullscreen-live-buffer-p (:type all)
   (let ((proc mistty-proc)
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer))
@@ -1740,36 +1605,6 @@
      (lambda ()
        (with-current-buffer work-buffer
          (not mistty-fullscreen))))))
-
-(mistty-deftest mistty-test-toggle-between-split-buffers (:selected t :type eterm)
-  (let ((proc mistty-proc)
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
-        (win (selected-window)))
-    (should (equal mistty-work-buffer (window-buffer win)))
-    (mistty-send-text
-     (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
-             "[47h" "[47l"))
-    (mistty-send-command)
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (buffer-local-value 'mistty-fullscreen work-buffer)))
-
-    (should (equal term-buffer (window-buffer win)))
-    (with-current-buffer (window-buffer win)
-      (mistty-toggle))
-    (should (equal work-buffer (window-buffer win)))
-    (with-current-buffer (window-buffer win)
-      (mistty-toggle))
-    (should (equal term-buffer (window-buffer win)))
-
-    ;; Cleanup.
-    (mistty--send-string proc "\C-m")
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (not (buffer-local-value 'mistty-fullscreen work-buffer))))))
 
 (mistty-deftest mistty-test-toggle (:type all)
   (mistty-send-text "echo two")
@@ -1803,76 +1638,13 @@
                  (mistty-test-content
                   :show (list (point) (mistty-cursor))))))
 
-(mistty-deftest mistty-test-split-fullscreen-swap-buffers (:selected t :type eterm)
-  (let ((proc mistty-proc)
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
-        (scratch (get-buffer-create "*scratch*"))
-        (winA (selected-window))
-        winA-prevs
-        winB-prevs
-        winB)
-    (delete-other-windows)
-    (set-window-buffer winA scratch)
-    (set-window-buffer winA work-buffer)
-    (split-window-vertically)
-    (other-window 1)
-    (setq winB (selected-window))
-    (set-window-buffer winB scratch)
-    (set-window-buffer winB term-buffer)
-    (setq winA-prevs (mapcar #'car (window-prev-buffers winA)))
-    (setq winB-prevs (mapcar #'car (window-prev-buffers winB)))
-
-    (should (equal work-buffer (window-buffer winA)))
-    (should (equal term-buffer (window-buffer winB)))
-
-    ;; Enter fullscreen
-    (with-current-buffer work-buffer
-      (mistty-send-text
-       (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
-               "[47h" "[47l"))
-      (mistty-send-command)
-      (mistty-wait-for-output
-       :test
-       (lambda ()
-         (buffer-local-value 'mistty-fullscreen work-buffer))))
-
-    ;; The buffers have been swapped; prev-buffers doesn't register
-    ;; that there was a change, though.
-    (should (equal term-buffer (window-buffer winA)))
-    (should (equal work-buffer (window-buffer winB)))
-    (should (equal winA-prevs (mapcar #'car (window-prev-buffers winA))))
-    (should (equal winB-prevs (mapcar #'car (window-prev-buffers winB))))
-
-    ;; Leave fullscreen
-    (with-current-buffer work-buffer
-      (mistty--send-string proc "\C-m")
-      (mistty-wait-for-output
-       :test
-       (lambda ()
-         (not (buffer-local-value 'mistty-fullscreen work-buffer)))))
-
-    ;; Back to the initial setup
-    (should (equal work-buffer (window-buffer winA)))
-    (should (equal term-buffer (window-buffer winB)))))
-
-(mistty-deftest mistty-test-kill-split-fullscreen-buffer-kills-scrollback (:selected t :type eterm)
-  (let ((work-buffer mistty-work-buffer)
-        (proc mistty-proc))
-    (should (executable-find "vi"))
-    (execute-kbd-macro (kbd "v i RET"))
-    (mistty-wait-for-output :test (lambda () mistty-fullscreen))
-
-    (kill-buffer mistty-term-buffer)
-    (mistty-wait-for-term-buffer-and-proc-to-die work-buffer proc)))
-
-(mistty-deftest mistty-test-proc-dies-during-split-fullscreen (:selected t :type eterm)
+(mistty-deftest mistty-test-proc-dies-during-fullscreen (:selected t :type all)
   (let ((bufname (buffer-name))
         (work-buffer mistty-work-buffer)
         (term-buffer mistty-term-buffer)
         (proc mistty-proc))
 
-    (mistty-send-text "printf '\\e[47hFullscreen' && exit 99")
+    (mistty-send-text "printf '\\e[?1049hFullscreen' && exit 99")
     (mistty-send-command)
 
     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc)
@@ -2051,9 +1823,8 @@
   (should (equal "ok" (mistty-send-and-capture-command-output)))
   (should (eq t cursor-type)))
 
-(mistty-deftest mistty-test-hide-cursor-fullscreen (:type eterm)
-  (let ((term-buffer mistty-term-buffer)
-        (proc mistty-proc))
+(mistty-deftest mistty-test-hide-cursor-fullscreen (:type all)
+  (let ((proc mistty-proc))
     (mistty--send-string
      proc
      "printf '\\e[?47h\\e[?25l\\n'; read -p 'Press ENTER(1)'; ")
@@ -2061,13 +1832,12 @@
      proc
      "printf '\\e[?25h\\n'; read -p 'Press ENTER(2)'; printf '\\e[?47lDONE\\n'")
     (mistty-send-command)
-    (mistty--with-live-buffer term-buffer
-      (mistty-wait-for-output :regexp "^Press ENTER(1)")
-      (should-not cursor-type)
-      (process-send-string proc "\n")
-      (mistty-wait-for-output :regexp "^Press ENTER(2)")
-      (should cursor-type)
-      (process-send-string proc "\n"))
+    (mistty-wait-for-output :regexp "^Press ENTER(1)")
+    (should-not cursor-type)
+    (process-send-string proc "\n")
+    (mistty-wait-for-output :regexp "^Press ENTER(2)")
+    (should cursor-type)
+    (process-send-string proc "\n")
     (mistty-wait-for-output :regexp "^DONE")
     (should cursor-type)))
 
@@ -5008,52 +4778,6 @@
     (should (equal 79 (mistty--term-columns mistty--term)))
     (should (equal 22 (mistty--term-lines mistty--term))))
 
-(mistty-deftest mistty-test-set-terminal-size-and-split-screen-fullscreen
-    (:selected t :term-size 'window :type eterm :turtles t)
-  (let ((proc mistty-proc)
-        (work-buffer mistty-work-buffer))
-
-    (mistty-set-terminal-size 40 10)
-    (delete-other-windows)
-    (should (redisplay t))
-
-    ;; Enter fullscreen
-    (mistty--send-string
-     proc "printf '\\e[?1047hPress ENTER: ' && read && printf '\\e[?1047lfullscreen off'\n")
-    (mistty-wait-for-output
-     :proc proc
-     :test
-     (lambda ()
-       (buffer-local-value 'mistty-fullscreen work-buffer)))
-
-    ;; In fullscreen mode, terminal size should come from the window
-    (should (equal 79 (mistty--term-columns mistty--term)))
-    (should (equal 22 (mistty--term-lines mistty--term)))
-
-    (split-window-vertically)
-    (should (redisplay t))
-    (should (equal 79 (mistty--term-columns mistty--term)))
-    (should (equal 10 (mistty--term-lines mistty--term)))
-
-    ;; Leave fullscreen
-    (mistty--send-string proc "\n")
-    (mistty-wait-for-output
-     :proc proc
-     :test
-     (lambda ()
-       (not (buffer-local-value 'mistty-fullscreen work-buffer))))
-
-    ;; We're back to the fixed terminal size
-    (mistty-send-text "echo $(tput cols)x$(tput lines)")
-    (should (equal "40x10" (mistty-send-and-capture-command-output)))
-
-    ;; And ignoring window change sizes
-    (delete-other-windows)
-    (should (redisplay t))
-
-    (mistty-send-text "echo $(tput cols)x$(tput lines)")
-    (should (equal "40x10" (mistty-send-and-capture-command-output)))))
-
 (mistty-deftest mistty-enforce-min-terminal-size ( :type all)
   (should-error (mistty-set-terminal-size 2 20))
   (should-error (mistty-set-terminal-size 80 2))
@@ -6661,11 +6385,8 @@ function prompt {
                :test
                (lambda ()
                  (buffer-local-value 'mistty-fullscreen workbuf)))
-              ;; Note that jit-lock-mode should be enabled while
-              ;; fullscreen; this is different from what happens when
-              ;; the terminal type is set to alacritty.
               (with-current-buffer termbuf
-                (should jit-lock-mode))
+                (should-not jit-lock-mode))
               (mistty-send-and-wait-for-prompt
                :start mistty-sync-marker
                :send (lambda () (process-send-string proc "q"))
@@ -7753,7 +7474,7 @@ preexec_functions+=(osc133_preexec)
     ;; prompt-map is installed
   ))
 
-(mistty-deftest mistty-test-toggle-keymap-in-fullscreen-mode (:selected t :type alacritty)
+(mistty-deftest mistty-test-toggle-keymap-in-fullscreen-mode (:selected t :type all)
   (let ((mistty-prompt-map (make-sparse-keymap "prompt"))
         (mistty-fullscreen-mode-map (make-sparse-keymap "fs"))
         (events nil))
@@ -7976,7 +7697,7 @@ preexec_functions+=(osc133_preexec)
               "-UUU:**- F1  test-mode-line   All  (misTTY ×_×) --------------------------------")
              (mistty-test-trim-mode-line)))))
 
-(mistty-deftest mistty-test-mode-line-single-buffer-fs (:selected t :type alacritty :turtles t)
+(mistty-deftest mistty-test-mode-line-fullscreen (:selected t :type all :turtles t)
   (mistty-test-rename-buffer "test-mode-line")
   (mistty--send-string
    mistty-proc "printf '\\e[?1049h'; read -p 'FS'\n")
@@ -7998,43 +7719,7 @@ preexec_functions+=(osc133_preexec)
               "-UUU:**- F1  test-mode-line   Top  (misTTY [_]) --------------------------------")
              (mistty-test-trim-mode-line)))))
 
-(mistty-deftest mistty-test-mode-line-split-buffer-fs (:selected t :type eterm :turtles t)
-  (let ((term-buffer mistty-term-buffer))
-    (with-current-buffer mistty-work-buffer
-      (mistty-test-rename-buffer "test-mode-line"))
-
-    (mistty--send-string
-     mistty-proc "printf '\\e[?1049h'; read -p 'FS'")
-    (mistty-send-command)
-    (mistty-wait-for-output
-     :test (lambda ()
-             (with-current-buffer term-buffer
-               (save-excursion
-                 (goto-char (point-min))
-                 (search-forward "FS" nil 'noerror)))))
-
-    (with-current-buffer mistty-work-buffer
-      (should (eq 'split mistty-fullscreen)))
-
-    ;; term buffer
-    (pop-to-buffer mistty-term-buffer)
-    (delete-other-windows)
-    (turtles-with-grab-buffer (:mode-line (selected-window))
-      (should (equal
-               (mistty-test-trim-mode-line
-                "-UUU:%*- F1  test-mode-line   All  (Term/misTTY ▲ ) ----------------------------")
-               (mistty-test-trim-mode-line))))
-
-    ;; work buffer (scrollback)
-    (pop-to-buffer mistty-work-buffer)
-    (delete-other-windows)
-    (turtles-with-grab-buffer (:mode-line (selected-window))
-      (should (equal
-               (mistty-test-trim-mode-line
-                "-UUU:**- F1  test-mode-line scrollback   All  (misTTY ▼ ) ----------------------")
-               (mistty-test-trim-mode-line))))))
-
-(mistty-deftest mistty-test-read-only-single-buffer-fullscreen (:selected t :type alacritty)
+(mistty-deftest mistty-test-read-only-fullscreen (:selected t :type all)
   (mistty--send-string
    mistty-proc "printf '\\e[?1049h'; read -p 'FS'; printf '\\e[?1049lPROMPT\\n'")
   (mistty-send-command)
@@ -9140,8 +8825,8 @@ preexec_functions+=(osc133_preexec)
       (should mistty--focused)
 
       (mistty-send-text "echo -n \"$a$b$c\" | xxd")
-      (mistty-send-and-wait-for-prompt)
-      
+      (mistty-send-command)
+      (mistty-wait-for-output :regexp "^00000000: ")
       (should
        (equal
         "00000000: 1b5b 491b 5b4f 1b5b 49                   .[I.[O.[I"
@@ -9153,44 +8838,3 @@ preexec_functions+=(osc133_preexec)
       (mistty-send-command)
       (mistty-wait-for-output :regexp "^disabled")
       (should-not mistty--report-focus))))
-
-(mistty-deftest mistty-report-focus-split-fullscreen/eterm
-    (:type eterm :turtles t :selected t)
-  (let* ((work-buf mistty-work-buffer)
-         (term-buf mistty-term-buffer)
-         (proc mistty-proc)
-         (win (selected-window))
-         (frame (window-frame win)))
-    (should mistty--focused) ; buffer window is selected
-    
-    (mistty--send-string
-     mistty-proc
-     (concat "printf '\\e[47h'; printf '\\e[?1004h'; "
-             "for i in 1 2;"
-             " do read -p '### ' -N 3 c >/dev/null;"
-             " printf \"\\rreceived $i ${c:2}\\n\";"
-             "done"))
-    (mistty-send-command)
-    (mistty-wait-for-output
-     :proc proc
-     :test
-     (lambda ()
-       (buffer-local-value 'mistty-fullscreen work-buf)))
-
-    (with-current-buffer work-buf
-      (should mistty--focused))
-    (with-current-buffer term-buf
-      (mistty-wait-for-output :regexp "^received 1 I"))
-    (with-current-buffer work-buf
-      (should mistty--report-focus))
-    
-    (other-window 1)
-    (should-not (eq win (frame-selected-window frame)))
-    ;; redisplay triggers window-selection-change-functions to report
-    ;; selection change
-    (redisplay t)
-    
-    (with-current-buffer term-buf
-      (mistty-wait-for-output :regexp "^received 2 O"))
-    (with-current-buffer work-buf
-      (should-not mistty--focused))))

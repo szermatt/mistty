@@ -1441,7 +1441,6 @@
 
 (mistty-deftest mistty-test-enter-fullscreen (:selected t :type all)
   (let ((work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
         (win (selected-window)))
     (should (executable-find "vi"))
     (execute-kbd-macro (kbd "v i RET"))
@@ -1453,13 +1452,7 @@
     ;; the buffer and window haven't changed
     (should (eq (current-buffer) work-buffer))
     (should (equal win (get-buffer-window work-buffer)))
-    (should-not (get-buffer-window term-buffer))
-
     (should (eq t mistty-fullscreen))
-    (with-current-buffer term-buffer
-      (should (eq t mistty-fullscreen)))
-
-
     (execute-kbd-macro (kbd ": q ! RET"))
     (mistty-wait-for-output
      :test
@@ -1468,8 +1461,6 @@
          (not mistty-fullscreen))))
 
     (should (eq nil mistty-fullscreen))
-    (with-current-buffer term-buffer
-      (should (eq nil mistty-fullscreen)))
     (mistty-wait-for-output
      :start mistty-sync-marker
      :str "$ " :cursor-at-end t)

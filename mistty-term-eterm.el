@@ -806,7 +806,7 @@ line properly. The result are spaces that should be skipped.
 SCROLLINE is the scrolline at which CONTENT was inserted in the terminal
 buffer and POS-IN-LINE is the character position within that scrolline where it
 was inserted."
-  (mistty--with-live-buffer (mistty--term-buf term)
+  (mistty--with-live-buffer (mistty--term-eterm-buf term)
     (let ((beg (+ (mistty--find-scrolline scrolline)
                   pos-in-line))
           (lines (split-string content "\n")))

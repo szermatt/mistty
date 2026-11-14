@@ -899,10 +899,6 @@ differently from modifications made inside of the synced region."
   (unless (eq mistty-work-buffer (current-buffer))
     (error "Work buffer required, got %s" (buffer-name))))
 
-(defsubst mistty--require-term-buffer ()
-  "Asserts that the current buffer is the term buffer."
-  (unless (eq mistty-term-buffer (current-buffer)) (error "Term buffer required")))
-
 (defsubst mistty--require-proc ()
   "Asserts that the current buffer has a live process."
   (unless (process-live-p mistty-proc) (error "No running process")))
@@ -1013,16 +1009,8 @@ window."
                                   val mistty--mouse-reporting)
 
                       (mistty--update-secondary-mode)))))
-           (term-buffer (mistty--term-buf term))
            (accum (process-filter (mistty--term-proc term))))
       (mistty--add-sync-buffers accum work-buffer)
-
-      (with-current-buffer term-buffer
-        (add-hook 'mistty-start-capture-keyboard-hook
-                  #'mistty--update-secondary-mode nil t)
-        (add-hook 'mistty-end-capture-keyboard-hook
-                  #'mistty--update-secondary-mode nil t))
-
       (mistty--attach term)
       (mistty--check-buffer-focus (current-buffer))))
   (mistty--wrap-capf-functions)
@@ -1508,9 +1496,7 @@ This way, it looks like the buffer was cleared even though history is
 kept."
   (when-let*
       ((win (get-buffer-window mistty-work-buffer))
-       (screen-start-scrolline
-        (mistty--with-live-buffer mistty-term-buffer
-          (mistty--term-scrolline-at-screen-top mistty--term)))
+       (screen-start-scrolline (mistty--term-scrolline-at-screen-top mistty--term))
        (screen-start-pos
         (mistty--with-live-buffer mistty-work-buffer
           (mistty--find-scrolline screen-start-scrolline))))
@@ -3356,8 +3342,7 @@ changes.
 Return non-nil if a change was picked up to be replayed."
   (mistty--cancel-pickup-changes)
   (when (and (not mistty--inhibit)
-             (process-live-p mistty-proc)
-             (buffer-live-p mistty-term-buffer))
+             (process-live-p mistty-proc))
     (when-let* ((cs (mistty--active-changeset)))
       (mistty--inhibit-undo
        (save-restriction
@@ -3690,11 +3675,7 @@ Width and height are limited to `mistty-min-terminal-width' and
     (mistty--remove-replay-hooks)
     (mistty--cancel-queue mistty--queue)
     (mistty--release-all-changesets)
-
     (setq mistty-fullscreen t)
-    (mistty--with-live-buffer mistty-term-buffer
-      (setq mistty-fullscreen t))
-
     (mistty--update-secondary-mode)
     (run-hooks 'mistty-entered-fullscreen-hook)
     (mistty-log "Entered fullscreen mode")))
@@ -3707,11 +3688,7 @@ Width and height are limited to `mistty-min-terminal-width' and
       (remove-text-properties mistty-sync-marker (point-max) '(read-only nil)))
     (when mistty-proc
       (mistty--add-replay-hooks))
-
     (setq mistty-fullscreen nil)
-    (mistty--with-live-buffer mistty-term-buffer
-      (setq mistty-fullscreen nil))
-
     (mistty--update-secondary-mode)
     (run-hooks 'mistty-left-fullscreen-hook)
     (mistty-log "Left fullscreen mode")))
@@ -3771,9 +3748,6 @@ Ignores buffers that don't exist."
                                    (mistty--mode-line-button 'mouse :help))
                        'mouse-face 'mode-line-highlight
                        'local-map (mistty--mode-line-button 'mouse)))))))))))
-
-  (mistty--with-live-buffer mistty-term-buffer
-    (setq mode-line-process "misTTY:%s"))
 
   (force-mode-line-update))
 
@@ -4002,8 +3976,7 @@ on the direction of the last move.
 This is meant to be added to `pre-redisplay-functions'"
   (when (and (not mistty-fullscreen)
              mistty-proc
-             (process-live-p mistty-proc)
-             (buffer-live-p mistty-term-buffer))
+             (process-live-p mistty-proc))
     (let (pos last-pos move-to)
       (when (and mistty-skip-empty-spaces
                  ;; Never move point at cursor.
@@ -4202,19 +4175,6 @@ as \\='mistty-skip spaces."
             ;; count at all.
             (setq pos skip-end))))))
     (* sign count)))
-
-(defun mistty--same-buffer-content-p (beg end)
-  "Return non-nil if BEG to END is the same in both buffers.
-
-BEG and END should be cons (WORK-POS . TERM-POS), with WORK-POS a
-position on `mistty-work-buffer' and TERM-POS a position on
-`mistty-term-buffer'. The text from the two regions is extracted
-and compared, ignoring text properties."
-  (equal
-   (mistty--with-live-buffer mistty-work-buffer
-     (mistty--safe-bufstring (car beg) (car end)))
-   (mistty--with-live-buffer mistty-term-buffer
-     (mistty--safe-bufstring (cdr beg) (cdr end)))))
 
 (defun mistty-report-long-running-command (id active)
   "Report whether a specific long-running command is active.

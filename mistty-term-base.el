@@ -96,9 +96,6 @@ ignored."
 
   (ignore term plist))
 
-(cl-defgeneric mistty--term-buf (term)
-  "Return the TERM's terminal or process buffer.")
-
 (cl-defgeneric mistty--term-proc (term)
   "Return the TERM's process.")
 

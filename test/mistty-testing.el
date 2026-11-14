@@ -269,16 +269,6 @@ default, the default directory is a temp directory created for the test."
   "Output a message reporting the current test name."
   (message "RUNNING: %s" (ert-test-name (ert-running-test))))
 
-(cl-defmacro mistty-simulate-scrollback-buffer (&body body)
-  "Run BODY in a simulated scrollback buffer."
-  `(let ((term-buffer mistty-term-buffer))
-     (mistty--detach)
-     (unwind-protect
-         (progn
-           ,@body)
-       (mistty--attach (with-current-buffer term-buffer
-                         mistty--term)))))
-
 (defmacro mistty-run-command (&rest body)
   `(progn
      (mistty-test-pre-command)
@@ -619,22 +609,29 @@ This is useful to ignore indentation added by fish."
       (setq output (replace-regexp-in-string "^[ \t]*" "" output)))
     output))
 
-(defun mistty-wait-for-term-buffer-and-proc-to-die (buf proc)
-  (should (not (null buf)))
+(defun mistty-wait-for-proc-to-die (proc)
   (should (not (null proc)))
-  (mistty-wait-for-output
-   :test
-   (lambda ()
-     (and
-      (not (process-live-p proc))
-      (not (buffer-live-p buf))))
-   :on-error
-   (lambda ()
-     (cond ((process-live-p proc)
-            (error "Process %s didn't die. Status: %s" proc (process-status proc)))
-           ((buffer-live-p buf)
-            (error "Buffer %s wasn't killed." buf))
-           (t (error "Something else went wrong."))))))
+  (let ((buf (process-buffer proc)))
+    (when (and buf
+               (buffer-live-p buf)
+               (eq 'mistty-mode (with-current-buffer buf
+                                  major-mode)))
+      ;; Only wait for the buffer to die if it's something else than
+      ;; the work buffer.
+      (setq buf nil))
+    (mistty-wait-for-output
+     :test
+     (lambda ()
+       (and
+        (not (process-live-p proc))
+        (or (null buf) (not (buffer-live-p buf)))))
+     :on-error
+     (lambda ()
+       (cond ((process-live-p proc)
+              (error "Process %s didn't die. Status: %s" proc (process-status proc)))
+             ((and buf (buffer-live-p buf))
+              (error "Buffer %s wasn't killed." buf))
+             (t (error "Something else went wrong.")))))))
 
 (defun mistty-send-text (text &optional start)
   "Send TEXT and wait until it appears after START.

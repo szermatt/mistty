@@ -246,10 +246,9 @@ non-nil.")
 (defvar mistty-after-process-start-hook nil
   "Report that the MistTTY process started.
 
-This hook is called from `mistty-work-buffer` just after the
-shell process has been started and attached to the MisTTY window.
-The process is available in `mistty-proc` and the terminal buffer
-in `mistty-term-buffer`. Note that the process might not have
+This hook is called from `mistty-work-buffer` just after the shell
+process has been started and attached to the MisTTY window. The process
+is available in `mistty-proc`. Note that the process might not have
 output anything yet; the buffer is likely empty.")
 
 (defvar mistty-after-process-end-hook (list #'mistty--at-end)
@@ -260,8 +259,7 @@ This hook is called with PROC as an argument from
 guaranteed to be a dead process. Its status can be checked with
 `process-status`.
 
-At the point this hook is called `mistty-proc` is unset and
-`mistty-term-buffer` has already been killed.
+At the point this hook is called `mistty-proc` is already unset.
 
 Note that this hook might never be called, in particular when the
 MisTTY buffer is killed while the process is still running.
@@ -295,40 +293,11 @@ This buffer keeps a modifiable history of all commands at the top
 and a view of the terminal modified by the current command at the
 bottom.
 
-While there is normally a terminal buffer, available as
-`mistty-term-buffer' as well as a process, available as
-`mistty-proc' either or both of these might be nil, such as
-after the process died.
-
-This variable is available in both the work buffer and the term
-buffer.")
-
-(defvar-local mistty-term-buffer nil
-  "Secondary `term-mode' buffer.
-
-This buffer contains the current screen state, as drawn by the different
-commands. Changes made in this buffer are copied to `mistty-work-buffer'.
-This buffer is hidden.
-
-While there is normally a work buffer, available as `mistty-work-buffer'
-as well as a process, available as `mistty-proc` either or both of these
-might be nil in some cases.
-
-This variable is available in both the work buffer and the term
-buffer.")
+While there is normally a `mistty-proc' associated with the buffer, the
+process might be nil if it hasn't been started yet or died.")
 
 (defvar-local mistty-proc nil
-  "The process that controls the terminal, usually a shell.
-
-This process is associated to `mistty-term-buffer' and is set up
-to output first to that buffer.
-
-The process property `mistty-work-buffer' links the work buffer
-and, for consistency, the process property `mistty-term-buffer'
-links to the term buffer.
-
-This variable is available in both the work buffer and the term
-buffer.")
+  "The process that controls the terminal, usually a shell.")
 
 (defvar-local mistty-fullscreen nil
   "Whether MisTTY is in full-screen mode.
@@ -367,15 +336,7 @@ buffer.")
 See mistty-queue.el.")
 
 (defvar-local mistty-sync-marker nil
-  "A marker that links `mistty-term-buffer' to `mistty-work-buffer'.
-
-The region of the terminal that's copied to the work buffer by
-`mistty--term-sync' starts at `mistty-sync-marker' and ends
-at `(point-max)' on both buffers. The two markers must always be
-kept in sync.
-
-This variable is available in both the work buffer and the term
-buffer.")
+  "Marker for the start of the terminal region.")
 
 (defvar-local mistty--last-prompt-considered -1
   "Scrolline of the last rejected possible prompt.")
@@ -554,8 +515,9 @@ It is either:
 (defvar-local mistty--prompt-cell nil
   "A `mistty--prompt-cell' instance.
 
-This is used to share prompts between the work and term buffers. This is
-accessible from either buffer.
+This is used to share prompts between the mistty-mode buffer and the
+terminal implementations. It is passed to eterm or alacritty when
+creating the terminal.
 
 Always access it through the places `mistty--prompt'
 `mistty--prompt-archive' and `mistty--prompt-counter'.")
@@ -1021,26 +983,16 @@ window."
 (defun mistty--attach (term)
   "Attach the current `mistty-mode' buffer to TERM."
   (let ((work-buffer (current-buffer))
-        (term-buffer (mistty--term-buf term))
         (proc (mistty--term-proc term)))
 
     (when proc
-      (process-put proc 'mistty-work-buffer work-buffer)
-      (process-put proc 'mistty-term-buffer term-buffer))
+      (process-put proc 'mistty-work-buffer work-buffer))
 
     (setq mistty--term term)
     (setq mistty-proc proc)
-    (setq mistty-term-buffer term-buffer)
     (setq mistty--queue (mistty--make-queue proc))
     (setq mistty-goto-cursor-next-time t)
     (mistty--needs-refresh)
-
-    (with-current-buffer term-buffer
-      (setq mistty--term term)
-      (setq mistty-proc proc)
-      (setq mistty-work-buffer work-buffer)
-      (setq mistty-term-buffer term-buffer))
-
     (set-process-sentinel
      proc
      (lambda (proc msg)

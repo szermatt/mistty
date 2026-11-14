@@ -308,13 +308,6 @@
                             (execute-kbd-macro (kbd "RET"))))))
   (should (equal "$ echo hello\nhello\n$" (mistty-test-content))))
 
-(mistty-deftest mistty-test-send-command-in-scrollback (:type all)
-  (mistty-simulate-scrollback-buffer
-   (let ((before (buffer-string)))
-     ;; This just inserts a \n
-     (mistty-send-command)
-     (should (equal (concat before "\n") (buffer-string))))))
-
 (mistty-deftest mistty-test-send-command-is-queued (:type all)
   (mistty--enqueue mistty--queue (mistty--stuck-interaction "echo ok"))
   (mistty-send-and-wait-for-prompt
@@ -378,23 +371,22 @@
   (mistty-wait-for-output :str "ech\t")
   (should (equal "$ ech\t<> world" (mistty-test-content :show (point)))))
 
-(ert-deftest mistty-test-process-hooks-with-normal-exit ()
+(ert-deftest mistty-test-process-hooks-with-normal-exit/eterm ()
   (let ((mistty-after-process-start-hook nil)
         (mistty-after-process-end-hook nil)
-        calls term-buffer term-proc)
+        (mistty-terminal-type 'eterm)
+        calls term-proc)
     (add-hook 'mistty-after-process-start-hook
               (lambda () (push `(start
                                  ,(eq (current-buffer) mistty-work-buffer)
-                                 ,(and (process-live-p mistty-proc) t)
-                                 ,(buffer-live-p mistty-term-buffer))
+                                 ,(and (process-live-p mistty-proc) t))
                                calls)))
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc) (push `(end
                                      ,(eq (current-buffer) mistty-work-buffer)
                                      ,(not (and (process-live-p proc) t))
                                      ,(eq 'exit (and (processp proc) (process-status proc)))
-                                     ,(null mistty-proc)
-                                     ,(not (buffer-live-p mistty-term-buffer)))
+                                     ,(null mistty-proc))
                                    calls)))
 
     (ert-with-test-buffer ()
@@ -403,19 +395,53 @@
       (mistty-mode)
       (mistty-exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
       (setq term-proc mistty-proc)
-      (setq term-buffer mistty-term-buffer)
       (should (equal (length calls) 1))
       (mistty-send-text "exit")
       (mistty-send-command)
-      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
-      (should (equal '((start t t t) (end t t t t t)) (nreverse calls))))))
+      (mistty-wait-for-proc-to-die term-proc)
+      (should (equal '((start t t) (end t t t t)) (nreverse calls))))))
 
-(ert-deftest mistty-test-kill-term-buffer-when-work-buffer-is-killed ()
-  (let (term-buffer term-proc)
-    (mistty-with-test-buffer ()
-      (setq term-buffer mistty-term-buffer)
-      (setq term-proc mistty-proc))
-    (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
+(ert-deftest mistty-test-process-hooks-with-normal-exit/alacritty ()
+  (let ((mistty-after-process-start-hook nil)
+        (mistty-after-process-end-hook nil)
+        (mistty-terminal-type 'alacritty)
+        calls term-proc)
+    (add-hook 'mistty-after-process-start-hook
+              (lambda () (push `(start
+                                 ,(eq (current-buffer) mistty-work-buffer)
+                                 ,(and (process-live-p mistty-proc) t))
+                               calls)))
+    (add-hook 'mistty-after-process-end-hook
+              (lambda (proc) (push `(end
+                                     ,(eq (current-buffer) mistty-work-buffer)
+                                     ,(not (and (process-live-p proc) t))
+                                     ,(eq 'exit (and (processp proc) (process-status proc)))
+                                     ,(null mistty-proc))
+                                   calls)))
+
+    (ert-with-test-buffer ()
+      ;; mistty-with-test-buffer clears
+      ;; mistty-after-process-start-hook, so can't be used here.
+      (mistty-mode)
+      (mistty-exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
+      (setq term-proc mistty-proc)
+      (should (equal (length calls) 1))
+      (mistty-send-text "exit")
+      (mistty-send-command)
+      (mistty-wait-for-proc-to-die term-proc)
+      (should (equal '((start t t) (end t t t t)) (nreverse calls))))))
+
+(ert-deftest mistty-test-kill-proc-when-work-buffer-is-killed/eterm ()
+  (let (proc)
+    (mistty-with-test-buffer (:type eterm)
+      (setq proc mistty-proc))
+    (mistty-wait-for-proc-to-die proc)))
+
+(ert-deftest mistty-test-kill-proc-when-work-buffer-is-killed/alacritty ()
+  (let (proc)
+    (mistty-with-test-buffer (:type alacritty)
+      (setq proc mistty-proc))
+    (mistty-wait-for-proc-to-die proc)))
 
 (mistty-deftest mistty-test-kill-term-buffer-but-keep-work-buffer/eterm (:type eterm)
   (let ((calls (list)))
@@ -424,32 +450,30 @@
                 (push `(end ,(and (processp proc) (process-status proc)))
                       calls)))
 
-    (let ((term-buffer mistty-term-buffer)
-          (term-proc mistty-proc))
-      (kill-buffer term-buffer)
-      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
+    (let ((term-proc mistty-proc))
+      (kill-buffer (process-buffer term-proc))
+      (mistty-wait-for-proc-to-die term-proc)
       (mistty-wait-for-output :str "Terminal killed." :start (point-min))
       (should (equal (point) (point-max))))
     (should (equal '((end signal)) calls))))
 
 (mistty-deftest mistty-test-kill-term-buffer-but-keep-work-buffer/alacritty (:type alacritty)
-  (let ((proc mistty-proc)
-        (term-buffer mistty-term-buffer))
-    (mistty-send-text "echo one")
-    (mistty-send-command)
-    (kill-buffer mistty-term-buffer) ; it'll just be re-created
-    (mistty-send-text "echo two")
-    (mistty-send-and-wait-for-prompt)
-    (should (equal "$ echo one\none\n$ echo two\ntwo\n$"
-                   (mistty-test-content)))))
+  (mistty-send-text "echo one")
+  (mistty-send-command)
+  (let ((term-buffer (mistty--term-alacritty-buf mistty--term)))
+    (should term-buffer)
+    (kill-buffer term-buffer))
+  (mistty-send-text "echo two")
+  (mistty-send-and-wait-for-prompt)
+  (should (equal "$ echo one\none\n$ echo two\ntwo\n$"
+                 (mistty-test-content))))
 
-(mistty-deftest mistty-test-term-buffer-exits (:type all)
-  (let ((proc mistty-proc)
-        (term-buffer mistty-term-buffer))
+(mistty-deftest mistty-test-proc-exits (:type all)
+  (let ((proc mistty-proc))
     (mistty-send-text "exit")
     (mistty-send-command)
     (mistty-wait-for-output :str "finished" :start (point-min))
-    (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc)))
+    (mistty-wait-for-proc-to-die proc)))
 
 (mistty-deftest mistty-test-scroll-with-long-command (:type all)
   (let ((loop-command "for i in {0..49}; do echo line $i; done"))
@@ -652,53 +676,12 @@
   (mistty-wait-for-output :str "echo hello world." :start (point-min))
   (should (equal "$ echo hello world.<>" (mistty-test-content :show (point)))))
 
-(mistty-deftest mistty-test-bol-in-scrollback (:type all)
-  (mistty-send-text "echo hello")
-  (mistty-simulate-scrollback-buffer
-   (call-interactively 'mistty-beginning-of-line)))
-
-(mistty-deftest mistty-test-eol-in-scrollback (:type all)
-  (mistty-send-text "echo hello")
-  (goto-char (mistty--bol (point)))
-  (mistty-simulate-scrollback-buffer
-   (call-interactively 'mistty-end-of-line)
-
-   (should (equal "$ echo hello<>"
-                  (mistty-test-content :show (point))))
-
-   (let ((this-command 'mistty-end-of-line)
-         (last-command 'mistty-end-of-line))
-     (call-interactively 'mistty-end-of-line))
-
-   (should (equal "$ echo hello<>"
-                  (mistty-test-content :show (point))))))
-
-(mistty-deftest mistty-test-eol-or-goto-cursor-in-scrollback (:type all)
-  (mistty-send-text "echo hello")
-  (goto-char (mistty--bol (point)))
-  (mistty-simulate-scrollback-buffer
-   (call-interactively 'mistty-end-of-line-or-goto-cursor)
-
-   (should (equal "$ echo hello<>"
-                  (mistty-test-content :show (point))))
-
-   (let ((this-command 'mistty-end-of-line)
-         (last-command 'mistty-end-of-line))
-     (call-interactively 'mistty-end-of-line-or-goto-cursor))
-
-   (should (equal "$ echo hello<>"
-                  (mistty-test-content :show (point))))))
-
 (mistty-deftest mistty-test-goto-cursor (:type all)
   (mistty-send-text "echo hello")
   (goto-char (point-min))
   (mistty-run-command
    (call-interactively 'mistty-goto-cursor))
   (should (equal (point) (mistty-cursor))))
-
-(mistty-deftest mistty-test-goto-cursor-in-scrollback-buffer (:type all)
-  (mistty-simulate-scrollback-buffer
-   (should-error (call-interactively 'mistty-goto-cursor))))
 
 (mistty-deftest mistty-test-next-input (:shell (bash zsh fish))
   (mistty-with-test-buffer ()
@@ -1554,50 +1537,10 @@
 
     (should (equal '((enter t) (leave nil)) (nreverse calls)))))
 
-(mistty-deftest mistty-test-killed-while-fullscreen (:type all)
-  (let (calls)
-    (add-hook 'mistty-after-process-end-hook
-              (lambda (proc)
-                (push `(end
-                        ,(not (process-live-p proc)))
-                      calls)))
-    (let ((term-buffer mistty-term-buffer)
-          (term-proc mistty-proc))
-      (mistty-send-text "printf '\\e[?1049h'; echo fullscreen on; exit")
-      (mistty-send-command)
-      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc))
-    (should (equal '((end t)) calls))))
-
 (mistty-deftest mistty-test-live-buffer-p (:type all)
   (should (mistty-live-buffer-p mistty-work-buffer))
-  (should (not (mistty-live-buffer-p mistty-term-buffer)))
   (with-temp-buffer
     (should (not (mistty-live-buffer-p (current-buffer))))))
-
-(mistty-deftest mistty-test-fullscreen-live-buffer-p (:type all)
-  (let ((proc mistty-proc)
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer))
-    (mistty-send-text
-     (format "printf '\\e%sPress ENTER: ' && read && printf '\\e%sfullscreen off'"
-             "[?1049h" "[?1049l"))
-    (mistty-send-command)
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (with-current-buffer mistty-work-buffer
-         mistty-fullscreen)))
-
-    (should (mistty-live-buffer-p work-buffer))
-    (should-not (mistty-live-buffer-p term-buffer))
-
-    ;; cleanup
-    (mistty--send-string proc "\C-m")
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (with-current-buffer work-buffer
-         (not mistty-fullscreen))))))
 
 (mistty-deftest mistty-test-toggle (:type all)
   (mistty-send-text "echo two")
@@ -1631,22 +1574,6 @@
                  (mistty-test-content
                   :show (list (point) (mistty-cursor))))))
 
-(mistty-deftest mistty-test-proc-dies-during-fullscreen (:selected t :type all)
-  (let ((bufname (buffer-name))
-        (work-buffer mistty-work-buffer)
-        (term-buffer mistty-term-buffer)
-        (proc mistty-proc))
-
-    (mistty-send-text "printf '\\e[?1049hFullscreen' && exit 99")
-    (mistty-send-command)
-
-    (mistty-wait-for-term-buffer-and-proc-to-die term-buffer proc)
-
-    (should (buffer-live-p work-buffer))
-    (should (eq work-buffer (window-buffer (selected-window))))
-    (should (string-match "exited abnormally" (buffer-substring-no-properties (point-min) (point-max))))
-    (should (equal bufname (buffer-name work-buffer)))))
-
 (mistty-deftest mistty-test-reset ( :type all)
   (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
@@ -1664,13 +1591,9 @@
   (mistty--send-string mistty-proc "\n")
   (mistty-wait-for-output :start (point-min) :str "before:")
   (should mistty-bracketed-paste)
-  (should (with-current-buffer mistty-term-buffer
-            mistty-bracketed-paste))
   (mistty--send-string mistty-proc "\n")
   (mistty-wait-for-output :start (point-min) :str "after:")
   (should-not mistty-bracketed-paste)
-  (should-not (with-current-buffer mistty-term-buffer
-                mistty-bracketed-paste))
   (mistty--send-string mistty-proc "\n")
 
   ;; make sure that the next prompt is recognized properly
@@ -1916,11 +1839,10 @@
   (mistty-previous-input 1)
   (should (looking-at (regexp-quote "echo nack"))))
 
-(mistty-deftest mistty-test-eof ( :type all)
-  (let ((buf mistty-term-buffer)
-        (proc mistty-proc))
+(mistty-deftest mistty-test-eof (:type all)
+  (let ((proc mistty-proc))
     (mistty-send-key 1 "\C-d")
-    (mistty-wait-for-term-buffer-and-proc-to-die buf proc)))
+    (mistty-wait-for-proc-to-die proc)))
 
 (mistty-deftest mistty-test-nobracketed-paste-delchar
     (:shell ((bash mistty-test-nobracketed-paste-setup)) :type all)
@@ -2199,10 +2121,6 @@
   (execute-kbd-macro (kbd "e c h o SPC C-u 3 a"))
   (should (equal "aaa" (mistty-send-and-capture-command-output))))
 
-(mistty-deftest mistty-test-send-key-in-scrollback ( :type all)
-  (mistty-simulate-scrollback-buffer
-   (should-error (mistty-send-key 1 (kbd "a")))))
-
 (mistty-deftest mistty-test-send-key-is-queued ( :type all)
   (goto-char (point-min)) ;; should be moved by mistty-send-key
   (mistty--enqueue mistty--queue (mistty--stuck-interaction "ok."))
@@ -2311,12 +2229,6 @@
            (concat "$ echo abc defhello\n"
                    "echo world")
            (mistty-test-content))))
-
-(mistty-deftest mistty-test-capture-keyboard-in-scrollback ( :type all)
-  (mistty-simulate-scrollback-buffer
-   (should-error
-    (ert-simulate-keys '(?f ?o ?o)
-      (call-interactively 'mistty-capture-keyboard)))))
 
 (mistty-deftest mistty-test-revert-insert-after-prompt (:shell zsh :type all)
   (dotimes (i 3)
@@ -4529,8 +4441,8 @@
     (:selected t :term-size 'window :type all :turtles t)
   ;; initial window, half height
   (should (equal (cons 79 10)
-                 (with-current-buffer mistty-term-buffer
-                   (cons (mistty--term-columns mistty--term) (mistty--term-lines mistty--term)))))
+                 (cons (mistty--term-columns mistty--term)
+                       (mistty--term-lines mistty--term))))
   (mistty-send-text "echo $(tput cols)x$(tput lines)")
   (should (equal "79x10" (mistty-send-and-capture-command-output)))
 
@@ -4539,8 +4451,8 @@
 
   ;; full height
   (should (equal (cons 79 22)
-                 (with-current-buffer mistty-term-buffer
-                   (cons (mistty--term-columns mistty--term) (mistty--term-lines mistty--term)))))
+                 (cons (mistty--term-columns mistty--term)
+                       (mistty--term-lines mistty--term))))
 
   ;; make sure the process was told about the change
   (mistty-send-text "echo $(tput cols)x$(tput lines)")
@@ -4971,14 +4883,13 @@
 
     (customize-set-variable 'mistty-fringe-enabled orig-value)))
 
-(mistty-deftest mistty-kill-buffer-after-exit (:type all :shell (bash zsh fish))
+(mistty-deftest mistty-kill-proc-after-exit (:type all :shell (bash zsh fish))
   (let ((mistty-at-end 'kill-buffer-and-window))
     (add-hook 'mistty-after-process-end-hook #'mistty--at-end)
-    (let ((term-proc mistty-proc)
-          (term-buffer mistty-term-buffer))
+    (let ((term-proc mistty-proc))
       (mistty-send-text "exit")
       (mistty-send-command)
-      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc))))
+      (mistty-wait-for-proc-to-die term-proc))))
 
 (mistty-deftest mistty-buffer-after-exit (:type all)
   (let ((mistty-at-end nil))
@@ -5036,17 +4947,16 @@
   (let ((mistty-at-end 'kill-buffer-and-window)
         (called-first nil)
         (called-last nil)
-        term-proc term-buffer work-buffer)
+        term-proc work-buffer)
     (setq mistty-after-process-end-hook
           (list (lambda (_) (setq called-first (current-buffer)))
                 #'mistty--at-end
                 (lambda (_) (setq called-last (current-buffer)))))
     (setq term-proc mistty-proc)
-    (setq term-buffer mistty-term-buffer)
     (setq work-buffer mistty-work-buffer)
     (mistty-send-text "exit")
     (mistty-send-command)
-    (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)
+    (mistty-wait-for-proc-to-die term-proc)
     (should (equal work-buffer called-first))
     (should-not called-last)))
 
@@ -5054,11 +4964,10 @@
   (let ((mistty-at-end 'kill-buffer-and-window))
     (add-hook 'mistty-after-process-end-hook #'mistty--at-end)
     (add-hook 'mistty-after-process-end-hook #'mistty-kill-buffer)
-    (let ((term-proc mistty-proc)
-          (term-buffer mistty-term-buffer))
+    (let ((term-proc mistty-proc))
       (mistty-send-text "exit")
       (mistty-send-command)
-      (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc))))
+      (mistty-wait-for-proc-to-die term-proc))))
 
 (ert-deftest mistty-test-buffer-name ()
   (let ((mistty-buffer-name '("mistty")))
@@ -6327,7 +6236,7 @@ function prompt {
           (mistty-with-test-buffer (:type eterm)
             (let ((proc mistty-proc)
                   (workbuf mistty-work-buffer)
-                  (termbuf mistty-term-buffer))
+                  (termbuf (process-buffer mistty-proc)))
               (with-current-buffer termbuf
                 (should-not jit-lock-mode))
               (mistty-send-text "echo OK | less")
@@ -6348,52 +6257,19 @@ function prompt {
       (unless was-enabled
         (global-goto-address-mode -1)))))
 
-
-(ert-deftest mistty-disable-jit-lock-mode-in-term-buf/alacritty ()
-  (let ((was-enabled global-goto-address-mode))
-    (unwind-protect
-        (progn
-          ;; Turning on global-goto-address-mode force jit-lock-mode
-          ;; on all buffers, even the hidden ones.
-          (global-goto-address-mode)
-          (mistty-with-test-buffer (:type alacritty)
-            (let ((proc mistty-proc)
-                  (work-buffer mistty-work-buffer)
-                  (term-buffer mistty-term-buffer))
-              (with-current-buffer term-buffer
-                (should-not jit-lock-mode))
-              (mistty-send-text "echo OK | less")
-              (mistty-send-command)
-              (mistty-wait-for-output
-               :proc proc
-               :test
-               (lambda ()
-                 (with-current-buffer work-buffer
-                   mistty-fullscreen)))
-              (with-current-buffer term-buffer
-                (should-not jit-lock-mode))
-              (mistty-send-and-wait-for-prompt
-               :send (lambda () (process-send-string proc "q"))
-               :proc proc
-               :start mistty-sync-marker)
-              (with-current-buffer term-buffer
-                (should-not jit-lock-mode)))))
-      (unless was-enabled
-        (global-goto-address-mode -1)))))
-
 (defun mistty--cursor-scrolline ()
   "Return the scrolline position of the cursor."
   (mistty--scrolline-at (mistty-cursor)))
 
 (mistty-deftest mistty-test-scrolline-after-scrolling/eterm
     (:term-size '(79 . 22) :type eterm :turtles t)
-  (mistty-test-scrolline-after-scrolling 'test-term-buf))
+  (mistty-test-scrolline-after-scrolling (process-buffer mistty-proc)))
 
 (mistty-deftest mistty-test-scrolline-after-scrolling/alacritty
     (:term-size '(79 . 22) :type alacritty :turtles t)
   (mistty-test-scrolline-after-scrolling nil))
 
-(defun mistty-test-scrolline-after-scrolling (test-term-buf)
+(defun mistty-test-scrolline-after-scrolling (term-buffer)
   (save-restriction
     (let (one two)
       (mistty--send-string
@@ -6414,24 +6290,24 @@ function prompt {
 
       ;; scrolline one is valid on both buffers
       (should (equal "one" (mistty-test-line-at-scrolline one)))
-      (when test-term-buf
-        (should (equal "one" (with-current-buffer mistty-term-buffer
+      (when term-buffer
+        (should (equal "one" (with-current-buffer term-buffer
                                (mistty-test-line-at-scrolline one)))))
 
       (mistty--send-string mistty-proc "\n")
       (mistty-wait-for-output :str "line 20")
 
       (should (equal "one" (mistty-test-line-at-scrolline one)))
-      (when test-term-buf
-        (should (equal "one" (with-current-buffer mistty-term-buffer
+      (when term-buffer
+        (should (equal "one" (with-current-buffer term-buffer
                                (mistty-test-line-at-scrolline one)))))
 
       (mistty-send-text "two")
       (setq two (mistty--cursor-scrolline))
 
       (should (equal "two" (mistty-test-line-at-scrolline two)))
-      (when test-term-buf
-        (with-current-buffer mistty-term-buffer
+      (when term-buffer
+        (with-current-buffer term-buffer
           (should (equal "two" (mistty-test-line-at-scrolline two)))))
       (mistty--send-string mistty-proc "\n")
       (mistty-wait-for-output :str "line 30")
@@ -6444,8 +6320,8 @@ function prompt {
         (should (> two screen-start)))
 
       (should (equal "two" (mistty-test-line-at-scrolline two)))
-      (when test-term-buf
-        (with-current-buffer mistty-term-buffer
+      (when term-buffer
+        (with-current-buffer term-buffer
           (should (equal "two" (mistty-test-line-at-scrolline two)))))
 
       (mistty-send-and-wait-for-prompt
@@ -6480,7 +6356,7 @@ function prompt {
 
       ;; scrolline one is valid on both buffers
       (should (equal "one" (mistty-test-line-at-scrolline one)))
-      (with-current-buffer mistty-term-buffer
+      (with-current-buffer (process-buffer mistty-proc)
         (should (equal "one" (mistty-test-line-at-scrolline one))))
 
       (mistty--send-string mistty-proc "\n")
@@ -6488,14 +6364,14 @@ function prompt {
 
       ;; after scrolling, scrollines are still valid on both buffers
       (should (equal "one" (mistty-test-line-at-scrolline one)))
-      (with-current-buffer mistty-term-buffer
+      (with-current-buffer (process-buffer mistty-proc)
         (should (equal "one" (mistty-test-line-at-scrolline one))))
 
       (mistty--send-string mistty-proc "\n")
       (mistty-wait-for-output :str "foo15.")
 
       (should (equal "one" (mistty-test-line-at-scrolline one)))
-      (with-current-buffer mistty-term-buffer
+      (with-current-buffer (process-buffer mistty-proc)
         (should (equal "one" (mistty-test-line-at-scrolline one))))
       (mistty-send-and-wait-for-prompt
        :send (lambda ()
@@ -7099,12 +6975,13 @@ preexec_functions+=(osc133_preexec)
     (ert-with-test-buffer ()
       (mistty-mode)
       (mistty-exec mistty-test-bash-exe)
-      (should (equal 160 (buffer-local-value 'term-width mistty-term-buffer)))
-      (should (equal 50 (buffer-local-value 'term-height mistty-term-buffer))))))
+      (should (equal 160 (buffer-local-value
+                          'term-width (process-buffer mistty-proc))))
+      (should (equal 50 (buffer-local-value
+                         'term-height (process-buffer mistty-proc)))))))
 
 (mistty-deftest mistty-test-exec-called-multiple-times ( :type all)
-  (let ((first-proc mistty-proc)
-        (first-term-buffer mistty-term-buffer))
+  (let ((first-proc mistty-proc))
     (mistty-send-text "i=1")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-text "echo i:$i")
@@ -7118,10 +6995,7 @@ preexec_functions+=(osc133_preexec)
       (should (equal "i:" (mistty-send-and-capture-command-output)))
 
       (should-not (equal first-proc mistty-proc))
-      (should-not (equal first-term-buffer mistty-term-buffer))
-
-      (should-not (process-live-p first-proc))
-      (should-not (buffer-live-p first-term-buffer)))))
+      (should-not (process-live-p first-proc)))))
 
 (mistty-deftest mistty-set-stty-erase-C-h ( :type all)
   (let ((mistty-del "\C-h"))
@@ -7278,7 +7152,7 @@ preexec_functions+=(osc133_preexec)
          (mistty--term-scrolline-at-screen-top mistty--term)))
        30))
   ;; but the term buffer kept only a few
-  (with-current-buffer mistty-term-buffer
+  (with-current-buffer (process-buffer mistty-proc)
     (should
      (<= (mistty--count-lines (point-min) term-home-marker)
          10))))

@@ -726,10 +726,6 @@ Any other option is ignored."
         (mistty-log "OPTION :allow-clearing-scrollback %s" val)
         (setq-local mistty-allow-clearing-scrollback val)))))
 
-(cl-defmethod mistty--term-buf ((term mistty--term-eterm))
-  "Return TERM's `term-mode' buffer."
-  (mistty--term-eterm-buf term))
-
 (cl-defmethod mistty--term-proc ((term mistty--term-eterm))
   "Return TERM's process."
   (mistty--term-eterm-proc term))

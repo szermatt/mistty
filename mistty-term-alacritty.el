@@ -137,7 +137,6 @@ REPORT-FOCUS control reporting of focus in/out events."
              process-environment)))
          (proc (mistty-alacritty--exec name program args width height))
          (term (mistty--make-term-alacritty
-                :buf (generate-new-buffer mistty--term-alacritty-buf-name 'inhibit-buffer-hooks)
                 :proc proc
                 :vterm vterm
                 :lines height
@@ -188,8 +187,9 @@ The process and/or its associated buffer might have already been killed
 when this function is called."
   (when (process-live-p (mistty--term-alacritty-proc term))
     (delete-process (mistty--term-alacritty-proc term)))
-  (when (buffer-live-p (mistty--term-alacritty-buf term))
-    (kill-buffer (mistty--term-alacritty-buf term))))
+  (let ((buf (mistty--term-alacritty-buf term)))
+    (when (and buf (buffer-live-p buf))
+      (kill-buffer buf))))
 
 (cl-defmethod mistty--term-update-options ((term mistty--term-alacritty) &rest plist)
   "Set TERM options.
@@ -202,10 +202,6 @@ PLIST specifies the options to set. Possible keys:
 Unknown options are ignored."
   (mistty-alacritty-vt-update-options
    (mistty--term-alacritty-vterm term) plist))
-
-(cl-defmethod mistty--term-buf ((term mistty--term-alacritty))
-  "Return TERM's associated terminal/process buffer."
-  (mistty--term-alacritty-buf term))
 
 (cl-defmethod mistty--term-proc ((term mistty--term-alacritty))
   "Return TERM's associated process."
@@ -687,11 +683,15 @@ Newline is only marked if after SYNC-POS."
 (defun mistty--term-alacritty-get-or-create-buf (term)
   "Get TERM's render buffer or create a new one."
   (let ((buf (mistty--term-alacritty-buf term)))
-    (if (buffer-live-p buf)
+    (if (and buf (buffer-live-p buf))
         buf
-      (setf (mistty--term-alacritty-buf term)
-            (generate-new-buffer
-             mistty--term-alacritty-buf-name 'inhibit-buffer-hooks)))))
+      (setq buf (generate-new-buffer
+                 mistty--term-alacritty-buf-name 'inhibit-buffer-hooks))
+      (setf (mistty--term-alacritty-buf term) buf)
+      (with-current-buffer buf
+        (jit-lock-mode nil))
+
+      buf)))
 
 (provide 'mistty-term-alacritty)
 

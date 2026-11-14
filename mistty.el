@@ -212,15 +212,6 @@ To add keys to send to the terminal, bind them to `mistty-send-key'.")
     map)
   "Map added to the terminal zone to report mouse clicks.")
 
-(define-minor-mode mistty-fullscreen-mode
-  "Minor mode active on the terminal buffer while fullscreen.
-
-The keybindings in `mistty-fullscreen-mode-map' are active while this
-mode is enabled."
-  :group 'mistty
-  :lighter nil
-  :keymap mistty-fullscreen-mode-map)
-
 ;; Variables:
 
 (defvar mistty-interactive-insert-hook
@@ -304,16 +295,10 @@ This buffer keeps a modifiable history of all commands at the top
 and a view of the terminal modified by the current command at the
 bottom.
 
-In normal mode, this is the buffer that's displayed to the user.
-In fullscreen mode, this buffer is kept as historical scrollback
-buffer that can be independently switched to with
-`mistty-toggle'.
-
 While there is normally a terminal buffer, available as
 `mistty-term-buffer' as well as a process, available as
 `mistty-proc' either or both of these might be nil, such as
 after the process died.
-
 
 This variable is available in both the work buffer and the term
 buffer.")
@@ -322,11 +307,8 @@ buffer.")
   "Secondary `term-mode' buffer.
 
 This buffer contains the current screen state, as drawn by the different
-commands. In normal mode, changes made in this buffer are normally
-copied to `mistty-work-buffer'.
-
-In split buffer fullscreen mode, this is the buffer that's displayed to
-the user. In normal mode, this buffer is hidden.
+commands. Changes made in this buffer are copied to `mistty-work-buffer'.
+This buffer is hidden.
 
 While there is normally a work buffer, available as `mistty-work-buffer'
 as well as a process, available as `mistty-proc` either or both of these
@@ -351,16 +333,9 @@ buffer.")
 (defvar-local mistty-fullscreen nil
   "Whether MisTTY is in full-screen mode.
 
-This variable is non-nil when the alt buffer is used by the terminal,
-this variable evaluates to true and he the prompt detection is turned
-off.
-
-If it is \\='split, MisTTY is in split buffer more, that is the
-`term-mode' buffer is the buffer shown to the user, while the
-`mistty-mode' buffer is kept aside, detached from the process.
-
-If it is t, the buffer is still displayed in the work buffer, even in
-fullscreen.
+This variable is non-nil when the alt buffer is used by the terminal, in
+which case prompt detection is turned off and the terminal is displayed
+in its entirety in the work buffer.
 
 This variable is available in both the work buffer and the term
 buffer.")
@@ -541,8 +516,7 @@ to decide whether it's OK to kill the buffer.")
 (defvar-local mistty--terminal-size nil
   "If non-nil, a (cons WIDTH HEIGHT) that specify the terminal size.
 
-When non-nil, tracking window size change is disabled outside of
-split buffer fullscreen mode.")
+When non-nil, tracking window size change is disabled.")
 
 (defvar-local mistty--can-move-vertically nil
   "If non-nil, vertical moves are allowed.")
@@ -652,9 +626,6 @@ be ignored if coming from window size.")
            :help "Fullscreen command running"
            :map fullscreen-mode-map
            :button menu)
-     (scrollback :tag scrollback
-                 :help "Fullscreen command running in another buffer"
-                 :button toggle)
      (capture :tag capture
               :help "Keyboard capture"
               :button exit-capture))
@@ -681,8 +652,6 @@ map and mode line installed by `mistty--update-secondary-mode'")
           (off . (nerd-icons-mdicon "nf-md-robot_outline"))
           (special-prompt . (nerd-icons-mdicon "nf-md-arrow_all"))
           (full . (nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
-          (scrollback . (nerd-icons-mdicon "nf-md-archive"))
-          (split-fullscreen . (nerd-icons-mdicon "nf-md-fit_to_screen_outline"))
           (capture . (nerd-icons-mdicon "nf-md-keyboard_close"))
           (keyboard . (nerd-icons-mdicon "nf-md-keyboard_outline"))
           (keyboard-inactive . (nerd-icons-mdicon "nf-md-keyboard_off_outline"))
@@ -691,7 +660,6 @@ map and mode line installed by `mistty--update-secondary-mode'")
 
 (defconst mistty--mode-line-button-alist
   `((menu :menu mistty--secondary-mode-menu :help "Show menu")
-    (toggle :command mistty-toggle :help "Go to terminal buffer")
     (exit-command :command mistty-ignore-long-running-command :help "Force exit of emacs command mode")
     (exit-capture :command mistty-exit-capture-keyboard :help "End keyboard capture")
     (keyboard :command mistty-toggle-keymap :help "Toggle fullscreen keyboard")
@@ -761,11 +729,11 @@ This is only valid for modes that have a non-nil :map tag.")
     (define-key map [mistty-grow-vertically]
                 '(menu-item "Grow Terminal Vertically"
                             mistty-grow-vertically
-                            :visible (eq t mistty-fullscreen)))
+                            :visible mistty-fullscreen))
     (define-key map [mistty-shrink-vertically]
                 '(menu-item "Shrink Terminal Vertically"
                             mistty-shrink-vertically
-                            :visible (eq t mistty-fullscreen)))
+                            :visible mistty-fullscreen))
     (define-key map [mistty-set-terminal-size]
                 '(menu-item "Set Terminal Size"
                             mistty-set-terminal-size))
@@ -801,7 +769,6 @@ This is only valid for modes that have a non-nil :map tag.")
     (define-key map [mistty-go-to-terminal]
                 '(menu-item "Go to Terminal" mistty-toggle
                             :visible (and mistty-proc
-                                          (not (eq 'split mistty-fullscreen))
                                           (< (point) mistty-sync-marker))))
 
     map))
@@ -993,8 +960,8 @@ window."
                   :height height
                   :prompt-cell mistty--prompt-cell
                   :enter-fullscreen
-                  (lambda (split)
-                    (mistty--enter-fullscreen work-buffer split))
+                  (lambda ()
+                    (mistty--enter-fullscreen work-buffer))
                   :leave-fullscreen
                   (lambda ()
                     (mistty--leave-fullscreen work-buffer))
@@ -1083,8 +1050,7 @@ window."
       (setq mistty--term term)
       (setq mistty-proc proc)
       (setq mistty-work-buffer work-buffer)
-      (setq mistty-term-buffer term-buffer)
-      (mistty--term-setup-buffer term nil))
+      (setq mistty-term-buffer term-buffer))
 
     (when proc
       (set-process-sentinel proc #'mistty--process-sentinel))
@@ -1159,25 +1125,17 @@ Returns M or a new marker."
         (kill-buffer term-buffer)))))
 
 (defun mistty-buffer-p (buffer)
-  "Return the BUFFER if the buffer is a MisTTY buffer.
-
-The buffer might be a `mistty-mode' buffer in non-split buffer mode or a
-`term-mode' buffer in split buffer mode."
+  "Return the BUFFER if the buffer is a MisTTY buffer."
   (and
    (buffer-live-p buffer)
-   (if (eq 'split (buffer-local-value 'mistty-fullscreen buffer))
-       (mistty--term-is-term-buffer buffer)
-     (eq (buffer-local-value 'major-mode buffer) 'mistty-mode))
+   (eq (buffer-local-value 'major-mode buffer) 'mistty-mode)
 
    buffer))
 
 (defun mistty-live-buffer-p (buffer)
-  "Return the BUFFER if the buffer is a MisTTY buffer.
+  "Return the BUFFER if the buffer is a live MisTTY buffer.
 
-The process attached to the buffer must be live.
-
-When in split buffer fullscreen mode, the main MisTTY buffer is actually
-a `term-mode' buffer, not the scrollback buffer."
+The process attached to the buffer must be live."
   (and
    (mistty-buffer-p buffer)
    (buffer-local-value 'mistty-proc buffer)
@@ -1493,27 +1451,6 @@ buffer is killed."
        ;; continue
        t))))
 
-(defun mistty--split-buffer-sentinel (proc msg)
-  "Process sentinel for MisTTY shell processes in split buffer fullscreen mode.
-
-PROC is the process, which might not be live anymore, and MSG is a
-special string describing the new process state."
-  (let ((process-dead (memq (process-status proc) '(signal exit)))
-        (term-buffer (process-get proc 'mistty-term-buffer))
-        (work-buffer (process-get proc 'mistty-work-buffer)))
-    (mistty--with-live-buffer work-buffer
-      (mistty--update-secondary-mode))
-    (cond
-     ((and process-dead (buffer-live-p term-buffer) (buffer-live-p work-buffer))
-      (mistty--leave-fullscreen work-buffer)
-      (mistty--process-sentinel proc msg))
-     ((and process-dead (not (buffer-live-p term-buffer)) (buffer-live-p work-buffer))
-      (let ((kill-buffer-query-functions nil))
-        (kill-buffer (process-get proc 'mistty-work-buffer)))
-      (mistty--term-sentinel proc msg)
-      (mistty--run-after-process-end-hooks work-buffer proc))
-     (t (mistty--term-sentinel proc msg)))))
-
 (defun mistty--add-sync-buffers (accum work-buffer)
   "Sync the terminal region of WORK-BUFFER.
 
@@ -1557,7 +1494,7 @@ terminal region of WORK-BUFFER in sync with the terminal."
    (lambda ()
      (mistty--with-live-buffer work-buffer
        (when (and (display-graphic-p)
-                  (eq t mistty-fullscreen)
+                  mistty-fullscreen
                   (not mistty--terminal-size)
                   (not mistty--check-window-size-timer))
          (setq mistty--check-window-size-timer
@@ -1600,7 +1537,7 @@ of the window.
 
 In normal mode, make sure that the bottom of the terminal is visible,
 not just the cursor, so that things like TAB expansion are usable."
-  (if (eq t mistty-fullscreen)
+  (if mistty-fullscreen
       (mistty--maybe-scroll-fullscreen-windows)
     (mistty--maybe-scroll-window-down)))
 
@@ -1668,7 +1605,6 @@ function just sets `mistty--need-refresh' and returns.
 Also updates prompt and point."
   (mistty--require-work-buffer)
   (when (and mistty--need-refresh
-             (not (eq 'split mistty-fullscreen))
              (not mistty--inhibit-refresh)
              (not mistty--inhibit))
     (let ((inhibit-modification-hooks t)
@@ -3594,9 +3530,8 @@ buffer is currently displayed in.
 This can be modified by calling `mistty-set-terminal-size', which see.
 This function reverts to the default behavior."
   (interactive)
-  (unless (eq 'split mistty-fullscreen)
-    (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
-    (mistty--set-process-window-size-from-windows))
+  (add-hook 'window-size-change-functions #'mistty--window-size-change nil t)
+  (mistty--set-process-window-size-from-windows)
   (setq mistty--terminal-size nil))
 
 (defun mistty-toggle-size-tracks-window ()
@@ -3633,7 +3568,7 @@ checking `mistty-terminal-size-tracks-window-p'."
     (user-error "Terminal height must be at least %s" mistty-min-terminal-height)))
 
 (defun mistty-set-terminal-size (width height)
-  "Set size of the terminal to WIDTH x HEIGHT outside of fullscreen.
+  "Set size of the terminal to WIDTH x HEIGHT.
 
 By default, MisTTY sets the terminal to a size that fits the windows the
 buffer is currently displayed in.
@@ -3642,16 +3577,12 @@ If you prefer, you can instead give the terminal a fixed dimension. This
 might be useful if you're running program that don't check the size of
 the terminal before displaying.
 
-Note that this setting doesn't apply to the fullscreen mode. Terminal
-size always matches window size when in fullscreen mode.
-
 To go back to tracking window size, call
 `mistty-terminal-size-tracks-window'."
   (interactive "nTerminal width: \nnTerminal height: ")
   (mistty--check-terminal-size width height)
-  (unless (eq 'split mistty-fullscreen)
-    (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
-    (mistty--set-process-window-size width height))
+  (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
+  (mistty--set-process-window-size width height)
   (setq mistty--terminal-size (cons width height)))
 
 (defun mistty--window-size-change (win)
@@ -3670,7 +3601,7 @@ This function is meant to be called manually or from the idle-timer,
   (setq mistty--check-window-size-timer nil)
   (mistty--with-live-buffer work-buffer
     (when (and (display-graphic-p)
-               (eq t mistty-fullscreen)
+               mistty-fullscreen
                (not mistty--terminal-size))
       (let ((bottom (mistty--blank-end-start)))
         (when (> bottom mistty-sync-marker)
@@ -3753,125 +3684,37 @@ Width and height are limited to `mistty-min-terminal-width' and
           (height (max height mistty-min-terminal-height)))
       (mistty--term-resize mistty--term width height))))
 
-(defun mistty--enter-fullscreen (work-buffer split)
-  "Enter fullscreen mode.
-
-Make TERM and WORK-BUFFER enter fullscreen mode. If SPLIT is non-nil,
-splits the buffers into a scrollback buffer and a terminal buffer."
+(defun mistty--enter-fullscreen (work-buffer)
+  "Make WORK-BUFFER enter fullscreen mode."
   (mistty--with-live-buffer work-buffer
-    (let* ((term mistty--term)
-           (proc (mistty--term-proc term)))
-      (if split
-          ;; split-buffer fullscreen
-          (progn
-            (mistty--detach)
-            (set-process-sentinel proc #'mistty--split-buffer-sentinel)
-            (let ((bufname (buffer-name)))
-              (rename-buffer (generate-new-buffer-name (concat bufname " scrollback")))
-              (with-current-buffer mistty-term-buffer
-                (rename-buffer bufname)))
-            (mistty--swap-buffer-in-windows mistty-work-buffer mistty-term-buffer)
+    (mistty--remove-replay-hooks)
+    (mistty--cancel-queue mistty--queue)
+    (mistty--release-all-changesets)
 
-            (let ((msg (mistty--split-buffer-message)))
-              (overlay-put mistty--sync-ov 'after-string (concat "\n" msg "\n"))
-              (run-with-idle-timer 0.1 nil #'mistty--report-split-buffers (current-buffer) msg)))
+    (setq mistty-fullscreen t)
+    (mistty--with-live-buffer mistty-term-buffer
+      (setq mistty-fullscreen t))
 
-        ;; single-buffer fullscreen
-        (mistty--remove-replay-hooks)
-        (mistty--cancel-queue mistty--queue)
-        (mistty--release-all-changesets))
-
-      (setq mistty-fullscreen (if split 'split t))
-      (mistty--with-live-buffer mistty-term-buffer
-        (when split
-          (add-hook 'window-selection-change-functions #'mistty--check-window-focus nil t)
-          (add-hook 'window-buffer-change-functions #'mistty--check-window-focus nil t)
-          (mistty--term-setup-buffer mistty--term t)
-          (mistty-fullscreen-mode 1))
-        (setq mistty-fullscreen (if split 'split t)))
-
-      (mistty--update-secondary-mode)
-      (run-hooks 'mistty-entered-fullscreen-hook)
-      (mistty-log "Entered fullscreen mode (%s)" (if split "split" "single buffer")))))
-
-(defun mistty--report-split-buffers (buf msg)
-  "Display a message about BUF having entered fullscreen.
-
-MSG is the message to display; it is forward as-is to `message'.
-
-The message is displayed in an idle timer and only if the terminal is
-still in fullscreen mode at that time. This avoid confusing users with
-messages when an app enters fullscreen mode and leaves it immediately."
-  (mistty--with-live-buffer buf
-    (when (eq 'split mistty-fullscreen)
-      (message msg))))
-
-(defun mistty--split-buffer-message ()
-  "Build a user message when entering split buffer fullscreen mode.
-
-This function looks into the maps to find the key bindings for
-`mistty-toggle' to include into the message."
-  (let ((from-work (where-is-internal
-                    #'mistty-toggle mistty-mode-map
-                    'firstonly 'noindirect))
-        (from-term (where-is-internal
-                    #'mistty-toggle mistty-fullscreen-mode-map
-                    'firstonly 'noindirect))
-        (keybinding-descr nil))
-    (cond
-     ((and from-work from-term (equal from-work from-term))
-      (setq keybinding-descr
-            (format "%s switches between terminal and scrollback buffers."
-                    (key-description from-work))))
-     ((and from-work from-term)
-      (setq keybinding-descr
-            (format "%s goes to terminal, %s to scrollback."
-                    (key-description from-work)
-                    (key-description from-term)))))
-    (concat "Fullscreen mode ON"
-            (when keybinding-descr ". ")
-            keybinding-descr)))
+    (mistty--update-secondary-mode)
+    (run-hooks 'mistty-entered-fullscreen-hook)
+    (mistty-log "Entered fullscreen mode")))
 
 (defun mistty--leave-fullscreen (work-buffer)
-  "Have TERM and WORK-BUFFER leave fullscreen mode.
-
-When in split-buffer fullscreen mode, this also swaps the buffers back."
+  "Make WORK-BUFFER leave fullscreen mode."
   (mistty--with-live-buffer work-buffer
-    (let ((term mistty--term))
-      (if (eq 'split mistty-fullscreen)
-          ;; split buffers
-          (save-restriction
-            (widen)
-            (overlay-put mistty--sync-ov 'after-string nil)
+    (let ((inhibit-read-only t)
+          (inhibit-modification-hooks t))
+      (remove-text-properties mistty-sync-marker (point-max) '(read-only nil)))
+    (when mistty-proc
+      (mistty--add-replay-hooks))
 
-            (mistty--attach mistty--term)
-            (mistty--refresh)
-            (when-let* ((proc (mistty--term-proc term)))
-              (when (process-live-p proc)
-                (mistty-goto-cursor)))
+    (setq mistty-fullscreen nil)
+    (mistty--with-live-buffer mistty-term-buffer
+      (setq mistty-fullscreen nil))
 
-            (let ((bufname (buffer-name mistty-term-buffer)))
-              (with-current-buffer mistty-term-buffer
-                (rename-buffer (generate-new-buffer-name (concat " mistty tty " bufname))))
-              (rename-buffer bufname))
-
-            (mistty--swap-buffer-in-windows mistty-term-buffer mistty-work-buffer))
-
-        ;; single buffer
-        (let ((inhibit-read-only t)
-              (inhibit-modification-hooks t))
-          (remove-text-properties mistty-sync-marker (point-max) '(read-only nil)))
-        (when mistty-proc
-          (mistty--add-replay-hooks)))
-
-      (setq mistty-fullscreen nil)
-      (mistty--with-live-buffer mistty-term-buffer
-        (mistty-fullscreen-mode -1)
-        (setq mistty-fullscreen nil))
-
-      (mistty--update-secondary-mode)
-      (run-hooks 'mistty-left-fullscreen-hook)
-      (mistty-log "Left fullscreen mode"))))
+    (mistty--update-secondary-mode)
+    (run-hooks 'mistty-left-fullscreen-hook)
+    (mistty-log "Left fullscreen mode")))
 
 (defun mistty--update-mode-lines ()
   "Update the mode lines of the work and term buffers.
@@ -3930,32 +3773,7 @@ Ignores buffers that don't exist."
                        'local-map (mistty--mode-line-button 'mouse)))))))))))
 
   (mistty--with-live-buffer mistty-term-buffer
-    (cond
-     ((eq 'split mistty-fullscreen)
-      (setq
-       mode-line-process
-       (concat
-        "/misTTY "
-        (propertize
-         (mistty--tag 'split-fullscreen)
-         'help-echo (concat "Fullscreen command running, scrollback in another buffer\n"
-                            "mouse-1: Go to scrollback buffer")
-         'mouse-face 'mode-line-highlight
-         'local-map '(keymap
-                      (mode-line
-                       keymap
-                       (down-mouse-1 . mistty-toggle))))
-        (when mistty--capture-keyboard-active
-          (let ((entry (alist-get 'capture mistty--secondary-mode-alist)))
-            (propertize
-             (mistty--tag (plist-get entry :tag))
-             'help-echo (concat (plist-get entry :help)
-                                "\nmouse-1: "
-                                (mistty--mode-line-button 'exit-capture :help))
-             'mouse-face 'mode-line-highlight
-             'local-map (mistty--mode-line-button 'exit-capture)))))))
-     (t
-      (setq mode-line-process "misTTY:%s"))))
+    (setq mode-line-process "misTTY:%s"))
 
   (force-mode-line-update))
 
@@ -4000,40 +3818,16 @@ or by :menu, in `mistty--mode-line-button-alist'."
                               (symbol-value menu)
                             (plist-get entry :command))))))))
 
-(defun mistty--swap-buffer-in-windows (a b)
-  "Swap buffers A and B in windows.
-
-This function keeps prev-buffers list unmodified."
-  (walk-windows
-   (lambda (win)
-     (let ((prevs nil))
-       (cond
-        ((eq (window-buffer win) a)
-         (setq prevs (cl-copy-list (window-prev-buffers win)))
-         (set-window-buffer win b))
-        ((eq (window-buffer win) b)
-         (setq prevs (cl-copy-list (window-prev-buffers win)))
-         (set-window-buffer win a)))
-       (when prevs
-         (set-window-prev-buffers win prevs))))))
-
 (define-obsolete-function-alias
   'mistty-toggle-buffers 'mistty-toggle "2.0.2snapshot")
 
 (defun mistty-toggle ()
-  "Toggle between the scrollback and terminal areas.
-
-This function may switch buffers if the scrollback and the terminal area
-are in different buffer."
+  "Toggle between the scrollback and terminal areas."
   (interactive)
   (cond
    ;; go from term buffer to mistty buffer
    ((not (eq (current-buffer) mistty-work-buffer))
     (switch-to-buffer mistty-work-buffer))
-
-   ;; go from scrollback buffer to term buffer
-   ((eq mistty-fullscreen 'split)
-    (switch-to-buffer mistty-term-buffer))
 
    ;; go from terminal area to scrollback area
    ((>= (point) mistty-sync-marker)
@@ -4568,9 +4362,8 @@ If PROP is nil, return the ID, otherwise return the property defined in
 The ID corresponds to an entry in `mistty--secondary-mode-alist'."
   (let ((id (cond
              (mistty--capture-keyboard-active 'capture)
-             ((eq 'split mistty-fullscreen) 'scrollback)
              ((or (not mistty-proc) (not (process-live-p mistty-proc))) 'dead)
-             ((eq t mistty-fullscreen) 'full)
+             (mistty-fullscreen 'full)
              (mistty--inhibit 'off)
              (mistty--special-prompt 'special-prompt)
              ((mistty--active-prompt) 'prompt)
@@ -4888,7 +4681,7 @@ graphical display."
   (interactive)
   (let ((win (selected-window)))
     (mistty--set-process-window-size-from-windows (list win))
-    (when (and (eq t mistty-fullscreen) (markerp mistty-sync-marker))
+    (when (and mistty-fullscreen (markerp mistty-sync-marker))
       (set-window-start win mistty-sync-marker))
     (let ((width (mistty--term-columns mistty--term))
           (height (mistty--term-lines mistty--term)))
@@ -5031,8 +4824,6 @@ used in hooks that report change to the selection or buffer of WIN."
                          (eq w (frame-selected-window f)))))
                     (get-buffer-window-list buf nil t))))))
 
-        ;; We always track focus in mistty-work-buffer, even in split
-        ;; fullscreen mode.
         (mistty--with-live-buffer mistty-work-buffer
           (unless (eq focused (not (not mistty--focused)))
             (setq mistty--focused focused)
@@ -5041,8 +4832,6 @@ used in hooks that report change to the selection or buffer of WIN."
 (defun mistty--report-focus ()
   "Report focus to the application, if enabled."
   (let ((proc (mistty--term-proc mistty--term)))
-    ;; Not using mistty-proc, as this function should work even in
-    ;; split fullscreen mode.
     (when (and mistty--report-focus (process-live-p proc))
       (pcase-let ((`(,seq . ,msg) (if mistty--focused
                                       '("\e[I" . "IN")

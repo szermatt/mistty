@@ -288,7 +288,7 @@ CURSOR-MARKER is updated to the cursor position."
               (`(fullscreen . ,val)
                (setf (mistty--term-alacritty-fs term) val)
                (if val
-                   (funcall (mistty--term-alacritty-enter-fullscreen term) nil)
+                   (funcall (mistty--term-alacritty-enter-fullscreen term))
                  (funcall (mistty--term-alacritty-leave-fullscreen term))))
               (`(modified . ,val)
                (when (< val sync-scrolline)

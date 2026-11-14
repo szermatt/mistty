@@ -51,8 +51,6 @@
 This keymap overwrites some bindings from `term-raw-map'.
 
 `mistty-fullscreen-mode-map' is normally the map you want to configure.
-While in fullscreen mode, `mistty-fullscreen-mode-map' is also enabled
-on the term buffer in addition to this map.
 
 This map is ignored when using alacritty as a terminal."
 
@@ -521,7 +519,7 @@ REPORT-FOCUS control whether focus changes should be reported."
          (lambda (ctx _str)
            (unless (mistty--term-eterm-fs term)
              (mistty--accum-ctx-flush ctx)
-             (funcall enter-fullscreen nil)
+             (funcall enter-fullscreen)
              (setf (mistty--term-eterm-fs term) t))
            (mistty--accum-ctx-push-down ctx "\e[47h")))
 
@@ -731,17 +729,6 @@ Any other option is ignored."
   (set-process-window-size (mistty--term-eterm-proc term) height width)
   (with-current-buffer (mistty--term-eterm-buf term)
     (term-reset-size height width)))
-
-(cl-defmethod mistty--term-setup-buffer ((_term mistty--term-eterm) &optional fullscreen)
-  "Setup the terminal buffer in normal or fullscreen mode.
-
-FULLSCREEN is non-nil in fullscreen mode."
-  (if fullscreen
-      (progn
-        (jit-lock-mode t)
-        (turn-on-font-lock))
-    (font-lock-mode -1)
-    (jit-lock-mode nil)))
 
 (cl-defmethod mistty--term-sync
   ((term mistty--term-eterm) dest-buffer sync-pos sync-scrolline keep-markers

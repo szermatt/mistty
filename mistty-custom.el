@@ -637,9 +637,6 @@ of the terminal before displaying. On the other hand, this might be
 confusing if you run programs that do check the size of the terminal,
 such as more.
 
-Note that this setting doesn't apply to the split buffer fullscreen
-mode, as then terminal size always matches window size.
-
 You can also change the terminal size of existing MisTTY buffers with
 the commands `mistty-set-terminal-size' and
 `mistty-terminal-size-tracks-window'."
@@ -732,8 +729,6 @@ in prompt mode."
      (off . "off")
      (special-prompt . "prompt!")
      (full . "fullscreen")
-     (scrollback . "scrollback")
-     (split-fullscreen . "fullscreen")
      (capture . "kb capture")
      (keyboard . "[kb]")
      (keyboard-inactive . "(kb)")
@@ -747,8 +742,6 @@ in prompt mode."
      (off . "...")
      (special-prompt . ">_!")
      (full . "[_]")
-     (scrollback . "v=v")
-     (split-fullscreen . "^=^")
      (capture . "[#]")
      (keyboard . "#")
      (keyboard-inactive . "")
@@ -762,8 +755,6 @@ in prompt mode."
      (off . "…")
      (special-prompt . "←↑↓→")
      (full . "[_]")
-     (scrollback . "▼ ")
-     (split-fullscreen . "▲ ")
      (capture . "[#]")
      (keyboard . "⌨")
      (keyboard-inactive . "")
@@ -780,8 +771,6 @@ All themes must define tags for the following ids:
  - \\='off, displayed when command is running
  - \\='special-prompt, displayed when a special prompt is detected
  - \\='full, displayed in fullscreen mode
- - \\='scrollback, displayed in the scrollback buffer, when in
-   split-buffer fullscreen mode (eterm only)
  - \\='capture, displayed while `mistty-capture-keyboard'
    is running
  - \\='keyboard, displayed when the fullscreen mode map is active.

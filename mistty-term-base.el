@@ -48,12 +48,9 @@ reported to the remote process.
 This function returns an instance of the generic terminal type, which
 allows getting hold of the buffer and process.
 
-ENTER-FULLSCREEN is to be called when entering fullscreen mode. It takes
-a single boolean argument which specifies whether this is split-buffer
-fullscreen mode or normal fullscreen mode.
+ENTER-FULLSCREEN is to be called when entering fullscreen mode.
 
-LEAVE-FULLSCREEN is a function that takes the TERM instance and
-leaves fullscreen mode.
+LEAVE-FULLSCREEN is to be called when leaving fullscreen mode.
 
 AFTER-RESET is to be called after a reset.
 
@@ -127,20 +124,6 @@ This might be different from the sentinel set on PROC."
 
 (cl-defgeneric mistty--term-resize (term width height)
   "Set the terminal size for TERM to WIDTH x HEIGHT.")
-
-(defun mistty--term-is-term-buffer (buffer)
-  "Return non-nil if BUFFER is a term buffer."
-  (when-let* ((proc (get-buffer-process buffer)))
-    (process-get proc 'mistty-term)))
-
-(cl-defgeneric mistty--term-setup-buffer (term fullscreen)
-  "Prepare TERM's terminal/process buffer for use.
-
-If FULLSCREEN is non-nil, prepare the buffer for fullscreen mode"
-
-  (ignore term fullscreen)
-
-  nil)
 
 (cl-defgeneric mistty--term-sync
     (term dest-buffer sync-pos sync-scrolline keep-markers cursor-marker)

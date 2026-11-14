@@ -4206,23 +4206,6 @@
   (should (equal "$ sudo echo ok<>"
                  (mistty-test-content :start mistty-sync-marker :show (point)))))
 
-(ert-deftest mistty-test-fullscreen-message ()
-  (let ((mistty-mode-map (make-sparse-keymap))
-        (mistty-fullscreen-mode-map (make-sparse-keymap)))
-    (should (equal "Fullscreen mode ON" (mistty--split-buffer-message)))
-
-    (keymap-set mistty-mode-map "C-c C-a" #'mistty-toggle)
-    (keymap-set mistty-fullscreen-mode-map "C-c C-a" #'mistty-toggle)
-
-    (should (equal
-             "Fullscreen mode ON. C-c C-a switches between terminal and scrollback buffers."
-             (mistty--split-buffer-message)))
-
-    (keymap-set mistty-fullscreen-mode-map "C-c C-b" #'mistty-toggle)
-    (should (equal
-             "Fullscreen mode ON. C-c C-a goes to terminal, C-c C-b to scrollback."
-             (mistty--split-buffer-message)))))
-
 (mistty-deftest mistty-test-create-buffer-with-prev-output ( :type all)
   (mistty-send-text "printf '#!/bin/bash\\necho ok\\n'")
   (mistty-send-and-wait-for-prompt)

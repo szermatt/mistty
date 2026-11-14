@@ -417,7 +417,7 @@
       (setq term-proc mistty-proc))
     (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc)))
 
-(mistty-deftest mistty-test-kill-term-buffer-but-keep-work-buffer (:type all)
+(mistty-deftest mistty-test-kill-term-buffer-but-keep-work-buffer/eterm (:type eterm)
   (let ((calls (list)))
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc)
@@ -431,6 +431,17 @@
       (mistty-wait-for-output :str "Terminal killed." :start (point-min))
       (should (equal (point) (point-max))))
     (should (equal '((end signal)) calls))))
+
+(mistty-deftest mistty-test-kill-term-buffer-but-keep-work-buffer/alacritty (:type alacritty)
+  (let ((proc mistty-proc)
+        (term-buffer mistty-term-buffer))
+    (mistty-send-text "echo one")
+    (mistty-send-command)
+    (kill-buffer mistty-term-buffer) ; it'll just be re-created
+    (mistty-send-text "echo two")
+    (mistty-send-and-wait-for-prompt)
+    (should (equal "$ echo one\none\n$ echo two\ntwo\n$"
+                   (mistty-test-content)))))
 
 (mistty-deftest mistty-test-term-buffer-exits (:type all)
   (let ((proc mistty-proc)
@@ -1548,23 +1559,14 @@
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc)
                 (push `(end
-                        ,mistty-fullscreen
                         ,(not (process-live-p proc)))
                       calls)))
-    (add-hook 'mistty-entered-fullscreen-hook
-              (lambda ()
-                (push `(enter ,mistty-fullscreen) calls)))
-    (add-hook 'mistty-left-fullscreen-hook
-              (lambda ()
-                (push `(leave ,mistty-fullscreen) calls)))
-
     (let ((term-buffer mistty-term-buffer)
           (term-proc mistty-proc))
       (mistty-send-text "printf '\\e[?1049h'; echo fullscreen on; exit")
       (mistty-send-command)
       (mistty-wait-for-term-buffer-and-proc-to-die term-buffer term-proc))
-    (should (equal '((enter t) (leave nil) (end nil t))
-                   (nreverse calls)))))
+    (should (equal '((end t)) calls))))
 
 (mistty-deftest mistty-test-live-buffer-p (:type all)
   (should (mistty-live-buffer-p mistty-work-buffer))
@@ -1643,8 +1645,7 @@
     (should (buffer-live-p work-buffer))
     (should (eq work-buffer (window-buffer (selected-window))))
     (should (string-match "exited abnormally" (buffer-substring-no-properties (point-min) (point-max))))
-    (should (equal bufname (buffer-name work-buffer)))
-    (should (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))))
+    (should (equal bufname (buffer-name work-buffer)))))
 
 (mistty-deftest mistty-test-reset ( :type all)
   (mistty-send-text "echo one")
@@ -2280,29 +2281,6 @@
 
   (should (equal "$ echo foo\nfoo\n$ <>"
                  (mistty-test-content :show (point)))))
-
-(mistty-deftest mistty-test-send-key-from-term-buffer ( :type all)
-  (with-current-buffer mistty-term-buffer
-    (cl-loop for key across "echo ok"
-             do (progn
-                  (mistty-send-key 1 (char-to-string key)))))
-  (mistty-wait-for-output :str "echo ok")
-  (should (equal "ok" (mistty-send-and-capture-command-output))))
-
-(mistty-deftest mistty-test-send-last-key-from-term-buffer ( :type all)
-  (mistty-send-text "echo ok nok")
-  (with-current-buffer mistty-term-buffer
-    (with-selected-window (display-buffer (current-buffer))
-      (local-set-key (kbd "C-c C-w") #'mistty-send-last-key)
-      (execute-kbd-macro (kbd "C-c C-w"))))
-  (mistty-wait-for-output :regexp "echo ok *$")
-  (should (equal "ok" (mistty-send-and-capture-command-output))))
-
-(mistty-deftest mistty-test-mistty-send-string-from-term-buffer ( :type all)
-  (with-current-buffer mistty-term-buffer
-    (mistty-send-string "echo ok"))
-  (mistty-wait-for-output :str "echo ok")
-  (should (equal "ok" (mistty-send-and-capture-command-output))))
 
 (mistty-deftest mistty-test-send-last-key (:selected t :type all)
   (local-set-key (kbd "C-c C-w") 'mistty-send-last-key)

@@ -922,7 +922,8 @@ window."
   (unless (derived-mode-p 'mistty-mode)
     (error "Not a mistty-mode buffer"))
 
-  (mistty--kill-term-buffer)
+  (when mistty--term
+    (mistty--term-delete mistty--term))
   (erase-buffer)
   (setq mistty--scrolline-home-num 0)
 
@@ -1040,10 +1041,14 @@ window."
       (setq mistty-work-buffer work-buffer)
       (setq mistty-term-buffer term-buffer))
 
-    (when proc
-      (set-process-sentinel proc #'mistty--process-sentinel))
-
-    (add-hook 'kill-buffer-hook #'mistty--kill-term-buffer nil t)
+    (set-process-sentinel
+     proc
+     (lambda (proc msg)
+       (mistty--process-sentinel term work-buffer proc msg)))
+    (add-hook 'kill-buffer-hook
+              (lambda ()
+                (mistty--term-delete term))
+              nil t)
     (mistty--add-replay-hooks)
 
     (if-let* ((size mistty--terminal-size))
@@ -1067,7 +1072,6 @@ Returns M or a new marker."
   "Detach the current `mistty-mode' buffer from its process."
   (mistty--require-work-buffer)
 
-  (remove-hook 'kill-buffer-hook #'mistty--kill-term-buffer t)
   (mistty--remove-replay-hooks)
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
 
@@ -1075,9 +1079,7 @@ Returns M or a new marker."
     (mistty--cancel-queue mistty--queue)
     (setq mistty--queue nil))
   (mistty--release-all-changesets)
-  (when mistty-proc
-    (set-process-sentinel mistty-proc (mistty--term-sentinel-func mistty--term))
-    (setq mistty-proc nil)))
+  (setq mistty-proc nil))
 
 (defun mistty--add-replay-hooks ()
   "Register hooks for tracking and replaying changes."
@@ -1098,19 +1100,6 @@ Returns M or a new marker."
   (remove-hook 'post-command-hook #'mistty--post-command-quit t)
   (remove-hook 'post-command-hook #'mistty--post-command-cursor t)
   (remove-hook 'post-command-hook #'mistty--post-command-schedule t))
-
-(defun mistty--kill-term-buffer ()
-  "Kill-buffer-hook handler for `mistty-term-buffer'."
-  (let ((term-buffer mistty-term-buffer))
-    (mistty--with-live-buffer mistty-work-buffer
-      (mistty--detach)
-      (mistty--update-secondary-mode))
-    (mistty--with-live-buffer term-buffer
-      (when-let* ((proc (get-buffer-process term-buffer)))
-        (when (process-live-p proc)
-          (delete-process proc)))
-      (let ((kill-buffer-query-functions nil))
-        (kill-buffer term-buffer)))))
 
 (defun mistty-buffer-p (buffer)
   "Return the BUFFER if the buffer is a MisTTY buffer."
@@ -1380,49 +1369,42 @@ See the documentation of `mistty-create' for details."
   "Get the default directory."
   (read-directory-name "Default directory: " default-directory default-directory t nil))
 
-(defun mistty--process-sentinel (proc msg)
+(defun mistty--process-sentinel (term work-buffer proc msg)
   "Process sentinel for MisTTY shell processes.
 
 PROC is the process, which might not be live anymore, and MSG is
 a special string describing the new process state."
   (mistty-with-errors-logged "process sentinel"
+    (mistty--term-handle-process-death term msg)
 
-    (let ((work-buffer (process-get proc 'mistty-work-buffer))
-          (term-buffer (process-buffer proc)))
-      (mistty--with-live-buffer work-buffer
-        (when (memq (process-status proc) '(signal exit))
-          (while (accept-process-output proc 0 0 t))))
+    (when (buffer-live-p work-buffer)
+      (when (memq (process-status proc) '(signal exit))
+        (while (accept-process-output proc 0 0 t))))
 
-      (cond
-       ((and (buffer-live-p term-buffer)
-             (buffer-live-p work-buffer))
-        (mistty--term-sentinel proc msg)
-        (mistty--with-live-buffer work-buffer
-          (mistty--needs-refresh) ;; term-buffer was modified by term-sentinel
-          (save-restriction
-            (widen)
-            (mistty--refresh)
-            (when (>= (point) (mistty-cursor))
-              (goto-char (point-max)))
-            (mistty--detach)))
-        (kill-buffer term-buffer))
+    (mistty--with-live-buffer work-buffer
+      (mistty--remove-replay-hooks)
+      (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
+      (when mistty--queue
+        (mistty--cancel-queue mistty--queue)
+        (setq mistty--queue nil))
+      (mistty--release-all-changesets)
+      (setq mistty-proc nil)
 
-       ((buffer-live-p work-buffer)
-        (with-current-buffer work-buffer
-          (mistty--detach)
-          (delete-region (mistty--blank-end-start) (point-max))
-          (goto-char (point-max))
-          (insert "\n\nTerminal killed.\n")))
+      (save-restriction
+        (widen)
+        (mistty--refresh 'forced)
+        (let ((inhibit-read-only t)
+              (inhibit-modification-hooks t))
+          (remove-text-properties mistty-sync-marker
+                                  (point-max) '(read-only nil)))
+        (when (>= (point) (mistty-cursor))
+          (goto-char (point-max))))
 
-       ((buffer-live-p term-buffer)
-        (kill-buffer term-buffer)))
+      (mistty--update-secondary-mode))
 
-      (mistty--with-live-buffer work-buffer
-        (if mistty-fullscreen
-            ;; leave fullscreen mode and, more importantly, run hooks.
-            (mistty--leave-fullscreen work-buffer)
-          (mistty--update-secondary-mode)))
-      (mistty--run-after-process-end-hooks work-buffer proc))))
+    (mistty--term-delete term)
+
+    (mistty--run-after-process-end-hooks work-buffer proc)))
 
 (defun mistty--run-after-process-end-hooks (buf proc)
   "Run hooks on `mistty-after-process-end-hook'.
@@ -1577,7 +1559,7 @@ is updated after each refresh"
   (mistty--require-work-buffer)
   (setq mistty--need-refresh t))
 
-(defun mistty--refresh ()
+(defun mistty--refresh (&optional forced)
   "Copy the end of the term buffer to the work buffer.
 
 Refreshing means copying the region
@@ -1590,9 +1572,10 @@ function just sets `mistty--need-refresh' and returns.
 
 Also updates prompt and point."
   (mistty--require-work-buffer)
-  (when (and mistty--need-refresh
-             (not mistty--inhibit-refresh)
-             (not mistty--inhibit))
+  (when (or forced
+            (and mistty--need-refresh
+                 (not mistty--inhibit-refresh)
+                 (not mistty--inhibit)))
     (let ((inhibit-modification-hooks t)
           (inhibit-read-only t)
           (old-point-max (point-max))
@@ -1620,10 +1603,8 @@ Also updates prompt and point."
              (when (or (/= sync-pos mistty-sync-marker)
                        (/= sync-scrolline mistty--scrolline-home-num))
                (mistty--set-sync-mark sync-pos sync-scrolline))))
-
          (unless mistty-fullscreen
            (mistty--post-process-prompts on-prompt))
-
          ;; Move the point to the cursor, if necessary.
          (when (process-live-p mistty-proc)
            (if mistty-fullscreen
@@ -1641,7 +1622,6 @@ Also updates prompt and point."
           (mistty--maybe-scroll-fullscreen-windows)
         (when (> (point-max) old-point-max)
           (mistty--maybe-scroll-window-down))))
-
     (mistty--report-self-inserted-text)))
 
 (defun mistty--post-process-prompts (on-prompt)

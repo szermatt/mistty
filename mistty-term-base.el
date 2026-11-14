@@ -72,6 +72,17 @@ pointer down), \\='motion (all mouse events).
 REPORT-FOCUS is passed a boolean to ask for focus events to be
 reported (non-nil) or not (nil).")
 
+(cl-defgeneric mistty--term-handle-process-death (term msg)
+  "Handle process death for TERM, with message MSG.
+
+The MSG is forwarded from the one passed to the process sentinel.")
+
+(cl-defgeneric mistty--term-delete (term)
+  "Delete process and cleanup resources for TERM.
+
+The process and/or its associated buffer might have already been killed
+when this function is called.")
+
 (cl-defgeneric mistty--term-update-options (term &rest plist)
   "Set TERM options.
 
@@ -110,17 +121,6 @@ The position of the cursor in terms of characters is available as the
 process marker. This is different, especially the column number as in
 general, in unicode, there's no direct link between character count and
 column number.")
-
-(cl-defgeneric mistty--term-sentinel-func (term)
-  "Return the hardcoded sentinel function of TERM's terminal.")
-
-(defun mistty--term-sentinel (proc msg)
-  "Call the hardcoded sentinel function.
-
-PROC and MSG are as passed by a process to a sentinel function.
-
-This might be different from the sentinel set on PROC."
-  (funcall (mistty--term-sentinel-func (process-get proc 'mistty-term)) proc msg))
 
 (cl-defgeneric mistty--term-resize (term width height)
   "Set the terminal size for TERM to WIDTH x HEIGHT.")

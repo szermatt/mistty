@@ -426,6 +426,30 @@ to call `mistty--term-postprocess'.")
   ;; non-nil while in fullscreen mode
   fs)
 
+;; Functions may signal this error if the function cannot return the
+;; requested value because the buffer containing that value has been
+;; killed.
+;;
+;; Note that this is different from the process being dead, as most
+;; methods should still work with a dead process.
+(define-error 'mistty--term-eterm-killed "Terminal has been killed")
+
+(defmacro mistty--term-with-eterm-buffer (term &rest body)
+  "Execute BODY with TERM's buffer active.
+
+Raise `mistty--term-eterm-killed' if the buffer is not available
+anymore.
+
+This is subtly different from `mistty--with-live-buffer', which will
+silently skip BODY."
+  (declare (indent 1))
+  (let ((tempvar (make-symbol "buf")))
+    `(let ((,tempvar (mistty--term-eterm-buf ,term)))
+       (if (buffer-live-p ,tempvar)
+           (with-current-buffer ,tempvar
+             ,@body)
+         (signal 'mistty--term-eterm-killed nil)))))
+
 (defun mistty--term-eterm-reset (term)
   "Reset internal state."
   (setf (mistty--term-eterm-fs term) nil)
@@ -664,15 +688,29 @@ REPORT-FOCUS control whether focus changes should be reported."
         (mistty--accum-add-post-processor
          accum
          (lambda ()
-           (with-current-buffer (mistty--term-eterm-buf term)
+           (mistty--with-live-buffer (mistty--term-eterm-buf term)
                (when (> term-home-marker 1000)
                  (run-with-idle-timer
                   0 nil
                   (lambda ()
-                    (with-current-buffer (mistty--term-eterm-buf term)
+                    (mistty--with-live-buffer (mistty--term-eterm-buf term)
                       (mistty--truncate-buffer term-home-marker))))))))
 
         term))))
+
+(cl-defmethod mistty--term-handle-process-death ((term mistty--term-eterm) msg)
+  "Deal with the process having died with message MSG."
+  (term-sentinel (mistty--term-eterm-proc term) msg))
+
+(cl-defmethod mistty--term-delete ((term mistty--term-eterm))
+  "Delete process and cleanup resources for TERM.
+
+The process and/or its associated buffer might have already been killed
+when this function is called."
+  (when (process-live-p (mistty--term-eterm-proc term))
+    (delete-process (mistty--term-eterm-proc term)))
+  (when (buffer-live-p (mistty--term-eterm-buf term))
+    (kill-buffer (mistty--term-eterm-buf term))))
 
 (cl-defmethod mistty--term-update-options ((term mistty--term-eterm) &rest plist)
   "Set TERM options for the current terminal.
@@ -683,7 +721,7 @@ PLIST specifies the options to set. Possible keys:
 
 Any other option is ignored."
   (when-let* ((member (plist-member plist :allow-clearing-scrollback)))
-    (with-current-buffer (mistty--term-eterm-buf term)
+    (mistty--with-live-buffer (mistty--term-eterm-buf term)
       (let ((val (cadr member)))
         (mistty-log "OPTION :allow-clearing-scrollback %s" val)
         (setq-local mistty-allow-clearing-scrollback val)))))
@@ -698,7 +736,7 @@ Any other option is ignored."
 
 (cl-defmethod mistty--term-scrolline-at-screen-top ((term mistty--term-eterm))
   "Return the scrolline displayed in the first line of TERM's terminal."
-  (with-current-buffer (mistty--term-eterm-buf term)
+  (mistty--term-with-eterm-buffer term
     (mistty--scrolline-at term-home-marker)))
 
 (cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-eterm))
@@ -707,27 +745,23 @@ Any other option is ignored."
 
 (cl-defmethod mistty--term-lines ((term mistty--term-eterm))
   "Return TERM's height."
-  (with-current-buffer (mistty--term-eterm-buf term)
+  (mistty--term-with-eterm-buffer term
     term-height))
 
 (cl-defmethod mistty--term-columns ((term mistty--term-eterm))
   "Return TERM's width."
-  (with-current-buffer (mistty--term-eterm-buf term)
+  (mistty--term-with-eterm-buffer term
     term-width))
 
 (cl-defmethod mistty--term-cursor-linecol ((term mistty--term-eterm))
   "Return TERM's cursor position in the terminal."
-  (with-current-buffer (mistty--term-eterm-buf term)
+  (mistty--term-with-eterm-buffer term
     (cons (term-current-row) (term-current-column))))
-
-(cl-defmethod mistty--term-sentinel-func ((_term mistty--term-eterm))
-  "Return the default sentinel for `term-mode' processes."
-  #'term-sentinel)
 
 (cl-defmethod mistty--term-resize ((term mistty--term-eterm) width height)
   "Resize TERM's terminal to WIDTH x HEIGHT."
   (set-process-window-size (mistty--term-eterm-proc term) height width)
-  (with-current-buffer (mistty--term-eterm-buf term)
+  (mistty--with-live-buffer (mistty--term-eterm-buf term)
     (term-reset-size height width)))
 
 (cl-defmethod mistty--term-sync
@@ -738,47 +772,55 @@ Any other option is ignored."
 The buffer from SYNC-POS to EOB is rewritten to match TERM's content below
 SYNC-SCROLLINE.  If KEEP-MARKERS is non-nil, keep markers and overlays.
 CURSOR-MARKER is updated to the cursor position."
-  (mistty--with-live-buffer (mistty--term-eterm-buf term)
-    (let ((home-marker term-home-marker)
-          (home-scrolline (mistty--scrolline-at term-home-marker))
-          (proc (mistty--term-eterm-proc term))
-          (source-buffer (current-buffer)))
-      ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
-      (cond
-       ((< sync-scrolline home-scrolline)
-        (pcase-setq
-         `(,sync-pos . ,sync-scrolline)
-         (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
-       ((mistty--term-eterm-change-before-scrolline term)
-        (mistty-log "Detected terminal change above sync mark, at scrolline %s"
-                    mistty--scrolline-home-num)
-        (pcase-setq
-         `(,sync-pos . ,sync-scrolline)
-         (mistty--realign-buffers
-          source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
+  (if (not (buffer-live-p (mistty--term-eterm-buf term)))
+      (mistty--with-live-buffer dest-buffer
+        (save-excursion
+          (goto-char (point-max))
+          (unless (looking-back "Terminal killed\\.\n?" nil)
+            (insert "\n\nTerminal killed.\n"))))
 
-      (setf (mistty--term-eterm-change-before-scrolline term) nil)
+    ;; Terminal live
+    (with-current-buffer (mistty--term-eterm-buf term)
+      (let ((home-marker term-home-marker)
+            (home-scrolline (mistty--scrolline-at term-home-marker))
+            (proc (mistty--term-eterm-proc term))
+            (source-buffer (current-buffer)))
+        ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
+        (cond
+         ((< sync-scrolline home-scrolline)
+          (pcase-setq
+           `(,sync-pos . ,sync-scrolline)
+           (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
+         ((mistty--term-eterm-change-before-scrolline term)
+          (mistty-log "Detected terminal change above sync mark, at scrolline %s"
+                      mistty--scrolline-home-num)
+          (pcase-setq
+           `(,sync-pos . ,sync-scrolline)
+           (mistty--realign-buffers
+            source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
 
-      (let ((source-sync-pos (or (mistty--find-scrolline sync-scrolline)
-                                 (mistty--find-scrolline home-scrolline)))
-            (column-count term-width))
-        (if keep-markers
-            (mistty--sync-buffers source-buffer source-sync-pos dest-buffer sync-pos)
-          (mistty--copy-buffers source-buffer source-sync-pos dest-buffer sync-pos))
+        (setf (mistty--term-eterm-change-before-scrolline term) nil)
 
-        (mistty--with-live-buffer dest-buffer
-          (set-marker cursor-marker
-                      (+ sync-pos
-                         (- (process-mark proc) source-sync-pos)))
-          (mistty--copy-buffer-local-variables '(mistty-bracketed-paste) source-buffer)
-          (mistty--copy-buffer-local-variables
-           mistty-variables-to-copy source-buffer)
-          (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
-          (mistty--mark-empty-line-at-eob sync-pos)
-          (when (mistty--term-eterm-fs term)
-            (put-text-property sync-pos (point-max) 'read-only t))))
+        (let ((source-sync-pos (or (mistty--find-scrolline sync-scrolline)
+                                   (mistty--find-scrolline home-scrolline)))
+              (column-count term-width))
+          (if keep-markers
+              (mistty--sync-buffers source-buffer source-sync-pos dest-buffer sync-pos)
+            (mistty--copy-buffers source-buffer source-sync-pos dest-buffer sync-pos))
 
-      (cons sync-pos sync-scrolline))))
+          (mistty--with-live-buffer dest-buffer
+            (set-marker cursor-marker
+                        (+ sync-pos
+                           (- (process-mark proc) source-sync-pos)))
+            (mistty--copy-buffer-local-variables '(mistty-bracketed-paste) source-buffer)
+            (mistty--copy-buffer-local-variables
+             mistty-variables-to-copy source-buffer)
+            (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
+            (mistty--mark-empty-line-at-eob sync-pos)
+            (when (mistty--term-eterm-fs term)
+              (put-text-property sync-pos (point-max) 'read-only t)))))))
+
+  (cons sync-pos sync-scrolline))
 
 (cl-defmethod mistty--term-sync-backstage ((term mistty--term-eterm) sync-scrolline cursor)
   "Render TERM into the current buffer from SYNC-SCROLLINE.
@@ -857,7 +899,7 @@ given TERM."
    accum
    (lambda ()
      (unless (mistty--term-eterm-fs term)
-       (with-current-buffer (mistty--term-eterm-buf term)
+       (mistty--with-live-buffer (mistty--term-eterm-buf term)
          (when (and mistty--term-changed (< mistty--term-changed (point-min)))
            (setq mistty--term-changed (point-min)))
          (when (and mistty--term-changed (>= mistty--term-changed (point-max)))
@@ -1572,7 +1614,7 @@ Everything else is ignored."
 
 This function clears scrollback still stored in TERM's process buffer
 and then call FUNC to clear scrollback stored in the work buffer."
-  (with-current-buffer (mistty--term-eterm-buf term)
+  (mistty--with-live-buffer (mistty--term-eterm-buf term)
     (mistty-log "=== CLEAR SCROLLBACK (eterm) %s" mistty-allow-clearing-scrollback)
     (when mistty-allow-clearing-scrollback
       (mistty-log "CLEAR SCROLLBACK (eterm)")

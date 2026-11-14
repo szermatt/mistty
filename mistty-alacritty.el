@@ -131,16 +131,6 @@ for some reason."
 (declare-function mistty-alacritty-vt-terminal-line-for-scrolline nil (term scrolline))
 (declare-function mistty-alacritty-vt-update-options nil (term options-plist))
 
-(defvar-local mistty-alacritty--cursor nil
-  "Marker that tracks the cursor position.
-
-This marker is set by the last rendering operation.")
-
-(defvar-local mistty-alacritty--home nil
-  "Marker that tracks the position of the top of the screen.
-
-This immediately follows the scrollback lines.")
-
 (defvar mistty-alacritty--key-map
   (let ((map (make-sparse-keymap)))
 
@@ -284,18 +274,6 @@ additions from
 https://sw.kovidgoyal.net/kitty/keyboard-protocol/#legacy-functional-keys
 for the RET ESC DEL TAB and SPC.")
 
-(define-derived-mode mistty-alacritty-mode fundamental-mode "MisTTY/FS"
-  "Major mode for Mistty Fullscreen.
-
-This mode provides a raw terminal tied to a subprocess based on the
-alacritty library.
-
-Call `mistty-alacritty-exec' to create the virtual terminal and start the
-process."
-  ;; Face is set manually; disable font-lock mode
-  (font-lock-mode -1)
-  (jit-lock-mode nil))
-
 (defun mistty-alacritty-available-p ()
   "Check whether the module is available.
 
@@ -320,8 +298,6 @@ Calling any other function when this one returns nil will fail."
 (defun mistty-alacritty--exec (name program args width height)
   "Execute a command inside and tie it to the current buffer.
 
-The current buffer must be a mistty-alacritty-mode buffer.
-
 This creates a process NAME that runs PROGRAM with ARGS. The created
 process is set as the current buffer's process. A filter should be set
 after making this call as this function sets the filter to t.
@@ -329,15 +305,12 @@ after making this call as this function sets the filter to t.
 The process window size is declared to be WIDTH x HEIGHT.
 
 Returns the process."
-  (unless (eq major-mode 'mistty-alacritty-mode)
-    (error "Must be called from a mistty-alacritty-mode buffer"))
   (when (get-buffer-process (current-buffer))
     (error "A process is already attached to the buffer"))
   (mistty-log "LAUNCH %s %s" program args)
   (let ((process-connection-type t)
 	(inhibit-eol-conversion t)
 	(coding-system-for-read 'binary))
-    (jit-lock-mode nil) ;; in case this was turned on by a hook
     (let ((proc (apply #'start-file-process name (current-buffer)
                        ;; On Android, /bin doesn't exist, and the default shell is
                        ;; found as /system/bin/sh.
@@ -354,14 +327,18 @@ if [ $1 = .. ]; then shift; fi; exec \"$@\""
                                null-device)
 	               ".."
 	               program args)))
+      (set-process-query-on-exit-flag proc nil)
+
       ;; Window size must be adjusted manually with mistty-alacritty--resize
-      (process-put proc 'adjust-window-size-function nil)
+      (process-put proc 'adjust-window-size-function #'ignore)
 
       ;; start-file-process doesn't always respect
       ;; coding-system-for-read. Force it.
       (set-process-coding-system proc 'binary (cdr (process-coding-system proc)))
       (set-process-sentinel proc nil)
-      (set-process-filter proc t))))
+      (set-process-filter proc t)
+
+      proc)))
 
 (defun mistty-alacritty--TERM ()
   "Choose a value for the TERM env variable.

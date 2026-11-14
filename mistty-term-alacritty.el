@@ -28,11 +28,12 @@
 (require 'mistty-accum)
 (require 'mistty-scrolline)
 (require 'mistty-util)
+(eval-when-compile
+  (require 'mistty-accum-macros))
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'mistty-accum-macros))
+(defconst mistty--term-alacritty-buf-name " **mistty render**")
 
 (cl-defstruct (mistty--term-alacritty
                (:constructor mistty--make-term-alacritty)
@@ -40,7 +41,7 @@
   ;; associated process
   proc
 
-  ;; process buffer a.k.a. term buffer
+  ;; intermediate buffer used when rendering
   buf
 
   ;; virtual terminal, from mistty-alacritty-vt module
@@ -123,58 +124,72 @@ REPORT-FOCUS control reporting of focus in/out events."
          ;; Take terminal options from possibly buffer-local values
          ;; from calling buffer, the work buffer.
          (vterm (mistty-alacritty--make-vterm width height))
-         (term-buffer (generate-new-buffer name 'inhibit-buffer-hooks))
          (program (car command))
-         (args (cdr command)))
-    (with-current-buffer term-buffer
-      (mistty-alacritty-mode)
-      (setq-local scroll-margin 0)
-      (let ((process-environment
-             (append
-              (with-connection-local-variables mistty-process-env)
-              (list (concat "TERM=" (mistty-alacritty--TERM))
-                    (concat "INSIDE_EMACS=" emacs-version))
-              (if (with-connection-local-variables mistty-set-EMACS)
-                  (cons (format "EMACS=%s" emacs-version)
-                        process-environment)
-                process-environment))))
-        (mistty-alacritty--exec name program args width height))
-      (let* ((proc (get-buffer-process term-buffer))
-             (term (mistty--make-term-alacritty
-                    :buf term-buffer
-                    :proc proc
-                    :vterm vterm
-                    :lines height
-                    :columns width
-                    :prompt-cell prompt-cell
-                    :request-report-mouse request-report-mouse))
-             (accum (mistty--make-accumulator
-                     (mistty--term-alacritty-filter term)
-                     'immediate-preproc)))
-        (set-process-filter proc accum)
-        (process-put proc 'mistty-term term)
+         (args (cdr command))
+         (process-environment
+          (append
+           (with-connection-local-variables mistty-process-env)
+           (list (concat "TERM=" (mistty-alacritty--TERM))
+                 (concat "INSIDE_EMACS=" emacs-version))
+           (if (with-connection-local-variables mistty-set-EMACS)
+               (cons (format "EMACS=%s" emacs-version)
+                     process-environment)
+             process-environment)))
+         (proc (mistty-alacritty--exec name program args width height))
+         (term (mistty--make-term-alacritty
+                :buf (generate-new-buffer mistty--term-alacritty-buf-name 'inhibit-buffer-hooks)
+                :proc proc
+                :vterm vterm
+                :lines height
+                :columns width
+                :prompt-cell prompt-cell
+                :request-report-mouse request-report-mouse))
+         (accum (mistty--make-accumulator
+                 (mistty--term-alacritty-filter term)
+                 'immediate-preproc)))
+    (set-process-filter proc accum)
+    (process-put proc 'mistty-term term)
 
-        (unless enter-fullscreen (error ":enter-fullscreen required"))
-        (setf (mistty--term-alacritty-enter-fullscreen term) enter-fullscreen)
+    (unless enter-fullscreen (error ":enter-fullscreen required"))
+    (setf (mistty--term-alacritty-enter-fullscreen term) enter-fullscreen)
 
-        (unless leave-fullscreen (error ":leave-fullscreen required"))
-        (setf (mistty--term-alacritty-leave-fullscreen term) leave-fullscreen)
+    (unless leave-fullscreen (error ":leave-fullscreen required"))
+    (setf (mistty--term-alacritty-leave-fullscreen term) leave-fullscreen)
 
-        (unless after-clear-screen (error ":after-clear-screen required"))
-        (setf (mistty--term-alacritty-after-clear-screen term) after-clear-screen)
+    (unless after-clear-screen (error ":after-clear-screen required"))
+    (setf (mistty--term-alacritty-after-clear-screen term) after-clear-screen)
 
-        (unless after-reset (error ":after-reset required"))
-        (setf (mistty--term-alacritty-after-reset term) after-reset)
+    (unless after-reset (error ":after-reset required"))
+    (setf (mistty--term-alacritty-after-reset term) after-reset)
 
-        (unless show-cursor (error ":show-cursor required"))
-        (setf (mistty--term-alacritty-show-cursor term) show-cursor)
+    (unless show-cursor (error ":show-cursor required"))
+    (setf (mistty--term-alacritty-show-cursor term) show-cursor)
 
-        (unless report-focus (error ":report-focus required"))
-        (setf (mistty--term-alacritty-report-focus term) report-focus)
+    (unless report-focus (error ":report-focus required"))
+    (setf (mistty--term-alacritty-report-focus term) report-focus)
 
-        (ignore sync-scrolline clear-scrollback)
+    (ignore sync-scrolline clear-scrollback)
 
-        term))))
+    term))
+
+(cl-defmethod mistty--term-handle-process-death ((term mistty--term-alacritty) msg)
+  "Deal with the process having died with message MSG."
+  (let ((proc (mistty--term-alacritty-proc term)))
+    (mistty-log "PROCESS %s" msg)
+    (setf (mistty--term-alacritty-process-status term) msg)
+    (set-process-buffer proc nil)))
+
+(cl-defmethod mistty--term-delete ((term mistty--term-alacritty))
+  "Delete process and cleanup resources for TERM.
+
+MSG may be nil or may be a message passed to the process sentinel.
+
+The process and/or its associated buffer might have already been killed
+when this function is called."
+  (when (process-live-p (mistty--term-alacritty-proc term))
+    (delete-process (mistty--term-alacritty-proc term)))
+  (when (buffer-live-p (mistty--term-alacritty-buf term))
+    (kill-buffer (mistty--term-alacritty-buf term))))
 
 (cl-defmethod mistty--term-update-options ((term mistty--term-alacritty) &rest plist)
   "Set TERM options.
@@ -216,17 +231,6 @@ Unknown options are ignored."
   "Return the terminal line and column of the cursor in TERM."
   (mistty-alacritty-vt-cursor (mistty--term-alacritty-vterm term)))
 
-(cl-defmethod mistty--term-sentinel-func ((term mistty--term-alacritty))
-  "Return the default sentinel of the process.
-
-The actual sentinel may different from this."
-  (lambda (proc msg)
-    (when (memq (process-status proc) '(signal exit))
-      (mistty-log "PROCESS %s" msg)
-      (setf (mistty--term-alacritty-process-status term) msg)
-      (set-process-buffer proc nil)
-      (delete-process proc))))
-
 (cl-defmethod mistty--term-resize ((term mistty--term-alacritty) width height)
   "Resize TERM to WIDTH columns and HEIGHT lines."
   (if (or (/= (mistty--term-alacritty-columns term) width)
@@ -249,7 +253,6 @@ SYNC-SCROLLINE.  If KEEP-MARKERS is non-nil, keep markers and overlays.
 CURSOR-MARKER is updated to the cursor position."
   ;; First, collect changes and update state
   (let ((vterm (mistty--term-alacritty-vterm term))
-        (term-buf (mistty--term-alacritty-buf term))
         (sync-pos (mistty--with-live-buffer dest-buffer
                     (copy-marker sync-pos))))
     (unwind-protect
@@ -381,28 +384,29 @@ CURSOR-MARKER is updated to the cursor position."
            ;; On a prompt, rendering first to term-buf then syncing,
            ;; to keep markers.
            (t
-            (pcase-let ((`(,new-start . ,new-scrolline)
-                         (with-current-buffer term-buf
-                           (goto-char 1)
-                           (mistty-alacritty-vt-render vterm cursor-marker sync-scrolline))))
-              (mistty--sync-buffers term-buf 1 dest-buffer sync-pos)
-              (set-marker cursor-marker
-                          (+ sync-pos (1- cursor-marker))
-                          dest-buffer)
-              (set-marker sync-pos
-                          (+ sync-pos (1- new-start))
-                          dest-buffer)
-              (setq sync-scrolline new-scrolline)
+            (let ((render-buf (mistty--term-alacritty-get-or-create-buf term)))
+              (pcase-let ((`(,new-start . ,new-scrolline)
+                           (with-current-buffer render-buf
+                             (goto-char 1)
+                             (mistty-alacritty-vt-render vterm cursor-marker sync-scrolline))))
+                (mistty--sync-buffers render-buf 1 dest-buffer sync-pos)
+                (set-marker cursor-marker
+                            (+ sync-pos (1- cursor-marker))
+                            dest-buffer)
+                (set-marker sync-pos
+                            (+ sync-pos (1- new-start))
+                            dest-buffer)
+                (setq sync-scrolline new-scrolline)
 
-              (mistty-alacritty-vt-flush-scrollback vterm)
-              (when (> new-start 1)
-                (mistty--with-live-buffer term-buf
-                  ;; Clear scrollback to allow partial rendering next
-                  ;; time. This must be done after computing the
-                  ;; positions to not mess with the cursor marker.
-                  (delete-region (point-min) new-start))))))
+                (mistty-alacritty-vt-flush-scrollback vterm)
+                (when (> new-start 1)
+                  (mistty--with-live-buffer render-buf
+                    ;; Clear scrollback to allow partial rendering next
+                    ;; time. This must be done after computing the
+                    ;; positions to not mess with the cursor marker.
+                    (delete-region (point-min) new-start)))))))
 
-          (mistty-term-alacritty-mark-final-newline sync-pos)
+          (mistty--term-alacritty-mark-final-newline sync-pos)
 
           ;; Report process status, if necessary
           (when-let* ((msg (mistty--term-alacritty-process-status term)))
@@ -427,21 +431,21 @@ The marker CURSOR is set at the cursor position, as long as the cursor is at or
 below SYNC-SCROLLINE, otherwise the cursor is moved to the beginning of
 the buffer after sync."
   (let* ((vterm (mistty--term-alacritty-vterm term))
-         (term-buf (mistty--term-alacritty-buf term))
+         (render-buf (mistty--term-alacritty-get-or-create-buf term))
          (mode-alist (mistty-alacritty-vt-mode-alist vterm)))
     (when (alist-get 'fullscreen mode-alist)
       (error "Terminal entered fullscreen mode; replay not possible"))
     (setq mistty-bracketed-paste (alist-get 'bracketed-paste mode-alist))
 
     ;; replace-region-contents updates markers automatically
-    (with-current-buffer term-buf
+    (with-current-buffer render-buf
       (set-marker cursor (point-min))
       (goto-char (point-min))
       (mistty-alacritty-vt-render vterm cursor sync-scrolline))
-    (mistty--sync-buffers term-buf 1 (current-buffer) 1)
-    (mistty-term-alacritty-mark-final-newline (point-min))
+    (mistty--sync-buffers render-buf 1 (current-buffer) 1)
+    (mistty--term-alacritty-mark-final-newline (point-min))
 
-    ;; even though the cursor is for term-buf, right now, the position
+    ;; even though the cursor is for render-buf, right now, the position
     ;; is the same.
     (set-marker cursor (marker-position cursor))
     (goto-char cursor)))
@@ -668,7 +672,7 @@ SYNC-POS marks the beginning of the terminal zone."
                          (mistty--scrolline-at-point))))
         (+ line (mistty--count-lines sync-pos buffer-pos))))))
 
-(defun mistty-term-alacritty-mark-final-newline (sync-pos)
+(defun mistty--term-alacritty-mark-final-newline (sync-pos)
   "Mark the final newline rendered by alacritty as \\='empty-lines-at-eob.
 
 Newline is only marked if after SYNC-POS."
@@ -679,6 +683,15 @@ Newline is only marked if after SYNC-POS."
        last-newline (point-max)
        '(mistty-skip empty-lines-at-eob
                      yank-handler (nil "" nil nil))))))
+
+(defun mistty--term-alacritty-get-or-create-buf (term)
+  "Get TERM's render buffer or create a new one."
+  (let ((buf (mistty--term-alacritty-buf term)))
+    (if (buffer-live-p buf)
+        buf
+      (setf (mistty--term-alacritty-buf term)
+            (generate-new-buffer
+             mistty--term-alacritty-buf-name 'inhibit-buffer-hooks)))))
 
 (provide 'mistty-term-alacritty)
 

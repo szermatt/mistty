@@ -940,8 +940,8 @@ window."
                       (mistty--cancel-queue mistty--queue)
                       (mistty--release-all-changesets)
                       (setq mistty--inhibit-refresh nil)
-                      (setq mistty-bracketed-paste nil))
-                    (mistty--scroll-after-clear))
+                      (setq mistty-bracketed-paste nil)
+                      (mistty--scroll-after-clear)))
                   :sync-scrolline
                   (lambda ()
                     (mistty--with-live-buffer work-buffer
@@ -1431,9 +1431,7 @@ kept."
   (when-let*
       ((win (get-buffer-window mistty-work-buffer))
        (screen-start-scrolline (mistty--term-scrolline-at-screen-top mistty--term))
-       (screen-start-pos
-        (mistty--with-live-buffer mistty-work-buffer
-          (mistty--find-scrolline screen-start-scrolline))))
+       (screen-start-pos (mistty--find-scrolline screen-start-scrolline)))
     (mistty-log "SCROLL to %s@%s" screen-start-scrolline screen-start-pos)
     (set-window-start win screen-start-pos 'noforce)))
 

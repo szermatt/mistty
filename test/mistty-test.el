@@ -397,6 +397,7 @@
       (mistty-exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
       (setq term-proc mistty-proc)
       (should (equal (length calls) 1))
+      (mistty-wait-for-output :str "$")
       (mistty-send-text "exit")
       (mistty-send-command)
       (mistty-wait-for-proc-to-die term-proc)
@@ -427,6 +428,7 @@
       (mistty-exec (list mistty-test-bash-exe "--noprofile" "--norc" "-i"))
       (setq term-proc mistty-proc)
       (should (equal (length calls) 1))
+      (mistty-wait-for-output :str "$")
       (mistty-send-text "exit")
       (mistty-send-command)
       (mistty-wait-for-proc-to-die term-proc)
@@ -1885,6 +1887,7 @@
 
     (let ((mistty--inhibit-fake-nl-cleanup nil) echo-start ls-start)
       (mistty--send-string mistty-proc (format "cd '%s'" tempdir))
+      (mistty-wait-for-output :str "/'" :cursor-at-end t)
       (mistty-send-and-wait-for-prompt)
 
       (setq echo-start (pos-bol))
@@ -1901,7 +1904,8 @@
 
       (mistty-run-command
        (mistty-tab-command))
-      (mistty-wait-for-output :str "ile3")
+      (mistty-wait-for-output :str "file9")
+      (mistty-wait-for-output :str "$ ls file" :cursor-at-end t :start ls-start)
       (should
        (equal
         (concat "$ ls file<>\n"
@@ -1921,6 +1925,7 @@
       (mistty-goto-cursor)
       (mistty-send-text "3")
       (mistty-send-and-wait-for-prompt)
+      (mistty-wait-for-output :str "$ " :cursor-at-end t :start mistty-sync-marker)
 
       (should (equal "$ ls file3\nfile3\n$ <>"
                      (mistty-test-content :start ls-start :show (point))))
@@ -2652,6 +2657,9 @@
    (delete-region (mistty-test-pos "5 6;") (mistty-test-pos "echo $i"))
    (mistty-test-goto "echo $i"))
 
+  (mistty-wait-for-output :regexp "1 2 3 4 echo \\$i *\n *done")
+  (mistty-wait-for-output :str "1 2 3 4 " :cursor-at-end t)
+
   (should (equal
            (concat "$ for i in 1 2 3 4 <>echo $i\ndone")
            (mistty-test-content :trim-left t :show (mistty-cursor)))))
@@ -3131,7 +3139,7 @@
   ;; that was just replayed.
   (mistty-run-command
    (insert "for i in a b c; do\necho $i\ndone"))
-  (mistty-wait-for-output :str "done")
+  (mistty-wait-for-output :str "done" :cursor-at-end t)
   (should (string-match (concat "^\\$ for i in a b c; do +< right\n"
                                 " *echo \\$i\n"
                                 " *done$")
@@ -3141,6 +3149,7 @@
     (:shell ((zsh mistty-test-zsh-right-prompt)) :type all)
   (mistty-run-command
    (insert "echo hello\necho world"))
+  (mistty-wait-for-output :str "echo world" :cursor-at-end t)
 
   ;; The shell has put the right prompt back at the right position.
   (should (string-match "^\\$ echo hello +< right\n *echo world<>"
@@ -3620,15 +3629,12 @@
     (mistty-send-text "echo third")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-key 1 (kbd "C-r"))
-    (mistty-wait-for-output :str "search:" :start (point-min))
+    (mistty-wait-for-output :str "► echo first" :start (point-min))
+    (mistty-wait-for-output :str "search: " :cursor-at-end t :start (point-min))
 
     (should mistty--special-prompt)
     (execute-kbd-macro (kbd "e c h"))
-    (mistty-wait-for-output
-     :test (lambda ()
-             (save-excursion)
-             (goto-char (point-min))
-             (search-forward "search: ech" nil 'noerror)))
+    (mistty-wait-for-output :str "search: ech" :cursor-at-end t :start (point-min))
 
     (should (equal (concat
                     "search: ech<>\n"
@@ -3640,10 +3646,7 @@
     ;; select the second option (echo second) and accept it.
     (execute-kbd-macro (kbd "<right>"))
     (mistty-wait-for-output
-     :test (lambda ()
-             (save-excursion
-               (goto-char (point-min))
-               (search-forward-regexp "\\$ echo second *\nsearch: " nil t))))
+     :regexp "\\$ echo second *\nsearch: ech" :cursor-at-end t :start (point-min))
 
     ;; A bad handling of mistty--end-prompt could break cursor moves
     ;; after this.
@@ -3653,6 +3656,7 @@
              (save-excursion
                (goto-char (point-min))
                (not (search-forward "search:" nil t)))))
+    (mistty-wait-for-output :str "$ echo second" :cursor-at-end t :start mistty-sync-marker)
 
     (should (equal "$ echo second<>"
                    (mistty-test-content
@@ -3773,15 +3777,19 @@
     (mistty-send-and-wait-for-prompt)
     (mistty-send-key 1 (kbd "C-r"))
 
-    (mistty-wait-for-output :str "search:" :start (point-min))
+    (mistty-wait-for-output :str "► echo first" :start (point-min))
+    (mistty-wait-for-output :str "search: " :cursor-at-end t :start (point-min))
     (should mistty--special-prompt)
 
     (mistty-send-text "echo")
+    (mistty-wait-for-output :str "search: echo" :cursor-at-end t :start (point-min))
 
     ;; insertion before cursor are just appended
     (mistty-run-command
      (goto-char (pos-bol))
      (insert "more"))
+    (mistty-wait-for-output :str "(no matches)")
+    (mistty-wait-for-output :str "search: echomore" :cursor-at-end t :start (point-min))
 
     (should (equal (concat "$ echo first\n"
                            "first\n"
@@ -4074,6 +4082,7 @@
   (mistty-send-text "echo ok")
   (mistty-run-command
    (call-interactively 'mistty-sudo))
+  (mistty-wait-for-output :str "$ sudo echo ok" :cursor-at-end t)
   (should (equal "$ sudo echo ok<>" (mistty-test-content :show (point)))))
 
 (mistty-deftest mistty-test-sudo-in-scrollback (:type all :selected t)
@@ -4085,6 +4094,7 @@
    (search-forward "one"))
   (mistty-run-command
    (call-interactively 'mistty-sudo))
+  (mistty-wait-for-output :str "$ sudo echo ok" :cursor-at-end t :start mistty-sync-marker)
   (should (equal "$ sudo echo ok<>"
                  (mistty-test-content :start mistty-sync-marker :show (point)))))
 
@@ -6192,10 +6202,14 @@ function prompt {
 
     (mistty-run-command
      (mistty-test-goto "echo foo"))
+    (mistty-wait-for-output :str "$ " :cursor-at-end t)
 
     (mistty-run-command
      (kill-line))
-    (mistty-wait-for-output :regexp "^\\$  *< right\n *echo bar")
+    (mistty-wait-for-output
+     :test (lambda ()
+             (string-match "^\\$ <> *< right\n *echo bar"
+                           (mistty-test-content :show (point)))))
 
     (should (string-match "^\\$ <> *< right\n *echo bar"
                           (mistty-test-content :show (point)))))
@@ -7162,7 +7176,7 @@ preexec_functions+=(osc133_preexec)
 
 (mistty-deftest mistty-test-osc-8 (:type all)
   (mistty--send-string
-   mistty-proc "printf \"\\e]8;;http://www.example.com/\\afoob\141r\\e]8;;\\a\\n\"\n")
+   mistty-proc "printf \"\\e]8;;http://www.example.com/\\afoob\\141r\\e]8;;\\a\\n\"\n")
   (mistty-wait-for-output :start (point-min) :str "foobar")
   (goto-char (point-min))
   (forward-line)
@@ -7174,7 +7188,7 @@ preexec_functions+=(osc133_preexec)
 (mistty-deftest mistty-test-osc-0 (:type all)
   (let ((ansi-osc-window-title nil))
     (mistty--send-string
-     mistty-proc "printf \"\\e]0;new window title\\afoob\141r\\n\"\n")
+     mistty-proc "printf \"\\e]0;new window title\\afoob\\141r\\n\"\n")
     (mistty-wait-for-output :start (point-min) :str "foobar")
     (should (equal "new window title" ansi-osc-window-title))))
 

@@ -348,7 +348,7 @@ default, the default directory is a temp directory created for the test."
                  nil
                (or (cdr term-size) 24)))
     (mistty-run-command) ;; detect early foreign overlay
-    (mistty-wait-for-output :str "$ ")))
+    (mistty-wait-for-output :str "$ " :cursor-at-end t)))
 
 (defun mistty-test-setup-zsh (tmpdir init term-size)
   (let ((orig-zdotdir (getenv "ZDOTDIR"))
@@ -365,7 +365,9 @@ default, the default directory is a temp directory created for the test."
                         :width (car term-size) :height (cdr term-size))
           (mistty-run-command) ;; detect early foreign overlay
           (mistty-test-set-prompt-re "$ ")
-          (mistty-wait-for-output :str "$ "))
+          (when (and init (string-match-p "< right" init))
+            (mistty-wait-for-output :str "< right"))
+          (mistty-wait-for-output :str "$ " :cursor-at-end t))
       (setenv "ZDOTDIR" orig-zdotdir)
       (setenv "PROMPT_EOL_MARK" orig-prompt-eol-mark))))
 
@@ -401,7 +403,10 @@ default, the default directory is a temp directory created for the test."
    :width (car term-size) :height (cdr term-size))
   (mistty-run-command) ;; detect early foreign overlay
   (mistty-test-set-prompt-re "$ ")
-  (mistty-wait-for-output :regexp mistty-test-prompt-re))
+  (mistty-wait-for-output :test (lambda () mistty-bracketed-paste))
+  (when (and init (string-match-p "< right" init))
+    (mistty-wait-for-output :str "< right"))
+  (mistty-wait-for-output :regexp mistty-test-prompt-re :cursor-at-end t))
 
 (defun mistty-test-setup-ipython (tmpdir init term-size)
   (when init
@@ -612,27 +617,19 @@ This is useful to ignore indentation added by fish."
 
 (defun mistty-wait-for-proc-to-die (proc)
   (should (not (null proc)))
-  (let ((buf (process-buffer proc)))
-    (when (and buf
-               (buffer-live-p buf)
-               (eq 'mistty-mode (with-current-buffer buf
-                                  major-mode)))
-      ;; Only wait for the buffer to die if it's something else than
-      ;; the work buffer.
-      (setq buf nil))
-    (mistty-wait-for-output
-     :test
-     (lambda ()
-       (and
-        (not (process-live-p proc))
-        (or (null buf) (not (buffer-live-p buf)))))
-     :on-error
-     (lambda ()
-       (cond ((process-live-p proc)
-              (error "Process %s didn't die. Status: %s" proc (process-status proc)))
-             ((and buf (buffer-live-p buf))
-              (error "Buffer %s wasn't killed." buf))
-             (t (error "Something else went wrong.")))))))
+  (mistty-wait-for-output
+   :test
+   (lambda ()
+     (and
+      (not (process-live-p proc))
+      (not (buffer-live-p (process-buffer proc)))))
+   :on-error
+   (lambda ()
+     (cond ((process-live-p proc)
+            (error "Process %s didn't die. Status: %s" proc (process-status proc)))
+           ((buffer-live-p (process-buffer proc))
+            (error "Buffer %s wasn't killed or detached." (process-buffer proc)))
+           (t (error "Something else went wrong."))))))
 
 (defun mistty-send-text (text &optional start)
   "Send TEXT and wait until it appears after START.

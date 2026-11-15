@@ -5004,23 +5004,25 @@
       (should (equal (format "EMACS=%s" emacs-version )
                      (mistty-send-and-capture-command-output))))))
 
-(mistty-deftest mistty-test-change-term-colors/alacritty (:turtles t :selected t :shell none)
+(mistty-deftest mistty-test-change-term-colors/alacritty (:turtles t :shell none)
   (unwind-protect
       (progn
         (load-theme 'modus-vivendi 'no-confirm) ;; dark theme
-        (mistty-with-test-buffer (:type alacritty)
+        (mistty-with-test-buffer (:type alacritty :selected t)
           (test-change-term-colors)))
-    (dolist (theme custom-enabled-themes)
-      (disable-theme theme))))
+    (ignore-errors
+      (dolist (theme custom-enabled-themes)
+        (disable-theme theme)))))
 
-(mistty-deftest mistty-test-change-term-colors/eterm (:turtles t :selected t :shell none)
+(mistty-deftest mistty-test-change-term-colors/eterm (:turtles t :shell none)
   (unwind-protect
       (progn
         (load-theme 'modus-vivendi 'no-confirm) ;; dark theme
-        (mistty-with-test-buffer (:type eterm)
+        (mistty-with-test-buffer (:type eterm :selected t)
           (test-change-term-colors)))
-    (dolist (theme custom-enabled-themes)
-      (disable-theme theme))))
+    (ignore-errors
+      (dolist (theme custom-enabled-themes)
+        (disable-theme theme)))))
 
 (defun test-change-term-colors ()
   ;; A prompt that sets a color and switches back to the default.

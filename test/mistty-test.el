@@ -5691,8 +5691,7 @@ function prompt {
                   (line-beginning-position)
                   (line-end-position)))))
 
-(mistty-deftest mistty-osc133-command-finished-hook
-    (:type all :shell ((zsh "
+(defconst mistty-test-zsh-osc133-d "
 setopt no_prompt_sp
 setopt no_prompt_cr
 
@@ -5712,7 +5711,10 @@ function osc133_preexec() {
       printf '\\033]133;C\\007'
 }
 preexec_functions+=(osc133_preexec)
-")))
+")
+
+(mistty-deftest mistty-osc133-command-finished-hook
+    (:type all :shell ((zsh mistty-test-zsh-osc133-d)))
   (let ((called nil)
         (second-hook-called nil)
         (mistty-buf (current-buffer)))
@@ -5748,6 +5750,128 @@ preexec_functions+=(osc133_preexec)
     (should (equal '((nil 4)) (nreverse called)))
     (should (equal '(nil) (nreverse second-hook-called)))
     (should (equal (point) (mistty-cursor)))))
+
+(when (eval-when-compile (>= emacs-major-version 30))
+  (mistty-deftest mistty-osc133-notify-command-finished-disabled
+      (:type all :shell ((zsh mistty-test-zsh-osc133-d)) :turtles t)
+    (should (memq #'mistty-notify-command-finished mistty-command-finished-hook))
+    (let ((notifications nil))
+      (cl-letf (((symbol-function 'notifications-notify)
+                 (lambda (&rest args)
+                   (push args notifications))))
+        (let ((mistty-notify-on-command-finished nil))
+          (mistty-send-text "echo ignored")
+          (mistty-send-and-wait-for-prompt)
+          (should (equal nil notifications))))))
+
+  (mistty-deftest mistty-osc133-notify-command-finished-details
+      (:type all :shell ((zsh mistty-test-zsh-osc133-d)))
+    (should (memq #'mistty-notify-command-finished mistty-command-finished-hook))
+    (let ((notifications nil))
+      (cl-letf (((symbol-function 'notifications-notify)
+                 (lambda (&rest args)
+                   (push args notifications))))
+        (let ((mistty-notify-on-command-finished t))
+          (mistty-send-text "echo hello")
+          (mistty-send-and-wait-for-prompt)
+          (should (equal 1 (length notifications)))
+          (let ((notif (pop notifications)))
+            (should (equal "Command finished" (plist-get notif :title)))
+            (should (equal "Command 'echo hello' finished with status 0"
+                           (plist-get notif :body))))
+
+          ;; tests nonzero status, truncation
+          (mistty-send-text "echo 12345678901234567890; false")
+          (mistty-send-and-wait-for-prompt)
+          (should (equal 1 (length notifications)))
+          (let ((notif (pop notifications)))
+            (should (equal "Command 'echo 12345678901234…' finished with status 1"
+                           (plist-get notif :body))))
+
+          ;; tests missing status
+          (mistty-send-text "osc133_no_status=1")
+          (mistty-send-and-wait-for-prompt)
+          (should (equal 1 (length notifications)))
+          (let ((notif (pop notifications)))
+            (should (equal "Command 'osc133_no_status=1' finished"
+                           (plist-get notif :body))))))))
+
+  (mistty-deftest mistty-osc133-notify-command-finished-action
+      (:type all :shell ((zsh mistty-test-zsh-osc133-d)) :turtles t :selected t)
+    (should (memq #'mistty-notify-command-finished mistty-command-finished-hook))
+    (let ((notifications nil)
+          (mistty-buf (current-buffer))
+          (win (selected-window)))
+      (cl-letf (((symbol-function 'notifications-notify)
+                 (lambda (&rest args)
+                   (push args notifications))))
+        (let ((mistty-notify-on-command-finished t))
+          (mistty-send-text "echo hello")
+          (mistty-send-and-wait-for-prompt)
+          (should (equal 1 (length notifications)))
+          (let ((notif (pop notifications)))
+            (should (equal '("default" "Go to buffer") (plist-get notif :actions)))
+            (let ((on-action (plist-get notif :on-action)))
+              (other-window 1)
+              (should-not (eq mistty-buf (window-buffer (selected-window))))
+              (funcall on-action 1 "other")
+              (should-not (eq mistty-buf (window-buffer (selected-window))))
+              (funcall on-action 1 "default")
+              (should (eq mistty-buf (window-buffer (selected-window))))
+              (select-window win)))))))
+  
+  (mistty-deftest mistty-osc133-notify-command-finished-always
+      (:type all :shell ((zsh mistty-test-zsh-osc133-d)) :turtles t :selected t)
+    (should (memq #'mistty-notify-command-finished mistty-command-finished-hook))
+    (let ((notifications nil)
+          (mistty-buf (current-buffer))
+          (win (selected-window)))
+      (cl-letf (((symbol-function 'notifications-notify)
+                 (lambda (&rest args)
+                   (push args notifications))))
+        (let ((mistty-notify-on-command-finished t))
+          (mistty-send-text "echo hello")
+          (mistty-send-and-wait-for-prompt)
+          (should (equal 1 (length notifications)))
+          (setq notifications nil)
+
+          (other-window 1)
+          (redisplay t)
+          (with-current-buffer mistty-buf
+            (should-not (mistty-focused-p))
+            (mistty-send-text "echo unfocused")
+            (mistty-send-and-wait-for-prompt))
+          (should (equal 1 (length notifications)))
+          (setq notifications nil)
+          (select-window win)
+          (redisplay t)))))
+
+  (mistty-deftest mistty-osc133-notify-command-finished-unfocused
+      (:type all :shell ((zsh mistty-test-zsh-osc133-d)) :turtles t :selected t)
+    (should (memq #'mistty-notify-command-finished mistty-command-finished-hook))
+    (let ((notifications nil)
+          (mistty-buf (current-buffer))
+          (win (selected-window)))
+      (cl-letf (((symbol-function 'notifications-notify)
+                 (lambda (&rest args)
+                   (push args notifications))))
+        (let ((mistty-notify-on-command-finished 'unfocused))
+          (with-current-buffer mistty-buf
+            (should (mistty-focused-p))
+            (mistty-send-text "echo focused")
+            (mistty-send-and-wait-for-prompt))
+          (should (equal nil notifications))
+          (setq notifications nil)
+
+          (other-window 1)
+          (redisplay t)
+          (with-current-buffer mistty-buf
+            (should-not (mistty-focused-p))
+            (mistty-send-text "echo unfocused")
+            (mistty-send-and-wait-for-prompt))
+          (should (equal 1 (length notifications)))
+          (select-window win)
+          (redisplay t))))))
 
 (mistty-deftest mistty-osc133-fish-right-prompt-field
     (:type all :shell ((fish "function fish_prompt; printf '$ \e]133;B\007'; end\n"

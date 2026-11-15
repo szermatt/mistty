@@ -4286,6 +4286,13 @@ used in hooks that report change to the selection or buffer of WIN."
           (setq mistty--focused focused)
           (mistty--report-focus))))))
 
+(defun mistty-focused-p ()
+  "Return non-nil if the current buffer's terminal is focused.
+
+A terminal is focused is it is shown in at least one selected window of
+a focused Emacs frame."
+  mistty--focused)
+
 (defun mistty--report-focus ()
   "Report focus to the application, if enabled."
   (let ((proc (mistty--term-proc mistty--term)))
@@ -4324,6 +4331,42 @@ Does nothing if the cursor is already shown."
         (setq cursor-type mistty--original-cursor
               mistty--original-cursor nil)
       (kill-local-variable 'cursor-type))))
+
+(when (eval-when-compile (>= emacs-major-version 30))
+  ;; This avoids requiring the notifications package for a feature
+  ;; that may not be used.
+  (autoload 'notifications-notify "notifications")
+  (declare-function notifications-notify "notifications")
+  (autoload 'truncate-string-to-width "mule-util")
+
+  (defun mistty-notify-command-finished (status)
+    "Notify about finished commands.
+
+This function is meant to be added to `mistty-command-finished-hook'.
+
+The behavior of this command is controlled by the option
+`mistty-notify-on-command-finished', which see."
+    (when (or (eq t mistty-notify-on-command-finished)
+              (and (eq 'unfocused mistty-notify-on-command-finished)
+                   (not (mistty-focused-p))))
+
+      (notifications-notify
+       :title "Command finished"
+       :body (format "Command%s finished%s"
+                     (if-let* ((cmdline (mistty-previous-cmdline 1)))
+                         (format
+                          " '%s'"
+                          (truncate-string-to-width
+                           cmdline 20 nil nil "…"))
+                       "")
+                     (if status
+                         (format " with status %s" status)
+                       ""))
+       :actions '("default" "Go to buffer")
+       :on-action (let ((buf (current-buffer)))
+                    (lambda (_id key)
+                      (when (equal "default" key)
+                        (pop-to-buffer buf))))))))
 
 (provide 'mistty)
 

@@ -855,7 +855,9 @@ for the user to kill."
   :group 'mistty
   :type 'boolean)
 
-(defcustom mistty-command-finished-hook nil
+(declare-function mistty-notify-command-finished "mistty")
+(defcustom mistty-command-finished-hook (when (eval-when-compile (>= emacs-major-version 30))
+                                          (list #'mistty-notify-command-finished))
   "Hook run when the shell reports a command finished with OSC 133.
 
 This hooks is called when a command has been reported as finished. It
@@ -870,6 +872,27 @@ details about the command.
 Note that there might already be a prompt open afterwards."
   :group 'mistty
   :type 'hook)
+
+(when (eval-when-compile (>= emacs-major-version 30))
+  (defcustom mistty-notify-on-command-finished nil
+    "Send a notification when a command finished.
+
+Display a notification when the shell sends out OSC 133 D calls to
+report finished commands.
+
+If the value is \\='unfocused, the notification is not sent out when the
+terminal is unfocused. The terminal is focused if it is shown in at
+least one selected window of a focused Emacs frame.
+
+The notification is sent out using `notifications-notify', which
+requires D-Bus support. To report the event some another way, or to
+customize the event, disable this option and add a custom notification
+method to `mistty-command-finished-hook'. See
+`mistty-notify-command-finished' for an example."
+    :group 'mistty
+    :type '(choice (const :tag "Never" nil)
+                   (const :tag "Unless focused" unfocused)
+                   (const :tag "Always" t))))
 
 (provide 'mistty-custom)
 

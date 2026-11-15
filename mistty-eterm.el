@@ -668,17 +668,6 @@ REPORT-FOCUS control whether focus changes should be reported."
            (mistty-log "Report Focus OFF")
            (funcall report-focus nil)))
 
-        (mistty--accum-add-post-processor
-         accum
-         (lambda ()
-           (mistty--with-live-buffer (mistty--term-eterm-buf term)
-               (when (> term-home-marker 1000)
-                 (run-with-idle-timer
-                  0 nil
-                  (lambda ()
-                    (mistty--with-live-buffer (mistty--term-eterm-buf term)
-                      (mistty--truncate-buffer term-home-marker))))))))
-
         term))))
 
 (cl-defmethod mistty--term-handle-process-death ((term mistty--term-eterm) msg)
@@ -797,7 +786,11 @@ CURSOR-MARKER is updated to the cursor position."
             (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
             (mistty--mark-empty-line-at-eob sync-pos)
             (when (mistty--term-eterm-fs term)
-              (put-text-property sync-pos (point-max) 'read-only t)))))))
+              (put-text-property sync-pos (point-max) 'read-only t))))
+
+        (when (and (>= sync-pos home-marker)
+                   (> home-marker 1000))
+          (mistty--truncate-buffer home-marker)))))
 
   (cons sync-pos sync-scrolline))
 
@@ -1583,20 +1576,18 @@ and then call FUNC to clear scrollback stored in the work buffer."
 (defun mistty--truncate-buffer (home-marker)
   "Truncate the buffer before HOME-MARKER.
 
-If there's more than 1000 chars in the buffer before the given marker,
-truncate the buffer at a BOL, leaving at least 200 chars."
-  (when (> home-marker 1000)
-    (save-excursion
-      (goto-char (- home-marker 200))
-      (goto-char (pos-bol))
-      (unless (bobp)
-        (mistty-log "[term] truncate %s chars of scrollback, leaving %s."
-                    (- (point) (point-min))
-                    (- home-marker (point)))
-        (let ((inhibit-read-only t)
-              (inhibit-modification-hooks t))
-          (delete-region (point-min) (point)))))))
-
+Truncate the buffer at a BOL, leaving at least 200 chars, for
+`mistty--realign-buffers'."
+  (save-excursion
+    (goto-char (- home-marker 200))
+    (goto-char (pos-bol))
+    (unless (bobp)
+      (mistty-log "[term] truncate %s chars of scrollback, leaving %s."
+                  (- (point) (point-min))
+                  (- home-marker (point)))
+      (let ((inhibit-read-only t)
+            (inhibit-modification-hooks t))
+        (delete-region (point-min) (point))))))
 
 (defun mistty--copy-buffers
     (source-buffer source-pos dest-buffer dest-pos)

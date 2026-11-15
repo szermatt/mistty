@@ -1631,14 +1631,7 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
      ((and (not special-prompt) mistty--special-prompt)
       (setq mistty--special-prompt nil)
       (mistty--update-secondary-mode)
-      (mistty-log "SPECIAL PROMPT done"))))
-
-  (unless (mistty--active-prompt)
-    (let ((screen-start
-           (mistty--term-scrolline-at-screen-top mistty--term)))
-      (when (< mistty--scrolline-home-num screen-start)
-        ;; Next time, only sync the visible portion of the terminal.
-        (mistty--maybe-move-sync-mark screen-start)))))
+      (mistty-log "SPECIAL PROMPT done")))))
 
 (defun mistty--mark-continue-prompts (prompt prompt-start)
   "Detect and mark continue prompts that are part of PROMPT.

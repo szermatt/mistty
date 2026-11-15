@@ -460,7 +460,7 @@
 
 (mistty-deftest mistty-test-kill-term-buffer-but-keep-work-buffer/alacritty (:type alacritty)
   (mistty-send-text "echo one")
-  (mistty-send-command)
+  (mistty-send-and-wait-for-prompt)
   (let ((term-buffer (mistty--term-alacritty-buf mistty--term)))
     (should term-buffer)
     (kill-buffer term-buffer))

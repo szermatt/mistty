@@ -123,11 +123,15 @@ the content of the buffer within that range. If KEEP-MARKERS is non-nil,
 the function needs to do its best to keep markers and overlays and move
 them as appropriate.
 
-The function return a (cons SYNC-POS SYNC-SCROLLINE) containing new
-proposed values for future calls. It may propose to increase the sync
-scrolline, in cases where SYNC-SCROLLINE is above the top of the
+The function return a (list SYNC-POS SYNC-SCROLLINE EVENTS) containing
+new proposed values for future calls. It may propose to increase the
+sync scrolline, in cases where SYNC-SCROLLINE is above the top of the
 terminal screen, or to decrease it, in cases where changes were detected
 above SYNC-SCROLLINE.
+
+EVENTS is a list of events to be handled by the caller:
+ - (command-finished exit-status scrolline) OSC 133 reported the given
+   command status
 
 Note that in the latter case, the function may modify DEST-BUFFER above
 SYNC-POS and the new proposed value may be above the initial value.

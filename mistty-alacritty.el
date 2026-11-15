@@ -564,7 +564,8 @@ CURSOR-MARKER is updated to the cursor position."
   ;; First, collect changes and update state
   (let ((vterm (mistty--term-alacritty-vterm term))
         (sync-pos (mistty--with-live-buffer dest-buffer
-                    (copy-marker sync-pos))))
+                    (copy-marker sync-pos)))
+        (forwarded-events nil))
     (unwind-protect
         (progn
           (dolist (ev (mistty-alacritty-vt-collect-changes vterm))
@@ -660,6 +661,9 @@ CURSOR-MARKER is updated to the cursor position."
                                (mistty--prompt-end prompt)
                                cmdline))))
 
+              (`(command-finished . ,_)
+               (push ev forwarded-events))
+
               (_ (error "Unhandled event: %S" ev))))
 
           ;; Sync or render
@@ -717,7 +721,9 @@ CURSOR-MARKER is updated to the cursor position."
               (goto-char (point-max))
               (insert "Process " msg)))
 
-          (cons (marker-position sync-pos) sync-scrolline))
+          (list (marker-position sync-pos)
+                sync-scrolline
+                (nreverse forwarded-events)))
 
       ;; unwind-protect cleanup
       (set-marker sync-pos nil))))

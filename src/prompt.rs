@@ -20,6 +20,7 @@ emacs::use_symbols! {
     start_prompt_sym => "start-prompt"
     end_prompt_sym => "end-prompt"
     update_prompt_sym => "update-prompt"
+    command_finished_sym => "command-finished"
     bracketed_paste_sym => "bracketed-paste"
     colon_end_sym => ":end"
     colon_user_input_start_sym => ":user-input-start"
@@ -37,6 +38,11 @@ pub(crate) enum PromptChange {
 
     /// Update the current prompt, identified by its id.
     Update(PromptOptions),
+
+    /// Report that the current command has finished and at what
+    /// scrolline. The command line can be retrieved from the previous
+    /// prompt, now ended.
+    CommandFinished(Option<u8>, Scrolline),
 }
 
 #[derive(PartialEq, Eq, Debug, Default)]
@@ -80,6 +86,9 @@ impl<'e> IntoLisp<'e> for PromptChange {
             PromptChange::Start(source, start) => env.list((start_prompt_sym, source, start)),
             PromptChange::End(end) => env.list((end_prompt_sym, end)),
             PromptChange::Update(opts) => env.cons(update_prompt_sym, opts),
+            PromptChange::CommandFinished(exit_status, scrolline) => {
+                env.list((command_finished_sym, exit_status, scrolline))
+            }
         }
     }
 }
@@ -310,6 +319,17 @@ impl PromptDetector {
                 }))
             }
         }
+    }
+
+    pub(crate) fn osc133_command_finished(&mut self, vterm: &mut VTerm, exit_status: Option<u8>) {
+        if vterm.mode().contains(TermMode::ALT_SCREEN) {
+            return;
+        }
+        self.push(PromptChange::CommandFinished(
+            exit_status,
+            vterm.scrolline_at_cursor(),
+        ));
+        self.osc133_command_end(vterm);
     }
 
     pub(crate) fn osc133_command_end(&mut self, vterm: &mut VTerm) {
@@ -623,6 +643,7 @@ mod tests {
                     ..PromptOptions::default()
                 }),
                 PromptChange::End(Scrolline(1)),
+                PromptChange::CommandFinished(Some(0), Scrolline(2)),
                 PromptChange::Start(PromptSource::Osc133, Scrolline(2)),
                 PromptChange::Update(PromptOptions {
                     user_input_start: Some((Scrolline(2), Column(2))),
@@ -689,7 +710,7 @@ mod tests {
         fixture.process_bytes(b"echo ok\x1b[?2004l\r\n");
         fixture.process_bytes(b"\x1b]133;C\x07");
         fixture.process_bytes(b"ok\r\n");
-        fixture.process_bytes(b"\x1b]133;D;0\x07");
+        fixture.process_bytes(b"\x1b]133;D\x07");
 
         assert_eq!(
             vec![
@@ -699,6 +720,7 @@ mod tests {
                     ..PromptOptions::default()
                 }),
                 PromptChange::End(Scrolline(2)),
+                PromptChange::CommandFinished(None, Scrolline(3)),
             ],
             fixture.processor.collect_prompt_changes()
         );
@@ -711,7 +733,7 @@ mod tests {
         fixture.process_bytes(b"echo ok\x1b[?2004l\r\n");
         fixture.process_bytes(b"\x1b]133;C\x07");
         fixture.process_bytes(b"ok\r\n");
-        fixture.process_bytes(b"\x1b]133;D;0\x07");
+        fixture.process_bytes(b"\x1b]133;D\x07");
 
         assert_eq!(
             vec![
@@ -722,6 +744,7 @@ mod tests {
                     ..PromptOptions::default()
                 }),
                 PromptChange::End(Scrolline(2)),
+                PromptChange::CommandFinished(None, Scrolline(3)),
             ],
             fixture.processor.collect_prompt_changes()
         );
@@ -778,7 +801,7 @@ mod tests {
         fixture.process_bytes(b"echo ok\r\n");
         fixture.process_bytes(b"\x1b]133;C;cmdline_url=echo%20ok\x07");
         fixture.process_bytes(b"ok\r\n");
-        fixture.process_bytes(b"\x1b]133;D;0\x07");
+        fixture.process_bytes(b"\x1b]133;D\x07");
 
         assert_eq!(
             vec![
@@ -792,6 +815,7 @@ mod tests {
                     ..PromptOptions::default()
                 }),
                 PromptChange::End(Scrolline(1)),
+                PromptChange::CommandFinished(None, Scrolline(2)),
             ],
             fixture.processor.collect_prompt_changes()
         );

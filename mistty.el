@@ -1472,53 +1472,58 @@ Also updates prompt and point."
             (and mistty--need-refresh
                  (not mistty--inhibit-refresh)
                  (not mistty--inhibit)))
-    (let ((inhibit-modification-hooks t)
-          (inhibit-read-only t)
-          (old-point-max (point-max))
-          (point-was-at-cursor (= (point) mistty--cursor))
-          on-prompt)
-      (mistty--inhibit-undo
-       (save-restriction
-         (widen)
-         (setq mistty--need-refresh nil)
-         (setq on-prompt (unless mistty-fullscreen
-                           (mistty-on-prompt-p (mistty-cursor))))
+    (let ((events nil))
+      (let ((inhibit-modification-hooks t)
+            (inhibit-read-only t)
+            (old-point-max (point-max))
+            (point-was-at-cursor (= (point) mistty--cursor))
+            sync-pos
+            sync-scrolline
+            on-prompt )
+        (mistty--inhibit-undo
+         (save-restriction
+           (widen)
+           (setq mistty--need-refresh nil)
+           (setq on-prompt (unless mistty-fullscreen
+                             (mistty-on-prompt-p (mistty-cursor))))
 
-         (let ((keep-markers on-prompt))
-           (mistty-log "refresh (%s)@%s"
-                       (if keep-markers "complete" "quick")
-                       mistty--scrolline-home-num)
-           (pcase-let* ((`(,sync-pos . ,sync-scrolline)
-                         (mistty--term-sync
-                          mistty--term
-                          (current-buffer)
-                          mistty-sync-marker
-                          mistty--scrolline-home-num
-                          keep-markers
-                          mistty--cursor)))
-             (when (or (/= sync-pos mistty-sync-marker)
-                       (/= sync-scrolline mistty--scrolline-home-num))
-               (mistty--set-sync-mark sync-pos sync-scrolline))))
-         (unless mistty-fullscreen
-           (mistty--post-process-prompts on-prompt))
-         ;; Move the point to the cursor, if necessary.
-         (when (process-live-p mistty-proc)
-           (if mistty-fullscreen
-               ;; fullscreen; point follows cursor when in term region
-               (when (or (>= (point) mistty-sync-marker)
-                         mistty-goto-cursor-next-time)
-                 (mistty-goto-cursor))
+           (let ((keep-markers on-prompt))
+             (mistty-log "refresh (%s)@%s"
+                         (if keep-markers "complete" "quick")
+                         mistty--scrolline-home-num)
+             (pcase-setq `(,sync-pos ,sync-scrolline ,events)
+                           (mistty--term-sync
+                            mistty--term
+                            (current-buffer)
+                            mistty-sync-marker
+                            mistty--scrolline-home-num
+                            keep-markers
+                            mistty--cursor)))
+           (when (or (/= sync-pos mistty-sync-marker)
+                     (/= sync-scrolline mistty--scrolline-home-num))
+             (mistty--set-sync-mark sync-pos sync-scrolline))
+           (unless mistty-fullscreen
+             (mistty--post-process-prompts on-prompt))
+           ;; Move the point to the cursor, if necessary.
+           (when (process-live-p mistty-proc)
+             (if mistty-fullscreen
+                 ;; fullscreen; point follows cursor when in term region
+                 (when (or (>= (point) mistty-sync-marker)
+                           mistty-goto-cursor-next-time)
+                   (mistty-goto-cursor))
 
-             ;; not fullscreen; point sometimes follows cursor
-             (when (and (not (eq mistty-goto-cursor-next-time 'off))
-                        (or mistty-goto-cursor-next-time point-was-at-cursor))
-               (mistty-goto-cursor)))
-           (setq mistty-goto-cursor-next-time nil))))
-      (if mistty-fullscreen
-          (mistty--maybe-scroll-fullscreen-windows)
-        (when (> (point-max) old-point-max)
-          (mistty--maybe-scroll-window-down))))
-    (mistty--report-self-inserted-text)))
+               ;; not fullscreen; point sometimes follows cursor
+               (when (and (not (eq mistty-goto-cursor-next-time 'off))
+                          (or mistty-goto-cursor-next-time point-was-at-cursor))
+                 (mistty-goto-cursor)))
+             (setq mistty-goto-cursor-next-time nil))))
+        (if mistty-fullscreen
+            (mistty--maybe-scroll-fullscreen-windows)
+          (when (> (point-max) old-point-max)
+            (mistty--maybe-scroll-window-down))))
+
+      (mistty--report-self-inserted-text)
+      (mistty--handle-sync-events events))))
 
 (defun mistty--post-process-prompts (on-prompt)
   "Update prompt state after syncing.
@@ -1665,6 +1670,23 @@ to figure out a good time to call
         (setq mistty--self-insert-line nil)
         (run-hook-wrapped 'mistty-interactive-insert-hook
                           #'mistty--run-hook-ignoring-errors)))))
+
+(defun mistty--handle-sync-events (events)
+  "Handle events returned by `mistty--term-sync'."
+  (while-let ((ev (pop events)))
+    (mistty-log "mistty-mode EV: %S" ev)
+    (pcase ev
+      (`(command-finished ,status ,scrolline)
+       (let ((pos (mistty--find-scrolline scrolline)))
+         (run-hook-wrapped
+          'mistty-command-finished-hook
+          (lambda (func)
+            (prog1 nil
+              (save-excursion
+                (when pos (goto-char pos))
+                (with-demoted-errors "mistty-command-finished-hook: %s"
+                  (funcall func status))))))))
+      (_ (mistty-log "Unknown event: %S" ev)))))
 
 (defun mistty--run-hook-ignoring-errors (func)
   "Run FUNC with ARGS ignoring any errors.

@@ -1549,8 +1549,9 @@ impl<'a> Handler for HandlerProxy<'a> {
     }
 
     /// OSC 133 D
-    fn command_finished(&mut self, _exit_status: Option<u8>) {
-        self.prompt_detector.osc133_command_end(self.vterm);
+    fn command_finished(&mut self, exit_status: Option<u8>) {
+        self.prompt_detector
+            .osc133_command_finished(self.vterm, exit_status);
     }
 
     /// OSC 7

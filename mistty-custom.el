@@ -855,6 +855,22 @@ for the user to kill."
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-command-finished-hook nil
+  "Hook run when the shell reports a command finished with OSC 133.
+
+This hooks is called when a command has been reported as finished. It
+takes one argument: the command exit status, which may be nil.
+
+It is called with the MisTTY buffer as current buffer with point set at
+the end of the command, on the line where the notification was received,
+that is, at the end of the output (if there is any).
+`mistty-prev-output' and `mistty-prev-input' may be used to get more
+details about the command. 
+
+Note that there might already be a prompt open afterwards."
+  :group 'mistty
+  :type 'hook)
+
 (provide 'mistty-custom)
 
 ;;; mistty-custom.el ends here

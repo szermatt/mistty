@@ -412,7 +412,10 @@ to call `mistty--term-postprocess'.")
   change-before-scrolline
 
   ;; non-nil while in fullscreen mode
-  fs)
+  fs
+
+  ;; list of events collected since the last sync, in reverse order
+  events)
 
 ;; Functions may signal this error if the function cannot return the
 ;; requested value because the buffer containing that value has been
@@ -441,7 +444,8 @@ silently skip BODY."
 (defun mistty--term-eterm-reset (term)
   "Reset internal state."
   (setf (mistty--term-eterm-fs term) nil)
-  (setf (mistty--term-eterm-change-before-scrolline term) nil))
+  (setf (mistty--term-eterm-change-before-scrolline term) nil)
+  (setf (mistty--term-eterm-events term) nil))
 
 (cl-defmethod mistty--create-term
   ((_type (eql 'eterm)) name command
@@ -731,59 +735,61 @@ Any other option is ignored."
 The buffer from SYNC-POS to EOB is rewritten to match TERM's content below
 SYNC-SCROLLINE.  If KEEP-MARKERS is non-nil, keep markers and overlays.
 CURSOR-MARKER is updated to the cursor position."
-  (if (not (buffer-live-p (mistty--term-eterm-buf term)))
-      (mistty--with-live-buffer dest-buffer
-        (save-excursion
-          (goto-char (point-max))
-          (unless (looking-back "Terminal killed\\.\n?" nil)
-            (insert "\n\nTerminal killed.\n"))))
+  (let ((events (nreverse (mistty--term-eterm-events term))))
+    (setf (mistty--term-eterm-events term) nil)
+    (if (not (buffer-live-p (mistty--term-eterm-buf term)))
+        (mistty--with-live-buffer dest-buffer
+          (save-excursion
+            (goto-char (point-max))
+            (unless (looking-back "Terminal killed\\.\n?" nil)
+              (insert "\n\nTerminal killed.\n"))))
 
-    ;; Terminal live
-    (with-current-buffer (mistty--term-eterm-buf term)
-      (let ((home-marker term-home-marker)
-            (home-scrolline (mistty--scrolline-at term-home-marker))
-            (proc (mistty--term-eterm-proc term))
-            (source-buffer (current-buffer)))
-        ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
-        (cond
-         ((< sync-scrolline home-scrolline)
-          (pcase-setq
-           `(,sync-pos . ,sync-scrolline)
-           (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
-         ((mistty--term-eterm-change-before-scrolline term)
-          (mistty-log "Detected terminal change above sync mark, at scrolline %s"
-                      mistty--scrolline-home-num)
-          (pcase-setq
-           `(,sync-pos . ,sync-scrolline)
-           (mistty--realign-buffers
-            source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
+      ;; Terminal live
+      (with-current-buffer (mistty--term-eterm-buf term)
+        (let ((home-marker term-home-marker)
+              (home-scrolline (mistty--scrolline-at term-home-marker))
+              (proc (mistty--term-eterm-proc term))
+              (source-buffer (current-buffer)))
+          ;; Detect shenanigans and update sync-pos and sync-scrolline accordingly
+          (cond
+           ((< sync-scrolline home-scrolline)
+            (pcase-setq
+             `(,sync-pos . ,sync-scrolline)
+             (mistty--catchup home-marker home-scrolline dest-buffer sync-pos sync-scrolline)))
+           ((mistty--term-eterm-change-before-scrolline term)
+            (mistty-log "Detected terminal change above sync mark, at scrolline %s"
+                        mistty--scrolline-home-num)
+            (pcase-setq
+             `(,sync-pos . ,sync-scrolline)
+             (mistty--realign-buffers
+              source-buffer home-scrolline dest-buffer sync-pos sync-scrolline))))
 
-        (setf (mistty--term-eterm-change-before-scrolline term) nil)
+          (setf (mistty--term-eterm-change-before-scrolline term) nil)
 
-        (let ((source-sync-pos (or (mistty--find-scrolline sync-scrolline)
-                                   (mistty--find-scrolline home-scrolline)))
-              (column-count term-width))
-          (if keep-markers
-              (mistty--sync-buffers source-buffer source-sync-pos dest-buffer sync-pos)
-            (mistty--copy-buffers source-buffer source-sync-pos dest-buffer sync-pos))
+          (let ((source-sync-pos (or (mistty--find-scrolline sync-scrolline)
+                                     (mistty--find-scrolline home-scrolline)))
+                (column-count term-width))
+            (if keep-markers
+                (mistty--sync-buffers source-buffer source-sync-pos dest-buffer sync-pos)
+              (mistty--copy-buffers source-buffer source-sync-pos dest-buffer sync-pos))
 
-          (mistty--with-live-buffer dest-buffer
-            (set-marker cursor-marker
-                        (+ sync-pos
-                           (- (process-mark proc) source-sync-pos)))
-            (mistty--copy-buffer-local-variables '(mistty-bracketed-paste) source-buffer)
-            (mistty--copy-buffer-local-variables
-             mistty-variables-to-copy source-buffer)
-            (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
-            (mistty--mark-empty-line-at-eob sync-pos)
-            (when (mistty--term-eterm-fs term)
-              (put-text-property sync-pos (point-max) 'read-only t))))
+            (mistty--with-live-buffer dest-buffer
+              (set-marker cursor-marker
+                          (+ sync-pos
+                             (- (process-mark proc) source-sync-pos)))
+              (mistty--copy-buffer-local-variables '(mistty-bracketed-paste) source-buffer)
+              (mistty--copy-buffer-local-variables
+               mistty-variables-to-copy source-buffer)
+              (mistty--set-term-line-wrap-yank-handler sync-pos (point-max) column-count)
+              (mistty--mark-empty-line-at-eob sync-pos)
+              (when (mistty--term-eterm-fs term)
+                (put-text-property sync-pos (point-max) 'read-only t))))
 
-        (when (and (>= sync-pos home-marker)
-                   (> home-marker 1000))
-          (mistty--truncate-buffer home-marker)))))
+          (when (and (>= sync-pos home-marker)
+                     (> home-marker 1000))
+            (mistty--truncate-buffer home-marker)))))
 
-  (cons sync-pos sync-scrolline))
+    (list sync-pos sync-scrolline events)))
 
 (cl-defmethod mistty--term-sync-backstage ((term mistty--term-eterm) sync-scrolline cursor)
   "Render TERM into the current buffer from SYNC-SCROLLINE.
@@ -1540,6 +1546,11 @@ Everything else is ignored."
              (setf (mistty--prompt-end prompt) (mistty--scrolline-at-point)))))
 
         (?D ;; end of command (possible anytime after ?A)
+         (unless (mistty--term-eterm-fs mistty--eterm)
+           (let ((status (when (string-match "\\`D;\\([0-9]+\\)\\(?:;\\|\\'\\)" osc-seq)
+                           (string-to-number (match-string 1 osc-seq)))))
+             (push (list 'command-finished status (mistty--scrolline-at-point))
+                   (mistty--term-eterm-events mistty--eterm))))
          (when-let* ((prompt (mistty--get-prompt cell)))
            (when (and (eq 'osc133 (mistty--prompt-source prompt))
                       (null (mistty--prompt-end prompt)))

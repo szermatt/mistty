@@ -5691,6 +5691,64 @@ function prompt {
                   (line-beginning-position)
                   (line-end-position)))))
 
+(mistty-deftest mistty-osc133-command-finished-hook
+    (:type all :shell ((zsh "
+setopt no_prompt_sp
+setopt no_prompt_cr
+
+osc133_no_status=''
+function osc133_precmd() {
+      local status_code=$?
+      if [ -n \"$osc133_no_status\" ]; then
+            printf '\\033]133;D\\007'
+      else
+            printf '\\033]133;D;%d\\007' \"$status_code\"
+      fi
+      printf '\\033]133;A\\007'
+}
+precmd_functions+=(osc133_precmd)
+
+function osc133_preexec() {
+      printf '\\033]133;C\\007'
+}
+preexec_functions+=(osc133_preexec)
+")))
+  (let ((called nil)
+        (second-hook-called nil)
+        (mistty-buf (current-buffer)))
+    (add-hook 'mistty-command-finished-hook
+              (lambda (status)
+                (should (eq (current-buffer) mistty-buf))
+                (push (list status (mistty--scrolline-at-point)) called)
+                t)
+              nil t)
+    (add-hook 'mistty-command-finished-hook
+              (lambda (status)
+                (push status second-hook-called))
+              nil t)
+
+    (mistty-send-text "echo hello")
+    (mistty-send-and-wait-for-prompt)
+    (should (equal '((0 2)) (nreverse called)))
+    (should (equal '(0) (nreverse second-hook-called)))
+    (should (equal (point) (mistty-cursor)))
+
+    (setq called nil
+          second-hook-called nil)
+    (mistty-send-text "(exit 42)")
+    (mistty-send-and-wait-for-prompt)
+    (should (equal '((42 3)) (nreverse called)))
+    (should (equal '(42) (nreverse second-hook-called)))
+    (should (equal (point) (mistty-cursor)))
+
+    (setq called nil
+          second-hook-called nil)
+    (mistty-send-text "osc133_no_status=1")
+    (mistty-send-and-wait-for-prompt)
+    (should (equal '((nil 4)) (nreverse called)))
+    (should (equal '(nil) (nreverse second-hook-called)))
+    (should (equal (point) (mistty-cursor)))))
+
 (mistty-deftest mistty-osc133-fish-right-prompt-field
     (:type all :shell ((fish "function fish_prompt; printf '$ \e]133;B\007'; end\n"
                              mistty-test-fish-right-prompt)))

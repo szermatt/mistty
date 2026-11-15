@@ -102,9 +102,6 @@ ignored."
 (cl-defgeneric mistty--term-scrolline-at-screen-top (term)
   "Return the scrolline for he start of TERM's terminal.")
 
-(cl-defgeneric mistty--term-detect-prompt-p (term)
-  "Return non-nil prompt detection should be enabled in TERM.")
-
 (cl-defgeneric mistty--term-lines (term)
   "Return the height of TERM's terminal, in lines.")
 

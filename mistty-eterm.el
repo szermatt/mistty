@@ -707,10 +707,6 @@ Any other option is ignored."
   (mistty--term-with-eterm-buffer term
     (mistty--scrolline-at term-home-marker)))
 
-(cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-eterm))
-  "Return non-nil prompt detection should be enabled in TERM."
-  (not (mistty--term-eterm-fs term)))
-
 (cl-defmethod mistty--term-lines ((term mistty--term-eterm))
   "Return TERM's height."
   (mistty--term-with-eterm-buffer term
@@ -1323,7 +1319,7 @@ Detected prompts can be found in `mistty-prompt'."
    accum
    'CR
    (lambda (ctx _)
-     (when (mistty--term-detect-prompt-p term)
+     (when (not (mistty--term-eterm-fs term))
        ;; If we received at least 8 spaces before the \r (enough to fill
        ;; the look-back buffer) flush and look at the state of the
        ;; buffer just before the \r is taken into account.
@@ -1359,7 +1355,7 @@ Detected prompts can be found in `mistty-prompt'."
    accum
    '(seq CSI "?2004h")
    (lambda (ctx str)
-     (when (mistty--term-detect-prompt-p term)
+     (when (not (mistty--term-eterm-fs term))
        (mistty--accum-ctx-flush ctx)
        (unless mistty-bracketed-paste
          (let* ((inhibit-read-only t)
@@ -1377,7 +1373,7 @@ Detected prompts can be found in `mistty-prompt'."
    accum
    '(seq CSI "?2004l")
    (lambda (ctx str)
-     (when (mistty--term-detect-prompt-p term)
+     (when (not (mistty--term-eterm-fs term))
        (mistty--accum-ctx-flush ctx)
        (when mistty-bracketed-paste
          (when-let* ((end (if (eq ?\n (char-before (point)))

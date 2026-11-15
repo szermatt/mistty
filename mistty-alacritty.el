@@ -533,10 +533,6 @@ Unknown options are ignored."
   "Return the scrolline number of the first line of TERM's terminal."
   (mistty-alacritty-vt-scrolline-at-screen-top (mistty--term-alacritty-vterm term)))
 
-(cl-defmethod mistty--term-detect-prompt-p ((term mistty--term-alacritty))
-  "Return non-nil prompt detection should be enabled in TERM."
-  (not (mistty--term-alacritty-fs term)))
-
 (cl-defmethod mistty--term-lines ((term mistty--term-alacritty))
   "Return the number of lines in TERM (its height)."
   (mistty--term-alacritty-lines term))

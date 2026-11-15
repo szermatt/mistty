@@ -284,31 +284,6 @@ pub(crate) fn render<'a>(
     Ok(result)
 }
 
-/// Render the terminal content on the current buffer.
-///
-/// This call renders only the terminal content, ignoring the
-/// scrollback area. Call [render] to take the scrollback area into
-/// account.
-///
-/// This call may optimize rendering by only updating the portions of
-/// the terminal that have changed since last call to `render` or
-/// `render_damage. For this to work, the range from point to end of
-/// buffer must contain the unmodified result of the previous call.
-///
-/// Rendering is done in the current buffer in the range START to end
-/// of buffer (or earlier if narrowing is enabled).
-///
-/// `cursor_marker` is set to the cursor position if that position has
-/// changed since last call. If the cursor hasn't moved since last
-/// call, the marker might just be left as it is.
-///
-/// The point is not conserved. Wrap this call inside
-/// `save_excursion` if it matters.
-#[defun]
-pub(crate) fn render_screen(env: &Env, term: &mut VTermFacade, cursor_marker: Value) -> Result<()> {
-    render::render_screen(env, &mut term.vterm, cursor_marker)
-}
-
 /// Translate a mouse event into the appropriate terminal sequence.
 ///
 /// `action` is a symbol, either `press` or `release`

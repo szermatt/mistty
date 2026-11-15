@@ -664,17 +664,8 @@ CURSOR-MARKER is updated to the cursor position."
 
           ;; Sync or render
           (cond
-           ;; fullscreen mode, without support for prompts
-           ((mistty--term-alacritty-fs term)
-            (mistty--with-live-buffer dest-buffer
-              (save-excursion
-                (mistty-log "RENDER FULLSCREEN")
-                (goto-char sync-pos)
-                (mistty-alacritty-vt-render-screen vterm cursor-marker)
-                (put-text-property sync-pos (point-max) 'read-only t))))
-
-           ;; direct mode, outside of a prompt
-           ((not keep-markers)
+           ;; direct mode, in fullscreen and outside of a prompt
+           ((or (mistty--term-alacritty-fs term) (not keep-markers))
             (mistty--with-live-buffer dest-buffer
               (let ((old-point (when (< (point) sync-pos (point-max))
                                  (point))))
@@ -687,6 +678,8 @@ CURSOR-MARKER is updated to the cursor position."
                               (- new-scrolline sync-scrolline))
                   (set-marker sync-pos new-start)
                   (setq sync-scrolline new-scrolline))
+                (when (mistty--term-alacritty-fs term)
+                  (put-text-property sync-pos (point-max) 'read-only t))
                 (if old-point
                     (goto-char old-point)
                   (goto-char cursor-marker)))))

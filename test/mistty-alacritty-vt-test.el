@@ -1267,25 +1267,22 @@
                         "line 8")
                        (mistty-test-content :show screen-top :show-property '(term-line-wrap t))))
 
-        ;; 2. Switch to render-screen. A full render of the screen is
-        ;; required even though there was no damage.
+        ;; 2. Switch to alt screen (render-screen). A full render of the
+        ;; screen is required.
+        (mistty-alacritty-vt-process-bytes vterm "\e[?1049h\e[HAlt screen")
         (goto-char screen-top)
-        (mistty-alacritty-vt-render-screen vterm cursor)
+        (pcase-let ((`(,new-top . ,scrollines)
+                     (mistty-alacritty-vt-render vterm cursor 0)))
+          (should (equal 0 scrollines))
+          (set-marker screen-top new-top))
         (should (equal (concat
-                        "wrapped line\n"
-                        "line 0\n"
-                        "line 1\n"
-                        "line 2\n"
-                        "line 3\n"
-                        "line 4\n"
-                        "line 5\n"
-                        "line 6\n"
-                        "line 7\n"
-                        "line 8")
-                       (mistty-test-content :show-property '(term-line-wrap t))))
+                        "Alt screen\n"
+                        "\n\n\n\n\n\n\n\n\n")
+                       (mistty-test-content :trim nil :show-property '(term-line-wrap t))))
 
-        ;; 3. Switch back to render. A full render of the screen is
-        ;; required again even though there was no damage.
+        ;; 3. Switch back to primary screen. A full render of the screen
+        ;; is required again.
+        (mistty-alacritty-vt-process-bytes vterm "\e[?1049l")
         (goto-char (point-min))
         (pcase-let ((`(,new-top . ,scrollines)
                      (mistty-alacritty-vt-render vterm cursor 0)))
@@ -1862,10 +1859,10 @@
 (mistty-deftest mistty-alacritty-vt-render-screen (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))
         (cursor (make-marker)))
-    ;; even mostly empty, the whole screen is drawn
-    (mistty-alacritty-vt-process-bytes term "\r0")
+    ;; even mostly empty, the whole screen is drawn in alt screen mode
+    (mistty-alacritty-vt-process-bytes term "\e[?1049h\r0")
     (ert-with-test-buffer ()
-      (mistty-alacritty-vt-render-screen term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should
        (equal
         (concat
@@ -1885,7 +1882,7 @@
       (dotimes (i 15)
         (mistty-alacritty-vt-process-bytes term (format "\r\n%d" (1+ i))))
       (goto-char (point-min))
-      (mistty-alacritty-vt-render-screen term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should
        (equal
         (concat
@@ -1903,7 +1900,7 @@
 
       (mistty-alacritty-vt-process-bytes term "... and more")
       (goto-char (point-min))
-      (mistty-alacritty-vt-render-screen term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should
        (equal
         (concat
@@ -1922,7 +1919,7 @@
 
       (mistty-alacritty-vt-process-bytes term "\r\n16\r\n17")
       (goto-char (point-min))
-      (mistty-alacritty-vt-render-screen term cursor)
+      (mistty-alacritty-vt-render term cursor 0)
       (should
        (equal
         (concat

@@ -2,6 +2,7 @@ use crate::gridext::{self, CellExt, RowExt};
 use crate::types::Scrolline;
 use crate::vterm::{RenderIndex, VTerm};
 use crate::{gridext::GridExt, types::BufferPos};
+use alacritty_terminal::term::TermMode;
 use alacritty_terminal::{
     Grid,
     grid::{Dimensions, Row},
@@ -186,41 +187,45 @@ pub(crate) fn write_scrollback<'a>(
 /// Render the state of the terminal in a way Emacs understands.
 pub(crate) fn render<'a>(
     env: &'a Env,
-    term: &mut VTerm,
+    vterm: &mut VTerm,
     cursor_marker: Value,
     skip_above: Scrolline,
 ) -> Result<Value<'a>> {
-    let screen_top = term.scrolline_at_screen_top();
+    let screen_top = vterm.scrolline_at_screen_top();
     if skip_above < screen_top {
         write_scrollback(
             env,
-            term,
-            term.scrolline_range(max(term.base_scrolline(), skip_above), screen_top)
+            vterm,
+            vterm
+                .scrolline_range(max(vterm.base_scrolline(), skip_above), screen_top)
                 .map(|(_, row)| row),
         )?;
     }
-    let first_line = if skip_above <= screen_top {
-        term.terminal_line_for_scrolline(screen_top)
-            .unwrap_or(Line(0))
-    } else {
-        term.terminal_line_for_scrolline(skip_above)
-            .unwrap_or(term.bottommost_line() + 1)
-    };
 
-    let mut render = Render::init(env, term)?;
-    render.render(first_line)?;
+    let mut render = if vterm.mode().contains(TermMode::ALT_SCREEN) {
+        let mut render = Render::init(env, vterm)?;
+        render.render_screen()?;
+
+        render
+    } else {
+        let first_line = if skip_above <= screen_top {
+            vterm
+                .terminal_line_for_scrolline(screen_top)
+                .unwrap_or(Line(0))
+        } else {
+            vterm
+                .terminal_line_for_scrolline(skip_above)
+                .unwrap_or(vterm.bottommost_line() + 1)
+        };
+
+        let mut render = Render::init(env, vterm)?;
+        render.render(first_line)?;
+
+        render
+    };
     render.move_cursor_marker(cursor_marker)?;
 
     env.cons(render.start, max(screen_top, skip_above))
-}
-
-/// Render the terminal content on the current buffer.
-pub(crate) fn render_screen(env: &Env, term: &mut VTerm, cursor_marker: Value) -> Result<()> {
-    let mut render = Render::init(env, term)?;
-    render.render_screen()?;
-    render.move_cursor_marker(cursor_marker)?;
-
-    Ok(())
 }
 
 /// Currently active render operation.
@@ -259,7 +264,6 @@ impl<'a> Render<'a> {
     /// Render the whole screen (fullscreen mode).
     fn render_screen(&mut self) -> Result<()> {
         self.render_internal(Line(0), self.term.bottommost_line())?;
-
         Ok(())
     }
 

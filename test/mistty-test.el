@@ -379,12 +379,12 @@
         calls term-proc)
     (add-hook 'mistty-after-process-start-hook
               (lambda () (push `(start
-                                 ,(eq (current-buffer) mistty-work-buffer)
+                                 ,(eq 'mistty-mode major-mode)
                                  ,(and (process-live-p mistty-proc) t))
                                calls)))
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc) (push `(end
-                                     ,(eq (current-buffer) mistty-work-buffer)
+                                     ,(eq 'mistty-mode major-mode)
                                      ,(not (and (process-live-p proc) t))
                                      ,(eq 'exit (and (processp proc) (process-status proc)))
                                      ,(null mistty-proc))
@@ -410,12 +410,12 @@
         calls term-proc)
     (add-hook 'mistty-after-process-start-hook
               (lambda () (push `(start
-                                 ,(eq (current-buffer) mistty-work-buffer)
+                                 ,(eq 'mistty-mode major-mode)
                                  ,(and (process-live-p mistty-proc) t))
                                calls)))
     (add-hook 'mistty-after-process-end-hook
               (lambda (proc) (push `(end
-                                     ,(eq (current-buffer) mistty-work-buffer)
+                                     ,(eq 'mistty-mode major-mode)
                                      ,(not (and (process-live-p proc) t))
                                      ,(eq 'exit (and (processp proc) (process-status proc)))
                                      ,(null mistty-proc))
@@ -1437,7 +1437,7 @@
         (buffer-string))))))
 
 (mistty-deftest mistty-test-enter-fullscreen (:selected t :type all)
-  (let ((work-buffer mistty-work-buffer)
+  (let ((work-buffer (current-buffer))
         (win (selected-window)))
     (should (executable-find "vi"))
     (execute-kbd-macro (kbd "v i RET"))
@@ -1477,7 +1477,7 @@
   (mistty-test-enter-fullscreen "[?1049h" "[?1049l"))
 
 (defun mistty-test-enter-fullscreen (on-seq off-seq)
-  (let ((work-buffer mistty-work-buffer)
+  (let ((work-buffer (current-buffer))
         (proc mistty-proc))
 
     (mistty--send-string proc
@@ -1505,7 +1505,7 @@
                      (mistty-test-content :show (mistty-cursor)))))))
 
 (mistty-deftest mistty-test-call-fullscreen-hooks (:selected t :type all)
-  (let ((work-buffer mistty-work-buffer)
+  (let ((work-buffer (current-buffer))
         (calls (list)))
 
     (add-hook 'mistty-after-process-end-hook
@@ -1541,7 +1541,7 @@
     (should (equal '((enter t) (leave nil)) (nreverse calls)))))
 
 (mistty-deftest mistty-test-live-buffer-p (:type all)
-  (should (mistty-live-buffer-p mistty-work-buffer))
+  (should (mistty-live-buffer-p (current-buffer)))
   (with-temp-buffer
     (should (not (mistty-live-buffer-p (current-buffer))))))
 
@@ -4186,7 +4186,6 @@
     (unwind-protect
         (with-current-buffer buf
           (should (equal 'mistty-mode major-mode))
-          (should (equal buf mistty-work-buffer))
           (should (process-live-p mistty-proc)))
       (let ((kill-buffer-query-functions nil))
         (kill-buffer buf)))))
@@ -4471,7 +4470,7 @@
 
 (mistty-deftest mistty-test-window-size-resize-other-window
     (:selected t :term-size 'window :type all :turtles t)
-  (let ((work-buffer mistty-work-buffer)
+  (let ((work-buffer (current-buffer))
         (work-window (selected-window)))
     ;; initial window, half height
     (mistty-send-text "echo $(tput cols)x$(tput lines)")
@@ -4964,7 +4963,7 @@
                 #'mistty--at-end
                 (lambda (_) (setq called-last (current-buffer)))))
     (setq term-proc mistty-proc)
-    (setq work-buffer mistty-work-buffer)
+    (setq work-buffer (current-buffer))
     (mistty-send-text "exit")
     (mistty-send-command)
     (mistty-wait-for-proc-to-die term-proc)
@@ -6252,7 +6251,7 @@ function prompt {
           (global-goto-address-mode)
           (mistty-with-test-buffer (:type eterm)
             (let ((proc mistty-proc)
-                  (workbuf mistty-work-buffer)
+                  (workbuf (current-buffer))
                   (termbuf (process-buffer mistty-proc)))
               (with-current-buffer termbuf
                 (should-not jit-lock-mode))

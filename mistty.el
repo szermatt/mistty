@@ -246,7 +246,7 @@ non-nil.")
 (defvar mistty-after-process-start-hook nil
   "Report that the MistTTY process started.
 
-This hook is called from `mistty-work-buffer` just after the shell
+This hook is called from the MisTTY buffer just after the shell
 process has been started and attached to the MisTTY window. The process
 is available in `mistty-proc`. Note that the process might not have
 output anything yet; the buffer is likely empty.")
@@ -255,7 +255,7 @@ output anything yet; the buffer is likely empty.")
   "Report that the MisTTY process ended.
 
 This hook is called with PROC as an argument from
-`mistty-work-buffer` just after the shell process ended. PROC is
+the MisTTY buffer just after the shell process ended. PROC is
 guaranteed to be a dead process. Its status can be checked with
 `process-status`.
 
@@ -285,16 +285,6 @@ At the point this hook is called, `mistty-fullscreen` is nil.
 
 The default value reverts the effect of `mistty-toggle-keymap' and
 `mistty-capture-keyboard'.")
-
-(defvar-local mistty-work-buffer nil
-  "The main `mistty-mode' buffer.
-
-This buffer keeps a modifiable history of all commands at the top
-and a view of the terminal modified by the current command at the
-bottom.
-
-While there is normally a `mistty-proc' associated with the buffer, the
-process might be nil if it hasn't been started yet or died.")
 
 (defvar-local mistty-proc nil
   "The process that controls the terminal, usually a shell.")
@@ -779,7 +769,6 @@ This map is active whenever the current buffer is in MisTTY mode."
 (define-derived-mode mistty-mode fundamental-mode "misTTY" "Line-based TTY."
   :interactive nil
   (setq buffer-read-only nil)
-  (setq mistty-work-buffer (current-buffer))
 
   (setq mistty--send-function #'mistty--send-for-mistty-mode)
   (setq mistty--translate-key-function #'mistty--translate-key)
@@ -1424,8 +1413,9 @@ terminal region of WORK-BUFFER in sync with the terminal."
 
 This way, it looks like the buffer was cleared even though history is
 kept."
+  (mistty--check-major-mode)
   (when-let*
-      ((win (get-buffer-window mistty-work-buffer))
+      ((win (get-buffer-window (current-buffer)))
        (screen-start-scrolline (mistty--term-scrolline-at-screen-top mistty--term))
        (screen-start-pos (mistty--find-scrolline screen-start-scrolline)))
     (mistty-log "SCROLL to %s@%s" screen-start-scrolline screen-start-pos)
@@ -1489,7 +1479,7 @@ the point being visible."
   (let ((cursor (mistty-cursor)))
     (when (/= cursor (point))
       (goto-char cursor)
-      (dolist (win (get-buffer-window-list mistty-work-buffer nil t))
+      (dolist (win (get-buffer-window-list (current-buffer) nil t))
         (when (= cursor (window-point win))
           (set-window-parameter win 'mistty--cursor-skip-state nil))))))
 
@@ -1541,7 +1531,7 @@ Also updates prompt and point."
            (pcase-let* ((`(,sync-pos . ,sync-scrolline)
                          (mistty--term-sync
                           mistty--term
-                          mistty-work-buffer
+                          (current-buffer)
                           mistty-sync-marker
                           mistty--scrolline-home-num
                           keep-markers
@@ -1984,9 +1974,9 @@ SCROLLINE is the scrolline at BEG."
       (unless mistty-bracketed-paste
         (user-error "Newlines not supported in this context"))
 
-      (if (and (buffer-live-p mistty-work-buffer)
-               (not (buffer-local-value 'mistty-fullscreen mistty-work-buffer)))
-          (with-current-buffer mistty-work-buffer
+      (mistty--check-major-mode)
+      (if (not mistty-fullscreen)
+          (progn
             (mistty-before-positional)
             (mistty--enqueue
              mistty--queue
@@ -1999,7 +1989,7 @@ SCROLLINE is the scrolline at BEG."
                  (insert nls)
                  (mistty--interact-done)))))
 
-        ;; on term buffer
+        ;; fullscreen
         (mistty--send-string mistty-proc nl-seq)))))
 
 (defun mistty-positional-p (key)
@@ -2034,7 +2024,7 @@ execution.
 
 Normally, it's better to send commands to the terminal application so it
 can decide what to do, but in some cases, this isn't practical."
-  (and (eq (current-buffer) mistty-work-buffer)
+  (and (eq 'mistty-mode major-mode)
        (or mistty--inhibit
            (mistty--active-changeset)
            (not (process-live-p mistty-proc))
@@ -2095,31 +2085,29 @@ KEY in TRANSLATED-KEY. POSITIONAL is not nil if KEY is positionAL.
 
 This is meant to be bound to `mistty--send-function' for `mistty-mode'
 buffers."
+  (mistty--check-major-mode)
   (mistty--require-proc)
   (mistty-log "KEY %s %s" (key-description key) n)
   (let* ((positional (or positional (mistty-positional-p key))))
     (cond
-     ((and (buffer-live-p mistty-work-buffer)
-           (not (buffer-local-value
-                 'mistty-fullscreen mistty-work-buffer)))
-      (with-current-buffer mistty-work-buffer
-        (mistty--pickup-changes)
-        (when (and positional
-                   (not (and (eq this-command 'mistty-self-insert)
-                             (eq last-command 'mistty-self-insert))))
-          (mistty-before-positional))
-        (mistty--enqueue
-         mistty--queue
-         (mistty--interact send-key (interact)
-           (when (eq this-command 'mistty-self-insert)
-             (unless mistty--self-insert-line
-               (setq mistty--self-insert-line
-                     (cons (mistty--distance (mistty--bol (point)) (point)) nil)))
-             (push translated-key (cdr mistty--self-insert-line)))
-           (setq mistty-goto-cursor-next-time t)
-           (mistty--maybe-add-key-to-undo n key (mistty-cursor))
-           (mistty--interact-send interact translated-key)
-           (mistty--interact-done)))))
+     ((not mistty-fullscreen)
+      (mistty--pickup-changes)
+      (when (and positional
+                 (not (and (eq this-command 'mistty-self-insert)
+                           (eq last-command 'mistty-self-insert))))
+        (mistty-before-positional))
+      (mistty--enqueue
+       mistty--queue
+       (mistty--interact send-key (interact)
+         (when (eq this-command 'mistty-self-insert)
+           (unless mistty--self-insert-line
+             (setq mistty--self-insert-line
+                   (cons (mistty--distance (mistty--bol (point)) (point)) nil)))
+           (push translated-key (cdr mistty--self-insert-line)))
+         (setq mistty-goto-cursor-next-time t)
+         (mistty--maybe-add-key-to-undo n key (mistty-cursor))
+         (mistty--interact-send interact translated-key)
+         (mistty--interact-done))))
 
      ((process-live-p mistty-proc)
       (mistty--send-string mistty-proc translated-key))
@@ -3106,7 +3094,7 @@ Return the prompt range that was accepted or nil."
   (mistty-with-errors-logged "post-command-schedule"
     (run-with-idle-timer
      0 nil #'mistty--post-command-1
-     mistty-work-buffer
+     (current-buffer)
      (and mistty--old-point
           (/= (point) mistty--old-point)))))
 
@@ -3135,7 +3123,7 @@ change, unless NOSCHEDULE evaluates to true."
       (unless noschedule
         (run-with-idle-timer
          0 nil #'mistty--post-command-1
-         mistty-work-buffer 'point-moved)))))
+         (current-buffer) 'point-moved)))))
 
 (defun mistty--inhibit-set (sym val &optional noschedule)
   "Add or remove a source of inhibition with SYM as id.
@@ -3250,7 +3238,7 @@ post-command hook."
          0 nil (lambda (buf)
                  (mistty--with-live-buffer buf
                    (mistty--pickup-changes)))
-         mistty-work-buffer)))
+         (current-buffer))))
 
 (defun mistty--pickup-changes ()
   "Pick up changes made to the terminal area to replay them.
@@ -3520,10 +3508,11 @@ This function is meant to be called manually or from the idle-timer,
 (defun mistty--set-process-window-size-from-windows (&optional wins)
   "Adjust process terminal size based on WINS.
 
-WINS default to all the windows displaying `mistty-work-buffer'."
+WINS default to all the windows displaying the current MisTTY buffer."
+  (mistty--check-major-mode)
   (when-let* ((wins (or wins
                         (get-buffer-window-list
-                         mistty-work-buffer nil t))))
+                         (current-buffer) nil t))))
     (let ((w (mistty--terminal-width-from-window (car wins)))
           (h (mistty--terminal-height-from-window (car wins))))
       (dolist (win (cdr wins))
@@ -3613,60 +3602,58 @@ Width and height are limited to `mistty-min-terminal-width' and
     (mistty-log "Left fullscreen mode")))
 
 (defun mistty--update-mode-lines ()
-  "Update the mode lines of the work and term buffers.
+  "Update the mode line of the current MisTTY buffer."
+  (mistty--check-major-mode)
+  (setq mode-line-process
+        (when-let* ((mode (mistty--secondary-mode))
+                    (entry (alist-get mode mistty--secondary-mode-alist)))
+          (let ((button (plist-get entry :button)))
+            (concat
+             " "
+             ;; Display secondary mode
+             (propertize
+              (mistty--tag (plist-get entry :tag))
+              'help-echo (concat
+                          (plist-get entry :help)
+                          (when button
+                            (concat "\nmouse-1: "
+                                    (mistty--mode-line-button button :help))))
+              'mouse-face (when button 'mode-line-highlight)
+              'local-map (mistty--mode-line-button button))
+             ;; Show whether fullscreen map is active
+             (let* ((active (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
+                    (tag (cond
+                          (active (mistty--tag 'keyboard))
+                          (mistty--secondary-mode-map-override
+                           (mistty--tag 'keyboard-inactive))
+                          (t ""))))
+               (when (length> tag 0)
+                 (concat
+                  " "
+                  (propertize
+                   tag
+                   'help-echo (concat
+                               "Fullscreen keymap is " (if active "active" "inactive") "\nmouse-1: "
+                               (mistty--mode-line-button 'keyboard :help))
+                   'mouse-face 'mode-line-highlight
+                   'local-map (mistty--mode-line-button 'keyboard)))))
 
-Ignores buffers that don't exist."
-  (mistty--with-live-buffer mistty-work-buffer
-    (setq mode-line-process
-          (when-let* ((mode (mistty--secondary-mode))
-                      (entry (alist-get mode mistty--secondary-mode-alist)))
-            (let ((button (plist-get entry :button)))
-              (concat
-               " "
-               ;; Display secondary mode
-               (propertize
-                (mistty--tag (plist-get entry :tag))
-                'help-echo (concat
-                            (plist-get entry :help)
-                            (when button
-                              (concat "\nmouse-1: "
-                                      (mistty--mode-line-button button :help))))
-                'mouse-face (when button 'mode-line-highlight)
-                'local-map (mistty--mode-line-button button))
-                ;; Show whether fullscreen map is active
-               (let* ((active (eq 'fullscreen-mode-map (mistty--secondary-mode-map)))
-                      (tag (cond
-                            (active (mistty--tag 'keyboard))
-                            (mistty--secondary-mode-map-override
-                             (mistty--tag 'keyboard-inactive))
-                            (t ""))))
+             ;; Display and toggle mouse reporting
+             (when mistty--mouse-reporting-requested
+               (let* ((tag (mistty--tag (if mistty--mouse-reporting
+                                            'mouse 'mouse-inactive))))
                  (when (length> tag 0)
                    (concat
                     " "
                     (propertize
                      tag
-                     'help-echo (concat
-                                 "Fullscreen keymap is " (if active "active" "inactive") "\nmouse-1: "
-                                 (mistty--mode-line-button 'keyboard :help))
+                     'help-echo (format
+                                 "Report mouse %s: %s\nmouse-1: %s"
+                                 (symbol-name mistty--mouse-reporting-requested)
+                                 (if mistty--mouse-reporting "ON" "OFF")
+                                 (mistty--mode-line-button 'mouse :help))
                      'mouse-face 'mode-line-highlight
-                     'local-map (mistty--mode-line-button 'keyboard)))))
-
-               ;; Display and toggle mouse reporting
-               (when mistty--mouse-reporting-requested
-                 (let* ((tag (mistty--tag (if mistty--mouse-reporting
-                                              'mouse 'mouse-inactive))))
-                   (when (length> tag 0)
-                     (concat
-                      " "
-                      (propertize
-                       tag
-                       'help-echo (format
-                                   "Report mouse %s: %s\nmouse-1: %s"
-                                   (symbol-name mistty--mouse-reporting-requested)
-                                   (if mistty--mouse-reporting "ON" "OFF")
-                                   (mistty--mode-line-button 'mouse :help))
-                       'mouse-face 'mode-line-highlight
-                       'local-map (mistty--mode-line-button 'mouse)))))))))))
+                     'local-map (mistty--mode-line-button 'mouse))))))))))
 
   (force-mode-line-update))
 
@@ -3717,11 +3704,8 @@ or by :menu, in `mistty--mode-line-button-alist'."
 (defun mistty-toggle ()
   "Toggle between the scrollback and terminal areas."
   (interactive)
+  (mistty--check-major-mode)
   (cond
-   ;; go from term buffer to mistty buffer
-   ((not (eq (current-buffer) mistty-work-buffer))
-    (switch-to-buffer mistty-work-buffer))
-
    ;; go from terminal area to scrollback area
    ((>= (point) mistty-sync-marker)
     (when (<= mistty-sync-marker (point-min))
@@ -4122,15 +4106,15 @@ as inactive, which turns MisTTY on again and triggers replaying
 of any changes made in the terminal zone during that
 command (unless a command with another ID is active; check with
 `mistty-long-running-command-p')."
-  (with-current-buffer mistty-work-buffer
-    (mistty--inhibit-set id active)))
+  (mistty--check-major-mode)
+  (mistty--inhibit-set id active))
 
 (defun mistty-long-running-command-p ()
   "Return non-nil if a long-running command is active.
 
 See `mistty-report-long-running-command'."
-  (with-current-buffer mistty-work-buffer
-    (if mistty--inhibit t nil)))
+  (mistty--check-major-mode)
+  (if mistty--inhibit t nil))
 
 (defun mistty-ignore-long-running-command ()
   "Ignore any long-running command currently active.
@@ -4143,12 +4127,12 @@ problem, however, which might be a bug in usage of
 later case, please file a bug report on
 https://github.com/szermatt/mistty/issues"
   (interactive)
-  (with-current-buffer mistty-work-buffer
-    (if mistty--inhibit
-        (progn
-          (message "MisTTY: ignore long-running command %s" mistty--inhibit)
-          (mistty--inhibit-clear))
-      (error "MisTTY: no long-running command is active"))))
+  (mistty--check-major-mode)
+  (if mistty--inhibit
+      (progn
+        (message "MisTTY: ignore long-running command %s" mistty--inhibit)
+        (mistty--inhibit-clear))
+    (error "MisTTY: no long-running command is active")))
 
 (defun mistty--wrap-capf-functions ()
   "Wrap the content `completion-at-point-functions' locally.
@@ -4256,9 +4240,9 @@ The ID corresponds to an entry in `mistty--secondary-mode-alist'."
 
 This should be called after changing anything that affects the secondary
 mode."
+  (mistty--check-major-mode)
   (mistty-log "Update secondary mode")
-  (when (eq (current-buffer) mistty-work-buffer)
-    (mistty--update-secondary-mode-map))
+  (mistty--update-secondary-mode-map)
   (mistty--update-mode-lines))
 
 (defun mistty--secondary-mode-map ()
@@ -4620,7 +4604,7 @@ If DELTA is negative, the window height is increased."
         (select-window win))
 
       (with-current-buffer buf
-        (when (eq buf mistty-work-buffer)
+        (when (eq 'mistty-mode major-mode)
           (let ((proc (mistty--term-proc mistty--term)))
             ;; Move point to cursor, if necessary.
             (goto-char mistty--cursor)
@@ -4702,10 +4686,9 @@ used in hooks that report change to the selection or buffer of WIN."
                          (eq w (frame-selected-window f)))))
                     (get-buffer-window-list buf nil t))))))
 
-        (mistty--with-live-buffer mistty-work-buffer
-          (unless (eq focused (not (not mistty--focused)))
-            (setq mistty--focused focused)
-            (mistty--report-focus)))))))
+        (unless (eq focused (not (not mistty--focused)))
+          (setq mistty--focused focused)
+          (mistty--report-focus))))))
 
 (defun mistty--report-focus ()
   "Report focus to the application, if enabled."

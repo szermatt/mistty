@@ -42,33 +42,9 @@
 (autoload 'ansi-osc-hyperlink-handler "ansi-osc")
 
 (define-obsolete-variable-alias
-  'mistty-fullscreen-map  'mistty-term-mode-map "1.5.1snapshot")
-
-(defvar-keymap mistty-term-mode-map
-  :parent term-raw-map
-  :doc "Keymap active in eterm terminal.
-
-This keymap overwrites some bindings from `term-raw-map'.
-
-`mistty-fullscreen-mode-map' is normally the map you want to configure.
-
-This map is ignored when using alacritty as a terminal."
-
-    ;; Mirror keybindings from mistty-mode-map, for consistency.
-    "C-c C-c" #'mistty-send-last-key
-    "C-c C-z" #'mistty-send-last-key
-    "C-c C-\\" #'mistty-send-last-key
-    "C-c C-g" #'mistty-send-last-key
-
-    ;; This only applies if term-bind-function-keys is non-nil.
-    "<remap> <term-send-function-key>" #'mistty-send-key
-
-    ;; Disable the "Terminal" menu; nothing that it contains should be
-    ;; used on Term buffers used by MisTTY.
-    "<menu-bar> <terminal>" nil
-
-    ;; switching the term buffer to line mode would cause issues.
-    "<remap> <term-line-mode>" nil)
+  'mistty-fullscreen-map 'mistty-fullscreen-mode-map "1.5.1snapshot")
+(define-obsolete-variable-alias
+  'mistty-term-mode-map 'mistty-fullscreen-mode-map "2.3")
 
 (defvar mistty--eterm-key-map
   (let ((map (make-sparse-keymap)))
@@ -499,7 +475,6 @@ REPORT-FOCUS control whether focus changes should be reported."
       (setq-local term-width width)
       (setq-local term-height height)
       (setq-local term-command-function #'mistty--term-command-hook)
-      (setq-local mistty--translate-key-function #'mistty--eterm-translate-key)
       (setq-local scroll-margin 0)
 
       ;; This makes sure the obsolete option
@@ -518,14 +493,10 @@ REPORT-FOCUS control whether focus changes should be reported."
                      #'mistty--emulate-terminal)))
         (setq-local mistty--eterm term)
 
-        ;; TRAMP sets adjust-window-size-function to #'ignore, which
-        ;; prevents normal terminal resizing from working. This turns
-        ;; it on again.
-        (process-put proc 'adjust-window-size-function nil)
+        (process-put proc 'adjust-window-size-function #'ignore)
         (process-put proc 'mistty-term term)
         (set-process-window-size proc height width)
         (set-process-filter proc accum)
-        (setq-local term-raw-map mistty-term-mode-map)
         (term-char-mode)
         (add-hook 'after-change-functions #'mistty--after-change-on-term nil t)
 
@@ -876,15 +847,11 @@ KEY is an Emacs key event and N the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal."
-  (mistty--eterm-translate-key key (or n 1)))
+  (mistty--translate-key-default key (or n 1) mistty--eterm-key-map))
 
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'eterm)))
   "List the basic type of special event types (special keys)."
   (mistty--list-basic-types-from-map mistty--eterm-key-map))
-
-(defun mistty--eterm-translate-key (key n)
-  "Translate KEY N times for eterm."
-  (mistty--translate-key-default key n mistty--eterm-key-map))
 
 (defun mistty--term-postprocess-changed (accum term)
   "Set \\='mistty-skip on the regions changed since last call.

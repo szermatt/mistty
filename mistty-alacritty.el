@@ -23,7 +23,7 @@
 (require 'seq)
 (require 'mistty-term-base)
 (require 'mistty-custom)
-(require 'mistty-term)
+(require 'mistty-prompt)
 (require 'mistty-accum)
 (require 'mistty-kbd)
 (require 'mistty-scrolline)

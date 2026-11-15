@@ -15,7 +15,6 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'mistty-kbd)
-(require 'mistty-term)
 (require 'ert)
 (require 'ert-x)
 

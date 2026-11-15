@@ -27,6 +27,7 @@
 (require 'mistty-changeset)
 (require 'mistty-log)
 (require 'mistty-queue)
+(require 'mistty-util)
 
 (defvar mistty-test-bash-exe (executable-find "bash"))
 (defvar mistty-test-zsh-exe (executable-find "zsh")) ;; optional
@@ -905,11 +906,11 @@ This is useful after files have changed, such as after checking
                   "mistty-osc-colors.el"
                   "mistty-osc7.el"
                   "mistty-project.el"
+                  "mistty-prompt.el"
                   "mistty-queue.el"
                   "mistty-scrolline.el"
                   "mistty-sync.el"
                   "mistty-term-base.el"
-                  "mistty-term.el"
                   "mistty-undo.el"
                   "mistty-util.el"
                   "mistty.el"))

@@ -49,7 +49,7 @@
 (require 'mistty-accum)
 (eval-when-compile
   (require 'mistty-accum-macros))
-(require 'mistty-term)
+(require 'mistty-prompt)
 (require 'mistty-util)
 (require 'mistty-log)
 (require 'mistty-queue)

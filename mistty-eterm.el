@@ -30,10 +30,11 @@
 
 (require 'mistty-custom)
 (require 'mistty-term-base)
-(require 'mistty-term)
+(require 'mistty-prompt)
 (require 'mistty-accum)
 (require 'mistty-scrolline)
 (require 'mistty-sync)
+(require 'mistty-util)
 (eval-when-compile
   (require 'mistty-accum-macros))
 

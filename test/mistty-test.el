@@ -31,6 +31,7 @@
 (require 'mistty-changeset)
 (require 'mistty-log)
 (require 'mistty-queue)
+(require 'mistty-util)
 
 (mistty-deftest mistty-test-simple-command (:shell (bash zsh fish) :type all)
   (mistty-send-text "echo hello")

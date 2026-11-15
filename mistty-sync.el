@@ -21,6 +21,8 @@
 ;; destination buffers as much as possible. This is based on
 ;; replace-region-contents.
 
+(require 'mistty-util)
+
 ;;; Code:
 
 (defvar-local mistty--point-marker nil

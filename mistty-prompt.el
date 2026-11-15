@@ -1,4 +1,4 @@
-;;; mistty-term.el --- Extensions for term.el for MisTTY -*- lexical-binding: t -*-
+;;; mistty-prompt.el --- Prompt type MisTTY -*- lexical-binding: t -*-
 
 ;; This program is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -16,24 +16,12 @@
 
 ;;; Commentary:
 ;;
-;; This file collects helpers for mistty.el that deal with the
-;; terminal buffer.
+;; This file define a prompt type, to be used in terminal
+;; implementations.
 
-(require 'pcase)
-(require 'subr-x)
 (require 'cl-lib)
+(require 'subr-x)
 (require 'text-property-search)
-
-(require 'mistty-custom)
-(require 'mistty-scrolline)
-(require 'mistty-util)
-(require 'mistty-log)
-(require 'mistty-accum)
-(eval-when-compile
-  (require 'mistty-accum-macros))
-(require 'mistty-kbd)
-(require 'mistty-osc7)
-(require 'mistty-term-base)
 
 ;;; Code:
 
@@ -111,6 +99,6 @@ The old prompt, if any, is pushed into the archive."
     (push old (mistty--prompt-cell-archive cell)))
   (setf (mistty--prompt-cell-current cell) prompt))
 
-(provide 'mistty-term)
+(provide 'mistty-prompt)
 
-;;; mistty-term.el ends here
+;;; mistty-prompt.el ends here

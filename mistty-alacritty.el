@@ -541,10 +541,6 @@ Unknown options are ignored."
   "Return the number of columns in TERM (its width)."
   (mistty--term-alacritty-columns term))
 
-(cl-defmethod mistty--term-cursor-linecol ((term mistty--term-alacritty))
-  "Return the terminal line and column of the cursor in TERM."
-  (mistty-alacritty-vt-cursor (mistty--term-alacritty-vterm term)))
-
 (cl-defmethod mistty--term-resize ((term mistty--term-alacritty) width height)
   "Resize TERM to WIDTH columns and HEIGHT lines."
   (if (or (/= (mistty--term-alacritty-columns term) width)

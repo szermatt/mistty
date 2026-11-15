@@ -108,14 +108,6 @@ ignored."
 (cl-defgeneric mistty--term-columns (term)
   "Return the width of TERM's terminal, in columns.")
 
-(cl-defgeneric mistty--term-cursor-linecol (term)
-  "Return the position of TERM's cursor as (LINE . COL).
-
-The position of the cursor in terms of characters is available as the
-process marker. This is different, especially the column number as in
-general, in unicode, there's no direct link between character count and
-column number.")
-
 (cl-defgeneric mistty--term-resize (term width height)
   "Set the terminal size for TERM to WIDTH x HEIGHT.")
 

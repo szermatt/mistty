@@ -717,11 +717,6 @@ Any other option is ignored."
   (mistty--term-with-eterm-buffer term
     term-width))
 
-(cl-defmethod mistty--term-cursor-linecol ((term mistty--term-eterm))
-  "Return TERM's cursor position in the terminal."
-  (mistty--term-with-eterm-buffer term
-    (cons (term-current-row) (term-current-column))))
-
 (cl-defmethod mistty--term-resize ((term mistty--term-eterm) width height)
   "Resize TERM's terminal to WIDTH x HEIGHT."
   (set-process-window-size (mistty--term-eterm-proc term) height width)
@@ -1326,7 +1321,7 @@ Detected prompts can be found in `mistty-prompt'."
        (when (string= "        " (mistty--accum-ctx-look-back ctx))
          (mistty--accum-ctx-flush ctx)
          (when (or (and (= (1- (mistty--term-columns term))
-                           (cdr (mistty--term-cursor-linecol term)))
+                           (term-current-column))
                         (eq ?\  (char-before (point))))
                    (and (get-text-property (pos-eol 0) 'term-line-wrap)
                         (string-match "^ *$" (buffer-substring (pos-bol) (pos-eol)))))

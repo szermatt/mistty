@@ -856,10 +856,10 @@ differently from modifications made inside of the synced region."
       (setq left-margin-width (default-value 'left-margin-width)))
     (overlay-put mistty--sync-ov 'line-prefix nil)))
 
-(defsubst mistty--require-work-buffer ()
+(defun mistty--check-major-mode ()
   "Asserts that the current buffer is the work buffer."
-  (unless (eq mistty-work-buffer (current-buffer))
-    (error "Work buffer required, got %s" (buffer-name))))
+  (unless (eq 'mistty-mode major-mode)
+    (error "MisTTY buffer required, got %s" major-mode)))
 
 (defsubst mistty--require-proc ()
   "Asserts that the current buffer has a live process."
@@ -984,10 +984,6 @@ window."
   "Attach the current `mistty-mode' buffer to TERM."
   (let ((work-buffer (current-buffer))
         (proc (mistty--term-proc term)))
-
-    (when proc
-      (process-put proc 'mistty-work-buffer work-buffer))
-
     (setq mistty--term term)
     (setq mistty-proc proc)
     (setq mistty--queue (mistty--make-queue proc))
@@ -1022,7 +1018,7 @@ Returns M or a new marker."
 
 (defun mistty--detach ()
   "Detach the current `mistty-mode' buffer from its process."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
 
   (mistty--remove-replay-hooks)
   (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
@@ -1437,7 +1433,7 @@ kept."
 
 (defun mistty--clear-scrollback ()
   "Clear the work buffer above `mistty-sync-marker'."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (when (< (point) mistty-sync-marker)
     (goto-char mistty-sync-marker)
     (setq mistty-goto-cursor-next-time 1))
@@ -1461,7 +1457,7 @@ not just the cursor, so that things like TAB expansion are usable."
 
 (defun mistty--maybe-scroll-fullscreen-windows ()
   "Anchor the top of the terminal to the top of the window."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (dolist (win (get-buffer-window-list))
     (when (and (>= (window-point win) mistty-sync-marker)
                (< (window-start win) mistty-sync-marker))
@@ -1473,7 +1469,7 @@ not just the cursor, so that things like TAB expansion are usable."
 If there's something below the point in a prompt, the window down so
 it's visible. Emacs won't do it on its own, since all it cares about is
 the point being visible."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (when (and (equal (point) (mistty-cursor))
              (mistty-on-prompt-p (point)))
     (let* ((pos (point))
@@ -1506,7 +1502,7 @@ is updated after each refresh"
 
 (defun mistty--needs-refresh ()
   "Let next call to `mistty--refresh' know there's something to refresh."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (setq mistty--need-refresh t))
 
 (defun mistty--refresh (&optional forced)
@@ -1521,7 +1517,7 @@ If refreshing is disabled, with `mistty--inhibit-refresh', this
 function just sets `mistty--need-refresh' and returns.
 
 Also updates prompt and point."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (when (or forced
             (and mistty--need-refresh
                  (not mistty--inhibit-refresh)
@@ -1809,7 +1805,7 @@ Does not update `mistty--can-move-vertically'."
   "Delete everything int the MisTTY buffer until CUTOFF.
 
 Fails if CUTOFF is inside the synced region."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (save-restriction
     (widen)
     (when (> cutoff mistty-sync-marker)
@@ -1837,7 +1833,7 @@ SYNC-POS is a position on the work buffer that marks the start of the
 terminal region.
 
 SCROLLINE is a scrolline that's currently visible on the terminal."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (unless (and (= sync-pos mistty-sync-marker)
                (= scrolline mistty--scrolline-home-num))
     (mistty-log "MOVE SYNC MARKER %s to %s at scrolline %s"
@@ -3241,7 +3237,7 @@ post-command hook."
 
 (defun mistty--cancel-pickup-changes ()
   "Cancel any scheduled pickup change timer."
-  (mistty--require-work-buffer)
+  (mistty--check-major-mode)
   (when (timerp mistty--pickup-changes-timer)
     (cancel-timer mistty--pickup-changes-timer)
     (setq mistty--pickup-changes-timer nil)))
@@ -3868,7 +3864,6 @@ The value of the buffer-local variables `mistty-log', and
       (setq-local mistty-sync-marker (point-min))
       (mistty--init-scrolline (point-min) sync-scrolline)
       (setq-local mistty--term term)
-      (setq-local mistty-proc (mistty--term-proc term))
       (setq-local mistty--cursor (make-marker))
       (mistty--update-backstage))
     backstage))

@@ -4731,6 +4731,35 @@ used in hooks that report change to the selection or buffer of WIN."
         (mistty-log "SEND %S (FOCUS %s)" seq msg)
         (process-send-string proc seq)))))
 
+(defvar-local mistty--original-cursor nil
+  "The local value `cursor-type' had before it was hidden.
+
+Will be nil even though the cursor is hidden if the cursor had no
+local value. `mistty--show-cursor' then restores the global
+value.
+
+Used in `mistty--hide-cursor' and `mistty--show-cursor'.")
+
+(defun mistty--hide-cursor ()
+  "Temporarily hide the cursor.
+
+Does nothing if the cursor is already hidden."
+  (when cursor-type
+    (if (local-variable-p 'cursor-type)
+        (setq mistty--original-cursor cursor-type)
+      (setq mistty--original-cursor nil))
+    (setq cursor-type nil)))
+
+(defun mistty--show-cursor ()
+  "Show the cursor again, after `mistty--hide-cursor'.
+
+Does nothing if the cursor is already shown."
+  (when (and (local-variable-p 'cursor-type) (null cursor-type))
+    (if mistty--original-cursor
+        (setq cursor-type mistty--original-cursor
+              mistty--original-cursor nil)
+      (kill-local-variable 'cursor-type))))
+
 (provide 'mistty)
 
 ;;; mistty.el ends here

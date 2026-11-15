@@ -1014,6 +1014,38 @@ Newline is only marked if after SYNC-POS."
 
       buf)))
 
+
+(defun mistty--find-marked-scrolline (scrolline)
+  "Find a scrolline using the \\='mistty-scrollback mark.
+
+This function is meant to find SCROLLINE in the scrollback buffer zone,
+which might have been modified. If SCROLLINE <
+`mistty--scrolline-home-num', this function returns nil.
+
+Return nil or (cons POS ACTUAL) with ACTUAL possibly being smaller than
+SCROLLINE."
+  (let ((prop (save-excursion
+                (goto-char mistty--scrolline-home-mark)
+                (text-property-search-backward
+                 'mistty-scrolline
+                 scrolline ;; goal
+                 (lambda (goal val)
+                   (and val (<= val goal)))))))
+    (cond
+     ;; Found exact scrolline, align there or below if rows match
+     ((and prop (= scrolline (prop-match-value prop)))
+      (cons (prop-match-beginning prop) scrolline))
+
+     ;; Found actual < scrolline, return the position at the end of
+     ;; actual, which we report as actual+1.
+     (prop
+      (cons
+       (min (mistty--bol (prop-match-beginning prop) 2)
+            mistty--scrolline-home-mark)
+       (1+ (prop-match-value prop))))
+
+     (t nil))))
+
 (provide 'mistty-alacritty)
 
 ;;; mistty-alacritty.el ends here

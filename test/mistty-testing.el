@@ -910,7 +910,7 @@ This is useful after files have changed, such as after checking
                   "mistty-queue.el"
                   "mistty-scrolline.el"
                   "mistty-sync.el"
-                  "mistty-term-base.el"
+                  "mistty-term.el"
                   "mistty-undo.el"
                   "mistty-util.el"
                   "mistty.el"))

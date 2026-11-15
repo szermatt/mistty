@@ -17,11 +17,11 @@
 ;;; Commentary:
 ;;
 ;; This file defines a terminal backend as described in
-;; mistty-term-base.el that is based on the alacritty-vt module.
+;; mistty-term.el that is based on the alacritty-vt module.
 
 (require 'cl-lib)
 (require 'seq)
-(require 'mistty-term-base)
+(require 'mistty-term)
 (require 'mistty-custom)
 (require 'mistty-prompt)
 (require 'mistty-accum)

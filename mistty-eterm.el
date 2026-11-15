@@ -16,7 +16,7 @@
 
 ;;; Commentary:
 ;;
-;; This file implements generic methods defined in mistty-term-base.el
+;; This file implements generic methods defined in mistty-term.el
 ;; on top of mistty-alacritty.el The resulting terminal is an alacritty
 ;; terminal (TERM=eterm).
 
@@ -29,7 +29,7 @@
 (defvar term-home-marker) ; defined in term.el
 
 (require 'mistty-custom)
-(require 'mistty-term-base)
+(require 'mistty-term)
 (require 'mistty-prompt)
 (require 'mistty-accum)
 (require 'mistty-scrolline)

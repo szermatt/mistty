@@ -1,4 +1,4 @@
-;;; mistty-term-base.el --- Generic methods for terminal access -*- lexical-binding: t -*-
+;;; mistty-term.el --- Generic methods for terminal access -*- lexical-binding: t -*-
 
 ;; This program is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -225,7 +225,7 @@ fullscreen mode."
   "End the current regexp prompt for TERM, if any."
   nil)
 
-(provide 'mistty-term-base)
+(provide 'mistty-term)
 
-;;; mistty-term-base.el ends here
+;;; mistty-term.el ends here
 

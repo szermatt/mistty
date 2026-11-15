@@ -1,4 +1,4 @@
-;;; Tests mistty-term-eterm.el -*- lexical-binding: t -*-
+;;; Tests mistty-eterm.el -*- lexical-binding: t -*-
 
 ;; This program is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -14,7 +14,7 @@
 ;; along with this program.  If not, see
 ;; `http://www.gnu.org/licenses/'.
 
-(require 'mistty-term-eterm)
+(require 'mistty-eterm)
 (require 'test/mistty-testing)
 (require 'ert)
 (require 'ert-x)

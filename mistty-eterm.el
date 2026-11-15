@@ -1,4 +1,4 @@
-;;; mistty-term-eterm.el --- Use term.el to create the terminal -*- lexical-binding: t -*-
+;;; mistty-eterm.el --- Use term.el to create the terminal -*- lexical-binding: t -*-
 
 ;; This program is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -1637,6 +1637,6 @@ Copies values from SOURCE-BUFFER to the current buffer."
       (make-local-variable var)
       (set var (buffer-local-value var source-buffer)))))
 
-(provide 'mistty-term-eterm)
+(provide 'mistty-eterm)
 
-;;; mistty-term-eterm.el ends here
+;;; mistty-eterm.el ends here

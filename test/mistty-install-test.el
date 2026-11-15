@@ -15,7 +15,7 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'ert)
-(require 'mistty-alacritty)
+(require 'mistty-term-alacritty)
 (require 'mistty-install)
 (require 'test/mistty-testing)
 (require 'web-server nil 'noerror)

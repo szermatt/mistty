@@ -21,8 +21,8 @@
 
 (require 'pcase)
 (require 'subr-x)
-(eval-when-compile
-  (require 'cl-lib))
+(require 'cl-lib)
+(require 'text-property-search)
 
 (require 'mistty-custom)
 (require 'mistty-scrolline)

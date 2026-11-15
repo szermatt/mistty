@@ -33,6 +33,7 @@
 (require 'mistty-term)
 (require 'mistty-accum)
 (require 'mistty-scrolline)
+(require 'mistty-sync)
 (eval-when-compile
   (require 'mistty-accum-macros))
 

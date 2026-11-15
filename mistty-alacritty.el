@@ -27,6 +27,7 @@
 (require 'mistty-accum)
 (require 'mistty-kbd)
 (require 'mistty-scrolline)
+(require 'mistty-sync)
 (require 'mistty-util)
 (eval-when-compile
   (require 'mistty-accum-macros))

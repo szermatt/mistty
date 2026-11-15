@@ -213,6 +213,29 @@ This is meant to be set as `end-of-defun-function' in MisTTY buffers."
     (prog1 t
       (goto-char (mistty--prompt-ranges-end ranges)))))
 
+(defun mistty-previous-cmdline (n &optional merge-lines)
+  "Extract the command line of the previous Nth command above point.
+
+This function behaves as `mistty-previous-input' and return the
+command-line associated with the input, if possible. The command line
+may be parsed from the prompt or may have been given by the shell using
+OSC 133.
+
+If MERGE-LINES is non-nil, newlines are replaced with \";\" in the
+output.
+
+It returns nil if no command could be extracted or no previous command
+could be found."
+  (when-let* ((prompt (mistty--navigator-nth
+                     'backward n
+                     (lambda (prompt)
+                       ;; Accept the prompt around point only when point is in
+                       ;; its output; never accept the active prompt (where
+                       ;; output is point-max).
+                       (and (>= (point) (mistty--prompt-ranges-output prompt))
+                            (not (mistty--prompt-ranges-current-p prompt)))))))
+      (mistty--prompt-ranges-cmdline prompt merge-lines)))
+
 (defun mistty-next-input (n)
   "Move the point to the Nth next input in the buffer."
   (interactive "p")

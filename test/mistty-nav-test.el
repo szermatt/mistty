@@ -563,6 +563,35 @@ preexec_functions+=(osc133_preexec)
                   "$ echo current")
           (mistty-test-content :show (point)))))
 
+(mistty-deftest mistty-test-previous-cmdline (:type all)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (should (equal "echo current" (mistty-previous-cmdline 0)))
+  (should (equal "echo three" (mistty-previous-cmdline 1)))
+  (should (equal "echo two" (mistty-previous-cmdline 2)))
+  (should (equal "echo one" (mistty-previous-cmdline 3)))
+  (should (equal nil (mistty-previous-cmdline 4))))
+
+(mistty-deftest mistty-test-previous-cmdline-multiline (:type all :shell fish)
+  (mistty-run-command
+   (insert "for i in a b c\necho $i\nend"))
+  (mistty-send-and-wait-for-prompt)
+
+  (should (equal "for i in a b c\necho $i\nend"
+                 (mistty-previous-cmdline 1)))
+  (should (equal "for i in a b c; echo $i; end"
+                 (mistty-previous-cmdline 1 'merge-lines))))
+
 (mistty-deftest mistty-test-next-input-empty-prompt (:type all)
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)

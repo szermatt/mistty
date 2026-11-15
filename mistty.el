@@ -2712,7 +2712,6 @@ left/right/C-a/C-e."
         ((< direction 0) '(bol left))
         (t '(eol right)))))))
 
-
 (defun mistty-clear (n)
   "Clear the MisTTY buffer until the end of the last output.
 

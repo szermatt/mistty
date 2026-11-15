@@ -20,7 +20,7 @@
 ;; installing the appropriate module.
 
 (require 'mistty-custom)
-(require 'mistty-term-alacritty)
+(require 'mistty-alacritty)
 (require 'cl-lib)
 (require 'url)
 

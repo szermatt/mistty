@@ -56,7 +56,7 @@
 (require 'mistty-scrolline)
 (require 'mistty-undo)
 (require 'mistty-term-base)
-(require 'mistty-term-alacritty)
+(require 'mistty-alacritty)
 (require 'mistty-term-eterm)
 (require 'nerd-icons nil 'noerror) ;; optional
 

@@ -1,4 +1,4 @@
-;;; mistty-term-alacritty.el --- Use the alacritty library to run the terminall -*- lexical-binding: t -*-
+;;; mistty-alacritty.el --- Use the alacritty library to run the terminall -*- lexical-binding: t -*-
 
 ;; This program is free software: you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -1014,6 +1014,6 @@ Newline is only marked if after SYNC-POS."
 
       buf)))
 
-(provide 'mistty-term-alacritty)
+(provide 'mistty-alacritty)
 
-;;; mistty-term-alacritty.el ends here
+;;; mistty-alacritty.el ends here

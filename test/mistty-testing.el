@@ -906,7 +906,6 @@ This is useful after files have changed, such as after checking
                   "mistty-project.el"
                   "mistty-queue.el"
                   "mistty-scrolline.el"
-                  "mistty-term-alacritty.el"
                   "mistty-term-base.el"
                   "mistty-term-eterm.el"
                   "mistty-term.el"

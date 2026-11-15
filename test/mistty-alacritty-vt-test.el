@@ -15,7 +15,7 @@
 ;; `http://www.gnu.org/licenses/'.
 
 (require 'ert)
-(require 'mistty-term-alacritty) ; loads mistty-alacritty-vt
+(require 'mistty-alacritty) ; loads mistty-alacritty-vt
 (require 'test/mistty-testing)
 (require 'turtles nil 'noerror)
 

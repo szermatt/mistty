@@ -66,7 +66,7 @@ Return nil if no cmdline was provided and it couldn't be extracted."
                                          beg end 'mistty-cmdline nil)))
                          (get-text-property pos 'mistty-cmdline))
                        (mistty--extract-cmdline prompt-ranges))))
-        (if merge-lines
+        (if (and merge-lines cmdline)
             (replace-regexp-in-string
              "[[:blank:]]*\n[[:blank:]]*"
              mistty-newline-replacement cmdline)

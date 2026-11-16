@@ -44,36 +44,44 @@
   current-p
 
   ;; Command-line set through OSC 133
-  osc133-cmdline)
+  osc133-cmdline
+
+  ;; Start of user input set through OSC 133 (buffer position)
+  osc133-user-input-start)
 
 (defsubst mistty--prompt-ranges-empty-p (prompt-ranges)
   "Return non-nil if PROMPT-RANGES output is empty."
   (not (> (mistty--prompt-ranges-output-end prompt-ranges)
           (mistty--prompt-ranges-output-start prompt-ranges))))
 
-(defun mistty--prompt-ranges-cmdline (prompt-ranges)
+(defun mistty--prompt-ranges-cmdline (prompt-ranges &optional merge-lines)
   "Get command-line for PROMPT-RANGES.
 
 Return nil if no cmdline was provided and it couldn't be extracted."
   (or (mistty--prompt-ranges-osc133-cmdline prompt-ranges)
-      (let ((beg (mistty--prompt-ranges-prompt-start prompt-ranges))
-            (end (mistty--prompt-ranges-output-start prompt-ranges)))
-        (or
-         (when-let* ((pos (text-property-not-all
-                           beg end 'mistty-cmdline nil)))
-           (get-text-property pos 'mistty-cmdline))
-         (mistty--extract-cmdline beg end)))))
+      (let* ((beg (mistty--prompt-ranges-prompt-start prompt-ranges))
+             (end (mistty--prompt-ranges-output-start prompt-ranges))
+             (cmdline (or
+                       (when-let* ((pos (text-property-not-all
+                                         beg end 'mistty-cmdline nil)))
+                         (get-text-property pos 'mistty-cmdline))
+                       (mistty--extract-cmdline prompt-ranges))))
+        (if merge-lines
+            (replace-regexp-in-string
+             "[[:blank:]]*\n[[:blank:]]*"
+             mistty-newline-replacement cmdline)
+          cmdline))))
 
-(defun mistty--extract-cmdline (beg end)
-  "Extract cmdline from range BEG to END, if possible.
+(defun mistty--extract-cmdline (prompt-ranges)
+  "Extract cmdline from PROMPT-RANGES, if possible.
 
 Note that this is unreliable unless the shell issued OSS code B to mark
 the prompt beginning.
 
 Return nil if no cmdline could be extracted."
   (let ((prompt-text (buffer-substring
-                      (mistty--user-input-start beg end)
-                      end)))
+                      (mistty--user-input-start prompt-ranges)
+                      (mistty--prompt-ranges-output-start prompt-ranges))))
     (with-temp-buffer
       (insert prompt-text)
 
@@ -96,18 +104,19 @@ Return nil if no cmdline could be extracted."
       (while (eq ?\n (char-before (point-max)))
         (delete-region (1- (point-max)) (point-max)))
 
-      ;; Get rid of newlines.
-      (goto-char (point-min))
-      (while (search-forward-regexp
-              "[[:blank:]]*\n[[:blank:]]*" nil 'noerror)
-        (replace-match mistty-newline-replacement))
-
       ;; Return whatever is left
       (when (> (point-max) (point-min))
         (buffer-substring-no-properties (point-min) (point-max))))))
 
-(defun mistty--user-input-start (start end)
+(defun mistty--user-input-start (prompt-ranges)
   "Find the position of the start of user input within PROMPT-RANGES."
+  (or (mistty--prompt-ranges-osc133-user-input-start prompt-ranges)
+      (mistty--extract-user-input-start
+       (mistty--prompt-ranges-prompt-start prompt-ranges)
+       (mistty--prompt-ranges-output-start prompt-ranges))))
+
+(defun mistty--extract-user-input-start (start end)
+  "Extract the position of the start of user input in range START to END."
   (let (pos)
     (save-excursion
       (cond
@@ -150,13 +159,11 @@ This is meant to be bound to `imenu-create-index-function'."
           ;; Active prompt
           (push (cons "CURRENT"
                       (funcall maybe-marker
-                               (mistty--user-input-start
-                                (mistty--prompt-ranges-prompt-start prompt)
-                                (mistty--prompt-ranges-output-start prompt))))
+                               (mistty--user-input-start prompt)))
                 prompt-alist)
 
         ;; Previous prompts
-        (when-let* ((cmdline (mistty--prompt-ranges-cmdline prompt)))
+        (when-let* ((cmdline (mistty--prompt-ranges-cmdline prompt 'merge-lines)))
           (unless (mistty--prompt-ranges-empty-p prompt)
             (push (cons cmdline
                         (funcall maybe-marker
@@ -166,9 +173,7 @@ This is meant to be bound to `imenu-create-index-function'."
                    (mistty--prompt-ranges-prompt-start prompt))
             (push (cons cmdline
                         (funcall maybe-marker
-                                 (mistty--user-input-start
-                                  (mistty--prompt-ranges-prompt-start prompt)
-                                  (mistty--prompt-ranges-output-start prompt))))
+                                 (mistty--user-input-start prompt)))
                   prompt-alist)))))
     `(("Outputs" . ,(nreverse output-alist))
       ("Commands" . ,(nreverse prompt-alist)))))
@@ -212,8 +217,7 @@ This is meant to be set as `end-of-defun-function' in MisTTY buffers."
                      (lambda (prompt)
                        ;; Skip the prompt around point.
                        (< (point) (mistty--prompt-ranges-prompt-start prompt))))))
-      (goto-char (mistty--user-input-start (mistty--prompt-ranges-prompt-start prompt)
-                                           (mistty--prompt-ranges-output-start prompt)))
+      (goto-char (mistty--user-input-start prompt))
     (user-error "No next input")))
 
 (defun mistty-previous-input (n)
@@ -227,8 +231,7 @@ This is meant to be set as `end-of-defun-function' in MisTTY buffers."
                        ;; output-start is point-max).
                        (and (>= (point) (mistty--prompt-ranges-output-start prompt))
                             (not (mistty--prompt-ranges-current-p prompt)))))))
-      (goto-char (mistty--user-input-start (mistty--prompt-ranges-prompt-start prompt)
-                                           (mistty--prompt-ranges-output-start prompt)))
+      (goto-char (mistty--user-input-start prompt))
     (user-error "No previous input")))
 
 (defun mistty-next-output (n)
@@ -304,7 +307,7 @@ a buffer with that output."
                                   'backward current-prefix-arg
                                   (mistty--accept-previous-output
                                    (not (numberp current-prefix-arg))))))
-               (mistty--prompt-ranges-cmdline prompt))
+               (mistty--prompt-ranges-cmdline prompt 'merge-lines))
              "command output")
             30)))
           current-prefix-arg))
@@ -402,6 +405,10 @@ specified direction. It returns nil once there are no more ranges."
                (mistty--make-prompt-ranges
                 :current-p (eq p (mistty--prompt-cell-current mistty--prompt-cell))
                 :osc133-cmdline (mistty--prompt-cmdline p)
+                :osc133-user-input-start
+                (when-let* ((input-start (mistty--prompt-user-input-start p))
+                            (bol (mistty--find-scrolline (car input-start))))
+                  (min (mistty--eol bol) (+ bol (cdr input-start))))
                 :prompt-start prompt-start
                 :output-start output-start
                 :output-end output-end))))

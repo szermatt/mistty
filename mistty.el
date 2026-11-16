@@ -1850,11 +1850,7 @@ It also marks the prompt region with the text property
             (put-text-property
              prompt-beg prompt-end
              'mistty-input-id (mistty--prompt-input-id prompt))
-            (when-let* ((cmdline (or (when-let* ((c (mistty--prompt-cmdline prompt)))
-                                       (replace-regexp-in-string
-                                        "\n" "; " c))
-                                     (mistty--extract-cmdline
-                                      prompt-beg prompt-end))))
+            (when-let* ((cmdline (mistty--prompt-cmdline prompt)))
               (put-text-property
                prompt-beg prompt-end
                'mistty-cmdline cmdline))))))

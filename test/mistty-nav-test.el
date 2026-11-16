@@ -71,8 +71,11 @@
 
   (let ((iter (mistty--make-navigator (point) 'backward)))
     (should (mistty--prompt-ranges-current-p (funcall iter)))
-    (should (equal "for i in a b c; do; echo $i; done"
-                   (mistty--prompt-ranges-cmdline (funcall iter))))
+    (let ((prompt-range (funcall iter)))
+      (should (equal "for i in a b c; do\necho $i\ndone"
+                     (mistty--prompt-ranges-cmdline prompt-range)))
+      (should (equal "for i in a b c; do; echo $i; done"
+                     (mistty--prompt-ranges-cmdline prompt-range 'merge-lines))))
     (should (equal "echo two" (mistty--prompt-ranges-cmdline (funcall iter))))
     (should (equal "echo one" (mistty--prompt-ranges-cmdline (funcall iter))))))
 
@@ -128,18 +131,19 @@ preexec_functions+=(osc133_preexec)
   (mistty-send-text "end")
   (mistty-send-and-wait-for-prompt)
 
-  (should (equal
-           "for i in a b c; echo $i; end"
-           (mistty--prompt-ranges-cmdline
-            (mistty--navigator-nth 'backward 2)))))
-
+  (let ((range (mistty--navigator-nth 'backward 2)))
+    (should (equal
+             "for i in a b c; echo $i; end"
+             (mistty--prompt-ranges-cmdline range 'merge-lines)))
+    (should (equal
+             "for i in a b c\necho $i\nend"
+             (mistty--prompt-ranges-cmdline range)))))
 
 (mistty-deftest mistty-user-input-start (:type all)
   (let ((user-input-start
          (lambda ()
            (let ((p (funcall (mistty--make-navigator (point) 'backward))))
-             (mistty--user-input-start (mistty--prompt-ranges-prompt-start p)
-                                       (mistty--prompt-ranges-output-start p))))))
+             (mistty--user-input-start p)))))
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-and-wait-for-prompt)

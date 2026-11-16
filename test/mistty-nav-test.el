@@ -1704,3 +1704,314 @@ Prompt-start is <>, output-start is <1>, output-end is <2>."
                                    (mistty--prompt-ranges-output ranges)
                                    (mistty--prompt-ranges-end ranges))
                        :trim nil))
+
+(defun mistty-test-setup-prompt-cell-buffer ()
+  "Setup a buffer with fake `mistty--prompt-cell' containing multiple prompts."
+  (insert "$ echo one\n"
+          "one\n"
+          "$ echo two\n"
+          "two\n"
+          "$ \n"
+          "$ echo three\n"
+          "three\n"
+          "$ echo current\n")
+  (let ((cell (mistty--make-prompt-cell)))
+    (mistty--set-prompt cell (mistty--make-prompt :start 0 :end 1))
+    (mistty--set-prompt cell (mistty--make-prompt :start 2 :end 3))
+    (mistty--set-prompt cell (mistty--make-prompt :start 4 :end 5))
+    (mistty--set-prompt cell (mistty--make-prompt :start 5 :end 6))
+    (mistty--set-prompt cell (mistty--make-prompt :start 7 :end nil))
+    (setq-local mistty--prompt-cell cell)))
+
+(ert-deftest mistty-prompt-cell-backward-navigator ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (point-max) 'backward)))
+      (let ((range (funcall iter)))
+        (should (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "$ echo two\n"
+                         "two\n"
+                         "$ \n"
+                         "$ echo three\n"
+                         "three\n"
+                         "<>$ echo current\n"
+                         "<1><2>")
+                 (mistty-test-show-prompt-ranges range "first"))))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "$ echo two\n"
+                         "two\n"
+                         "$ \n"
+                         "<>$ echo three\n"
+                         "<1>three\n"
+                         "<2>$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "second"))))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "$ echo two\n"
+                         "two\n"
+                         "<>$ \n"
+                         "<1><2>$ echo three\n"
+                         "three\n"
+                         "$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "third"))))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "<>$ echo two\n"
+                         "<1>two\n"
+                         "<2>$ \n"
+                         "$ echo three\n"
+                         "three\n"
+                         "$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "4th"))))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "<>$ echo one\n"
+                         "<1>one\n"
+                         "<2>$ echo two\n"
+                         "two\n"
+                         "$ \n"
+                         "$ echo three\n"
+                         "three\n"
+                         "$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "5th"))))
+      (should (equal nil (funcall iter))))))
+
+(ert-deftest mistty-prompt-cell-backward-navigator-from-pos-in-output ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (mistty-test-pos-after "\ntwo") 'backward)))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "<>$ echo two\n"
+                       "<1>two\n"
+                       "<2>$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+      (should (equal
+               (concat "<>$ echo one\n"
+                       "<1>one\n"
+                       "<2>$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+      (should (equal nil (funcall iter))))))
+
+(ert-deftest mistty-prompt-cell-backward-navigator-from-pos-in-input ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (mistty-test-pos-after "echo two") 'backward)))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "<>$ echo two\n"
+                       "<1>two\n"
+                       "<2>$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+      (should (equal
+               (concat "<>$ echo one\n"
+                       "<1>one\n"
+                       "<2>$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+      (should (equal nil (funcall iter))))))
+
+(ert-deftest mistty-prompt-cell-backward-navigator-from-point-min ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (point-min) 'backward)))
+      (should (equal
+               (concat "<>$ echo one\n"
+                       "<1>one\n"
+                       "<2>$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "first")))
+      (should (equal nil (funcall iter))))))
+
+(ert-deftest mistty-prompt-cell-forward-navigator ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (point-min) 'forward)))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "<>$ echo one\n"
+                         "<1>one\n"
+                         "<2>$ echo two\n"
+                         "two\n"
+                         "$ \n"
+                         "$ echo three\n"
+                         "three\n"
+                         "$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "1st"))))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "<>$ echo two\n"
+                         "<1>two\n"
+                         "<2>$ \n"
+                         "$ echo three\n"
+                         "three\n"
+                         "$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "2nd"))))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "$ echo two\n"
+                         "two\n"
+                         "<>$ \n"
+                         "<1><2>$ echo three\n"
+                         "three\n"
+                         "$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "3rd"))))
+      (let ((range (funcall iter)))
+        (should-not (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "$ echo two\n"
+                         "two\n"
+                         "$ \n"
+                         "<>$ echo three\n"
+                         "<1>three\n"
+                         "<2>$ echo current\n")
+                 (mistty-test-show-prompt-ranges range "4th"))))
+      (let ((range (funcall iter)))
+        (should (mistty--prompt-ranges-current-p range))
+        (should (equal
+                 (concat "$ echo one\n"
+                         "one\n"
+                         "$ echo two\n"
+                         "two\n"
+                         "$ \n"
+                         "$ echo three\n"
+                         "three\n"
+                         "<>$ echo current\n"
+                         "<1><2>")
+                 (mistty-test-show-prompt-ranges range "5th"))))
+      (should (equal nil (funcall iter))))))
+
+(ert-deftest mistty-prompt-cell-forward-navigator-from-pos-in-output ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (mistty-test-pos-after "\nthree") 'forward)))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "<>$ echo three\n"
+                       "<1>three\n"
+                       "<2>$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "<>$ echo current\n"
+                       "<1><2>")
+               (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+      (should (equal nil (funcall iter))))))
+
+(ert-deftest mistty-prompt-cell-forward-navigator-from-pos-in-input ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (mistty-test-pos-after "echo two") 'forward)))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "<>$ echo two\n"
+                       "<1>two\n"
+                       "<2>$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "$ echo two\n"
+                       "two\n"
+                       "<>$ \n"
+                       "<1><2>$ echo three\n"
+                       "three\n"
+                       "$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "<>$ echo three\n"
+                       "<1>three\n"
+                       "<2>$ echo current\n")
+               (mistty-test-show-prompt-ranges (funcall iter) "3rd")))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "<>$ echo current\n"
+                       "<1><2>")
+               (mistty-test-show-prompt-ranges (funcall iter) "4th")))
+      (should (equal nil (funcall iter))))))
+
+(ert-deftest mistty-prompt-cell-forward-navigator-from-point-max ()
+  (ert-with-test-buffer ()
+    (mistty-test-setup-prompt-cell-buffer)
+    (let ((iter (mistty--make-navigator (point-max) 'forward)))
+      (should (equal
+               (concat "$ echo one\n"
+                       "one\n"
+                       "$ echo two\n"
+                       "two\n"
+                       "$ \n"
+                       "$ echo three\n"
+                       "three\n"
+                       "<>$ echo current\n"
+                       "<1><2>")
+               (mistty-test-show-prompt-ranges (funcall iter) "first")))
+      (should (equal nil (funcall iter))))))

@@ -32,13 +32,13 @@
 (cl-defstruct (mistty--prompt-ranges
                (:constructor mistty--make-prompt-ranges))
   ;; Start of the prompt (buffer position)
-  prompt-start
+  start
 
   ;; Start of the command output and end of the prompt (buffer position)
-  output-start
+  output
 
   ;; End of the command output (buffer position)
-  output-end
+  end
 
   ;; Non-nil if this is the current prompt
   current-p
@@ -51,16 +51,16 @@
 
 (defsubst mistty--prompt-ranges-empty-p (prompt-ranges)
   "Return non-nil if PROMPT-RANGES output is empty."
-  (not (> (mistty--prompt-ranges-output-end prompt-ranges)
-          (mistty--prompt-ranges-output-start prompt-ranges))))
+  (not (> (mistty--prompt-ranges-end prompt-ranges)
+          (mistty--prompt-ranges-output prompt-ranges))))
 
 (defun mistty--prompt-ranges-cmdline (prompt-ranges &optional merge-lines)
   "Get command-line for PROMPT-RANGES.
 
 Return nil if no cmdline was provided and it couldn't be extracted."
   (or (mistty--prompt-ranges-osc133-cmdline prompt-ranges)
-      (let* ((beg (mistty--prompt-ranges-prompt-start prompt-ranges))
-             (end (mistty--prompt-ranges-output-start prompt-ranges))
+      (let* ((beg (mistty--prompt-ranges-start prompt-ranges))
+             (end (mistty--prompt-ranges-output prompt-ranges))
              (cmdline (or
                        (when-let* ((pos (text-property-not-all
                                          beg end 'mistty-cmdline nil)))
@@ -81,7 +81,7 @@ the prompt beginning.
 Return nil if no cmdline could be extracted."
   (let ((prompt-text (buffer-substring
                       (mistty--user-input-start prompt-ranges)
-                      (mistty--prompt-ranges-output-start prompt-ranges))))
+                      (mistty--prompt-ranges-output prompt-ranges))))
     (with-temp-buffer
       (insert prompt-text)
 
@@ -112,8 +112,8 @@ Return nil if no cmdline could be extracted."
   "Find the position of the start of user input within PROMPT-RANGES."
   (or (mistty--prompt-ranges-osc133-user-input-start prompt-ranges)
       (mistty--extract-user-input-start
-       (mistty--prompt-ranges-prompt-start prompt-ranges)
-       (mistty--prompt-ranges-output-start prompt-ranges))))
+       (mistty--prompt-ranges-start prompt-ranges)
+       (mistty--prompt-ranges-output prompt-ranges))))
 
 (defun mistty--extract-user-input-start (start end)
   "Extract the position of the start of user input in range START to END."
@@ -167,10 +167,10 @@ This is meant to be bound to `imenu-create-index-function'."
           (unless (mistty--prompt-ranges-empty-p prompt)
             (push (cons cmdline
                         (funcall maybe-marker
-                                 (mistty--prompt-ranges-output-start prompt)))
+                                 (mistty--prompt-ranges-output prompt)))
                   output-alist))
-          (when (> (mistty--prompt-ranges-output-start prompt)
-                   (mistty--prompt-ranges-prompt-start prompt))
+          (when (> (mistty--prompt-ranges-output prompt)
+                   (mistty--prompt-ranges-start prompt))
             (push (cons cmdline
                         (funcall maybe-marker
                                  (mistty--user-input-start prompt)))
@@ -192,11 +192,11 @@ buffers."
                            ;; Skip the prompt around point if already at its
                            ;; start, unless called indirectly by `end-of-defun'.
                            (not (and (eq this-command 'beginning-of-defun)
-                                     (= (point) (mistty--prompt-ranges-prompt-start prompt))))))))
+                                     (= (point) (mistty--prompt-ranges-start prompt))))))))
       (prog1 t
         (goto-char (if (>= n 0)
-                       (mistty--prompt-ranges-prompt-start prompt)
-                     (mistty--prompt-ranges-output-end prompt)))))))
+                       (mistty--prompt-ranges-start prompt)
+                     (mistty--prompt-ranges-end prompt)))))))
 
 (defun mistty-end-of-defun ()
   "Go to the end of the current defun.
@@ -207,7 +207,7 @@ by `mistty-beginning-of-defun'.
 This is meant to be set as `end-of-defun-function' in MisTTY buffers."
   (when-let* ((ranges (funcall (mistty--make-navigator (point) 'forward))))
     (prog1 t
-      (goto-char (mistty--prompt-ranges-output-end ranges)))))
+      (goto-char (mistty--prompt-ranges-end ranges)))))
 
 (defun mistty-next-input (n)
   "Move the point to the Nth next input in the buffer."
@@ -216,7 +216,7 @@ This is meant to be set as `end-of-defun-function' in MisTTY buffers."
                      'forward n
                      (lambda (prompt)
                        ;; Skip the prompt around point.
-                       (< (point) (mistty--prompt-ranges-prompt-start prompt))))))
+                       (< (point) (mistty--prompt-ranges-start prompt))))))
       (goto-char (mistty--user-input-start prompt))
     (user-error "No next input")))
 
@@ -228,8 +228,8 @@ This is meant to be set as `end-of-defun-function' in MisTTY buffers."
                      (lambda (prompt)
                        ;; Accept the prompt around point only when point is in
                        ;; its output; never accept the active prompt (where
-                       ;; output-start is point-max).
-                       (and (>= (point) (mistty--prompt-ranges-output-start prompt))
+                       ;; output is point-max).
+                       (and (>= (point) (mistty--prompt-ranges-output prompt))
                             (not (mistty--prompt-ranges-current-p prompt)))))))
       (goto-char (mistty--user-input-start prompt))
     (user-error "No previous input")))
@@ -246,11 +246,11 @@ output."
                      (lambda (prompt)
                        ;; Accept the prompt around point only when point is
                        ;; still in its input.
-                       (and (< (point) (mistty--prompt-ranges-output-start prompt))
+                       (and (< (point) (mistty--prompt-ranges-output prompt))
                             (not (mistty--prompt-ranges-empty-p prompt)))))))
-      (prog1 (cons (mistty--prompt-ranges-output-start prompt)
-                   (mistty--prompt-ranges-output-end prompt))
-        (goto-char (mistty--prompt-ranges-output-start prompt)))
+      (prog1 (cons (mistty--prompt-ranges-output prompt)
+                   (mistty--prompt-ranges-end prompt))
+        (goto-char (mistty--prompt-ranges-output prompt)))
     (user-error "No next output")))
 
 (defun mistty-previous-output (n)
@@ -262,9 +262,9 @@ output."
   (interactive "p")
   (if-let* ((prompt (mistty--navigator-nth
                      'backward n (mistty--accept-previous-output))))
-      (prog1 (cons (mistty--prompt-ranges-output-start prompt)
-                   (mistty--prompt-ranges-output-end prompt))
-        (goto-char (mistty--prompt-ranges-output-start prompt)))
+      (prog1 (cons (mistty--prompt-ranges-output prompt)
+                   (mistty--prompt-ranges-end prompt))
+        (goto-char (mistty--prompt-ranges-output prompt)))
     (user-error "No previous output")))
 
 (defun mistty-current-output-range ()
@@ -275,10 +275,10 @@ Otherwise, it returns a cons containing the start and end
 position of the output."
   (let ((prompt (funcall (mistty--make-navigator (point) 'backward))))
     (if (and prompt
-             (and (<= (mistty--prompt-ranges-output-start prompt) (point)) ; point must be below input
-                  (< (point) (mistty--prompt-ranges-output-end prompt)))) ; point must be above output end
-        (cons (mistty--prompt-ranges-output-start prompt)
-              (mistty--prompt-ranges-output-end prompt)))))
+             (and (<= (mistty--prompt-ranges-output prompt) (point)) ; point must be below input
+                  (< (point) (mistty--prompt-ranges-end prompt)))) ; point must be above output end
+        (cons (mistty--prompt-ranges-output prompt)
+              (mistty--prompt-ranges-end prompt)))))
 
 (defun mistty-select-output (&optional n)
   "Select the current or Nth previous output range."
@@ -287,8 +287,8 @@ position of the output."
                      'backward n
                      (mistty--accept-previous-output (not (numberp n))))))
       (progn
-        (goto-char (mistty--prompt-ranges-output-start prompt))
-        (set-mark (mistty--prompt-ranges-output-end prompt)))
+        (goto-char (mistty--prompt-ranges-output prompt))
+        (set-mark (mistty--prompt-ranges-end prompt)))
     (user-error "No current or previous output")))
 
 (defun mistty-create-buffer-with-output (buffer-name &optional n)
@@ -317,8 +317,8 @@ a buffer with that output."
             (buffer (generate-new-buffer buffer-name)))
       (progn
         (copy-to-buffer buffer
-                        (mistty--prompt-ranges-output-start prompt)
-                        (mistty--prompt-ranges-output-end prompt))
+                        (mistty--prompt-ranges-output prompt)
+                        (mistty--prompt-ranges-end prompt))
         (with-current-buffer buffer
           (set-auto-mode 'keep-mode-if-sane))
         (pop-to-buffer buffer)
@@ -332,7 +332,7 @@ If CURRENT-OK is non-nil, also accept the output around point."
   (lambda (prompt)
     (and (or current-ok
              ;; Skip the prompt around point, even if point is in its output.
-             (> (point) (mistty--prompt-ranges-output-end prompt)))
+             (> (point) (mistty--prompt-ranges-end prompt)))
          (not (mistty--prompt-ranges-empty-p prompt)))))
 
 (defun mistty--navigator-nth (navigator n &optional accept)
@@ -394,14 +394,14 @@ specified direction. It returns nil once there are no more ranges."
         ((build-from-active (idx)
            (when (and (>= idx 0) (< idx (length active)))
              (when-let* ((p (aref active idx))
-                         (prompt-start (mistty--find-scrolline (mistty--prompt-start p)))
-                         (output-start (or (when (mistty--prompt-end p)
+                         (start (mistty--find-scrolline (mistty--prompt-start p)))
+                         (output (or (when (mistty--prompt-end p)
                                              (mistty--find-scrolline (mistty--prompt-end p)))
                                          (point-max)))
-                         (output-end (if (< (1+ idx) (length active))
-                                         (mistty--find-scrolline
-                                          (mistty--prompt-start (aref active (1+ idx))))
-                                       output-start)))
+                         (end (if (< (1+ idx) (length active))
+                                  (mistty--find-scrolline
+                                   (mistty--prompt-start (aref active (1+ idx))))
+                                output)))
                (mistty--make-prompt-ranges
                 :current-p (eq p (mistty--prompt-cell-current mistty--prompt-cell))
                 :osc133-cmdline (mistty--prompt-cmdline p)
@@ -409,34 +409,34 @@ specified direction. It returns nil once there are no more ranges."
                 (when-let* ((input-start (mistty--prompt-user-input-start p))
                             (bol (mistty--find-scrolline (car input-start))))
                   (min (mistty--eol bol) (+ bol (cdr input-start))))
-                :prompt-start prompt-start
-                :output-start output-start
-                :output-end output-end))))
+                :start start
+                :output output
+                :end end))))
 
-         ;; Build a prompt range starting at PROMPT-START.
+         ;; Build a prompt range starting at START.
          ;;
-         ;; PROMPT-START is unchecked. Use it only when you're sure
+         ;; START is unchecked. Use it only when you're sure
          ;; that this is the start of a text region marked with a
          ;; specific input-id.
          ;;
          ;; Return nil if no range found.
-         (build-starting-at (prompt-start)
+         (build-starting-at (start)
            (let* (;; prompt-end is the end of the region marked with the
                   ;; current input id.
                   (prompt-end (next-single-property-change
-                               prompt-start 'mistty-input-id nil top-active-pos))
+                               start 'mistty-input-id nil top-active-pos))
 
-                  ;; output-end is the beginning of a later region marked
+                  ;; end is the beginning of a later region marked
                   ;; with a different input id.
-                  (output-end (if (or (>= prompt-end top-active-pos)
+                  (end (if (or (>= prompt-end top-active-pos)
                                       (get-text-property prompt-end 'mistty-input-id))
                                   prompt-end
                                 (next-single-property-change
                                  prompt-end 'mistty-input-id nil top-active-pos))))
              (mistty--make-prompt-ranges
-              :prompt-start prompt-start
-              :output-start prompt-end
-              :output-end output-end)))
+              :start start
+              :output prompt-end
+              :end end)))
 
          ;; Build a prompt range around POS
          ;;
@@ -449,10 +449,10 @@ specified direction. It returns nil once there are no more ranges."
                (unless pos (cl-return nil))
                (cl-decf pos))
              ;; Look for the beginning of the current input region
-             (when-let* ((prompt-start (previous-single-property-change
+             (when-let* ((start (previous-single-property-change
                                         (min (1+ pos) (point-max))
                                         'mistty-input-id nil (point-min))))
-               (build-starting-at prompt-start)))))
+               (build-starting-at start)))))
 
       ;; Set current and current idx to get started
       (if (and (>= start-pos top-active-pos)
@@ -494,7 +494,7 @@ specified direction. It returns nil once there are no more ranges."
                 (setq current (build-from-active current-idx)))
 
             ;; Look in text properties, until we reach active
-            (let ((pos (mistty--prompt-ranges-output-end current)))
+            (let ((pos (mistty--prompt-ranges-end current)))
               (if (>= pos top-active-pos)
                   (progn
                     (setq current-idx 0)
@@ -512,7 +512,7 @@ specified direction. It returns nil once there are no more ranges."
                 (setq current (build-from-active current-idx)))
 
             ;; Look in text properties, until we reach buffer top
-            (let ((pos (mistty--prompt-ranges-prompt-start current)))
+            (let ((pos (mistty--prompt-ranges-start current)))
               (setq current-idx nil)
               (setq current (when (> pos (point-min))
                               (build-around (1- pos))))))

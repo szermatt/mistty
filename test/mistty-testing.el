@@ -37,6 +37,44 @@
 (defvar mistty-test-log nil
   "Set to t to enable logging for all tests using mistty-with-test-buffer.")
 
+(defconst mistty-test-fish-right-prompt
+  "function fish_right_prompt; printf '< right'; end")
+
+(defconst mistty-test-zsh-right-prompt "RPS1='< right'")
+
+(defconst mistty-test-nobracketed-paste-setup
+  "bind 'set enable-bracketed-paste off';"
+  "Disable bracketed paste in a Bash shell.")
+
+(defconst mistty-test-zsh-fancy-prompt
+  (concat "precmd() { \n"
+          " print 'left...............................right'\n"
+          " }\n"))
+
+(defconst mistty-test-zsh-osc133 "
+function osc133_precmd() {
+      printf '\033]133;A\007'
+}
+precmd_functions+=(osc133_precmd)
+
+function osc133_preexec() {
+      printf '\033]133;C\007'
+}
+preexec_functions+=(osc133_preexec)
+")
+
+
+(defconst mistty-test-zsh-osc133-multiline-prompt "
+setopt no_prompt_sp
+setopt no_prompt_cr
+
+function prompt_header() {
+      echo '<--->'
+}
+precmd_functions+=(prompt_header)
+
+")
+
 (when (eval-when-compile (featurep 'turtles))
   (turtles-definstance mistty (:width 80 :height 24 :forward '(mistty-test-bash-exe
                                                                mistty-test-zsh-exe

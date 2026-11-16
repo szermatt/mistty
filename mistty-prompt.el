@@ -99,6 +99,26 @@ The old prompt, if any, is pushed into the archive."
     (push old (mistty--prompt-cell-archive cell)))
   (setf (mistty--prompt-cell-current cell) prompt))
 
+(defvar-local mistty--prompt-cell nil
+  "A `mistty--prompt-cell' instance.
+
+This is used to share prompts between the mistty-mode buffer and the
+terminal implementations. It is passed to eterm or alacritty when
+creating the terminal.
+
+This local variable is only available in `mistty-mode' buffers. In other
+contexts, such as in terminal implementations, the prompt cell is passed
+around explicitly.")
+
+(defun mistty--active-prompt ()
+  "Get the active prompt from `mistty--prompt-cell'.
+
+The prompt must have been realized."
+  (when-let* ((cell mistty--prompt-cell)
+              (p (mistty--prompt-cell-current cell)))
+    (when (mistty--prompt-realized p)
+      p)))
+
 (provide 'mistty-prompt)
 
 ;;; mistty-prompt.el ends here

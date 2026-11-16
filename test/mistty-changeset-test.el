@@ -22,6 +22,7 @@
 (require 'mistty)
 (require 'test/mistty-testing)
 (require 'mistty-changeset)
+(require 'mistty-prompt)
 
 (defun mistty-changeset-test-setup-hook ()
   ;; mistty--after-change-on-work schedules a timer to pickup the
@@ -29,6 +30,7 @@
   ;; off.
   (setq-local this-command 'test)
   (setq-local mistty--cursor (copy-marker (point-min)))
+  (setq-local mistty--prompt-cell (mistty--make-prompt-cell))
   (add-hook 'before-change-functions #'mistty--before-change-on-work nil t)
   (add-hook 'after-change-functions #'mistty--after-change-on-work nil t))
 

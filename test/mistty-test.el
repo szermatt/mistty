@@ -1812,7 +1812,7 @@
   (mistty-wait-for-output :str "say something")
 
   (mistty-run-command (insert "foo"))
-  (let ((prompt (mistty--prompt)))
+  (let ((prompt (mistty--get-prompt mistty--prompt-cell)))
     (should-not (null prompt))
     (should (equal 'regexp (mistty--prompt-source prompt)))
     (should (equal (mistty--scrolline-at (mistty-test-goto "say something>> "))

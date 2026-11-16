@@ -502,47 +502,6 @@ It is either:
 - \\='drag, report press, release, and mouse movement with pointer down.
 - \\='motion, report all mouse events.")
 
-(defvar-local mistty--prompt-cell nil
-  "A `mistty--prompt-cell' instance.
-
-This is used to share prompts between the mistty-mode buffer and the
-terminal implementations. It is passed to eterm or alacritty when
-creating the terminal.
-
-Always access it through the places `mistty--prompt'
-`mistty--prompt-archive' and `mistty--prompt-counter'.")
-
-(defun mistty--active-prompt ()
-  "Get the value of the current prompt if it is realized.
-
-CELL is the prompt cell to check. It defaults to `mistty--prompt-cell'."
-  (when-let* ((cell mistty--prompt-cell)
-              (p (mistty--prompt-cell-current cell)))
-    (when (mistty--prompt-realized p)
-      p)))
-
-(defsubst mistty--prompt ()
-  "Get the value of the current `mistty--prompt' struct or nil."
-  (when-let* ((cell mistty--prompt-cell))
-    (mistty--prompt-cell-current cell)))
-
-(defsubst mistty--prompt-archive ()
-  "Get the list of archived `mistty--prompt' structs."
-  (when-let* ((cell mistty--prompt-cell))
-    (mistty--prompt-cell-archive cell)))
-
-(gv-define-setter mistty--prompt (val)
-  "Sets the value of the current `mistty--prompt' struct to VAL.
-
-This also assigns the slot input-id of VAL.
-
-The old value, if any, is pushed into `mistty--prompt-archive'."
-  `(mistty--set-prompt mistty--prompt-cell ,val))
-
-(gv-define-setter mistty--prompt-archive (val)
-  "Sets the value of `mistty--prompt-archive'."
-  `(setf (mistty--prompt-cell-archive mistty--prompt-cell) ,val))
-
 (defconst mistty-min-terminal-width 8
   "Minimum terminal width.
 
@@ -1576,7 +1535,7 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
                   (mistty--prompt-end prompt)
                   scrolline)))
 
-  (when-let* ((prompt (mistty--prompt))
+  (when-let* ((prompt (mistty--get-prompt mistty--prompt-cell))
               (prompt-beg (mistty--find-scrolline
                            (mistty--prompt-start prompt))))
     ;; If a new prompt was detected, restrict sync region to
@@ -1837,7 +1796,7 @@ SCROLLINE is a scrolline that's currently visible on the terminal."
                       (mistty--prompt-input-id p))
       (mistty-log "Deactivate prompt #%s"
                   (mistty--prompt-input-id p))
-      (setf (mistty--prompt) nil)
+      (mistty--set-prompt mistty--prompt-cell nil)
       (mistty--update-secondary-mode)))
 
     (mistty--process-archived-prompts sync-pos)
@@ -1854,7 +1813,7 @@ SCROLLINE is a scrolline that's currently visible on the terminal."
 
 Only look up to LIMIT-POS.
 
-This function cleans up `mistty--prompt-archive', removing prompts above END.
+This function cleans up the prompt archives, removing prompts above END.
 
 It also marks the prompt region with the text property
 \\=`mistty-input-id so they can be detected by functions like
@@ -1862,11 +1821,11 @@ It also marks the prompt region with the text property
   (let ((limit (mistty--scrolline-at limit-pos))
         (inhibit-modification-hooks t)
         (inhibit-read-only t))
-    (when-let* ((prompt (mistty--prompt)))
+    (when-let* ((prompt (mistty--get-prompt mistty--prompt-cell)))
       (when (and (mistty--prompt-end prompt)
                  (<= (mistty--prompt-end prompt) limit))
-        (setf (mistty--prompt) nil)))
-    (dolist (prompt (mistty--prompt-archive))
+        (mistty--set-prompt mistty--prompt-cell nil)))
+    (dolist (prompt (mistty--prompt-cell-archive mistty--prompt-cell))
       (when (mistty--prompt-realized prompt)
         (when-let* ((prompt-beg (mistty--find-scrolline
                                  (mistty--prompt-start prompt)))
@@ -1898,7 +1857,7 @@ It also marks the prompt region with the text property
               (put-text-property
                prompt-beg prompt-end
                'mistty-cmdline cmdline))))))
-    (setf (mistty--prompt-archive) nil)))
+    (setf (mistty--prompt-cell-archive mistty--prompt-cell) nil)))
 
 (defun mistty--prepare-for-scrollback (beg scrolline end)
   "Transition a region from the terminal to the scrollback zone.
@@ -3012,7 +2971,7 @@ ACTIVE-PROMPT-RANGES must be the output of
   "If a prompt is active, return (list prompt-start output-start output-end).
 
 Also accepts inactive (potential) prompts."
-  (when-let* ((prompt (mistty--prompt))
+  (when-let* ((prompt (mistty--get-prompt mistty--prompt-cell))
               (start-pos (mistty--find-scrolline (mistty--prompt-start prompt)))
               (end-pos (or (when-let* ((end (mistty--prompt-end prompt)))
                              (mistty--find-scrolline end))
@@ -3772,7 +3731,7 @@ can later be created with `mistty--realize-possible-prompt'."
     (goto-char (mistty-cursor))
     (let ((scrolline (mistty--scrolline-at-point))
           (scrolline-start (mistty--scrolline-start-pos))
-          (prev-prompt (car (mistty--prompt-archive))))
+          (prev-prompt (car (mistty--prompt-cell-archive mistty--prompt-cell))))
       (if (or
            (and
             ;; there's no active prompt
@@ -3808,12 +3767,12 @@ can later be created with `mistty--realize-possible-prompt'."
 
 (defun mistty--realize-possible-prompt (prompt)
   "Add and realize PROMPT."
-  (when (and (not (mistty--prompt))
+  (when (and (not (mistty--get-prompt mistty--prompt-cell))
              (mistty--maybe-move-sync-mark
               (mistty--prompt-start prompt)))
     (mistty--term-start-regexp-prompt
      mistty--term (mistty--prompt-start prompt))
-    (setf (mistty--prompt) prompt)
+    (mistty--set-prompt mistty--prompt-cell prompt)
     (setf (mistty--prompt-realized prompt) t)
     (mistty-log "Realized %s prompt #%s [%s-] @%s"
                 (mistty--prompt-source prompt)

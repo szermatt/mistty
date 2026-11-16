@@ -1684,7 +1684,7 @@ to figure out a good time to call
             (prog1 nil
               (save-excursion
                 (when pos (goto-char pos))
-                (with-demoted-errors "mistty-command-finished-hook: %s"
+                (mistty-with-errors-logged "mistty-command-finished-hook"
                   (funcall func status))))))))
       (_ (mistty-log "Unknown event: %S" ev)))))
 

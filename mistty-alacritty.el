@@ -715,7 +715,7 @@ CURSOR-MARKER is updated to the cursor position."
           (when-let* ((msg (mistty--term-alacritty-process-status term)))
             (save-excursion
               (goto-char (point-max))
-              (insert "\nProcess " msg)))
+              (insert "Process " msg)))
 
           (cons (marker-position sync-pos) sync-scrolline))
 

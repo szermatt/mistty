@@ -99,6 +99,18 @@ The old prompt, if any, is pushed into the archive."
     (push old (mistty--prompt-cell-archive cell)))
   (setf (mistty--prompt-cell-current cell) prompt))
 
+(defsubst mistty--all-prompts (cell)
+  "Return a list containing all prompts in CELL.
+
+The list is sorted from most recent (lower in the buffer) to less
+recent (higher in the buffer).
+
+This includes current and archived prompts."
+  (let ((archive (mistty--prompt-cell-archive cell)))
+    (if-let* ((current (mistty--prompt-cell-current cell)))
+        (cons current archive)
+      archive)))
+
 (defvar-local mistty--prompt-cell nil
   "A `mistty--prompt-cell' instance.
 

@@ -27,14 +27,12 @@
     (mistty-send-text (concat "echo " text))
     (mistty-send-and-wait-for-prompt))
 
-  (should (equal "echo four" (mistty--command-for-output
-                              (mistty--prompt-ranges-for-current-or-previous-output 1))))
-  (should (equal "echo three" (mistty--command-for-output
-                               (mistty--prompt-ranges-for-current-or-previous-output 2))))
-  (should (equal "echo two" (mistty--command-for-output
-                             (mistty--prompt-ranges-for-current-or-previous-output 3))))
-  (should (equal "echo one" (mistty--command-for-output
-                             (mistty--prompt-ranges-for-current-or-previous-output 4)))))
+  (let ((iter (mistty--make-navigator (point) 'backward)))
+    (should (mistty--prompt-ranges-current-p (funcall iter)))
+    (should (equal "echo four" (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo three" (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo two" (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo one" (mistty--prompt-ranges-cmdline (funcall iter))))))
 
 (mistty-deftest mistty-test-zsh-right-prompt-command-for-output
     (:shell ((zsh mistty-test-zsh-right-prompt)) :type all)
@@ -42,14 +40,12 @@
     (mistty-send-text (concat "echo " text))
     (mistty-send-and-wait-for-prompt))
 
-  (should (equal "echo four" (mistty--command-for-output
-                              (mistty--prompt-ranges-for-current-or-previous-output 1))))
-  (should (equal "echo three" (mistty--command-for-output
-                               (mistty--prompt-ranges-for-current-or-previous-output 2))))
-  (should (equal "echo two" (mistty--command-for-output
-                             (mistty--prompt-ranges-for-current-or-previous-output 3))))
-  (should (equal "echo one" (mistty--command-for-output
-                             (mistty--prompt-ranges-for-current-or-previous-output 4)))))
+  (let ((iter (mistty--make-navigator (point) 'backward)))
+    (should (mistty--prompt-ranges-current-p (funcall iter)))
+    (should (equal "echo four" (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo three" (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo two" (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo one" (mistty--prompt-ranges-cmdline (funcall iter))))))
 
 (mistty-deftest mistty-osc133-command-for-output
     (:type all :shell ((zsh mistty-test-zsh-osc133
@@ -73,13 +69,12 @@
   (mistty-send-text "done")
   (mistty-send-and-wait-for-prompt)
 
-  (should (equal "for i in a b c; do; echo $i; done"
-                 (mistty--command-for-output
-                  (mistty--prompt-ranges-for-current-or-previous-output 1))))
-  (should (equal "echo two" (mistty--command-for-output
-                             (mistty--prompt-ranges-for-current-or-previous-output 2))))
-  (should (equal "echo one" (mistty--command-for-output
-                             (mistty--prompt-ranges-for-current-or-previous-output 3)))))
+  (let ((iter (mistty--make-navigator (point) 'backward)))
+    (should (mistty--prompt-ranges-current-p (funcall iter)))
+    (should (equal "for i in a b c; do; echo $i; done"
+                   (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo two" (mistty--prompt-ranges-cmdline (funcall iter))))
+    (should (equal "echo one" (mistty--prompt-ranges-cmdline (funcall iter))))))
 
 (defconst mistty-test-zsh-osc133-cmdline "
 function osc133_precmd() {
@@ -115,12 +110,14 @@ preexec_functions+=(osc133_preexec)
   (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
 
-  (should (equal "echo two"
-                 (mistty--command-for-output
-                  (mistty--prompt-ranges-for-current-or-previous-output 1))))
-  (should (equal "reported cmd \"世界\""
-                 (mistty--command-for-output
-                  (mistty--prompt-ranges-for-current-or-previous-output 2)))))
+  (let ((iter (mistty--make-navigator (point) 'backward))
+        (non-empty (lambda (p) (not (mistty--prompt-ranges-empty-p p)))))
+    (should (equal "echo two"
+                   (mistty--prompt-ranges-cmdline
+                    (mistty--navigator-nth iter 1 non-empty))))
+    (should (equal "reported cmd \"世界\""
+                   (mistty--prompt-ranges-cmdline
+                    (mistty--navigator-nth iter 1 non-empty))))))
 
 
 (mistty-deftest mistty-osc133-fish-cmdline (:type alacritty :shell fish)
@@ -133,16 +130,14 @@ preexec_functions+=(osc133_preexec)
 
   (should (equal
            "for i in a b c; echo $i; end"
-           (mistty--command-for-output
-            (mistty--prompt-ranges-for-current-or-previous-output 1)))))
+           (mistty--prompt-ranges-cmdline
+            (mistty--navigator-nth 'backward 2)))))
 
 
 (mistty-deftest mistty-user-input-start (:type all)
   (let ((user-input-start
          (lambda ()
-           (let ((p (mistty--prompt-ranges-around
-                     (point)
-                     (mistty--active-or-potential-prompt-ranges))))
+           (let ((p (funcall (mistty--make-navigator (point) 'backward))))
              (mistty--user-input-start (mistty--prompt-ranges-prompt-start p)
                                        (mistty--prompt-ranges-output-start p))))))
     (mistty-send-text "echo one")
@@ -1258,3 +1253,421 @@ preexec_functions+=(osc133_preexec)
   (ert-simulate-command '(mark-defun 1))
   (should (equal "$ echo two\ntwo"
                  (mistty-test-content))))
+
+(mistty-deftest mistty-backward-navigator (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (let ((iter (mistty--make-navigator (point-max) 'backward)))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "<>$ echo current\n"
+                     "<1><2>")
+             (mistty-test-show-prompt-ranges (funcall iter) "first")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "<>$ echo three\n"
+                     "<1>three\n"
+                     "<2>$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "second")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "<>$ \n"
+                     "<1><2>$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "third")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "<>$ echo two\n"
+                     "<1>two\n"
+                     "<2>$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "4th")))
+    (should (equal
+             (concat "<>$ echo one\n"
+                     "<1>one\n"
+                     "<2>$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "5th")))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-backward-navigator-from-pos-in-output (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (let ((iter (mistty--make-navigator (mistty-test-pos-after "\ntwo") 'backward)))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "<>$ echo two\n"
+                     "<1>two\n"
+                     "<2>$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+    (should (equal
+             (concat "<>$ echo one\n"
+                     "<1>one\n"
+                     "<2>$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-backward-navigator-from-pos-in-input (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (let ((iter (mistty--make-navigator (mistty-test-pos-after "echo two") 'backward)))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "<>$ echo two\n"
+                     "<1>two\n"
+                     "<2>$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+    (should (equal
+             (concat "<>$ echo one\n"
+                     "<1>one\n"
+                     "<2>$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-backward-navigator-from-point-min (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (let ((iter (mistty--make-navigator (point-min) 'backward)))
+    (should (equal
+             (concat "<>$ echo one\n"
+                     "<1>one\n"
+                     "<2>$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "first")))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-backward-navigator-empty (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (goto-char (point-min))
+  (insert "header\n\n")
+
+  (let ((iter (mistty--make-navigator (point-min) 'backward)))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-forward-navigator (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (let ((iter (mistty--make-navigator (point-min) 'forward)))
+    (should (equal
+             (concat "<>$ echo one\n"
+                     "<1>one\n"
+                     "<2>$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "<>$ echo two\n"
+                     "<1>two\n"
+                     "<2>$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "<>$ \n"
+                     "<1><2>$ echo three\n"
+                     "three\n"
+                     "$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "3rd")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "<>$ echo three\n"
+                     "<1>three\n"
+                     "<2>$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "4th")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "<>$ echo current\n"
+                     "<1><2>")
+             (mistty-test-show-prompt-ranges (funcall iter) "5th")))
+
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-forward-navigator-before-first-prompt (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (goto-char (point-min))
+  (insert "header\n\n")
+
+  (let ((iter (mistty--make-navigator (point-min) 'forward)))
+    (should (equal
+           (concat "header\n"
+                   "\n"
+                   "<>$ echo one\n"
+                   "<1>one\n"
+                   "<2>$ echo current\n")
+           (mistty-test-show-prompt-ranges (funcall iter) "4th")))))
+
+(mistty-deftest mistty-forward-navigator-from-pos-in-output (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (let ((iter (mistty--make-navigator (mistty-test-pos-after "\nthree") 'forward)))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "<>$ echo three\n"
+                     "<1>three\n"
+                     "<2>$ echo current\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "1st")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "<>$ echo current\n"
+                     "<1><2>")
+             (mistty-test-show-prompt-ranges (funcall iter) "2nd")))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-forward-navigator-from-point-max (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo two"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo three"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "echo current"))
+
+  (let ((iter (mistty--make-navigator (point-max) 'forward)))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "$ echo two\n"
+                     "two\n"
+                     "$ \n"
+                     "$ echo three\n"
+                     "three\n"
+                     "<>$ echo current\n<1><2>")
+             (mistty-test-show-prompt-ranges (funcall iter) "first")))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-forward-navigator-dead-process (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "exit"))
+  (mistty-send-command)
+  (mistty-wait-for-output :str "finished")
+
+  ;; Remove the process name that eterm adds
+  (goto-char (point-min))
+  (search-forward-regexp "Process .*finished")
+  (replace-match "Process finished")
+
+  (let ((iter (mistty--make-navigator (point-min) 'forward)))
+    (should (equal
+             (concat "<>$ echo one\n"
+                     "<1>one\n"
+                     "<2>$ exit\n"
+                     "\n"
+                     "Process finished\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "first")))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "<>$ exit\n"
+                     "<1>\n"
+                     "Process finished\n"
+                     "<2>")
+             (mistty-test-show-prompt-ranges (funcall iter) "second")))
+    (should (equal nil (funcall iter)))))
+
+(mistty-deftest mistty-backward-navigator-dead-process (:type all :shell zsh)
+  (mistty-run-command
+   (insert "echo one"))
+  (mistty-send-and-wait-for-prompt)
+  (mistty-run-command
+   (insert "exit"))
+  (mistty-send-command)
+  (mistty-wait-for-output :str "finished")
+
+  ;; Remove the process name that eterm adds
+  (goto-char (point-min))
+  (search-forward-regexp "Process .*finished")
+  (replace-match "Process finished")
+
+  (let ((iter (mistty--make-navigator (point-max) 'backward)))
+    (should (equal
+             (concat "$ echo one\n"
+                     "one\n"
+                     "<>$ exit\n"
+                     "<1>\n"
+                     "Process finished\n"
+                     "<2>")
+             (mistty-test-show-prompt-ranges (funcall iter) "first")))
+
+    (should (equal
+             (concat "<>$ echo one\n"
+                     "<1>one\n"
+                     "<2>$ exit\n"
+                     "\n"
+                     "Process finished\n")
+             (mistty-test-show-prompt-ranges (funcall iter) "second")))
+    (should (equal nil (funcall iter)))))
+
+(defun mistty-test-show-prompt-ranges (ranges name)
+  "Return buffer content with the prompt ranges highlighted.
+
+Prompt-start is <>, output-start is <1>, output-end is <2>."
+  (unless (mistty--prompt-ranges-p ranges)
+    (error "%s is not a prompt range: %S" name ranges))
+  (mistty-test-content :show (list (mistty--prompt-ranges-prompt-start ranges)
+                                   (mistty--prompt-ranges-output-start ranges)
+                                   (mistty--prompt-ranges-output-end ranges))
+                       :trim nil))

@@ -101,14 +101,14 @@ preexec_functions+=(osc133_preexec)
 (mistty-deftest mistty-osc133-cmdline-url-command-for-output
     (:type alacritty :shell ((zsh mistty-test-zsh-osc133-cmdline)))
   ;; Send a percent-encoded cmdline_url that differs from the typed text
-  ;; to verify it is decoded and preferred over `mistty--extract-command'.
+  ;; to verify it is decoded and preferred over `mistty--extract-cmdline'.
   (mistty-send-text "osc133_cmdline_url='reported%20cmd%20%22%E4%B8%96%E7%95%8C%22'")
   (mistty-send-and-wait-for-prompt)
 
   (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
 
-  ;; Without cmdline_url, it falls back to `mistty--extract-command'.
+  ;; Without cmdline_url, it falls back to `mistty--extract-cmdline'.
   (mistty-send-text "osc133_cmdline_url=''")
   (mistty-send-and-wait-for-prompt)
 
@@ -143,7 +143,8 @@ preexec_functions+=(osc133_preexec)
            (let ((p (mistty--prompt-ranges-around
                      (point)
                      (mistty--active-or-potential-prompt-ranges))))
-             (mistty--user-input-start (nth 0 p) (nth 1 p))))))
+             (mistty--user-input-start (mistty--prompt-ranges-prompt-start p)
+                                       (mistty--prompt-ranges-output-start p))))))
     (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
     (mistty-send-and-wait-for-prompt)

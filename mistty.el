@@ -1853,7 +1853,7 @@ It also marks the prompt region with the text property
             (when-let* ((cmdline (or (when-let* ((c (mistty--prompt-cmdline prompt)))
                                        (replace-regexp-in-string
                                         "\n" "; " c))
-                                     (mistty--extract-command
+                                     (mistty--extract-cmdline
                                       prompt-beg prompt-end))))
               (put-text-property
                prompt-beg prompt-end

@@ -744,6 +744,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
   (add-function :after after-focus-change-function #'mistty--check-frame-focus)
   (add-hook 'window-selection-change-functions #'mistty--check-window-focus nil t)
+  (add-hook 'window-selection-change-functions #'mistty--set-notrack-cursor nil t)
   (add-hook 'window-buffer-change-functions #'mistty--check-window-focus nil t)
 
   (setq mistty--cursor (copy-marker (point-min)))
@@ -1432,16 +1433,35 @@ the point being visible."
             (with-selected-window win
               (recenter (- lines-after-point)))))))))
 
+(defun mistty--set-notrack-cursor (win)
+  "Flag windows for `mistty-goto-cursor'.
+
+When a window is deselected, normally the buffer point is stored as
+window point and not moved. `mistty-goto-cursor' will move that point to
+track the terminal cursor, but only if the point was inside the terminal
+zone when the window was deselected.
+
+`mistty-goto-cursor' also doesn't change the window point of the
+selected window, since it would just be the buffer point."
+  (set-window-parameter
+   win
+   'mistty-notrack-cursor
+   (or (eq win (selected-window))
+       (not (or (>= (window-point win) mistty-sync-marker)
+                (eq t mistty-goto-cursor-next-time))))))
+
 (defun mistty-goto-cursor ()
   "Move the point to the terminal's cursor."
   (interactive)
-  (mistty--require-proc)
-  (let ((cursor (mistty-cursor)))
-    (when (/= cursor (point))
-      (goto-char cursor)
-      (dolist (win (get-buffer-window-list (current-buffer) nil t))
-        (when (= cursor (window-point win))
-          (set-window-parameter win 'mistty--cursor-skip-state nil))))))
+  (when-let* ((cursor (mistty-cursor)))
+    (goto-char cursor)
+
+    ;; Also move the point of deselected windows that track the
+    ;; cursor.
+    (dolist (win (get-buffer-window-list (current-buffer) nil t))
+      (unless (window-parameter win 'mistty-notrack-cursor)
+        (set-window-point win cursor)
+        (set-window-parameter win 'mistty--cursor-skip-state nil)))))
 
 (defun mistty-cursor ()
   "Return the position of the terminal cursor in the MisTTY buffer.

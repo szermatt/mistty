@@ -54,6 +54,11 @@
   (not (> (mistty--prompt-ranges-end prompt-ranges)
           (mistty--prompt-ranges-output prompt-ranges))))
 
+(defsubst mistty--prompt-ranges-noinput-p (prompt-ranges)
+  "Return non-nil if PROMPT-RANGES input is empty."
+  (not (> (mistty--prompt-ranges-output prompt-ranges)
+          (mistty--prompt-ranges-start prompt-ranges))))
+
 (defun mistty--prompt-ranges-cmdline (prompt-ranges &optional merge-lines)
   "Get command-line for PROMPT-RANGES.
 
@@ -153,14 +158,14 @@ This is meant to be bound to `imenu-create-index-function'."
                         (if imenu-use-markers
                             (copy-marker pos)
                           pos)))
-        prompt output-alist prompt-alist)
+        prompt output-alist input-alist)
     (while (setq prompt (funcall iter))
       (if (mistty--prompt-ranges-current-p prompt)
           ;; Active prompt
           (push (cons "CURRENT"
                       (funcall maybe-marker
                                (mistty--user-input-start prompt)))
-                prompt-alist)
+                input-alist)
 
         ;; Previous prompts
         (when-let* ((cmdline (mistty--prompt-ranges-cmdline prompt 'merge-lines)))
@@ -169,14 +174,13 @@ This is meant to be bound to `imenu-create-index-function'."
                         (funcall maybe-marker
                                  (mistty--prompt-ranges-output prompt)))
                   output-alist))
-          (when (> (mistty--prompt-ranges-output prompt)
-                   (mistty--prompt-ranges-start prompt))
-            (push (cons cmdline
+          (unless (mistty--prompt-ranges-noinput-p prompt)
+            (push (cons (concat cmdline)
                         (funcall maybe-marker
                                  (mistty--user-input-start prompt)))
-                  prompt-alist)))))
+                  input-alist)))))
     `(("Outputs" . ,(nreverse output-alist))
-      ("Commands" . ,(nreverse prompt-alist)))))
+      ("Commands" . ,(nreverse input-alist)))))
 
 
 (defun mistty-beginning-of-defun (&optional n)

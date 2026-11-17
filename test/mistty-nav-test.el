@@ -276,18 +276,14 @@ preexec_functions+=(osc133_preexec)
                            (alist-get "Commands" index nil nil #'string=))))))
 
 (mistty-deftest mistty-test-select-output (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (mistty-select-output)
   (should (equal (concat "$ echo one\n"
@@ -361,11 +357,9 @@ preexec_functions+=(osc133_preexec)
                  (mistty-test-content :show (list (point) (mark))))))
 
 (mistty-deftest mistty-test-select-output-eob (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (goto-char (point-max))
 
@@ -376,11 +370,9 @@ preexec_functions+=(osc133_preexec)
          (mistty-test-content :show (list (point) (mark)))))
 
 (mistty-deftest mistty-test-select-output-bob (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (mistty-test-goto "echo one")
   (forward-line)
@@ -392,14 +384,11 @@ preexec_functions+=(osc133_preexec)
   (should-error (mistty-select-output)))
 
 (mistty-deftest mistty-test-next-output-bob (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
 
   (mistty-test-goto "echo one")
   (forward-line)
@@ -411,17 +400,13 @@ preexec_functions+=(osc133_preexec)
 
 (mistty-deftest mistty-test-next-input (:shell (bash zsh fish))
   (mistty-with-test-buffer ()
-    (mistty-run-command
-     (insert "echo one"))
+    (mistty-send-text "echo one")
     (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo two"))
+    (mistty-send-text "echo two")
     (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo three"))
+    (mistty-send-text "echo three")
     (mistty-send-and-wait-for-prompt)
-    (mistty-run-command
-     (insert "echo current"))
+    (mistty-send-text "echo current")
 
     (goto-char (point-min))
     (mistty-next-input 1)
@@ -493,17 +478,13 @@ preexec_functions+=(osc133_preexec)
             (mistty-test-content :show (point))))))
 
 (mistty-deftest mistty-test-previous-input (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (mistty-test-goto "current")
 
@@ -564,17 +545,13 @@ preexec_functions+=(osc133_preexec)
           (mistty-test-content :show (point)))))
 
 (mistty-deftest mistty-test-previous-cmdline (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (should (equal "echo current" (mistty-previous-cmdline 0)))
   (should (equal "echo three" (mistty-previous-cmdline 1)))
@@ -596,8 +573,7 @@ preexec_functions+=(osc133_preexec)
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (goto-char (point-min))
   (mistty-next-input 1)
@@ -648,8 +624,7 @@ preexec_functions+=(osc133_preexec)
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (mistty-test-goto "current")
   (mistty-previous-input 1)
@@ -705,18 +680,14 @@ preexec_functions+=(osc133_preexec)
                  (mistty-test-content :show (point)))))
 
 (mistty-deftest mistty-test-next-output (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((range))
     (goto-char (point-min))
@@ -788,18 +759,14 @@ preexec_functions+=(osc133_preexec)
             (mistty-test-content :show (point))))))
 
 (mistty-deftest mistty-test-previous-output (:type all)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (mistty-test-goto "current")
 
@@ -1288,18 +1255,14 @@ preexec_functions+=(osc133_preexec)
                  (mistty-test-content))))
 
 (mistty-deftest mistty-backward-navigator (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((iter (mistty--make-navigator (point-max) 'backward)))
     (should (equal
@@ -1356,18 +1319,14 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-backward-navigator-from-pos-in-output (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((iter (mistty--make-navigator (mistty-test-pos-after "\ntwo") 'backward)))
     (should (equal
@@ -1393,18 +1352,14 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-backward-navigator-from-pos-in-input (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((iter (mistty--make-navigator (mistty-test-pos-after "echo two") 'backward)))
     (should (equal
@@ -1430,18 +1385,14 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-backward-navigator-from-point-min (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((iter (mistty--make-navigator (point-min) 'backward)))
     (should (equal
@@ -1457,18 +1408,14 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-backward-navigator-empty (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (goto-char (point-min))
   (insert "header\n\n")
@@ -1477,18 +1424,14 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-forward-navigator (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((iter (mistty--make-navigator (point-min) 'forward)))
     (should (equal
@@ -1546,11 +1489,9 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-forward-navigator-before-first-prompt (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (goto-char (point-min))
   (insert "header\n\n")
@@ -1565,18 +1506,14 @@ preexec_functions+=(osc133_preexec)
            (mistty-test-show-prompt-ranges (funcall iter) "4th")))))
 
 (mistty-deftest mistty-forward-navigator-from-pos-in-output (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((iter (mistty--make-navigator (mistty-test-pos-after "\nthree") 'forward)))
     (should (equal
@@ -1603,18 +1540,14 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-forward-navigator-from-point-max (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo two"))
+  (mistty-send-text "echo two")
   (mistty-send-and-wait-for-prompt)
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo three"))
+  (mistty-send-text "echo three")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "echo current"))
+  (mistty-send-text "echo current")
 
   (let ((iter (mistty--make-navigator (point-max) 'forward)))
     (should (equal
@@ -1630,11 +1563,9 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-forward-navigator-dead-process (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "exit"))
+  (mistty-send-text "exit")
   (mistty-send-command)
   (mistty-wait-for-output :str "finished")
 
@@ -1662,11 +1593,9 @@ preexec_functions+=(osc133_preexec)
     (should (equal nil (funcall iter)))))
 
 (mistty-deftest mistty-backward-navigator-dead-process (:type all :shell zsh)
-  (mistty-run-command
-   (insert "echo one"))
+  (mistty-send-text "echo one")
   (mistty-send-and-wait-for-prompt)
-  (mistty-run-command
-   (insert "exit"))
+  (mistty-send-text "exit")
   (mistty-send-command)
   (mistty-wait-for-output :str "finished")
 

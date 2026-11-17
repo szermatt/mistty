@@ -6,7 +6,6 @@ use alacritty_terminal::{
         TermMode,
         cell::{Cell, Flags},
     },
-    vte::ansi::{NamedPrivateMode, PrivateMode},
 };
 use emacs::{IntoLisp, Result, Value};
 
@@ -25,6 +24,7 @@ emacs::use_symbols! {
     colon_end_sym => ":end"
     colon_user_input_start_sym => ":user-input-start"
     colon_cmdline_sym => ":cmdline"
+    colon_click_events_sym => ":click-events"
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -52,6 +52,27 @@ pub(crate) struct PromptOptions {
 
     /// The final command-line, as reported by the shell.
     pub(crate) cmdline: Option<String>,
+
+    /// Value of the click_events option passed to prompt start (A).
+    pub(crate) click_events: bool,
+}
+
+impl PromptOptions {
+    /// Apply changes from another instances to the current one.
+    ///
+    /// Values that are not None from the other instance override the
+    /// current values.
+    fn apply(&mut self, other: &PromptOptions) {
+        if other.user_input_start.is_some() {
+            self.user_input_start = other.user_input_start.clone();
+        }
+        if other.cmdline.is_some() {
+            self.cmdline = other.cmdline.clone();
+        }
+        if other.click_events {
+            self.click_events = true;
+        }
+    }
 }
 
 impl<'e> IntoLisp<'e> for PromptOptions {
@@ -72,6 +93,11 @@ impl<'e> IntoLisp<'e> for &PromptOptions {
                 },
                 if let Some(cmdline) = &self.cmdline {
                     env.list((colon_cmdline_sym, cmdline))?
+                } else {
+                    nil
+                },
+                if self.click_events {
+                    env.list((colon_click_events_sym, true))?
                 } else {
                     nil
                 },
@@ -136,6 +162,7 @@ pub(crate) struct PromptDetector {
 pub(crate) struct Prompt {
     pub(crate) start: Scrolline,
     pub(crate) source: PromptSource,
+    pub(crate) options: PromptOptions,
 }
 
 impl PromptDetector {
@@ -287,10 +314,10 @@ impl PromptDetector {
         }
         self.report_prompt(vterm, PromptSource::Osc133, vterm.scrolline_at_cursor());
         if click_events {
-            vterm.set_private_mode(PrivateMode::Named(NamedPrivateMode::ReportMouseClicks));
-            vterm.set_private_mode(PrivateMode::Named(NamedPrivateMode::SgrMouse));
-        } else {
-            vterm.unset_private_mode(PrivateMode::Named(NamedPrivateMode::ReportMouseClicks));
+            self.update_prompt(PromptOptions {
+                click_events,
+                ..PromptOptions::default()
+            });
         }
     }
 
@@ -299,13 +326,13 @@ impl PromptDetector {
             return;
         }
         if let Some(_) = &self.current {
-            self.push(PromptChange::Update(PromptOptions {
+            self.update_prompt(PromptOptions {
                 user_input_start: Some((
                     vterm.scrolline_at_cursor(),
                     vterm.grid().cursor.point.column,
                 )),
                 ..PromptOptions::default()
-            }));
+            });
         }
     }
 
@@ -313,10 +340,10 @@ impl PromptDetector {
     pub(crate) fn osc_133_cmdline(&mut self, cmdline: &str) {
         if let Some(_) = &self.current {
             if let Ok(cmdline) = percent_encoding::percent_decode_str(cmdline).decode_utf8() {
-                self.push(PromptChange::Update(PromptOptions {
+                self.update_prompt(PromptOptions {
                     cmdline: Some(cmdline.to_string()),
                     ..PromptOptions::default()
-                }))
+                });
             }
         }
     }
@@ -337,7 +364,6 @@ impl PromptDetector {
             return;
         }
         self.end_prompt(vterm, PromptSource::Osc133, vterm.scrolline_at_cursor());
-        vterm.unset_private_mode(PrivateMode::Named(NamedPrivateMode::ReportMouseClicks));
     }
 
     fn report_prompt(&mut self, vterm: &mut VTerm, source: PromptSource, start: Scrolline) {
@@ -365,8 +391,19 @@ impl PromptDetector {
     }
 
     fn set_current(&mut self, vterm: &mut VTerm, source: PromptSource, start: Scrolline) {
-        self.current = Some(Prompt { source, start });
+        self.current = Some(Prompt {
+            source,
+            start,
+            options: PromptOptions::default(),
+        });
         vterm.track_modifications_above(start);
+    }
+
+    fn update_prompt(&mut self, options: PromptOptions) {
+        if let Some(current) = &mut self.current {
+            current.options.apply(&options);
+            self.push(PromptChange::Update(options));
+        }
     }
 
     fn end_prompt(&mut self, vterm: &mut VTerm, source: PromptSource, mut end: Scrolline) {
@@ -753,29 +790,85 @@ mod tests {
     #[test]
     fn detect_osc133_click_events() {
         let mut fixture = Fixture::setup();
-        assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
+        assert_eq!(None, fixture.processor.current_prompt());
 
+        // Start prompt with click_events=1
         fixture.process_bytes(b"\x1b]133;A;click_events=1\x07$ \x1b]133;B\x07");
-        assert!(
-            fixture
-                .vterm
-                .mode()
-                .contains(TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE)
+
+        // click_events preserved after user_input_start
+        let prompt = fixture
+            .processor
+            .current_prompt()
+            .expect("should have current prompt");
+        assert_eq!(prompt.source, PromptSource::Osc133);
+        assert_eq!(prompt.start, Scrolline(0));
+        assert!(prompt.options.click_events);
+        assert_eq!(
+            prompt.options.user_input_start,
+            Some((Scrolline(0), Column(2)))
         );
 
-        fixture.process_bytes(b"echo ok\r\n\x1b]133;C\x07");
-        assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
+        assert_eq!(
+            vec![
+                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::Update(PromptOptions {
+                    click_events: true,
+                    ..PromptOptions::default()
+                }),
+                PromptChange::Update(PromptOptions {
+                    user_input_start: Some((Scrolline(0), Column(2))),
+                    ..PromptOptions::default()
+                }),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
 
+        fixture.process_bytes(b"\x1b]133;C;cmdline_url=echo%20ok\x07echo ok\r\n\x1b]133;D\x07");
+        assert_eq!(None, fixture.processor.current_prompt());
+        assert_eq!(
+            vec![
+                PromptChange::Update(PromptOptions {
+                    cmdline: Some("echo ok".to_string()),
+                    ..PromptOptions::default()
+                }),
+                PromptChange::End(Scrolline(1)),
+                PromptChange::CommandFinished(None, Scrolline(1)),
+            ],
+            fixture.processor.collect_prompt_changes()
+        );
+
+        // new prompt
         fixture.process_bytes(b"\x1b]133;A;click_events=1\x07$ ");
         assert!(
             fixture
-                .vterm
-                .mode()
-                .contains(TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE)
+                .processor
+                .current_prompt()
+                .unwrap()
+                .options
+                .click_events
         );
 
-        fixture.process_bytes(b"\x1b]133;A\x07$ ");
-        assert!(!fixture.vterm.mode().contains(TermMode::MOUSE_REPORT_CLICK));
+        // Replacing unended prompt on a new line with one without click_events
+        fixture.process_bytes(b"\r\n\x1b]133;A\x07$ ");
+        assert!(
+            !fixture
+                .processor
+                .current_prompt()
+                .unwrap()
+                .options
+                .click_events
+        );
+
+        // Starting a prompt with click_events=0 on a new line
+        fixture.process_bytes(b"\r\n\x1b]133;A;click_events=0\x07$ ");
+        assert!(
+            !fixture
+                .processor
+                .current_prompt()
+                .unwrap()
+                .options
+                .click_events
+        );
     }
 
     #[test]

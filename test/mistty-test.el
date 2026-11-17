@@ -7313,6 +7313,61 @@ preexec_functions+=(osc133_preexec)
     (should-not mistty--mouse-reporting-requested)
     (should-error (mistty-toggle-mouse) :type 'user-error)))
 
+(mistty-deftest mistty-test-click-events-mixed-with-terminal-modes
+                (:selected t :type alacritty :shell fish)
+  (let ((mistty-prompt-map (make-sparse-keymap "prompt"))
+        (mistty--report-click-map (make-sparse-keymap "mouse")))
+    ;; fish prompt automatically sets click_events=1 via OSC 133 this
+    ;; test makes sure that the terminal enabling or disabling mouse
+    ;; reporting won't interfere with that.
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'click mistty--mouse-reporting-requested))
+    (should-not (mistty--term-mouse-reporting mistty--term))
+
+    (mistty-toggle-mouse)
+    (should-not mistty--mouse-reporting)
+    (should (eq 'click mistty--mouse-reporting-requested))
+
+    (mistty-toggle-mouse)
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'click mistty--mouse-reporting-requested))
+
+    ;; click
+    (mistty-send-text "printf '\\e[?1000h'")
+    (mistty-send-and-wait-for-prompt)
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'click mistty--mouse-reporting-requested))
+    (should (eq 'click (mistty--term-mouse-reporting mistty--term)))
+
+    ;; drag
+    (mistty-send-text "printf '\\e[?1002h'")
+    (mistty-send-and-wait-for-prompt)
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'drag mistty--mouse-reporting-requested))
+    (should (eq 'drag (mistty--term-mouse-reporting mistty--term)))
+
+    ;; motion
+    (mistty-send-text "printf '\\e[?1003h'")
+    (mistty-send-and-wait-for-prompt)
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'motion mistty--mouse-reporting-requested))
+    (should (eq 'motion (mistty--term-mouse-reporting mistty--term)))
+
+    ;; disable
+    (mistty-send-text "printf '\\e[?1003l\\e[?1002l\\e[?1000l'")
+    (mistty-send-and-wait-for-prompt)
+    (should-not (mistty--term-mouse-reporting mistty--term))
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'click mistty--mouse-reporting-requested))
+
+    (mistty-toggle-mouse)
+    (should-not mistty--mouse-reporting)
+    (should (eq 'click mistty--mouse-reporting-requested))
+
+    (mistty-toggle-mouse)
+    (should (eq t mistty--mouse-reporting))
+    (should (eq 'click mistty--mouse-reporting-requested))))
+
 (mistty-deftest mistty-test-disallow-mouse-reporting (:selected t :type alacritty)
   (let ((mistty-allow-mouse-reporting nil))
     (should-error (mistty-toggle-mouse) :type 'user-error)

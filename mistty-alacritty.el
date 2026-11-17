@@ -659,7 +659,15 @@ CURSOR-MARKER is updated to the cursor position."
                                (mistty--prompt-input-id prompt)
                                (mistty--prompt-start prompt)
                                (mistty--prompt-end prompt)
-                               cmdline))))
+                               cmdline))
+                 (when-let* ((val (plist-get args-plist :click-events)))
+                   (setf (mistty--prompt-click-events prompt) val)
+                   (mistty-log "Updated %s prompt #%s [%s-%s] :click-events %S"
+                               (mistty--prompt-source prompt)
+                               (mistty--prompt-input-id prompt)
+                               (mistty--prompt-start prompt)
+                               (mistty--prompt-end prompt)
+                               val))))
 
               (`(command-finished . ,_)
                (push ev forwarded-events))
@@ -867,6 +875,10 @@ fullscreen mode."
 (cl-defmethod mistty--term-end-regexp-prompt ((term mistty--term-alacritty))
   "End the current regexp prompt for TERM, if any."
     (mistty-alacritty-vt-end-regexp-prompt (mistty--term-alacritty-vterm term)))
+
+(cl-defmethod mistty--term-mouse-reporting ((term mistty--term-alacritty))
+  "Return the current mouse reporting level."
+  (mistty--term-alacritty-mouse term))
 
 (defun mistty--alacritty-mouse-event-params (term ev move-posn sync-pos)
   "Convert EV for TERM to parameters for `mistty-alacritty-vt-translate-mouse'.

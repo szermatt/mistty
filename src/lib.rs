@@ -311,7 +311,18 @@ fn mouse_seq<'a>(
     x: i32,
     y: i32,
 ) -> Result<Value<'a>> {
-    match mouse::mouse_seq(&mut term.vterm, action, button, mods, x, y) {
+    match mouse::mouse_seq(
+        &mut term.vterm,
+        term.processor
+            .current_prompt()
+            .map(|p| p.options.click_events)
+            .unwrap_or(false),
+        action,
+        button,
+        mods,
+        x,
+        y,
+    ) {
         None => Ok(().into_lisp(env)?),
         Some(encoded) => Ok(unsafe { String::from_utf8_unchecked(encoded) }.into_lisp(env)?),
     }

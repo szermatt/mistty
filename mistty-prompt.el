@@ -60,7 +60,11 @@
   user-input-start
 
   ;; The command executed, as reported by the shell (OSC 133)
-  cmdline)
+  cmdline
+
+  ;; If non-nil click_events=1 was passed to OSC 133 A. That is, click
+  ;; SGR events can be sent to move the cursor or select option.
+  click-events)
 
 (defun mistty--prompt-contains (prompt scrolline)
   "Return non-nil if SCROLLINE is inside of PROMPT."

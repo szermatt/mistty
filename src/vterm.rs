@@ -4,7 +4,7 @@
 
 use crate::damage::GridDamage;
 use crate::gridext::{CellExt, GridExt, RowExt};
-use crate::prompt::{PromptChange, PromptDetector};
+use crate::prompt::{Prompt, PromptChange, PromptDetector};
 use crate::render;
 use crate::types::Scrolline;
 use alacritty_terminal::vte::ansi::{
@@ -91,6 +91,11 @@ impl VTermProcessor {
             processor: Processor::new(),
             prompt_detector: PromptDetector::new(),
         }
+    }
+
+    /// Return a reference to the current prompt.
+    pub(crate) fn current_prompt(&self) -> Option<&Prompt> {
+        self.prompt_detector.current_prompt()
     }
 
     /// Collect all prompts detected in previous calls to [process_bytes].
@@ -387,14 +392,6 @@ impl VTerm {
             self.inner.set_options(config);
         }
         self.options = options;
-    }
-
-    pub(crate) fn set_private_mode(&mut self, mode: PrivateMode) {
-        self.inner.set_private_mode(mode);
-    }
-
-    pub(crate) fn unset_private_mode(&mut self, mode: PrivateMode) {
-        self.inner.unset_private_mode(mode);
     }
 
     /// Read-only access to the terminal grid.

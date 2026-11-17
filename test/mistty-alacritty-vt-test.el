@@ -2083,6 +2083,36 @@
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
     (should (null (mistty-alacritty-vt-mouse-seq vterm 'press 1 [] 0 0)))))
 
+(mistty-deftest mistty-alacritty-vt-mouse-seq-click-events
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
+    (should (null (mistty-alacritty-vt-mouse-seq vterm 'press 1 [] 0 0)))
+    (mistty-alacritty-vt-process-bytes vterm "\e]133;A;click_events=1\a$ \e]133;B\a")
+
+    ;; OSC 133 prompt with click_events is reported as prompt option.
+    (let ((changes (mistty-alacritty-vt-collect-changes vterm)))
+      (should-not (alist-get 'mouse changes))
+      (should (equal '(:click-events t) (alist-get 'update-prompt changes))))
+
+    ;; mouse_seq can encode clicks in SGR format
+    (should (equal "\e[<0;1;1M" (mistty-alacritty-vt-mouse-seq vterm 'press 1 [] 0 0)))
+    (should (equal "\e[<0;1;1m" (mistty-alacritty-vt-mouse-seq vterm 'release 1 [] 0 0)))
+
+    ;; Mouse mode can be enabled and disabled independently.
+    (mistty-alacritty-vt-process-bytes vterm "\e[?1002h")
+    (should (equal '((mouse . drag)) (mistty-alacritty-vt-collect-changes vterm)))
+
+    (mistty-alacritty-vt-process-bytes vterm "\e[?1002l")
+    (should (equal '((mouse . nil)) (mistty-alacritty-vt-collect-changes vterm)))
+
+    ;; mouse_seq can *still* encode clicks
+    (should (equal "\e[<0;1;1M" (mistty-alacritty-vt-mouse-seq vterm 'press 1 [] 0 0)))
+
+    (mistty-alacritty-vt-process-bytes vterm "\e]133;C\aecho ok\r\n\e]133;D\a")
+
+    ;; mouse_seq cannot encode clicks after prompt end
+    (should (null (mistty-alacritty-vt-mouse-seq vterm 'press 1 [] 0 0)))))
+
 
 (mistty-deftest mistty-alacritty-vt-mouse-seq-x10
     (:features mistty-alacritty-vt :shell none)

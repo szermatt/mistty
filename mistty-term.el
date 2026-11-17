@@ -218,6 +218,15 @@ fullscreen mode."
   "End the current regexp prompt for TERM, if any."
   nil)
 
+(cl-defgeneric mistty--term-mouse-reporting (_term)
+  "Return the current mouse reporting level.
+
+Returns nil, \\='click, \\='drag or \\='motion.
+
+Changes to this value are reported to the callback request-report-mouse
+passed to `mistty--create-term`."
+  nil)
+
 (provide 'mistty-term)
 
 ;;; mistty-term.el ends here

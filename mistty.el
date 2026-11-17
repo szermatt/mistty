@@ -912,16 +912,7 @@ window."
                   :request-report-mouse
                   (lambda (val)
                     (mistty--with-live-buffer work-buffer
-                      (unless (eq (null val) (null mistty--mouse-reporting-requested))
-                        (setq mistty--mouse-reporting
-                              (if (and val mistty-allow-mouse-reporting)
-                                  t
-                                nil)))
-                      (setq mistty--mouse-reporting-requested val)
-                      (mistty-log "Mouse reporting: %s enabled: %s"
-                                  val mistty--mouse-reporting)
-
-                      (mistty--update-secondary-mode)))))
+                      (mistty--request-mouse-reporting val)))))
            (accum (process-filter (mistty--term-proc term))))
       (mistty--add-sync-buffers accum work-buffer)
       (mistty--attach term)
@@ -929,6 +920,32 @@ window."
   (mistty--wrap-capf-functions)
   (mistty--update-secondary-mode)
   (run-hooks 'mistty-after-process-start-hook))
+
+(defun mistty--request-mouse-reporting (val)
+  "Set mouse reporting VAL.
+
+VAL can be either:
+
+- nil, mouse reporting is deactivated.
+- \\='click, report press and release events.
+- \\='drag, report press, release, and mouse movement with pointer down.
+- \\='motion, report all mouse events."
+  (when (and (null val)
+             (when-let* ((prompt (mistty--active-prompt)))
+               (mistty--prompt-click-events prompt)))
+    ;; Mouse reporting cannot go lower than click as long as there is
+    ;; an active prompt with click-events enabled.
+    (setq val 'click))
+  (unless (eq (null val) (null mistty--mouse-reporting-requested))
+    (setq mistty--mouse-reporting
+          (if (and val mistty-allow-mouse-reporting)
+              t
+            nil)))
+  (setq mistty--mouse-reporting-requested val)
+  (mistty-log "Mouse reporting: %s enabled: %s"
+              val mistty--mouse-reporting)
+
+  (mistty--update-secondary-mode))
 
 (defun mistty--attach (term)
   "Attach the current `mistty-mode' buffer to TERM."
@@ -1566,18 +1583,27 @@ If ON-PROMPT is non-nil, check if vertical cursor motion is possible."
                            (mistty--prompt-start prompt))))
     ;; If a new prompt was detected, restrict sync region to
     ;; the beginning of that prompt.
-    (when (and (not (mistty--prompt-realized prompt))
-               (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
-               (null (mistty--prompt-end prompt))
-               (> (mistty-cursor) prompt-beg))
-      (mistty-log "Realized %s prompt #%s [%s-] @%s"
-                  (mistty--prompt-source prompt)
-                  (mistty--prompt-input-id prompt)
-                  (mistty--prompt-start prompt)
-                  prompt-beg)
-      (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
-      (setf (mistty--prompt-realized prompt) t)
-      (mistty--update-secondary-mode))
+    (let ((update-secondary-mode nil))
+      (when (and (not (mistty--prompt-realized prompt))
+                 (memq (mistty--prompt-source prompt) '(bracketed-paste osc133))
+                 (null (mistty--prompt-end prompt))
+                 (> (mistty-cursor) prompt-beg))
+        (mistty-log "Realized %s prompt #%s [%s-] @%s"
+                    (mistty--prompt-source prompt)
+                    (mistty--prompt-input-id prompt)
+                    (mistty--prompt-start prompt)
+                    prompt-beg)
+        (mistty--set-sync-mark prompt-beg (mistty--prompt-start prompt))
+        (setf (mistty--prompt-realized prompt) t)
+        (setq update-secondary-mode t))
+      (when (and (mistty--prompt-click-events prompt)
+                 (null mistty--mouse-reporting-requested))
+        (mistty--request-mouse-reporting 'click)
+        (setq update-secondary-mode t))
+
+      (when update-secondary-mode
+        (mistty--update-secondary-mode)))
+
     (when (mistty--prompt-realized prompt)
       (mistty--mark-continue-prompts prompt prompt-beg)
       (mistty--mark-right-prompt prompt-beg)
@@ -1892,6 +1918,10 @@ It also marks the prompt region with the text property
                         prompt-end)
             (when (eq 'regexp (mistty--prompt-source prompt))
               (mistty--term-end-regexp-prompt mistty--term))
+            (when (mistty--prompt-click-events prompt)
+              (mistty--request-mouse-reporting
+               (mistty--term-mouse-reporting mistty--term))
+              (mistty--update-secondary-mode))
             (mistty--mark-continue-prompts prompt prompt-beg)
             (mistty--mark-right-prompt prompt-beg)
             (mistty--mark-prompt-fields prompt prompt-beg)

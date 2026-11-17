@@ -64,7 +64,7 @@ mistty-after-process-start-hook
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :code:`mistty-after-process-start-hook` is a normal hook called from
-within a new MisTTY work buffer just after starting the process,
+within a new MisTTY buffer just after starting the process,
 usually a shell. The process itself is available as
 :code:`mistty-proc`. At the time this hook is called, the buffer is
 typically empty, as no output from the process has been processed.
@@ -73,11 +73,11 @@ mistty-after-process-end-hook
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :code:`mistty-after-process-end-hook` is called from within a MisTTY
-work buffer just after the process ended. The process is passed as an
+buffer just after the process ended. The process is passed as an
 argument to the hook and its status can be accessed using
 :code:`process-status`.
 
-This can be used to, for example, kill the MisTTY work buffer after
+This can be used to, for example, kill the MisTTY buffer after
 the shell exits successfully, with :code:`mistty-kill-buffer` or
 :code:`mistty-kill-buffer-and-window`.
 
@@ -90,7 +90,7 @@ mistty-entered-fullscreen-hook
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :code:`mistty-entered-fullscreen-hook` is a normal hook called from
-within a MisTTY work buffer just after switching to fullscreen mode.
+within a MisTTY buffer just after switching to fullscreen mode.
 
 In this mode, :code:`mistty-fullscreen` is non-nil and Emacs commands
 cannot modify the terminal zone.
@@ -99,9 +99,9 @@ mistty-left-fullscreen-hook
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :code:`mistty-left-fullscreen-hook` is a normal hook called from
-within a MisTTY work buffer just after switching back to normal mode.
+within a MisTTY buffer just after switching back to normal mode.
 
-In this mode, :code:`mistty-fullscreen` is non-nil and Emacs commands
+In this mode, :code:`mistty-fullscreen` is nil and Emacs commands
 can modify the terminal zone and MisTTY will attempt to send the
 changes to terminal application.
 
@@ -124,16 +124,12 @@ can usually be used interchangeably.
 This doesn't work when using the `alacritty` terminal type. There, the
 set of supported OSC sequences is hardcoded.
 
-When working on OSC handlers for MisTTY, it's important to keep the
-following in mind: MisTTY separate buffers for the terminal (a
-:code:`term-mode` buffer) and for MisTTY itself. The OSC handlers run
-in the term-mode buffer.
+When working on OSC handlers for MisTTY with `eterm`, if a handler sets
+a buffer-local variable, add that variable to :kbd:`M-x
+configure-option mistty-variables-to-copy` so that its value is copied
+to the MisTTY buffer.
 
 .. index:: pair: variable; mistty-variables-to-copy
-
-One consequence of this is that if you set a buffer-local variable in
-a handler, it won't be available in the MisTTY buffer unless you
-register it to :kbd:`M-x configure-option mistty-variables-to-copy`
 
 MisTTY provides helpers for writing OSC handlers that set text
 properties:

@@ -99,7 +99,7 @@ FAQ
 
      - Only type self-inserting characters and :kbd:`DEL`.
 
-     - Press :kbd:`C-c C-q` or :kbd:`M-x mistty-send-key-sequence` to
+     - Press :kbd:`C-c C-q` or :kbd:`M-x mistty-capture-keyboard` to
        send what you type directly to the terminal until you turn it
        off with :kbd:`C-g`.
 

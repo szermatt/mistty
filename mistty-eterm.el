@@ -442,7 +442,7 @@ silently skip BODY."
          (signal 'mistty--term-eterm-killed nil)))))
 
 (defun mistty--term-eterm-reset (term)
-  "Reset internal state."
+  "Reset internal state for TERM."
   (setf (mistty--term-eterm-fs term) nil)
   (setf (mistty--term-eterm-change-before-scrolline term) nil)
   (setf (mistty--term-eterm-events term) nil))
@@ -675,7 +675,7 @@ REPORT-FOCUS control whether focus changes should be reported."
         term))))
 
 (cl-defmethod mistty--term-handle-process-death ((term mistty--term-eterm) msg)
-  "Deal with the process having died with message MSG."
+  "Deal with the process of TERM having died with message MSG."
   (term-sentinel (mistty--term-eterm-proc term) msg))
 
 (cl-defmethod mistty--term-delete ((term mistty--term-eterm))
@@ -1440,7 +1440,9 @@ this is the same as what's returned by `mistty--prompt' after this call."
       (setf (mistty--prompt-end p) end))))
 
 (cl-defun mistty--update-prompt (source &key user-input-start)
-  "Update the current prompt if it comes from SOURCE."
+  "Update the current prompt if it comes from SOURCE.
+
+USER-INPUT-START is the start position of user input."
   (ignore source)
   (when-let* ((cell (mistty--term-eterm-prompt-cell mistty--eterm))
               (p (mistty--get-prompt cell)))
@@ -1593,10 +1595,10 @@ Truncate the buffer at a BOL, leaving at least 200 chars, for
 
 (defun mistty--copy-buffers
     (source-buffer source-pos dest-buffer dest-pos)
-  "Copy SOURCE-BUFFER from SOURCE-POS to eob to DEST-BUFFER.
+  "Copy SOURCE-BUFFER from SOURCE-POS to eob to DEST-BUFFER at DEST-POS.
 
-This function attempts to keep the point where it is if it imhhhhhhhhhy6 before
-DEST-POST, otherwise, it moves moves it to the same position as in
+This function attempts to keep the point where it is if it is before
+DEST-POS, otherwise, it moves it to the same position as in
 SOURCE-BUFFER."
   (mistty--with-live-buffer dest-buffer
     (save-restriction

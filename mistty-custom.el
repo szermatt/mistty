@@ -18,6 +18,8 @@
 ;;
 ;; This file collects customization options for the MisTTY package.
 
+;;; Code:
+
 (defcustom mistty-set-EMACS nil
   "Whether the EMACS env variable should be set, for Bash 4.3 and older.
 
@@ -878,7 +880,7 @@ It is called with the MisTTY buffer as current buffer with point set at
 the end of the command, on the line where the notification was received,
 that is, at the end of the output (if there is any).
 `mistty-prev-output' and `mistty-prev-input' may be used to get more
-details about the command. 
+details about the command.
 
 Note that there might already be a prompt open afterwards."
   :group 'mistty

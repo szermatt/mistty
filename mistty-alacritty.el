@@ -449,7 +449,8 @@ prompts.
 
 ENTER-FULLSCREEN and LEAVE-FULLSCREEN handle fullscreen transitions.
 AFTER-CLEAR-SCREEN is called after the screen is cleared.
-AFTER-RESET is called after the terminal was reset
+AFTER-RESET is called after the terminal was reset.
+CLEAR-SCROLLBACK clears scrollback in the work buffer.
 SYNC-SCROLLINE returns the current sync scrolline.
 SHOW-CURSOR shows (non-nil argument) or hides (nil argument) the cursor
 REQUEST-REPORT-MOUSE controls mouse reporting.
@@ -507,7 +508,7 @@ REPORT-FOCUS control reporting of focus in/out events."
     term))
 
 (cl-defmethod mistty--term-handle-process-death ((term mistty--term-alacritty) msg)
-  "Deal with the process having died with message MSG."
+  "Deal with the process of TERM having died with message MSG."
   (let ((proc (mistty--term-alacritty-proc term)))
     (mistty-log "PROCESS %s" msg)
     (setf (mistty--term-alacritty-process-status term) msg)
@@ -897,7 +898,7 @@ fullscreen mode."
     (mistty-alacritty-vt-end-regexp-prompt (mistty--term-alacritty-vterm term)))
 
 (cl-defmethod mistty--term-mouse-reporting ((term mistty--term-alacritty))
-  "Return the current mouse reporting level."
+  "Return the current mouse reporting level for TERM."
   (mistty--term-alacritty-mouse term))
 
 (defun mistty--alacritty-mouse-event-params (term ev move-posn sync-pos)

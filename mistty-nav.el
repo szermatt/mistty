@@ -62,6 +62,8 @@
 (defun mistty--prompt-ranges-cmdline (prompt-ranges &optional merge-lines)
   "Get command-line for PROMPT-RANGES.
 
+If MERGE-LINES is non-nil, merge multiple lines into a single line.
+
 Return nil if no cmdline was provided and it couldn't be extracted."
   (or (mistty--prompt-ranges-osc133-cmdline prompt-ranges)
       (let* ((beg (mistty--prompt-ranges-start prompt-ranges))

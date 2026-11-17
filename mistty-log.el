@@ -208,7 +208,7 @@ together with a short backtrace."
     (if (eval-when-compile (< emacs-major-version 30))
         `(with-demoted-errors ,msg ,@body)
       `(with-demoted-errors ,msg
-         (handler-bind
+         (,'handler-bind ;; avoids package-lint version warning
              ((error (lambda (err)
                        (ignore-error error
                            (let ((context ,context))

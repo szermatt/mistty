@@ -1287,6 +1287,7 @@ See the documentation of `mistty-create' for details."
 (defun mistty--process-sentinel (term work-buffer proc msg)
   "Process sentinel for MisTTY shell processes.
 
+TERM is the terminal instance and WORK-BUFFER is its work buffer.
 PROC is the process, which might not be live anymore, and MSG is
 a special string describing the new process state."
   (mistty-with-errors-logged "process sentinel"
@@ -1451,7 +1452,7 @@ the point being visible."
               (recenter (- lines-after-point)))))))))
 
 (defun mistty--set-notrack-cursor (win)
-  "Flag windows for `mistty-goto-cursor'.
+  "Flag window WIN for `mistty-goto-cursor'.
 
 When a window is deselected, normally the buffer point is stored as
 window point and not moved. `mistty-goto-cursor' will move that point to
@@ -1494,6 +1495,8 @@ is updated after each refresh"
 
 (defun mistty--refresh (&optional forced)
   "Copy the end of the term buffer to the work buffer.
+
+If FORCED is non-nil, force a refresh.
 
 Refreshing means copying the region
 [mistty-sync-marker,(point-max)] from the term buffer to the work
@@ -1724,7 +1727,7 @@ to figure out a good time to call
                           #'mistty--run-hook-ignoring-errors)))))
 
 (defun mistty--handle-sync-events (events)
-  "Handle events returned by `mistty--term-sync'."
+  "Handle EVENTS returned by `mistty--term-sync'."
   (while-let ((ev (pop events)))
     (mistty-log "mistty-mode EV: %S" ev)
     (pcase ev
@@ -2253,9 +2256,9 @@ buffers."
            (mistty--interact-done)))))))
 
 (defun mistty--before-change-on-work (_beg end)
-  "Prepare for allowing modifications on the work buffer.
+  "Prepare for allowing modifications on the work buffer up to END.
 
-This is meant to be added to ==\'before-change-functions."
+This is meant to be added to `before-change-functions'."
   (when (and (not mistty-fullscreen)
            mistty-sync-marker
            (>= end mistty-sync-marker))
@@ -2762,8 +2765,8 @@ The absolute value of DIRECTION specifies the number of lines
 to move and the sign specifies whether to go down (positive) or
 up (negative).
 
-If CAN-MOVE-VERTICALLY, issues up/down keystrokes, otherwise use
-left/right/C-a/C-e."
+If CAN-MOVE-VERTICALLY is non-nil, issue up/down keystrokes, otherwise use
+left/right, beginning-of-line and end-of-line."
   (if (zerop direction)
       nil
     `((repeat

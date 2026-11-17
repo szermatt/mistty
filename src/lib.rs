@@ -5,7 +5,7 @@ mod kbd;
 mod mouse;
 mod prompt;
 mod render;
-#[cfg(any(test))]
+#[cfg(test)]
 pub mod testing;
 mod types;
 mod vterm;
@@ -145,7 +145,7 @@ fn resize(term: &mut VTermFacade, width: usize, height: usize) -> Result<()> {
 #[defun]
 fn process_bytes<'e>(env: &'e Env, term: &mut VTermFacade, bytes: String) -> Result<Value<'e>> {
     term.processor
-        .process_bytes(&mut term.vterm, &bytes.as_bytes());
+        .process_bytes(&mut term.vterm, bytes.as_bytes());
 
     let responses = term.vterm.prepare_responses(env)?;
     if responses.is_empty() {

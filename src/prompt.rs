@@ -64,7 +64,7 @@ impl PromptOptions {
     /// current values.
     fn apply(&mut self, other: &PromptOptions) {
         if other.user_input_start.is_some() {
-            self.user_input_start = other.user_input_start.clone();
+            self.user_input_start = other.user_input_start;
         }
         if other.cmdline.is_some() {
             self.cmdline = other.cmdline.clone();
@@ -191,7 +191,7 @@ impl PromptDetector {
     /// The change will *not* be reported in the next call to
     /// [PromptDetector::collect].
     pub(crate) fn start_regexp_prompt(&mut self, vterm: &mut VTerm, start: Scrolline) -> bool {
-        if !self.current.is_none() {
+        if self.current.is_some() {
             return false;
         }
 
@@ -325,7 +325,7 @@ impl PromptDetector {
         if vterm.mode().contains(TermMode::ALT_SCREEN) {
             return;
         }
-        if let Some(_) = &self.current {
+        if self.current.is_some() {
             self.update_prompt(PromptOptions {
                 user_input_start: Some((
                     vterm.scrolline_at_cursor(),
@@ -338,13 +338,13 @@ impl PromptDetector {
 
     /// Set the command-line of a prompt, decoded and satinized by the shell.
     pub(crate) fn osc_133_cmdline(&mut self, cmdline: &str) {
-        if let Some(_) = &self.current {
-            if let Ok(cmdline) = percent_encoding::percent_decode_str(cmdline).decode_utf8() {
-                self.update_prompt(PromptOptions {
-                    cmdline: Some(cmdline.to_string()),
-                    ..PromptOptions::default()
-                });
-            }
+        if self.current.is_some()
+            && let Ok(cmdline) = percent_encoding::percent_decode_str(cmdline).decode_utf8()
+        {
+            self.update_prompt(PromptOptions {
+                cmdline: Some(cmdline.to_string()),
+                ..PromptOptions::default()
+            });
         }
     }
 
@@ -418,7 +418,7 @@ impl PromptDetector {
 
     /// End any active prompt. This is called when the terminal is reset.
     pub(crate) fn reset(&mut self, end: Scrolline) {
-        if let Some(_) = self.current.take() {
+        if self.current.take().is_some() {
             self.push(PromptChange::End(end));
         }
     }

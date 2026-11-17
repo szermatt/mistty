@@ -147,7 +147,7 @@ impl VTermProcessor {
     }
 
     fn process_bytes_internal(&mut self, vterm: &mut VTerm, bytes: &[u8]) {
-        if bytes.len() == 0 {
+        if bytes.is_empty() {
             return;
         }
         self.processor.advance(
@@ -702,7 +702,7 @@ impl VTerm {
     ///
     /// This should be called right after calling 'process_bytes' to
     /// avoid delaying responses.
-    pub(crate) fn prepare_responses<'a>(&mut self, env: &'a Env) -> Result<Vec<String>> {
+    pub(crate) fn prepare_responses(&mut self, env: &Env) -> Result<Vec<String>> {
         let mut pty_writes = vec![];
         let mut changes = vec![];
         let mut events = self.events.borrow_mut();
@@ -811,7 +811,7 @@ impl VTerm {
     }
 
     /// Collect events to send back to the lisp side.
-    pub(crate) fn collect_changes<'e>(&mut self) -> Result<Vec<VTermChange>> {
+    pub(crate) fn collect_changes(&mut self) -> Result<Vec<VTermChange>> {
         let mut changes = self.collect_mode_changes();
         changes.append(&mut self.changes);
 
@@ -976,8 +976,7 @@ impl VTerm {
                 let hashes = self.hash_lines(screen_top, tracker.target);
                 if let Some(index) = std::iter::zip(&tracker.hashes, hashes)
                     .enumerate()
-                    .filter(|(_, (h1, h2))| **h1 != *h2)
-                    .last()
+                    .rfind(|(_, (h1, h2))| **h1 != *h2)
                     .map(|(index, _)| index)
                 {
                     let modified = tracker.target - index - 1;
@@ -1046,7 +1045,7 @@ fn mode_diff(before: TermMode, mode: TermMode) -> Vec<VTermChange> {
 
 /// Build [Config] for [Term].
 fn build_config(options: &VTermOptions, scrollback_enabled: bool) -> Config {
-    let config = Config {
+    Config {
         scrolling_history: if scrollback_enabled {
             SCROLLBACK_SIZE
         } else {
@@ -1055,8 +1054,7 @@ fn build_config(options: &VTermOptions, scrollback_enabled: bool) -> Config {
         osc52: options.osc52,
         kitty_keyboard: true,
         ..Default::default()
-    };
-    config
+    }
 }
 
 /// Set flags on a newly-created or reset grid.
@@ -1401,11 +1399,8 @@ impl<'a> Handler for HandlerProxy<'a> {
     }
 
     fn unset_private_mode(&mut self, mode: PrivateMode) {
-        match mode {
-            PrivateMode::Named(NamedPrivateMode::BracketedPaste) => {
-                self.prompt_detector.set_bracketed_paste(self.vterm, false);
-            }
-            _ => {}
+        if let PrivateMode::Named(NamedPrivateMode::BracketedPaste) = mode {
+            self.prompt_detector.set_bracketed_paste(self.vterm, false);
         }
 
         self.vterm.inner.unset_private_mode(mode);

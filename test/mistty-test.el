@@ -5671,6 +5671,23 @@ function prompt {
                   (line-beginning-position)
                   (line-end-position)))))
 
+(mistty-deftest mistty-osc133-fish-multiline-prompt-set-properties
+    (:type all :shell ((fish "
+function fish_prompt
+  printf '----\n$ '
+end")))
+
+  (mistty-send-text "echo foobar")
+  (beginning-of-line)
+  (should (equal "----\n[$ ]<>echo foobar"
+                 (mistty-test-content
+                  :show (point)
+                  :show-property '(field prompt))))
+  (should (equal "echo foobar"
+                 (buffer-substring-no-properties
+                  (line-beginning-position)
+                  (line-end-position)))))
+
 (mistty-deftest mistty-osc133-right-left-prompt-field
     (:type all :shell ((fish "function fish_prompt; printf '$ \e]133;B\007'; end\n"
                                     mistty-test-fish-right-prompt)))

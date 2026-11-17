@@ -1629,12 +1629,18 @@ of the prompt.
 
 Fields allow the like of `beginning-of-line' and `end-of-line' to ignore
 prompt and right prompts."
-  (when-let* ((user-input-start (mistty--prompt-user-input-start prompt))
-              (start-scrolline (car user-input-start))
-              (start-chars (cdr user-input-start))
-              (bol prompt-beg)
+  (when-let* ((start-scrolline (mistty--prompt-start prompt))
+              (input-start (mistty--prompt-user-input-start prompt))
+              (input-start-scrolline (car input-start))
+              (input-start-chars (cdr input-start))
+              (bol (if (> input-start-scrolline start-scrolline)
+                       (save-excursion
+                         (goto-char prompt-beg)
+                         (mistty--move-scrollines (- input-start-scrolline start-scrolline))
+                         (point))
+                     prompt-beg))
               (end (mistty--eol bol))
-              (start-pos (min end (+ bol start-chars))))
+              (start-pos (min end (+ bol input-start-chars))))
     (when (> start-pos bol)
       (add-text-properties
        bol start-pos

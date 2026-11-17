@@ -658,6 +658,23 @@ You can click on that icon or run `M-x mistty-toggle-mouse` or
 You can set `M-x customize-option mistty-allow-mouse-reporting` to
 turn off mouse reporting by default.
 
+.. index::
+   pair: variable; mistty-allow-click-to-move
+
+In prompt mode, MisTTY can also move the cursor via mouse clicks.
+This is configured with :kbd:`M-x customize-option
+mistty-allow-click-to-move`. It can be set to:
+
+- ``'osc133``: Use clicks to move the cursor when the shell reports support
+  through OSC 133 ``click_events=1``.
+- ``'always``: Always use clicks to move the cursor when mouse reporting is
+  supported.
+- ``nil`` (default): Disabled; cursor movement on prompt uses arrow keys.
+
+Note that this setting operates independently of
+``mistty-allow-mouse-reporting``; you can use click-to-move even when
+general mouse reporting to terminal applications is disabled.
+
 .. _colors:
 
 Colors

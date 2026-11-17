@@ -1144,13 +1144,35 @@ other codes.
 usually from a preexec function. Sending out this code allows MisTTY
 to know where the prompt ends.
 
-*OSC 133;D ST* should be sent at the end of the command, or when the
-command is cancelled.
+.. index::
+   pair: variable; mistty-notify-on-command-finished
+   pair: hook; mistty-command-finished-hook
+
+*OSC 133;D[; <exit-status>] ST* should be sent at the end of the command,
+or when the command is cancelled. It can include the integer exit status
+of the command.
+
+When MisTTY receives an OSC 133 D notification, it runs
+``mistty-command-finished-hook`` with the exit status (see
+:ref:`hooks`).
+
+On Emacs 30 and later, MisTTY can also send a desktop notification when
+a command finishes, controlled by :kbd:`M-x customize-option
+mistty-notify-on-command-finished`:
+
+- ``'unfocused``: Send a notification only if the MisTTY buffer is not
+  focused (that is, not displayed in a selected window of a focused
+  frame).
+- ``t``: Always send a notification when a command completes.
+- ``nil`` (default): Never send notifications.
+
+Clicking on the desktop notification activates Emacs and switches to the
+corresponding MisTTY buffer.
 
 .. note::
 
-   Different terminals may interpret OSS 133 codes differently. MisTTY
-   only supports codes A,B,C, and D for marking the user input and
-   prompt sections and ignores any extra fields.
+   Different terminals may interpret OSC 133 codes differently. MisTTY
+   supports codes A, B, C, and D for marking the user input and prompt
+   sections and tracking command completion.
 
 To extend the set of OSC codes supported by MisTTY, see :ref:`ext_osc`.

@@ -105,6 +105,31 @@ In this mode, :code:`mistty-fullscreen` is nil and Emacs commands
 can modify the terminal zone and MisTTY will attempt to send the
 changes to terminal application.
 
+mistty-command-finished-hook
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. index::
+   pair: variable; mistty-command-finished-hook
+   pair: hook; mistty-command-finished-hook
+
+:code:`mistty-command-finished-hook` is a normal hook run when the
+shell reports that a command has finished using OSC 133 D.
+
+The hook is called with the MisTTY buffer as the current buffer, with
+point set at the end of the command, on the line where the
+notification was received (that is, at the end of the output, if any).
+
+The hook functions receive one argument: the command exit status, which
+is an integer or :code:`nil` if not reported by the shell.
+
+You can inspect details of the command using
+:code:`mistty-previous-cmdline` or navigate output using
+:code:`mistty-previous-output` and :code:`mistty-previous-input`.
+
+On Emacs 30 and later, this hook contains
+:code:`mistty-notify-command-finished` by default, which sends desktop
+notifications when commands complete (see :ref:`OSC 133 <osc133>`).
+
 .. _ext_osc:
 
 OSC Sequences
@@ -220,6 +245,25 @@ commands that extend MisTTY's behavior:
   This function not only checks whether there's a prompt at the
   position, but also attempt to move the terminal cursor to that
   position.
+
+.. index:: pair: function; mistty-previous-cmdline
+
+(mistty-previous-cmdline N &optional MERGE-LINES) : function
+  This function extracts the command line of the Nth previous command
+  above point. The command line may be parsed from the prompt or
+  reported by the shell via OSC 133.
+
+  If MERGE-LINES is non-nil, newlines in multi-line commands are
+  replaced with :code:`";"`.
+
+  Returns :code:`nil` if no command could be extracted or found.
+
+.. index:: pair: function; mistty-focused-p
+
+(mistty-focused-p) : function
+  This function returns non-nil if the current buffer's terminal is
+  focused, that is, if it is shown in at least one selected window of a
+  focused Emacs frame.
 
 .. _term-keymap:
 

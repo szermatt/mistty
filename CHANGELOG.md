@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.3] - upcoming
+
+Before upgrading to this release, check any custom keybindings defined
+specifically for fullscreen `eterm`. As there's no buffer switch
+anymore, `term-mode` commands won't work anymore.
+
+### Changed
+
+- **Breaking:** Use single-buffer fullscreen mode for `eterm`, matching `alacritty`. `mistty-term-mode-map`, aliased to `mistty-fullscreen-mode-map` ([`a682ab1`](https://github.com/szermatt/mistty/commit/a682ab1)) ([`223aa12`](https://github.com/szermatt/mistty/commit/223aa12))
+- `alacritty` backend renders directly to work buffer, when possible ([`961a17d`](https://github.com/szermatt/mistty/commit/))
+- Deselected window points now track cursor if point was originally in the terminal zone ([`b0be0b7`](https://github.com/szermatt/mistty/commit/b0be0b7))
+- Process bytes immediately when using `alacritty` to improve responsiveness without display flickering ([`f0d0db4`](https://github.com/szermatt/mistty/commit/f0d0db4))
+- Don't wait after sending keys with `mistty-send-key` ([#80](https://github.com/szermatt/mistty/issues/80)) ([`a0b08be`](https://github.com/szermatt/mistty/commit/a0b08be))
+
+### Added
+
+- Add `mistty-command-finished-hook` and desktop notification `mistty-notify-on-command-finished` based on OSC 133 ([#78](https://github.com/szermatt/mistty/issues/78)) ([`9f7aad2`](https://github.com/szermatt/mistty/commit/9f7aad2), [`9d2dbd0`](https://github.com/szermatt/mistty/commit/9d2dbd0), [`ff693d9`](https://github.com/szermatt/mistty/commit/ff693d9), [`fa234c8`](https://github.com/szermatt/mistty/commit/fa234c8))
+- Move the cursor via mouse clicks in prompt mode. Enabled with `mistty-allow-click-to-move` ([`93b6a16`](https://github.com/szermatt/mistty/commit/93b6a16), [`1f65afe`](https://github.com/szermatt/mistty/commit/1f65afe), [`9e9d0a5`](https://github.com/szermatt/mistty/commit/9e9d0a5))
+- Support terminal focus reporting (`DECSET 1004`) in both `alacritty` and `eterm` backends ([`e0e4b88`](https://github.com/szermatt/mistty/commit/e0e4b88))
+- Follow Cursor Key Application Mode (`DECCKM`) when using `alacritty` ([`26089c0`](https://github.com/szermatt/mistty/commit/26089c0))
+- `mistty-process-env` sets process env variables, defaulting to `COLORTERM=truecolor`, letting apps know 24 colors are available ([`72c18c9`](https://github.com/szermatt/mistty/commit/72c18c9))
+
+### Removed
+
+- **Breaking:** Remove `mistty-term-buffer` and `mistty-work-buffer` variables ([`463d055`](https://github.com/szermatt/mistty/commit/463d055), [`4366c49`](https://github.com/szermatt/mistty/commit/4366c49))
+
+### Fixed
+
+- Fix mouse click positions of windows that are split horizontally ([#79](https://github.com/szermatt/mistty/issues/79)) ([`8c71878`](https://github.com/szermatt/mistty/commit/8c71878))
+- Set prompt fields, for `beginning-of-line` and command detection, even in multiline prompts ([`f506fcd`](https://github.com/szermatt/mistty/commit/f506fcd))
+- Reflow partial wrapped lines spanning across the terminal boundary upon resizing ([`7a464a3`](https://github.com/szermatt/mistty/commit/7a464a3))
+
 ## [2.2.1] - 2026-10-19
 
 ### Changed
@@ -211,6 +243,8 @@ _This release introduces a new recommended terminal backend based on [Alacritty]
 
 _Initial release._
 
+[2.3]: https://github.com/szermatt/mistty/releases/tag/2.3
+[2.2.1]: https://github.com/szermatt/mistty/releases/tag/2.2.1
 [2.2.0]: https://github.com/szermatt/mistty/releases/tag/2.2.0
 [2.1.0]: https://github.com/szermatt/mistty/releases/tag/2.1.0
 [2.0.2]: https://github.com/szermatt/mistty/releases/tag/2.0.2

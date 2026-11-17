@@ -57,6 +57,20 @@
     (should (equal "\eOA" (mistty-translate-key (kbd "<up>") 1)))
     (should (equal "\eOB" (mistty-translate-key (kbd "<down>") 1)))))
 
+(ert-deftest mistty-kbd-translate-default-multimap ()
+  (should (equal "\eOD" (mistty--translate-key-default
+                         (kbd "<left>") 1 mistty-test-key-map)))
+  (should (equal "\eOD" (mistty--translate-key-default
+                         (kbd "<left>") 1 nil mistty-test-key-map)))
+
+  (let ((extra-map (make-sparse-keymap)))
+    (define-key extra-map (kbd "<left>") "\e[D")
+
+    (should (equal "\e[D" (mistty--translate-key-default
+                           (kbd "<left>") 1 extra-map mistty-test-key-map)))
+    (should (equal "\eOD" (mistty--translate-key-default
+                           (kbd "<left>") 1 mistty-test-key-map extra-map)))))
+
 (ert-deftest mistty-kbd-translate-key-escape ()
   (let ((mistty--translate-key-function #'mistty-test-translate-key))
     (should (equal "\e" (mistty-translate-key (kbd "<escape>"))))

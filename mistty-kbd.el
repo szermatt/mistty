@@ -228,18 +228,19 @@ failing."
             nil
           (error "No terminal sequence known for key %S" key)))))
 
-(defun mistty--translate-key-default (key n &optional extra-map)
+(defun mistty--translate-key-default (key n &rest extra-maps)
   "Default implementation for `mistty--translate-key-function'.
 
 This function generates a byte sequence for KEY, repeated N times. If
-EXTRA-MAP is non-nil, it is looked up right after `mistty-term-key-map'.
+maps are specified in EXTRA-MAPS they are looked up in order, right
+after `mistty-term-key-map'. nil values in EXTRA-MAPS are ignored.
 
 Alone, this function only knows how to deal with M-<char>, control
 characters and self-inserting characters.
 
 If NOERROR is non-nil, return nil instead of signaling an error."
   (cl-block nil
-    (dolist (map (list mistty-term-key-map extra-map))
+    (dolist (map (cons mistty-term-key-map extra-maps))
       (when map
         (let ((translated-key (lookup-key map key)))
           (if (and translated-key

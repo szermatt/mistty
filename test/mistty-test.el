@@ -6499,6 +6499,12 @@ preexec_functions+=(osc133_preexec)
   (should-error (insert "test") :type 'text-read-only))
 
 (mistty-deftest mistty-translate-replay-seq (:type all)
+  ;; eterm always sends application-mode cursor keys while alacritty
+  ;; follows the APP_CURSOR flag. Set the flag so we get the same
+  ;; result on both terminals.
+  (mistty-send-text "printf '\\e[?1h'")
+  (mistty-send-and-wait-for-prompt)
+
   (pcase-dolist (`(,expected ,replay-seq)
                  '(("\C-a\C-e\C-k" (bol eol kill-line))
                    ("\C-a" ((repeat 1 (bol))))
@@ -7838,3 +7844,21 @@ preexec_functions+=(osc133_preexec)
                     :trim nil
                     :show (mistty-cursor))))))
 
+(mistty-deftest mistty-test-app-cursor (:type alacritty)
+  (should (equal "\e[A" (mistty--term-translate-key mistty--term (kbd "<up>"))))
+  (should (equal "\e[B" (mistty--term-translate-key mistty--term (kbd "<down>"))))
+  (should (equal "\e[C" (mistty--term-translate-key mistty--term (kbd "<right>"))))
+  (should (equal "\e[D" (mistty--term-translate-key mistty--term (kbd "<left>"))))
+
+  (mistty-send-text "printf '\\e[?1h'") ;; APP_CURSOR on
+  (mistty-send-and-wait-for-prompt)
+
+  (should (equal "\eOA" (mistty--term-translate-key mistty--term (kbd "<up>"))))
+  (should (equal "\eOB" (mistty--term-translate-key mistty--term (kbd "<down>"))))
+  (should (equal "\eOC" (mistty--term-translate-key mistty--term (kbd "<right>"))))
+  (should (equal "\eOD" (mistty--term-translate-key mistty--term (kbd "<left>"))))
+
+  (mistty-send-text "printf '\\e[?1l'") ;; APP_CURSOR off
+  (mistty-send-and-wait-for-prompt)
+
+  (should (equal "\e[A" (mistty--term-translate-key mistty--term (kbd "<up>")))))

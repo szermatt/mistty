@@ -36,6 +36,7 @@ emacs::use_symbols! {
     bracketed_paste_sym => "bracketed-paste"
     title_sym => "title"
     kkp_sym => "kkp"
+    app_cursor_sym => "app-cursor"
     mouse_sym => "mouse"
     click_sym => "click"
     drag_sym => "drag"
@@ -202,6 +203,11 @@ pub(crate) enum VTermChange {
     /// The target scrolline is set with
     /// [VTerm::track_modifications_above].
     Modified(Scrolline),
+
+    /// Enable or disable Cursor Key Application Mode (DECCKM)
+    ///
+    /// This changes the sequences issued for the arrow keys.
+    AppCursor(bool),
 }
 
 /// Mouse mode reported to the lisp side
@@ -233,6 +239,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::ShowCursor(on) => env.cons(cursor_sym, on),
             VTermChange::ReportFocus(on) => env.cons(report_focus_sym, on),
             VTermChange::Modified(scrolline) => env.cons(modified_sym, scrolline),
+            VTermChange::AppCursor(on) => env.cons(app_cursor_sym, on),
         }
     }
 }
@@ -1019,14 +1026,19 @@ fn mode_diff(before: TermMode, mode: TermMode) -> Vec<VTermChange> {
         ));
     }
 
-    let cursor_on = mode.intersects(TermMode::SHOW_CURSOR);
-    if cursor_on != before.intersects(TermMode::SHOW_CURSOR) {
-        reports.push(VTermChange::ShowCursor(cursor_on));
+    let on = mode.intersects(TermMode::SHOW_CURSOR);
+    if on != before.intersects(TermMode::SHOW_CURSOR) {
+        reports.push(VTermChange::ShowCursor(on));
     }
 
-    let cursor_on = mode.intersects(TermMode::FOCUS_IN_OUT);
-    if cursor_on != before.intersects(TermMode::FOCUS_IN_OUT) {
-        reports.push(VTermChange::ReportFocus(cursor_on));
+    let on = mode.intersects(TermMode::FOCUS_IN_OUT);
+    if on != before.intersects(TermMode::FOCUS_IN_OUT) {
+        reports.push(VTermChange::ReportFocus(on));
+    }
+
+    let on = mode.intersects(TermMode::APP_CURSOR);
+    if on != before.intersects(TermMode::APP_CURSOR) {
+        reports.push(VTermChange::AppCursor(on));
     }
 
     reports
@@ -2162,7 +2174,9 @@ mod tests {
     fn reset_resets_modes() {
         let mut fixture = Fixture::setup();
 
-        fixture.process_bytes(b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h\x1b[?25l\x1b[?1004h]");
+        fixture.process_bytes(
+            b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h\x1b[?25l\x1b[?1004h]\x1b[?1h",
+        );
         assert_eq!(
             vec![
                 VTermChange::KittyKeyboard(true),
@@ -2171,6 +2185,7 @@ mod tests {
                 VTermChange::Mouse(MouseMode::Click),
                 VTermChange::ShowCursor(false),
                 VTermChange::ReportFocus(true),
+                VTermChange::AppCursor(true),
             ],
             fixture.vterm.collect_changes().unwrap()
         );
@@ -2184,6 +2199,7 @@ mod tests {
                 VTermChange::Mouse(MouseMode::Off),
                 VTermChange::ShowCursor(true),
                 VTermChange::ReportFocus(false),
+                VTermChange::AppCursor(false),
                 VTermChange::Reset,
             ],
             fixture.vterm.collect_changes().unwrap()
@@ -2806,6 +2822,31 @@ mod tests {
         fixture.process_bytes(b"\x1b[?25h");
         assert_eq!(
             vec![VTermChange::ShowCursor(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_app_cursor() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b[?1h");
+        assert_eq!(
+            vec![VTermChange::AppCursor(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b[?1l");
+        assert_eq!(
+            vec![VTermChange::AppCursor(false)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(

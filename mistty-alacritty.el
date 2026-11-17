@@ -182,7 +182,7 @@ for some reason."
 
     (define-key map (kbd "<clear>") "\eOE") ; kb2
     (define-key map (kbd "<delete>") "\e[3~") ; kdch1
-    (define-key map (kbd "<down>") "\eOB") ; kcud1
+    (define-key map (kbd "<down>") "\e[B")
     (define-key map (kbd "<end>") "\eOF") ; kend
     (define-key map (kbd "<f10>") "\e[21~") ; kf10
     (define-key map (kbd "<f11>") "\e[23~") ; kf11
@@ -250,12 +250,12 @@ for some reason."
     (define-key map (kbd "<home>") "\eOH") ; khome
     (define-key map (kbd "<insert>") "\e[2~") ; kich1
     (define-key map (kbd "<kp-enter>") "\eOM") ; kent
-    (define-key map (kbd "<left>") "\eOD") ; kcub1
+    (define-key map (kbd "<left>") "\e[D")
     (define-key map (kbd "<menu>") "\e[1;2S") ; kf16
     (define-key map (kbd "<next>") "\e[6~") ; knp
     (define-key map (kbd "<prior>") "\e[5~") ; kpp
-    (define-key map (kbd "<right>") "\eOC") ; kcuf1
-    (define-key map (kbd "<up>") "\eOA") ; kcuu1
+    (define-key map (kbd "<right>") "\e[C")
+    (define-key map (kbd "<up>") "\e[A")
     (define-key map (kbd "S-<delete>") "\e[3;2~") ; kDC
     (define-key map (kbd "S-<down>") "\e[1;2B") ; kind
     (define-key map (kbd "S-<end>") "\e[1;2F") ; kEND
@@ -279,6 +279,16 @@ The keys is this table are those defined in alacritty terminfo with some
 additions from
 https://sw.kovidgoyal.net/kitty/keyboard-protocol/#legacy-functional-keys
 for the RET ESC DEL TAB and SPC.")
+
+(defvar mistty-alacritty--app-cursor-key-map
+    (let ((map (make-sparse-keymap)))
+      (define-key map (kbd "<up>") "\eOA")
+      (define-key map (kbd "<down>") "\eOB")
+      (define-key map (kbd "<right>") "\eOC")
+      (define-key map (kbd "<left>") "\eOD")
+
+      map)
+    "Map used when Cursor Key Application Mode (DECCKM) is enabled.")
 
 (defun mistty-alacritty-available-p ()
   "Check whether the module is available.
@@ -377,6 +387,9 @@ This is controlled by the custom variable `mistty-alacritty-term-name'"
 
   ;; if non-nil, the kitty keyboard protocol is enabled
   kkp
+
+  ;; if non-nil, Cursor Key Application Mode (DECCKM) is enabled
+  app-cursor
 
   ;; if non-nil, we are in fullscreen mode
   fs
@@ -594,6 +607,8 @@ CURSOR-MARKER is updated to the cursor position."
                (funcall (mistty--term-alacritty-request-report-mouse term) val))
               (`(cursor . ,val)
                (funcall (mistty--term-alacritty-show-cursor term) val))
+              (`(app-cursor . ,val)
+               (setf (mistty--term-alacritty-app-cursor term) val))
               (`(report-focus . ,val)
                (funcall (mistty--term-alacritty-report-focus term) val))
               (`(bracketed-paste . ,val)
@@ -791,24 +806,29 @@ KEY is an Emacs key event and N the number of repetition for that event.
 
 The function returns the byte sequence appropriate for sending that key
 to the terminal."
-  (if (mistty--term-alacritty-kkp term)
-      ;; follow the kitty keyboard protocol
-      (let* ((vterm (mistty--term-alacritty-vterm term))
-             (seq (mapconcat
-                    (lambda (ev)
-                      (mistty-alacritty-vt-kitty-key-seq
-                       vterm
-                       ev
-                       (vconcat (event-modifiers ev))
-                       (event-basic-type ev)))
-                    key
-                    "")))
-        (if (length= seq 0)
-            nil
-          (mistty--repeat-string (or n 1) seq)))
+  (let ((n (or n 1)))
+    (if (mistty--term-alacritty-kkp term)
+        ;; follow the kitty keyboard protocol
+        (let* ((vterm (mistty--term-alacritty-vterm term))
+               (seq (mapconcat
+                     (lambda (ev)
+                       (mistty-alacritty-vt-kitty-key-seq
+                        vterm
+                        ev
+                        (vconcat (event-modifiers ev))
+                        (event-basic-type ev)))
+                     key
+                     "")))
+          (if (length= seq 0)
+              nil
+            (mistty--repeat-string n seq)))
 
-    ;; legacy translation
-    (mistty--translate-key-default key (or n 1) mistty-alacritty--key-map)))
+      ;; legacy translation
+      (mistty--translate-key-default
+       key n
+       (when (mistty--term-alacritty-app-cursor term)
+         mistty-alacritty--app-cursor-key-map)
+       mistty-alacritty--key-map))))
 
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'alacritty)))
   "List the basic type of special event types (special keys)."

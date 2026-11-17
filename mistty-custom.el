@@ -709,17 +709,28 @@ mouse in the mode line or calling the command `mistty-toggle-mouse'."
   :group 'mistty
   :type 'boolean)
 
-(defcustom mistty-allow-click-to-move t
+(defcustom mistty-allow-click-to-move nil
   "Allow using clicks, when available, to move the cursor on the prompt.
 
-If non-nil, MisTTY sends clicks instead of the arrow keys to
-applications that report supporting it to move the cursor. This may work
-well, or it may cause issues as moving may accidentally press buttons.
+If set to \\='osc133, MisTTY sends clicks instead of the arrow keys to
+applications that report supporting it through OSC 133 click_events=1.
+
+If set to \\='always, MisTTY sends clicks instead of the arrow key
+whenever mouse reporting is enabled on the terminal in addition to when
+mouse reporting is enabled through the OSC 133 click_events option. to
+move the cursor.
+
+Note that this is separate from `mistty-allow-mouse-reporting'. That is,
+you can use click to move even when `mistty-allow-mouse-reporting' is
+disabled.
 
 Set this to nil if you only want to use the arrow key to move the cursor
 in prompt mode."
   :group 'mistty
-  :type 'boolean)
+  :type '(choice
+          (const :tag "Never" nil)
+          (const :tag "When enabled through OSC 133" osc133)
+          (const :tag "Always" always)))
 
 (defvar mistty-tag-alist-alist
   `((textual

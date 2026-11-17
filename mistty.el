@@ -2293,7 +2293,13 @@ This is meant to be added to ==\'before-change-functions."
 
 (defun mistty--can-click-to-move-p ()
   "Check whether clicking can be used to move the cursor."
-  (and mistty-allow-click-to-move mistty--mouse-reporting-requested))
+  (pcase mistty-allow-click-to-move
+    ('always (or mistty--mouse-reporting-requested
+                 (when-let* ((p (mistty--active-prompt)))
+                   (mistty--prompt-click-events p))))
+    ('osc133 (when-let* ((p (mistty--active-prompt)))
+                     (mistty--prompt-click-events p)))
+    (_ nil)))
 
 (defun mistty--replay-interaction (cs)
   "Build a `mistty--interact' of type \\='replay to replay CS.

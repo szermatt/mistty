@@ -7773,3 +7773,68 @@ preexec_functions+=(osc133_preexec)
                     :show (list (point)
                                 (window-point wina)
                                 (window-point winb)))))))
+
+(mistty-deftest mistty-can-click-to-move-p-default (:type alacritty)
+  (let ((mistty-allow-click-to-move 'always))
+    (should-not (mistty--can-click-to-move-p)))
+  (let ((mistty-allow-click-to-move 'osc133))
+    (should-not (mistty--can-click-to-move-p)))
+  (let ((mistty-allow-click-to-move nil))
+    (should-not (mistty--can-click-to-move-p))))
+
+(mistty-deftest mistty-can-click-to-move-p-with-mouse-reporting (:type alacritty)
+  (mistty-send-text "printf '\\e[?1000h'")
+  (mistty-send-and-wait-for-prompt)
+  (let ((mistty-allow-click-to-move 'always))
+    (should (mistty--can-click-to-move-p)))
+  (let ((mistty-allow-click-to-move 'osc133))
+    (should-not (mistty--can-click-to-move-p)))
+  (let ((mistty-allow-click-to-move nil))
+    (should-not (mistty--can-click-to-move-p))))
+
+(mistty-deftest mistty-can-click-to-move-p-with-osc (:type alacritty :shell fish)
+  ;; fish 4 enable OSC with click_events=1
+  (let ((mistty-allow-click-to-move 'always))
+    (should (mistty--can-click-to-move-p)))
+  (let ((mistty-allow-click-to-move 'osc133))
+    (should (mistty--can-click-to-move-p)))
+  (let ((mistty-allow-click-to-move nil))
+    (should-not (mistty--can-click-to-move-p))))
+
+(mistty-deftest mistty-test-reconcile-with-click-to-move
+    (:type alacritty :shell fish)
+  (let ((mistty-allow-click-to-move 'osc133))
+    (should (mistty--can-click-to-move-p))
+    (mistty-send-text "for i in a b c\necho $i\nend")
+    (mistty-run-command
+     (goto-char (point-min))
+     (search-forward "echo $i")
+     (replace-match "echo \"hello $i\"" nil t))
+    (mistty-send-and-wait-for-prompt)
+
+    (should (equal (concat "$ for i in a b c\n"
+                           "      echo \"hello $i\"\n"
+                           "  end\n"
+                           "hello a\n"
+                           "hello b\n"
+                           "hello c\n"
+                           "$ \n")
+                   (mistty-test-content :trim nil)))))
+
+(mistty-deftest mistty-test-move-to-point-with-click-to-move
+    (:type alacritty :shell fish)
+  (let ((mistty-allow-click-to-move 'osc133))
+    (should (mistty--can-click-to-move-p))
+    (mistty-send-text "for i in a b c\necho $i\nend")
+    (mistty-run-command
+     (goto-char (point-min))
+     (search-forward "echo $"))
+    (mistty-wait-for-output :str "echo $" :cursor-at-end t)
+
+    (should (equal (concat "$ for i in a b c\n"
+                           "      echo $<>i\n"
+                           "  end\n")
+                   (mistty-test-content
+                    :trim nil
+                    :show (mistty-cursor))))))
+

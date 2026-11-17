@@ -1614,7 +1614,8 @@
 
   (mistty-send-command)
 
-  (mistty-wait-for-output :regexp "^foo" :cursor-at-end nil)
+  (mistty-wait-for-output :regexp "^foo")
+  (mistty-wait-for-output :str "$ " :cursor-at-end t :start mistty-sync-marker)
 
   (should (equal "$ echo foo\nfoo\n$ <>"
                  (mistty-test-content :show (point)))))

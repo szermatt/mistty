@@ -7608,114 +7608,113 @@ preexec_functions+=(osc133_preexec)
       (should-not mistty--report-focus))))
 
 (mistty-deftest mistty-window-track-cursor (:type all :turtles t :selected t)
-  (let* ((buf (current-buffer)))
-    (delete-other-windows)
-    (let ((wina (selected-window))
-          (winb (split-window-vertically)))
-      (redisplay)
+  (delete-other-windows)
+  (let ((wina (selected-window))
+        (winb (split-window-vertically)))
+    (redisplay)
 
-      (mistty-send-text "echo one")
-      (mistty-send-and-wait-for-prompt)
+    (mistty-send-text "echo one")
+    (mistty-send-and-wait-for-prompt)
 
-      (mistty-send-text "echo two")
-      (redisplay)
+    (mistty-send-text "echo two")
+    (redisplay)
 
-      ;; All points track cursor
-      (should (equal (concat "$ echo one\n"
-                             "one\n"
-                             "$ echo two<><1><2>")
-                     (mistty-test-content
-                      :show (list (point)
-                                  (window-point wina)
-                                  (window-point winb)))))
+    ;; All points track cursor
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two<><1><2>")
+                   (mistty-test-content
+                    :show (list (point)
+                                (window-point wina)
+                                (window-point winb)))))
 
-      (mistty-send-and-wait-for-prompt)
-      (redisplay)
+    (mistty-send-and-wait-for-prompt)
+    (redisplay)
 
-      ;; All points continue tracking cursor
-      (should (equal (concat "$ echo one\n"
-                             "one\n"
-                             "$ echo two\n"
-                             "two\n"
-                             "$ <><1><2>")
-                     (mistty-test-content
-                      :show (list (point)
-                                  (window-point wina)
-                                  (window-point winb)))))
+    ;; All points continue tracking cursor
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ <><1><2>")
+                   (mistty-test-content
+                    :show (list (point)
+                                (window-point wina)
+                                (window-point winb)))))
 
-      
-      (mistty-test-goto "echo one")
-      (redisplay)
-      
-      ;; Point moved to scrollback. Wina's follow since it's selected.
-      (should (equal (concat "$ <><1>echo one\n"
-                             "one\n"
-                             "$ echo two\n"
-                             "two\n"
-                             "$ <2>")
-                     (mistty-test-content
-                      :show (list (point)
-                                  (window-point wina)
-                                  (window-point winb)))))
-      
-      (select-window winb)
-      (redisplay)
-      
-      ;; Selecting winb moves the buffer point to the cursor position.
-      (should (equal (concat "$ <1>echo one\n"
-                             "one\n"
-                             "$ echo two\n"
-                             "two\n"
-                             "$ <><2>")
-                     (mistty-test-content
-                      :show (list (point)
-                                  (window-point wina)
-                                  (window-point winb)))))
-      
-      (mistty-send-and-wait-for-prompt)
-      (redisplay)
-      
-      ;; The point and winb's moved to track cursor, but wina didn't,
-      ;; because it was in scrollback when wina was deselected.
-      (should (equal (concat "$ <1>echo one\n"
-                             "one\n"
-                             "$ echo two\n"
-                             "two\n"
-                             "$\n"
-                             "$ <><2>")
-                     (mistty-test-content
-                      :show (list (point)
-                                  (window-point wina)
-                                  (window-point winb)))))
+    
+    (mistty-test-goto "echo one")
+    (redisplay)
+    
+    ;; Point moved to scrollback. Wina's follow since it's selected.
+    (should (equal (concat "$ <><1>echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ <2>")
+                   (mistty-test-content
+                    :show (list (point)
+                                (window-point wina)
+                                (window-point winb)))))
+    
+    (select-window winb)
+    (redisplay)
+    
+    ;; Selecting winb moves the buffer point to the cursor position.
+    (should (equal (concat "$ <1>echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$ <><2>")
+                   (mistty-test-content
+                    :show (list (point)
+                                (window-point wina)
+                                (window-point winb)))))
+    
+    (mistty-send-and-wait-for-prompt)
+    (redisplay)
+    
+    ;; The point and winb's moved to track cursor, but wina didn't,
+    ;; because it was in scrollback when wina was deselected.
+    (should (equal (concat "$ <1>echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$\n"
+                           "$ <><2>")
+                   (mistty-test-content
+                    :show (list (point)
+                                (window-point wina)
+                                (window-point winb)))))
 
-      (select-window wina)
-      (redisplay)
-      (mistty-goto-cursor)
-      (select-window winb)
-      (redisplay)
+    (select-window wina)
+    (redisplay)
+    (mistty-goto-cursor)
+    (select-window winb)
+    (redisplay)
 
-      ;; All points are back at cursor
-      (should (equal (concat "$ echo one\n"
-                             "one\n"
-                             "$ echo two\n"
-                             "two\n"
-                             "$\n"
-                             "$ <><1><2>")
-                     (mistty-test-content
-                      :show (list (point)
-                                  (window-point wina)
-                                  (window-point winb)))))
+    ;; All points are back at cursor
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$\n"
+                           "$ <><1><2>")
+                   (mistty-test-content
+                    :show (list (point)
+                                (window-point wina)
+                                (window-point winb)))))
 
-      (mistty-send-text "echo three")
+    (mistty-send-text "echo three")
 
-      ;; All points continue tracking cursor
-      (should (equal (concat "$ echo one\n"
-                             "one\n"
-                             "$ echo two\n"
-                             "two\n"
-                             "$\n"
-                             "$ echo three<><1><2>")
-                     (mistty-test-content
-                      :show (list (point)
-                                  (window-point wina)
-                                  (window-point winb))))))))
+    ;; All points continue tracking cursor
+    (should (equal (concat "$ echo one\n"
+                           "one\n"
+                           "$ echo two\n"
+                           "two\n"
+                           "$\n"
+                           "$ echo three<><1><2>")
+                   (mistty-test-content
+                    :show (list (point)
+                                (window-point wina)
+                                (window-point winb)))))))

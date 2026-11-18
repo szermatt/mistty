@@ -45,7 +45,7 @@ jobs:
       run: 'cargo test'
 
     - name: Build the module
-      run: 'eldev build mistty-alacritty-vt-dev.so'
+      run: 'eldev build mistty-alacritty-vt-dev-x86_64.so'
 
     - name: Test the project
       run: 'eldev -DtTQ test -B --ci || eldev -dtT test --ci :failed'

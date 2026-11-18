@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.3] - upcoming
+## [2.3] - 2026-11-18
 
 Before upgrading to this release, check any custom keybindings defined
 specifically for fullscreen `eterm`. As there's no buffer switch

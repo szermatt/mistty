@@ -42,11 +42,6 @@
                             target)
                        :forward-output t :die-on-error t))
 
-;; Always use the development version during tests and load from the
-;; dev version of the module, built above. Release versions are built
-;; or downloaded using the M-x mistty-install or mistty-install-dwim.
-(setq mistty-development-mode t)
-
 ;;; Test dependencies
 
 (eldev-add-extra-dependencies
@@ -148,6 +143,7 @@
   "Let tests know they're running on CI."
   :options        (--ci)
   :for-command    test
+
   (setq mistty-test-ci t))
 
 ;;; Documentation

@@ -1,5 +1,8 @@
 ;;; Tests compatibility with other packages -*- lexical-binding: t -*-
 
+(defvar mistty-development-mode) ;; mistty-alacritty.el
+(setq mistty-development-mode t)
+
 (require 'mistty)
 (require 'test/mistty-testing)
 (require 'thingatpt)

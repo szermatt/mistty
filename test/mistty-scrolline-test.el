@@ -14,6 +14,9 @@
 ;; along with this program.  If not, see
 ;; `http://www.gnu.org/licenses/'.
 
+(defvar mistty-development-mode) ;; mistty-alacritty.el
+(setq mistty-development-mode t)
+
 (require 'mistty-scrolline)
 
 (require 'ert)

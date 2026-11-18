@@ -212,7 +212,8 @@ mistty--accum whose slots can be accessed."
         (overall-processor-regexp nil)
         (overall-hold-back-regexp nil)
         (processing-pending-output nil)
-        (needs-postprocessing nil))
+        (needs-postprocessing nil)
+        (recursion-guard nil))
     (cl-labels
         ;; Implement mistty--accum-reset.
         ((reset ()
@@ -427,15 +428,40 @@ mistty--accum whose slots can be accessed."
         (mistty-with-errors-logged "process filter"
           (mistty--fifo-enqueue unprocessed data)
           (cl-incf unprocessed-bytes (length data))
-          (when immediate-preproc
-            (process-data proc)
-            (flush proc))
 
-          (when (toplevel-accumulator-p proc)
-            (unless immediate-preproc
-              (process-data proc)
-              (flush proc))
-            (post-process proc)))))))
+          (if immediate-preproc
+              (progn
+                (process-data proc)
+                (unless recursion-guard
+                  (flush proc)
+                  (when (toplevel-accumulator-p proc)
+                    (unwind-protect
+                        (progn
+                          (setq recursion-guard t)
+                          (cl-block nil
+                            (while t
+                              (post-process proc)
+
+                              ;; Rerun if data accumulated while
+                              ;; post-processing, as a post-processor
+                              ;; may have called
+                              ;; accept-process-output.
+                              (if (mistty--fifo-empty-p processed)
+                                  (cl-return)
+                                (flush proc)))))
+                      (setq recursion-guard nil)))))
+
+            ;; not immediate-preproc
+            (while (and (not recursion-guard)
+                        (> unprocessed-bytes 0)
+                        (toplevel-accumulator-p proc))
+              (unwind-protect
+                  (progn
+                    (setq recursion-guard t)
+                    (process-data proc)
+                    (flush proc)
+                    (post-process proc))
+                (setq recursion-guard nil)))))))))
 
 (defun mistty--split-incomplete-chars (str)
   "Extract incomplete multibyte chars at the end of STR.

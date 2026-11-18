@@ -416,3 +416,56 @@
                        "boo, boo"  ; third baa, oo was pushed
                        )
                      (nreverse lookbacks))))))
+
+(ert-deftest mistty-accum-recursion-guard-immediate-preproc ()
+  (mistty-with-test-process (proc)
+    (let ((accum (mistty--make-accumulator
+                  (process-filter proc) 'immediate))
+          (first t))
+      (set-process-filter proc accum)
+
+      (mistty--accum-add-processor
+       accum '(seq ESC ?=)
+       (lambda (ctx _)
+         (mistty--accum-ctx-push-down ctx "-")
+         (mistty--accum-ctx-push-down ctx "-")))
+
+      (mistty--accum-add-post-processor
+       accum
+       (lambda ()
+         (when first
+           (funcall accum proc "\e=bar")
+           ;; setting first *after* calling the accumulator means that
+           ;; if the recursion guard doesn't work, get get into an
+           ;; infinite loop.
+           (setq first nil))))
+
+      (funcall accum proc "foo\e=")
+
+      (should (equal "foo----bar"
+                     (mistty-test-proc-buffer-string proc))))))
+
+(ert-deftest mistty-accum-recursion-guard-deferred-preproc ()
+  (mistty-with-test-process (proc)
+    (let ((accum (mistty--make-accumulator
+                  (process-filter proc) nil))
+          (first t))
+      (set-process-filter proc accum)
+
+      (mistty--accum-add-processor
+       accum '(seq ESC ?=)
+       (lambda (ctx _)
+         (mistty--accum-ctx-push-down ctx "-")
+         (mistty--accum-ctx-push-down ctx "-")))
+
+      (mistty--accum-add-post-processor
+       accum
+       (lambda ()
+         (when first
+           (funcall accum proc "\e=bar")
+           (setq first nil))))
+
+      (funcall accum proc "foo\e=")
+
+      (should (equal "foo----bar"
+                     (mistty-test-proc-buffer-string proc))))))

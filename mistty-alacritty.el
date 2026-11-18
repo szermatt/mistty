@@ -42,7 +42,7 @@
 ;; loaded and compiled. Availability check should be done dynamically
 ;; dynamically using (mistty-alacritty-available-p)
 
-(defconst mistty-alacritty-version "2.2.2-alpha"
+(defconst mistty-alacritty-version "2.3.0"
   "Mistty module version name, matching the version in Cargo.toml.
 
 This is used to download and load the correct version of the module.")

@@ -274,7 +274,7 @@ dependencies = [
 
 [[package]]
 name = "mistty-alacritty-vt"
-version = "2.2.2-alpha"
+version = "2.3.0"
 dependencies = [
  "alacritty_terminal",
  "anyhow",

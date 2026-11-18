@@ -47,7 +47,7 @@
 
 This is used to download and load the correct version of the module.")
 
-(defvar mistty-development-mode t
+(defvar mistty-development-mode nil
   "Turn on development mode, switching module version to dev.
 
 With this turned on, `mistty-alacritty-version' is ignored and the

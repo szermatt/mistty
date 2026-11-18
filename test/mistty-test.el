@@ -5795,7 +5795,7 @@ preexec_functions+=(osc133_preexec)
           (should (equal 1 (length notifications)))
           (let ((notif (pop notifications)))
             (should (equal "Command finished" (plist-get notif :title)))
-            (should (equal "Command 'echo hello' finished with status 0"
+            (should (equal "Command 'echo hello' finished successfully"
                            (plist-get notif :body))))
 
           ;; tests nonzero status, truncation

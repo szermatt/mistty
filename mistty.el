@@ -4424,9 +4424,10 @@ The behavior of this command is controlled by the option
                           (truncate-string-to-width
                            cmdline 20 nil nil "…"))
                        "")
-                     (if status
-                         (format " with status %s" status)
-                       ""))
+                     (cond
+                      ((equal 0 status) " successfully")
+                      ((numberp status) (format " with status %s" status))
+                      (t  "")))
        :actions '("default" "Go to buffer")
        :on-action (let ((buf (current-buffer)))
                     (lambda (_id key)

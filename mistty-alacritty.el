@@ -86,8 +86,9 @@ provide the feature `mistty-alacritty-vt'."
                           ;; version is
                           (void-function "unspecified"))))
     (unless (string= mistty-alacritty-version module-version)
-      (error "Incompatibly mistty-alacritty-vt module. You may need to restart Emacs. Expected %s, got %s"
-             mistty-alacritty-version module-version))))
+      (error "Restart Emacs to load mistty-alacritty-vt %s (You have %s)"
+             mistty-alacritty-version
+             module-version))))
 
 (defun mistty-alacritty-load ()
   "Attempt to load the module.

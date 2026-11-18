@@ -631,17 +631,28 @@ CURSOR-MARKER is updated to the cursor position."
                                sync-scrolline (marker-position sync-pos)))))
 
               ;; prompt changes
-              (`(start-prompt ,source ,start)
-               (let* ((cell (mistty--term-alacritty-prompt-cell term))
-                      (prompt (mistty--get-prompt cell)))
-                 (if (and prompt (null (mistty--prompt-end prompt)))
-                     (progn
-                       (setf (mistty--prompt-source prompt) source)
-                       (setf (mistty--prompt-start prompt) start)
-                       (mistty-log "Updated %s prompt #%s [%s-]"
-                                   (mistty--prompt-source prompt)
-                                   (mistty--prompt-input-id prompt)
-                                   (mistty--prompt-start prompt)))
+              (`(start-prompt ,source ,start ,replace)
+               (cl-block nil
+                 (let* ((cell (mistty--term-alacritty-prompt-cell term))
+                        (prompt (mistty--get-prompt cell)))
+                   (when (and prompt replace)
+                     (setf (mistty--prompt-source prompt) source)
+                     (setf (mistty--prompt-start prompt) start)
+                     (setf (mistty--prompt-end prompt) nil)
+                     (mistty-log "Updated %s prompt #%s [%s-]"
+                                 (mistty--prompt-source prompt)
+                                 (mistty--prompt-input-id prompt)
+                                 (mistty--prompt-start prompt))
+                     (cl-return))
+
+                   (when (and prompt (null (mistty--prompt-end prompt)))
+                     (setf (mistty--prompt-end prompt) start)
+                     (mistty-log "Ended %s prompt (unexpected) #%s [%s-%s]"
+                                 (mistty--prompt-source prompt)
+                                 (mistty--prompt-input-id prompt)
+                                 (mistty--prompt-start prompt)
+                                 start))
+
                    (setq prompt (mistty--make-prompt :source source :start start))
                    (mistty--set-prompt cell prompt)
                    (mistty-log "Detected %s prompt #%s [%s-]"

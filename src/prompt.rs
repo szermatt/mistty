@@ -29,9 +29,11 @@ emacs::use_symbols! {
 
 #[derive(PartialEq, Eq, Debug)]
 pub(crate) enum PromptChange {
-    /// Report a prompt start. If the current prompt isn't ended yet,
-    /// this replaces the current prompt.
+    /// Report a new prompt prompt start. Existing prompt is archived.
     Start(PromptSource, Scrolline),
+
+    /// Report a prompt start. Existing prompt is replaced.
+    StartOrReplace(PromptSource, Scrolline),
 
     /// End the current prompt, identified by its id.
     End(Scrolline),
@@ -109,7 +111,12 @@ impl<'e> IntoLisp<'e> for &PromptOptions {
 impl<'e> IntoLisp<'e> for PromptChange {
     fn into_lisp(self, env: &'e emacs::Env) -> Result<Value<'e>> {
         match self {
-            PromptChange::Start(source, start) => env.list((start_prompt_sym, source, start)),
+            PromptChange::Start(source, start) => {
+                env.list((start_prompt_sym, source, start, false))
+            }
+            PromptChange::StartOrReplace(source, start) => {
+                env.list((start_prompt_sym, source, start, true))
+            }
             PromptChange::End(end) => env.list((end_prompt_sym, end)),
             PromptChange::Update(opts) => env.cons(update_prompt_sym, opts),
             PromptChange::CommandFinished(exit_status, scrolline) => {
@@ -372,7 +379,7 @@ impl PromptDetector {
                 // Overwrite
                 current.source = source;
                 current.start = start;
-                self.push(PromptChange::Start(source, start));
+                self.push(PromptChange::StartOrReplace(source, start));
             }
             Some(current) if current.source == source && start > current.start => {
                 // Replace
@@ -775,7 +782,7 @@ mod tests {
         assert_eq!(
             vec![
                 PromptChange::Start(PromptSource::BracketedPaste, Scrolline(0)),
-                PromptChange::Start(PromptSource::Osc133, Scrolline(1)),
+                PromptChange::StartOrReplace(PromptSource::Osc133, Scrolline(1)),
                 PromptChange::Update(PromptOptions {
                     user_input_start: Some((Scrolline(1), Column(2))),
                     ..PromptOptions::default()
@@ -1125,7 +1132,7 @@ mod tests {
         fixture.process_bytes(b"\x1b]133;A\x07$ \x1b]133;B\x07");
         assert_eq!(
             vec![
-                PromptChange::Start(PromptSource::Osc133, Scrolline(0)),
+                PromptChange::StartOrReplace(PromptSource::Osc133, Scrolline(0)),
                 PromptChange::Update(PromptOptions {
                     user_input_start: Some((Scrolline(0), Column(2))),
                     ..PromptOptions::default()
@@ -1158,7 +1165,7 @@ mod tests {
 
         fixture.process_bytes(b"\x1b[?2004h$ ");
         assert_eq!(
-            vec![PromptChange::Start(
+            vec![PromptChange::StartOrReplace(
                 PromptSource::BracketedPaste,
                 Scrolline(0)
             )],

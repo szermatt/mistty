@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.3.1] - 2026-11-19
+
+Just a quick fix to turn off development mode, as it would cause
+issues when downloading the module.
+
+### Fixed
+
+- Turn off development mode [`d57371c`](https://github.com/szermatt/mistty/commit/a682ab1)
+- Use correct nerd-icon icon for the keyboard [`3a6a458`](https://github.com/szermatt/mistty/commit/3a6a458)
+
 ## [2.3] - 2026-11-18
 
 Before upgrading to this release, check any custom keybindings defined
@@ -243,6 +253,7 @@ _This release introduces a new recommended terminal backend based on [Alacritty]
 
 _Initial release._
 
+[2.3.1]: https://github.com/szermatt/mistty/releases/tag/2.3.1
 [2.3]: https://github.com/szermatt/mistty/releases/tag/2.3
 [2.2.1]: https://github.com/szermatt/mistty/releases/tag/2.2.1
 [2.2.0]: https://github.com/szermatt/mistty/releases/tag/2.2.0

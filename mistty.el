@@ -857,69 +857,74 @@ window."
                      (selected-window))))
         (setq width (mistty--terminal-width-from-window win))
         (setq height (mistty--terminal-height-from-window win))))
-    (let* ((work-buffer (current-buffer))
-           (term (mistty--create-term
-                  (or mistty-terminal-type
-                      (if (mistty-alacritty-load)
-                          'alacritty
-                        'eterm))
-                  (concat " mistty tty " (buffer-name))
-                  (cons command args)
-                  :width width
-                  :height height
-                  :prompt-cell mistty--prompt-cell
-                  :enter-fullscreen
-                  (lambda ()
-                    (mistty--enter-fullscreen work-buffer))
-                  :leave-fullscreen
-                  (lambda ()
-                    (mistty--leave-fullscreen work-buffer))
-                  :after-clear-screen
-                  (lambda ()
-                    (mistty--with-live-buffer work-buffer
-                      (mistty--scroll-after-clear)))
-                  :clear-scrollback
-                  (lambda ()
-                    (mistty--with-live-buffer work-buffer
-                      (mistty--clear-scrollback)))
-                  :after-reset
-                  (lambda ()
-                    (mistty--with-live-buffer work-buffer
-                      (when mistty-fullscreen
-                        (mistty--leave-fullscreen work-buffer))
-                      (mistty--cancel-queue mistty--queue)
-                      (mistty--release-all-changesets)
-                      (setq mistty--inhibit-refresh nil)
-                      (setq mistty-bracketed-paste nil)
-                      (mistty--scroll-after-clear)))
-                  :sync-scrolline
-                  (lambda ()
-                    (mistty--with-live-buffer work-buffer
-                      mistty--scrolline-home-num))
-                  :show-cursor
-                  (lambda (show)
-                    (mistty--with-live-buffer work-buffer
-                      (if show
-                          (mistty--show-cursor)
-                        (mistty--hide-cursor))))
-                  :report-focus
-                  (lambda (report)
-                    (mistty--with-live-buffer work-buffer
-                      (unless (eq (not (not report))
-                                  (not (not mistty--report-focus)))
-                        (setq mistty--report-focus (not (not report)))
-                        (mistty--report-focus))))
-                  :request-report-mouse
-                  (lambda (val)
-                    (mistty--with-live-buffer work-buffer
-                      (mistty--request-mouse-reporting val)))))
-           (accum (process-filter (mistty--term-proc term))))
-      (mistty--add-sync-buffers accum work-buffer)
-      (mistty--attach term)
-      (mistty--check-buffer-focus (current-buffer))))
-  (mistty--wrap-capf-functions)
-  (mistty--update-secondary-mode)
-  (run-hooks 'mistty-after-process-start-hook))
+    (let ((work-buffer (current-buffer))
+          success) ; clean up work buffer unless setup succeeds
+      (unwind-protect
+          (let* ((term (mistty--create-term
+                        (or mistty-terminal-type
+                            (if (mistty-alacritty-load 'noerror)
+                                'alacritty
+                              'eterm))
+                        (concat " mistty tty " (buffer-name))
+                        (cons command args)
+                        :width width
+                        :height height
+                        :prompt-cell mistty--prompt-cell
+                        :enter-fullscreen
+                        (lambda ()
+                          (mistty--enter-fullscreen work-buffer))
+                        :leave-fullscreen
+                        (lambda ()
+                          (mistty--leave-fullscreen work-buffer))
+                        :after-clear-screen
+                        (lambda ()
+                          (mistty--with-live-buffer work-buffer
+                            (mistty--scroll-after-clear)))
+                        :clear-scrollback
+                        (lambda ()
+                          (mistty--with-live-buffer work-buffer
+                            (mistty--clear-scrollback)))
+                        :after-reset
+                        (lambda ()
+                          (mistty--with-live-buffer work-buffer
+                            (when mistty-fullscreen
+                              (mistty--leave-fullscreen work-buffer))
+                            (mistty--cancel-queue mistty--queue)
+                            (mistty--release-all-changesets)
+                            (setq mistty--inhibit-refresh nil)
+                            (setq mistty-bracketed-paste nil)
+                            (mistty--scroll-after-clear)))
+                        :sync-scrolline
+                        (lambda ()
+                          (mistty--with-live-buffer work-buffer
+                            mistty--scrolline-home-num))
+                        :show-cursor
+                        (lambda (show)
+                          (mistty--with-live-buffer work-buffer
+                            (if show
+                                (mistty--show-cursor)
+                              (mistty--hide-cursor))))
+                        :report-focus
+                        (lambda (report)
+                          (mistty--with-live-buffer work-buffer
+                            (unless (eq (not (not report))
+                                        (not (not mistty--report-focus)))
+                              (setq mistty--report-focus (not (not report)))
+                              (mistty--report-focus))))
+                        :request-report-mouse
+                        (lambda (val)
+                          (mistty--with-live-buffer work-buffer
+                            (mistty--request-mouse-reporting val)))))
+                 (accum (process-filter (mistty--term-proc term))))
+            (mistty--add-sync-buffers accum work-buffer)
+            (mistty--attach term)
+            (mistty--check-buffer-focus (current-buffer))
+            (mistty--wrap-capf-functions)
+            (mistty--update-secondary-mode)
+            (run-hooks 'mistty-after-process-start-hook)
+            (setq success t))
+        (unless success
+          (kill-buffer work-buffer))))))
 
 (defun mistty--request-mouse-reporting (val)
   "Set mouse reporting VAL.

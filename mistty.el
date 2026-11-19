@@ -3,7 +3,7 @@
 ;; Copyright (C) 2023-2026 Stephane Zermatten
 
 ;; Author: Stephane Zermatten <szermatt@gmx.net>
-;; Version: 2.3.1
+;; Version: 2.3.2snapshot
 ;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: convenience, unix
 ;; URL: http://github.com/szermatt/mistty
@@ -63,7 +63,7 @@
 
 ;;; Code:
 
-(defconst mistty-version "2.3.1"
+(defconst mistty-version "2.3.2snapshot"
   "Mistty package version.")
 
 ;; Customization:

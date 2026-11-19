@@ -860,7 +860,7 @@ window."
     (let* ((work-buffer (current-buffer))
            (term (mistty--create-term
                   (or mistty-terminal-type
-                      (if (mistty-alacritty-available-p)
+                      (if (mistty-alacritty-load)
                           'alacritty
                         'eterm))
                   (concat " mistty tty " (buffer-name))

@@ -1,8 +1,5 @@
 ;;; Tests mistty-project.el -*- lexical-binding: t -*-
 
-(defvar mistty-development-mode) ;; mistty-alacritty.el
-(setq mistty-development-mode t)
-
 (require 'mistty)
 (require 'mistty-project)
 (require 'test/mistty-testing)

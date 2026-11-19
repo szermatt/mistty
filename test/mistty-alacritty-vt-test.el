@@ -14,13 +14,12 @@
 ;; along with this program.  If not, see
 ;; `http://www.gnu.org/licenses/'.
 
-(defvar mistty-development-mode) ;; mistty-alacritty.el
-(setq mistty-development-mode t)
-
 (require 'ert)
 (require 'mistty-alacritty) ; loads mistty-alacritty-vt
 (require 'test/mistty-testing)
 (require 'turtles nil 'noerror)
+
+(mistty-alacritty-load)
 
 (mistty-deftest mistty-alacritty-vt-render (:features mistty-alacritty-vt :shell none)
   (let ((term (mistty-alacritty-vt-make-vterm 20 10 nil))

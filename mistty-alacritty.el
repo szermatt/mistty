@@ -76,6 +76,12 @@ provide the feature `mistty-alacritty-vt'."
           mistty-alacritty-arch
           module-file-suffix))
 
+(defvar mistty--alacritty-loaded nil
+  "Name of the module that was loaded.
+
+`mistty-alacritty-modulename' returns the module that should be loaded.
+This variable keeps track of the module that was actually loaded.")
+
 (defun mistty-alacritty-check-version ()
   "Raise an error unless the right version of the module is loaded."
   (interactive)
@@ -86,9 +92,10 @@ provide the feature `mistty-alacritty-vt'."
                           ;; version is
                           (void-function "unspecified"))))
     (unless (string= mistty-alacritty-version module-version)
-      (error "Restart Emacs to load mistty-alacritty-vt %s (You have %s)"
+      (error "Restart Emacs to load mistty-alacritty-vt %s (Loaded: %s, from %s)"
              mistty-alacritty-version
-             module-version))))
+             module-version
+             (or mistty--alacritty-loaded "unknown file")))))
 
 (defun mistty-alacritty-load ()
   "Attempt to load the module.
@@ -98,21 +105,23 @@ returns. Return nil if the module is not found.
 
 This function might fail if the module is found, but cannot be loaded
 for some reason."
-  (cond
-   ((featurep 'mistty-alacritty-vt)
-    (mistty-alacritty-check-version)
+  (let ((modulename))
+    (cond
+     ((featurep 'mistty-alacritty-vt)
+      (mistty-alacritty-check-version)
 
-    t)
-   ((load (mistty-alacritty-modulename) 'noerror 'nomessage)
-    (unless (featurep 'mistty-alacritty-vt)
-      (error "Module doesn't define feature mistty-alacritty-vt"))
-    (mistty-alacritty-check-version)
+      t)
+     ((load (setq modulename (mistty-alacritty-modulename)) 'noerror 'nomessage)
+      (setq mistty--alacritty-loaded modulename)
+      (when mistty-development-mode
+        (message "Loaded module %s (MisTTY Development mode on)" modulename))
+      (unless (featurep 'mistty-alacritty-vt)
+        (error "Module doesn't define feature mistty-alacritty-vt: %s" modulename))
+      (mistty-alacritty-check-version)
 
-    t)
+      t)
    ;; not found
-   (t nil)))
-
-(mistty-alacritty-load)
+     (t nil))))
 
 ;; These declarations allow compiling without loading the module.
 (declare-function mistty-alacritty-vt-alt-screen-p nil (term))
@@ -299,10 +308,10 @@ Calling any other function when this one returns nil will fail."
 
 (defun mistty-alacritty--make-vterm (width height)
   "Create a terminal with the given WIDTH and HEIGHT."
-  (unless (mistty-alacritty-available-p)
+  (unless (mistty-alacritty-load)
     (error "Alacritty terminal is unavailable; module '%s' not found"
            (mistty-alacritty-modulename)))
-  (mistty-alacritty-check-version)
+
   (let ((vterm (mistty-alacritty-vt-make-vterm
                 width height
                 `(:osc52 ,mistty-alacritty-osc52

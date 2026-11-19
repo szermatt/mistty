@@ -13,6 +13,9 @@
 (setq eldev-files-to-package `(:and ,eldev-files-to-package
                                     (concat "!extras/*")))
 
+;; Load module mistty-alacritty-vt-dev-<arch>.<module-ext> in tests
+(setq mistty-development-mode t)
+
 (eldev-use-plugin 'autoloads)
 
 ;; Exclude work and build files so Eldev doctor ignores them.

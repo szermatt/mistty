@@ -80,7 +80,7 @@ precmd_functions+=(prompt_header)
                                                                mistty-test-zsh-exe
                                                                mistty-test-fish-exe
                                                                mistty-test-log
-                                                               mistty-alacritty-version))
+                                                               mistty-development-mode))
     "Emacs instance that runs mistty tests."
     (clear-minibuffer-message)
     (setq mistty-log-to-messages t)

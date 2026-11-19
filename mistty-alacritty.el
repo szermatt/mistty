@@ -82,45 +82,56 @@ provide the feature `mistty-alacritty-vt'."
 `mistty-alacritty-modulename' returns the module that should be loaded.
 This variable keeps track of the module that was actually loaded.")
 
-(defun mistty-alacritty-check-version ()
-  "Raise an error unless the right version of the module is loaded."
+(defun mistty-alacritty-check-version (&optional noerror)
+  "Check that right version of the module is loaded.
+
+This function raises an error unless the right version of the module is
+loaded, unless NOERROR is non-nil, in which case this function returns a
+boolean."
   (interactive)
-  (unless (featurep 'mistty-alacritty-vt)
-    (error "Module %s not loaded yet" (mistty-alacritty-modulename)))
-  (let ((module-version (condition-case nil
-                            (mistty-alacritty-vt-version)
-                          ;; version is
-                          (void-function "unspecified"))))
-    (unless (string= mistty-alacritty-version module-version)
-      (error "Restart Emacs to load mistty-alacritty-vt %s (Loaded: %s, from %s)"
+  (let (module-version)
+    (cond
+     ((and
+       (featurep 'mistty-alacritty-vt)
+       (string= mistty-alacritty-version
+                (setq module-version
+                      (condition-case nil
+                          (mistty-alacritty-vt-version)
+                        (void-function "unspecified")))))
+
+        t)
+     (noerror nil)
+     ((not module-version)
+      (error "Module %s not loaded yet" (mistty-alacritty-modulename)))
+     (t
+      (error "Restart Emacs to load mistty-alacritty-vt %s (Loaded %s, from %s)"
              mistty-alacritty-version
              module-version
-             (or mistty--alacritty-loaded "unknown file")))))
+             (or mistty--alacritty-loaded "unknown file"))))))
 
-(defun mistty-alacritty-load ()
+(defun mistty-alacritty-load (&optional noerror)
   "Attempt to load the module.
 
 Return non-nil if the module is found and could be loaded, this function
 returns. Return nil if the module is not found.
 
 This function might fail if the module is found, but cannot be loaded
-for some reason."
+for some reason unless NOERROR is non-nil."
   (let ((modulename))
     (cond
      ((featurep 'mistty-alacritty-vt)
-      (mistty-alacritty-check-version)
+      (mistty-alacritty-check-version noerror))
 
-      t)
      ((load (setq modulename (mistty-alacritty-modulename)) 'noerror 'nomessage)
       (setq mistty--alacritty-loaded modulename)
       (when mistty-development-mode
         (message "Loaded module %s (MisTTY Development mode on)" modulename))
-      (unless (featurep 'mistty-alacritty-vt)
+      (if (and (not noerror) (not (featurep 'mistty-alacritty-vt)))
         (error "Module doesn't define feature mistty-alacritty-vt: %s" modulename))
-      (mistty-alacritty-check-version)
 
-      t)
-   ;; not found
+      (mistty-alacritty-check-version noerror))
+
+     ;; not found
      (t nil))))
 
 ;; These declarations allow compiling without loading the module.

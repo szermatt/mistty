@@ -6538,6 +6538,45 @@ preexec_functions+=(osc133_preexec)
   ;; But C-e, for example, which is not special, is translated.
   (should (equal "\e[97;5u" (mistty-translate-key "\C-a"))))
 
+(mistty-deftest mistty-TAB-RET-ESC-graphical-kitty (:type alacritty :shell fish)
+  ;; On graphical frames, we can distinguish C-m from TAB and C-i from
+  ;; RET when using the kitty protocol.
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda () t)))
+    (should (equal "\e[105;5u" (mistty-translate-key (kbd "C-i"))))
+    (should (equal "\e[109;5u" (mistty-translate-key (kbd "C-m"))))
+    (should (equal "\e[91;5u" (mistty-translate-key (kbd "C-["))))
+    (should (equal "\t" (mistty-translate-key (kbd "<tab>"))))
+    (should (equal "\r" (mistty-translate-key (kbd "<return>"))))
+    (should (equal "\e[27u" (mistty-translate-key (kbd "<escape>"))))))
+
+(mistty-deftest mistty-TAB-RET-ESC-graphical-legacy (:type alacritty :shell bash)
+  ;; On graphical frames, while we can distinguish C-m from TAB and
+  ;; C-i from RET, if the kitty protocol is off, they're still handled
+  ;; the same way.
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda () t)))
+    (should (equal "\t" (mistty-translate-key (kbd "C-i"))))
+    (should (equal "\r" (mistty-translate-key (kbd "C-m"))))
+    (should (equal "\e" (mistty-translate-key (kbd "C-["))))
+    (should (equal "\t" (mistty-translate-key (kbd "<tab>"))))
+    (should (equal "\r" (mistty-translate-key (kbd "<return>"))))
+    (should (equal "\e" (mistty-translate-key (kbd "<escape>"))))))
+
+(mistty-deftest mistty-TAB-RET-ESC-terminal-kitty (:type alacritty :shell fish)
+  ;; On terminal frames, we cannot distinguish C-m from TAB and C-i
+  ;; from RET even when using the kitty protocol.
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda () nil)))
+    (should (equal "\t" (mistty-translate-key (kbd "TAB"))))
+    (should (equal "\r" (mistty-translate-key (kbd "RET"))))
+    (should (equal "\e[27u" (mistty-translate-key (kbd "ESC"))))))
+
+(mistty-deftest mistty-TAB-RET-ESC-terminal-legacy (:type alacritty :shell bash)
+  ;; On terminal frames, we cannot distinguish C-m from TAB and C-i
+  ;; from RET even when using the kitty protocol.
+  (cl-letf (((symbol-function 'display-graphic-p) (lambda () nil)))
+    (should (equal "\t" (mistty-translate-key (kbd "TAB"))))
+    (should (equal "\r" (mistty-translate-key (kbd "RET"))))
+    (should (equal "\e" (mistty-translate-key (kbd "ESC"))))))
+
 (defun mistty-test-translate-mouse (ev &optional move-posn)
   (mistty--term-translate-mouse mistty--term ev move-posn mistty-sync-marker))
 

@@ -40,12 +40,16 @@ delete key instead of the backspace key.")
     (define-key map (kbd "<backtab>") (kbd "S-<tab>"))
 
     map)
-  "Translation applied to input keys by `mistty-send-key'.
+  "Translation applied to input keys by `mistty-send-key' on terminals.
 
 This map standardize some terminal-based or historical keyboard
 bindings, such as ESC, RET and <backtab> so that further translation can
 just support the symbol-based key definition and ignore the
 ASCII one.
+
+This is not applied on graphical displays, which means that further
+translation steps can trust that if it gets a C-i it's really a C-i and
+not a TAB.
 
 Note that ESC <char> is translated into M-<char> before the key even
 gets to this keymap.")
@@ -221,7 +225,8 @@ failing."
     (pcase key
       ((and `[?\e ,c] (guard (characterp c)))
        (setq key (vector (logior c #x8000000)))))
-    (setq key (or (lookup-key mistty-translation-keymap key) key))
+    (unless (display-graphic-p)
+      (setq key (or (lookup-key mistty-translation-keymap key) key)))
 
     (or (funcall mistty--translate-key-function key n)
         (if noerror

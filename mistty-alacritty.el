@@ -842,16 +842,21 @@ to the terminal."
   (let ((n (or n 1)))
     (if (mistty--term-alacritty-kkp term)
         ;; follow the kitty keyboard protocol
-        (let* ((vterm (mistty--term-alacritty-vterm term))
-               (seq (mapconcat
+        (let ((seq (if (and (length= key 1)
+                            (memq (aref key 0) '(?\C-c ?\C-f ?\C-d)))
+                       ;; Keep these keys as-is, to get out of issues
+                       ;; in case things go wrong. They're handled
+                       ;; specially be the terminal.
+                       key
+                    (mapconcat
                      (lambda (ev)
                        (mistty-alacritty-vt-kitty-key-seq
-                        vterm
+                        (mistty--term-alacritty-vterm term)
                         ev
                         (vconcat (event-modifiers ev))
                         (event-basic-type ev)))
                      key
-                     "")))
+                     ""))))
           (if (length= seq 0)
               nil
             (mistty--repeat-string n seq)))

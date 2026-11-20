@@ -6528,6 +6528,16 @@ preexec_functions+=(osc133_preexec)
     (should (equal expected
                    (mistty--translate-replay-seq mistty--term replay-seq)))))
 
+(mistty-deftest mistty-translate-kkp-special-keys (:type alacritty :shell fish)
+  ;; C-c, C-d and C-f are not translated to the kitty keyboard protocol, so
+  ;; they can be relied upon when things go wrong.
+  (should (equal "\C-c" (mistty-translate-key (kbd "C-c"))))
+  (should (equal "\C-d" (mistty-translate-key (kbd "C-d"))))
+  (should (equal "\C-f" (mistty-translate-key (kbd "C-f"))))
+
+  ;; But C-e, for example, which is not special, is translated.
+  (should (equal "\e[97;5u" (mistty-translate-key "\C-a"))))
+
 (defun mistty-test-translate-mouse (ev &optional move-posn)
   (mistty--term-translate-mouse mistty--term ev move-posn mistty-sync-marker))
 

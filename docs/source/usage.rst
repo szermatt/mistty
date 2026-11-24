@@ -338,6 +338,7 @@ Terminal Zone Modes and Keyboard
    pair: map; mistty-mode-map
    pair: map; mistty-fullscreen-mode-map
    pair: map; mistty-special-prompt-map
+   pair: command; mistty-yank
 
 As explained above, the scrollback zone and terminal zone behave
 differently and have different set of keybindings. While the keymap
@@ -357,6 +358,11 @@ editing tools are not available. The terminal area functions just like
 a normal terminal and most key sequences - by default, all but the
 ones starting with `C-c` and `C-x` - are sent to the terminal
 application. This is defined in `mistty-fullscreen-mode-map`.
+
+Remember MisTTY cannot replay local changes in fullscreen mode; all it
+does is send out keys to the terminal. Notably, `yank` and `yank-pop`
+aren't available in this mode but `M-x mistty-yank`, bound by default
+to :kbd:`C-c C-y`, can paste text as `yank` would.
 
 .. note::
    The examples in this section show icons displayed for the default

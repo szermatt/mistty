@@ -652,6 +652,7 @@ the commands `mistty-set-terminal-size' and
   '((yank . t)
     (yank-pop . t)
     (yank-rectangle . t)
+    (mistty-yank . t)
     (insert-register . t)
     (insert-rectangle . t)
     (undo . t)

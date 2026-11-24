@@ -7502,6 +7502,7 @@ preexec_functions+=(osc133_preexec)
         (mistty-test-trim-menu
          " MisTTY >\n"
          "     Clear                        C-c C-l\n"
+         "     Yank                         C-c C-y\n"
          "     Exit Command\n"
          " ----------------------------------------\n"
          "     Prev Output                  C-c C-p\n"
@@ -7549,6 +7550,7 @@ preexec_functions+=(osc133_preexec)
          " MisTTY >\n"
          "     Go to Scrollback             C-c C-j\n"
          "     Clear                        C-c C-l\n"
+         "     Yank                         C-c C-y\n"
          "     Exit Command\n"
          " ----------------------------------------\n"
          "     Prev Output                  C-c C-p\n"
@@ -7912,3 +7914,32 @@ preexec_functions+=(osc133_preexec)
   (mistty-send-and-wait-for-prompt)
 
   (should (equal "\e[A" (mistty--term-translate-key mistty--term (kbd "<up>")))))
+
+(mistty-deftest mistty-test-yank (:selected t :type all)
+  (kill-new "echo hello")
+  (execute-kbd-macro (kbd "C-c C-y"))
+  (mistty-wait-for-output :str "echo hello" :cursor-at-end t)
+  (should (equal "$ echo hello<>" (mistty-test-content :show (point))))
+  (should (equal "hello" (mistty-send-and-capture-command-output))))
+
+(mistty-deftest mistty-test-yank-bracketed-paste (:selected t :type all)
+  (kill-new "for i in a b c; do\necho $i\ndone")
+  (execute-kbd-macro (kbd "C-c C-y"))
+  (mistty-wait-for-output :str "done" :cursor-at-end t)
+  (should (equal "$ for i in a b c; do\necho $i\ndone<>" (mistty-test-content :show (point))))
+  (should (equal "a\nb\nc" (mistty-send-and-capture-command-output))))
+
+(mistty-deftest mistty-test-yank-fullscreen (:selected t :type all)
+  (kill-new "hello")
+  (mistty--send-string
+   mistty-proc "printf '\\e[?1049h\\e[H'; read -p 'FS: ' val; printf '\\e[?1049lRESULT: %s\\n' \"$val\"\n")
+  (mistty-wait-for-output :start (point-min) :regexp "^FS: ")
+  (should mistty-fullscreen)
+
+  (execute-kbd-macro (kbd "C-c C-y"))
+  (mistty-wait-for-output :start (point-min) :regexp "^FS: hello")
+  (should (equal "FS: hello<>" (mistty-test-content :start mistty-sync-marker :show (point))))
+
+  (execute-kbd-macro (kbd "RET"))
+  (mistty-wait-for-output :str "RESULT: hello")
+  (should-not mistty-fullscreen))

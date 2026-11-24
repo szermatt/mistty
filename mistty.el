@@ -672,6 +672,7 @@ This is only valid for modes that have a non-nil :map tag.")
                 '(menu-item "Exit Command"
                             mistty-ignore-long-running-command
                             :enable mistty--inhibit))
+    (define-key map [mistty-yank] '(menu-item "Yank" mistty-yank))
     (define-key map [mistty-clear]
                 '(menu-item "Clear" mistty-clear))
     (define-key map [mistty-go-to-scrollback]
@@ -699,6 +700,7 @@ This map is active whenever the current buffer is in MisTTY mode."
   "C-c C-k" #'mistty-toggle-keymap
   "C-c C-a" #'mistty-toggle-mouse
   "C-c C-s" #'mistty-sudo
+  "C-c C-y" #'mistty-yank
   "C-c C-f" #'mistty-fit-to-window
   "C-c C-t" #'mistty-toggle-size-tracks-window
   "C-c <" #'mistty-shrink-vertically
@@ -2590,7 +2592,8 @@ This is meant to be added to `before-change-functions'."
                    ;; insert
                    (when (length> content 0)
                      (mistty-log "INSERT: '%s'" content)
-                     (mistty--format-string-for-insert content cs)))))
+                     (mistty--format-string-for-insert
+                      content (mistty--changeset-command cs))))))
              (when replay-seq
                ;; ignore term-line-wrap and mistty-skip when
                ;; building and running the detector.
@@ -2732,15 +2735,15 @@ This is meant to be added to `before-change-functions'."
       (mistty--interact-close interact)
       nil)))
 
-(defun mistty--format-string-for-insert (str cs)
-  "Return a replay sequence for inserting STR for changeset CS.
+(defun mistty--format-string-for-insert (str command)
+  "Return a replay sequence for inserting STR for COMMAND.
 
 When bracketed paste is enabled, it is used only if STR contains control
 characters, unless the command that created the changeset is in
 `mistty-bracketed-paste-commands'."
   (if (and mistty-bracketed-paste
            (or (string-match "[\0-\010\012-\037]" str)
-               (if-let* ((config (assq (mistty--changeset-command cs)
+               (if-let* ((config (assq command
                                        mistty-bracketed-paste-command-alist)))
                    (cdr config)
                  mistty-bracketed-paste-default)))
@@ -4438,6 +4441,31 @@ The behavior of this command is controlled by the option
                     (lambda (_id key)
                       (when (equal "default" key)
                         (pop-to-buffer buf))))))))
+
+(defun mistty-yank (&optional arg)
+  "Paste yanked text or current selection.
+
+This function pastes the text returned by `current-kill' into the
+current buffer, using bracketed-pasted if supported.
+
+This command doesn't check the current state of the terminal and so
+works even in fullscreen mode. However, if the application running on
+the terminal isn't expecting text to be pasted, the results may not be
+what you want.
+
+With argument N, reinsert the Nth most recent kill. In general, the
+inserted text is the same as would be inserted by `yank' called with the
+same argument."
+  (interactive "P")
+  (let ((text (current-kill (cond
+		            ((listp arg) 0)
+		            ((eq arg '-) -2)
+		            (t (1- arg))))))
+    (mistty-send-string
+     (mistty--translate-replay-seq
+      mistty--term
+      (mistty--format-string-for-insert
+       text 'mistty-yank)))))
 
 (provide 'mistty)
 

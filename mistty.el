@@ -4371,6 +4371,12 @@ wheel-down, wheel-left and wheel-right, which must be sent to
     ('mouse-10 10)
     ('mouse-11 11)))
 
+(defvar-local mistty--mwheel-pending-x 0
+  "Accumulated horizontal pixel delta for trackpad scrolling.")
+
+(defvar-local mistty--mwheel-pending-y 0
+  "Accumulated vertical pixel delta for trackpad scrolling.")
+
 (defun mistty-report-mwheel-event (ev)
   "Report mouse wheel event EV to the terminal.
 
@@ -4398,17 +4404,66 @@ travel."
           (when (eq 'mistty-mode major-mode)
             (let ((proc (mistty--term-proc mistty--term)))
               (when (process-live-p proc)
-                (mistty-log "MWHEEL EV: %S" ev)
-                (when-let* ((seq (mistty--term-translate-mouse
-                                  mistty--term
-                                  'press
-                                  button
-                                  mods
-                                  posn
-                                  nil
-                                  mistty-sync-marker)))
-                  (mistty-log "MWHEEL SEND: %S" seq)
-                  (process-send-string proc seq))))))))))
+                (mistty-log "MWHEEL EV: %S pending: (%s . %s)"
+                            ev
+                            mistty--mwheel-pending-x
+                            mistty--mwheel-pending-y)
+                (let ((count 1))
+                  (pcase (event-basic-type ev)
+                    ((or 'wheel-up 'wheel-down)
+                     ;; vertical
+                     (pcase-setq
+                      `(,count . ,mistty--mwheel-pending-y)
+                       (mistty--mwheel-coalesce (nth 3 ev)       ; lines
+                                                (cdr (nth 4 ev)) ; delta-y
+                                                (default-line-height)
+                                                mistty--mwheel-pending-y)))
+                    ((or 'wheel-left 'wheel-right)
+                     ;; horizontal
+                     (pcase-setq
+                      `(,count . ,mistty--mwheel-pending-x)
+                       (mistty--mwheel-coalesce (nth 3 ev)       ; lines
+                                                (car (nth 4 ev)) ; delta-x
+                                                (default-font-width)
+                                                mistty--mwheel-pending-x))))
+                  (when (>= count 1)
+                    (when-let* ((seq (mistty--term-translate-mouse
+                                      mistty--term
+                                      'press
+                                      button
+                                      mods
+                                      posn
+                                      nil
+                                      mistty-sync-marker)))
+                      (mistty-log "MWHEEL SEND x %d: %S" count seq)
+                      (dotimes (_ count)
+                        (process-send-string proc seq)))))))))))))
+
+(defun mistty--mwheel-coalesce (lines delta-px px-per-unit pending-px)
+  "Compute the number of button presses to send for a mwheel event.
+
+LINES is the 3rd element of a mwheel event.
+
+DELTA-PX is the x or y delta from the 4th element of a mwheel event.
+
+PX-PER-UNIT is the number of pixel to accumulate for a button press.
+
+PENDING-PX is the accumulated value of the x or y delta.
+
+Returns the number of button presses to send and the remaining pixels
+as (cons count remaining-px)"
+  (cond
+   ;; if lines is nonzero, trust it
+   ((and lines (> lines 0)) (cons lines 0))
+
+   ;; fallback to pixel delta
+   (delta-px (let* ((sum-px (+ delta-px pending-px))
+                    (count (truncate sum-px px-per-unit))
+                    (rest (- sum-px (* count px-per-unit))))
+               (cons (abs count) rest)))
+
+   ;; if there's nothing, assume normal button events
+   (t (cons 1 0))))
 
 (defun mistty--check-frame-focus ()
   "Check and report whether focus was lost or gained for all buffer."

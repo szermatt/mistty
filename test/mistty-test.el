@@ -7321,6 +7321,126 @@ preexec_functions+=(osc133_preexec)
     (mistty-send-and-wait-for-prompt)
     (funcall check-mwheel-bindings nil)))
 
+(mistty-deftest mistty-test-mwheel-pixel-delta-y
+    (:type alacritty :shell fish :selected t :turtles t)
+  (mistty-send-text "echo hello")
+  (should (redisplay t))
+
+  (let* ((target (mistty-test-pos-after "ech"))
+         (target-posn (posn-at-point target))
+         (sent nil))
+    (should target-posn)
+
+    (pcase-dolist (`(,delta-y ,expect-sent ,expect-pending)
+                   '((4 nil 4)
+                     (7 ("\33[<65;6;1M") 1)
+                     (25 ("\33[<65;6;1M" "\33[<65;6;1M") 6)
+                     (-9 nil -3)
+                     (-9 ("\33[<64;6;1M") -2)))
+        (mistty-log "delta-y: %s" delta-y)
+        (cl-letf* (((symbol-function 'process-send-string)
+                    (let ((orig-func (symbol-function 'process-send-string))
+                          (this-proc mistty-proc))
+                      (lambda (proc str)
+                        (if (eq this-proc proc)
+                            (push str sent)
+                          (funcall orig-func proc str)))))
+                   ((symbol-function 'default-line-height)
+                    (lambda () 10)))
+          (mistty-report-mwheel-event (list
+                                       (if (< delta-y 0) 'wheel-up 'wheel-down)
+                                       target-posn
+                                       1 ; clicks
+                                       0 ; lines
+                                       (cons 0 delta-y)))
+          (should (equal expect-sent sent))
+          (setq sent nil)
+
+          (should (equal expect-pending mistty--mwheel-pending-y))))))
+
+(mistty-deftest mistty-test-mwheel-pixel-delta-x
+    (:type alacritty :shell fish :selected t :turtles t)
+  (mistty-send-text "echo hello")
+  (should (redisplay t))
+
+  (let* ((target (mistty-test-pos-after "ech"))
+         (target-posn (posn-at-point target))
+         (sent nil))
+    (should target-posn)
+
+    (pcase-dolist (`(,delta-x ,expect-sent ,expect-pending)
+                   '((4 nil 4)
+                     (7 ("\33[<67;1;1M") 1)
+                     (25 ("\33[<67;1;1M" "\33[<67;1;1M") 6)
+                     (-9 nil -3)
+                     (-9 ("\33[<66;1;1M") -2)))
+        (mistty-log "delta-x: %s" delta-x)
+        (cl-letf* (((symbol-function 'process-send-string)
+                    (let ((orig-func (symbol-function 'process-send-string))
+                          (this-proc mistty-proc))
+                      (lambda (proc str)
+                        (if (eq this-proc proc)
+                            (push str sent)
+                          (funcall orig-func proc str)))))
+                   ((symbol-function 'default-font-width)
+                    (lambda () 10)))
+          (mistty-report-mwheel-event (list
+                                       (if (< delta-x 0) 'wheel-left 'wheel-right)
+                                       target-posn
+                                       1 ; clicks
+                                       0 ; lines
+                                       (cons delta-x 0)))
+          (should (equal expect-sent sent))
+          (setq sent nil)
+
+          (should (equal expect-pending mistty--mwheel-pending-x))))))
+
+(mistty-deftest mistty-test-mwheel-lines (:type alacritty :shell fish :selected t :turtles 1)
+  (mistty-send-text "echo hello")
+  (should (redisplay t))
+
+  (let* ((target (mistty-test-pos-after "ech"))
+         (target-posn (posn-at-point target))
+         (sent nil))
+    (should target-posn)
+
+    (cl-letf (((symbol-function 'process-send-string)
+               (let ((orig-func (symbol-function 'process-send-string))
+                     (this-proc mistty-proc))
+                 (lambda (proc str)
+                   (if (eq this-proc proc)
+                       (push str sent)
+                     (funcall orig-func proc str)))))
+              ((symbol-function 'default-line-height)
+               (lambda () 10)))
+      (mistty-report-mwheel-event `(wheel-up ,target-posn 1 1 (0 . -2)))
+      (should (equal '("\33[<64;6;1M") (nreverse sent))))))
+
+(mistty-deftest mistty-test-mwheel-forward-mouse-ev
+    (:type alacritty :shell fish :selected t :turtles t)
+  (mistty-send-text "echo hello")
+  (should (redisplay t))
+
+  (let* ((target (mistty-test-pos-after "ech"))
+         (target-posn (posn-at-point target))
+         (sent nil))
+    (should target-posn)
+
+    (cl-letf (((symbol-function 'process-send-string)
+               (let ((orig-func (symbol-function 'process-send-string))
+                     (this-proc mistty-proc))
+                 (lambda (proc str)
+                   (if (eq this-proc proc)
+                       (push str sent)
+                     (funcall orig-func proc str))))))
+      (mistty-report-mwheel-event `(mouse-4 ,target-posn 1))
+      (should (equal '("\33[<64;6;1M") (nreverse sent)))
+      (setq sent nil)
+
+      (mistty-report-mwheel-event `(mouse-5 ,target-posn 1))
+      (should (equal '("\33[<65;6;1M") (nreverse sent)))
+      (setq sent nil))))
+
 (mistty-deftest mistty-test-mwheel-fullscreen
     (:type alacritty :selected t :turtles t :term-size '(60 . 15))
   (let ((buf (current-buffer)))

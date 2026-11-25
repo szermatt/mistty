@@ -188,10 +188,6 @@ To add keys to send to the terminal, bind them to `mistty-send-key'.")
     (define-key map [down-mouse-1] #'mistty-report-mouse-event)
     (define-key map [down-mouse-2] #'mistty-report-mouse-event)
     (define-key map [down-mouse-3] #'mistty-report-mouse-event)
-    (define-key map [down-mouse-4] #'mistty-report-mouse-event)
-    (define-key map [down-mouse-5] #'mistty-report-mouse-event)
-    (define-key map [down-mouse-6] #'mistty-report-mouse-event)
-    (define-key map [down-mouse-7] #'mistty-report-mouse-event)
     (define-key map [down-mouse-8] #'mistty-report-mouse-event)
     (define-key map [down-mouse-9] #'mistty-report-mouse-event)
     (define-key map [down-mouse-10] #'mistty-report-mouse-event)
@@ -199,19 +195,29 @@ To add keys to send to the terminal, bind them to `mistty-send-key'.")
     (define-key map [mouse-1] #'mistty-report-mouse-event)
     (define-key map [mouse-2] #'mistty-report-mouse-event)
     (define-key map [mouse-3] #'mistty-report-mouse-event)
-    (define-key map [mouse-4] #'mistty-report-mouse-event)
-    (define-key map [mouse-5] #'mistty-report-mouse-event)
-    (define-key map [mouse-6] #'mistty-report-mouse-event)
-    (define-key map [mouse-7] #'mistty-report-mouse-event)
     (define-key map [mouse-8] #'mistty-report-mouse-event)
     (define-key map [mouse-9] #'mistty-report-mouse-event)
     (define-key map [mouse-10] #'mistty-report-mouse-event)
     (define-key map [mouse-11] #'mistty-report-mouse-event)
-
-    ;; TODO: add wheel up/down, possibly gated by an option
-
     map)
   "Map added to the terminal zone to report mouse clicks.")
+
+(defvar mistty--report-mwheel-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [wheel-up] #'mistty-report-mwheel-event)
+    (define-key map [wheel-down] #'mistty-report-mwheel-event)
+    (define-key map [wheel-left] #'mistty-report-mwheel-event)
+    (define-key map [wheel-right] #'mistty-report-mwheel-event)
+    (define-key map [mouse-4] #'mistty-report-mwheel-event)
+    (define-key map [mouse-5] #'mistty-report-mwheel-event)
+    (define-key map [mouse-6] #'mistty-report-mwheel-event)
+    (define-key map [mouse-7] #'mistty-report-mwheel-event)
+    (define-key map [down-mouse-4] #'ignore)
+    (define-key map [down-mouse-5] #'ignore)
+    (define-key map [down-mouse-6] #'ignore)
+    (define-key map [down-mouse-7] #'ignore)
+    map)
+  "Map added to the terminal zone to report mouse wheel events.")
 
 ;; Variables:
 
@@ -4011,8 +4017,10 @@ mode map override."
     (mistty-log "Install overlay map %s [mode: %s, mouse: %s]"
                 map-id (mistty--secondary-mode) mistty--mouse-reporting)
     (when mistty--mouse-reporting
-      (push mistty--report-click-map maps))
-    ;; TODO: add maps for 'motion and mouse wheel
+      (push mistty--report-click-map maps)
+      (when mistty-allow-mwheel-support
+        (push mistty--report-mwheel-map maps)))
+    ;; TODO: add maps for 'motion
 
     (overlay-put
      mistty--sync-ov
@@ -4258,7 +4266,11 @@ If DELTA is negative, the window height is increased."
   (mistty-grow-vertically (- (or delta 1))))
 
 (defun mistty-report-mouse-event (ev)
-  "Report mouse event EV to the terminal."
+  "Report mouse event EV to the terminal.
+
+This only supports mouse events, not wheel events such as, wheel-up,
+wheel-down, wheel-left and wheel-right, which must be sent to
+`mistty-report-mwheel-event'"
   (interactive "e")
   (mistty-with-errors-logged "mistty-report-mouse-events"
     (let* ((posn (event-end ev))
@@ -4350,15 +4362,53 @@ If DELTA is negative, the window height is increased."
     ('mouse-1 1)
     ('mouse-2 2)
     ('mouse-3 3)
-    ((or 'mouse-4 'wheel-up) 4)
-    ((or 'mouse-5 'wheel-down) 5)
-    ((or 'mouse-6 'wheel-left) 6)
-    ((or 'mouse-7 'wheel-right) 7)
+    ('mouse-4 4)
+    ('mouse-5 5)
+    ('mouse-6 6)
+    ('mouse-7 7)
     ('mouse-8 8)
     ('mouse-9 9)
     ('mouse-10 10)
     ('mouse-11 11)))
 
+(defun mistty-report-mwheel-event (ev)
+  "Report mouse wheel event EV to the terminal.
+
+When `mwheel-coalesce-scroll-events' is nil (for example with
+`pixel-scroll-precision-mode' or `ultra-scroll'), wheel event deltas are
+accumulated and one button press is sent per full row or column of
+travel."
+  (interactive "e")
+  (mistty-with-errors-logged "mistty-report-mwheel-event"
+    (let* ((posn (event-start ev))
+           (win (posn-window posn))
+           (buf (window-buffer win))
+           (mods (event-modifiers ev))
+           (button (pcase (event-basic-type ev)
+                     ('mouse-4 4)
+                     ('mouse-5 5)
+                     ('mouse-6 6)
+                     ('mouse-7 7)
+                     ('wheel-up 4)
+                     ('wheel-down 5)
+                     ('wheel-left 6)
+                     ('wheel-right 7))))
+      (when button
+        (with-current-buffer buf
+          (when (eq 'mistty-mode major-mode)
+            (let ((proc (mistty--term-proc mistty--term)))
+              (when (process-live-p proc)
+                (mistty-log "MWHEEL EV: %S" ev)
+                (when-let* ((seq (mistty--term-translate-mouse
+                                  mistty--term
+                                  'press
+                                  button
+                                  mods
+                                  posn
+                                  nil
+                                  mistty-sync-marker)))
+                  (mistty-log "MWHEEL SEND: %S" seq)
+                  (process-send-string proc seq))))))))))
 
 (defun mistty--check-frame-focus ()
   "Check and report whether focus was lost or gained for all buffer."

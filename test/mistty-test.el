@@ -7290,6 +7290,134 @@ preexec_functions+=(osc133_preexec)
           (goto-char (point-min))
           (should (string-match "<>" (mistty-test-content))))))))
 
+(mistty-deftest mistty-test-mwheel-keymap (:selected t :type alacritty)
+  (let ((check-mwheel-bindings
+         (lambda (expected)
+           (let ((map (overlay-get mistty--sync-ov 'keymap)))
+             (dolist (key '([wheel-up] [wheel-down] [wheel-left] [wheel-right]
+                            [mouse-4] [mouse-5] [mouse-6] [mouse-7]))
+               (should (eq expected (lookup-key map key))))))))
+    (funcall check-mwheel-bindings nil)
+
+    (mistty-send-text "printf '\\e[?1000h'") ; report clicks
+    (mistty-send-and-wait-for-prompt)
+    (funcall check-mwheel-bindings #'mistty-report-mwheel-event)
+    (should (eq #'mistty-report-mouse-event
+                (lookup-key (overlay-get mistty--sync-ov 'keymap) [down-mouse-1])))
+
+    (mistty-toggle-mouse)
+    (funcall check-mwheel-bindings nil)
+
+    (mistty-toggle-mouse)
+    (funcall check-mwheel-bindings #'mistty-report-mwheel-event)
+
+    (let ((mistty-allow-mwheel-support nil))
+      (mistty--update-secondary-mode-map)
+      (funcall check-mwheel-bindings nil)
+      (should (eq #'mistty-report-mouse-event
+                  (lookup-key (overlay-get mistty--sync-ov 'keymap) [down-mouse-1]))))
+
+    (mistty-send-text "printf '\\e[?1000l'") ; don't report clicks
+    (mistty-send-and-wait-for-prompt)
+    (funcall check-mwheel-bindings nil)))
+
+(mistty-deftest mistty-test-mwheel-fullscreen
+    (:type alacritty :selected t :turtles t :term-size '(60 . 15))
+  (let ((buf (current-buffer)))
+    (delete-other-windows)
+    (mistty--send-string
+     mistty-proc
+     (concat (expand-file-name invocation-name invocation-directory)
+             " -nw -Q -eval '"
+             "(progn "
+             "  (setq initial-scratch-message \"\")"
+             "  (menu-bar-mode -1)"
+             "  (xterm-mouse-mode)"
+             "  (mouse-wheel-mode 1)"
+             "  (dotimes (i 40) (insert (format \"line %02d\\n\" (1+ i))))"
+             "  (goto-char (point-min)))'"))
+    (mistty-send-command)
+    (mistty-wait-for-output :str "*scratch*")
+    ;; interrupt Emacs's OSC 10/11 color query timeout.
+    ;; TODO: fix this issue.
+    (mistty--send-string mistty-proc "\C-a")
+    (mistty-wait-for-output
+     :test (lambda ()
+             (and mistty--mouse-reporting
+                  (save-excursion
+                    (goto-char mistty-sync-marker)
+                    (search-forward "line 01" nil t)))))
+
+    (turtles-with-grab-buffer (:buf buf)
+      (goto-char (point-min))
+      (should (search-forward "line 01" nil t)))
+
+    ;; scroll down
+    (turtles-interaction
+      :mouse-ev 'down-mouse-5 (turtles-coords "line 01")
+      (mistty-wait-for-output
+       :test (lambda ()
+               (with-current-buffer buf
+                 (save-excursion
+                   (goto-char mistty-sync-marker)
+                   (not (search-forward "line 01" nil t)))))))
+
+    (turtles-with-grab-buffer (:buf buf)
+      (goto-char (point-min))
+      (should-not (search-forward "line 01" nil t)))
+
+    ;; scroll up
+    (turtles-interaction
+      :mouse-ev 'down-mouse-4 (turtles-coords "line")
+      (mistty-wait-for-output
+       :test (lambda ()
+               (with-current-buffer buf
+                 (save-excursion
+                   (goto-char mistty-sync-marker)
+                   (search-forward "line 01" nil t))))))))
+
+(mistty-deftest mistty-test-mwheel-disabled
+    (:type alacritty :selected t :turtles t :term-size '(60 . 15))
+  (let ((mistty-allow-mwheel-support nil)
+        (buf (current-buffer)))
+    (delete-other-windows)
+    (mistty--send-string
+     mistty-proc
+     (concat (expand-file-name invocation-name invocation-directory)
+             " -nw -Q -eval '"
+             "(progn "
+             "  (setq initial-scratch-message \"\")"
+             "  (menu-bar-mode -1)"
+             "  (xterm-mouse-mode)"
+             "  (mouse-wheel-mode 1)"
+             "  (dotimes (i 40) (insert (format \"line %02d\\n\" (1+ i))))"
+             "  (goto-char (point-min)))'"))
+    (mistty-send-command)
+    (mistty-wait-for-output :str "*scratch*")
+    ;; interrupt Emacs's OSC 10/11 color query timeout.
+    ;; TODO: fix this issue.
+    (mistty--send-string mistty-proc "\C-a")
+    (mistty-wait-for-output
+     :test (lambda ()
+             (and mistty--mouse-reporting
+                  (save-excursion
+                    (goto-char mistty-sync-marker)
+                    (search-forward "line 01" nil t)))))
+
+    ;; translated to wheel-down, which should hide line 01 - if it
+    ;; weren't discarded.
+    (turtles-interaction
+      :mouse-ev 'down-mouse-5 (turtles-coords "line 01"))
+
+    ;; to make sure the mouse even has been processed, add a key press
+    ;; and wait until it has been processed.
+    (mistty--send-string mistty-proc "X")
+    (mistty-wait-for-output :str "Xline 01")
+
+    (turtles-with-grab-buffer (:buf buf)
+      (goto-char (point-min))
+      (should (search-forward "line 01" nil t)))))
+
 (ert-deftest mistty-test-tag-lookup ()
   (let ((mistty-tag-alist-alist
          '((theme-a

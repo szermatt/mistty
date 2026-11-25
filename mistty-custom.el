@@ -712,6 +712,21 @@ mouse in the mode line or calling the command `mistty-toggle-mouse'."
   :group 'mistty
   :type 'boolean)
 
+(defcustom mistty-allow-mwheel-support t
+  "Forward mouse wheel events to applications.
+
+If non-nil, MisTTY forwards mouse wheel events (wheel up, down, left and
+right) to the application running on the terminal when mouse reporting
+is enabled.
+
+Set this to nil if you want Emacs to handle mouse wheel scrolling
+instead of forwarding wheel events to the terminal.
+
+This option has no effect if mouse reporting is disabled by
+`mistty-allow-mouse-reporting'."
+  :group 'mistty
+  :type 'boolean)
+
 (defcustom mistty-allow-click-to-move nil
   "Allow using clicks, when available, to move the cursor on the prompt.
 

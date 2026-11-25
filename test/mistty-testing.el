@@ -285,6 +285,7 @@ default, the default directory is a temp directory created for the test."
                (mistty-log mistty-test-log)
                (mistty-tag-theme 'unicode)
                (mistty-allow-mouse-reporting t)
+               (mistty-allow-mwheel-support t)
                (mistty-allow-click-to-move nil)
                ;; avoid interference with previous tests
                (this-command nil)

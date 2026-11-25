@@ -4265,6 +4265,8 @@ If DELTA is negative, the window height is increased."
            (win (posn-window posn))
            (buf (window-buffer win))
            (basic-type (event-basic-type ev))
+           (button (mistty--button-number basic-type))
+           (start-posn (event-start ev))
            (mods (event-modifiers ev)))
 
       ;; Click selects the window
@@ -4283,7 +4285,12 @@ If DELTA is negative, the window height is increased."
             ;; Send mouse event
             (mistty-log "MOUSE EVENT: %S" ev)
             (when-let* ((seq (mistty--term-translate-mouse
-                              mistty--term ev nil mistty-sync-marker)))
+                              mistty--term
+                              (if (memq 'down mods) 'press 'release)
+                              button
+                              mods
+                              start-posn
+                              nil mistty-sync-marker)))
               (when (process-live-p proc)
                 (mistty-log "MOUSE EVENT SEND: %S" seq)
                 (process-send-string proc seq)))
@@ -4308,7 +4315,13 @@ If DELTA is negative, the window height is increased."
                        (mistty-log "MOUSE MOVE EVENT col,row: %s x,y: %s"
                                    (posn-col-row posn) (posn-x-y posn))
                        (when-let* ((seq (mistty--term-translate-mouse
-                                         mistty--term ev posn mistty-sync-marker)))
+                                         mistty--term
+                                         'motion
+                                         button
+                                         mods
+                                         start-posn
+                                         posn
+                                         mistty-sync-marker)))
                          (mistty-log "MOUSE MOVE EVENT SEND: %S" seq)
                          (process-send-string proc seq)))
 
@@ -4317,13 +4330,35 @@ If DELTA is negative, the window height is increased."
                             (guard (eq basic-type (event-basic-type move-ev))))
                        (mistty-log "MOUSE EVENT (drag end): %S" move-ev)
                        (when-let* ((seq (mistty--term-translate-mouse
-                                         mistty--term move-ev nil mistty-sync-marker)))
+                                         mistty--term
+                                         'release
+                                         button
+                                         (event-modifiers move-ev)
+                                         (event-start move-ev)
+                                         (event-end move-ev)
+                                         mistty-sync-marker)))
                          (mistty-log "MOUSE EVENT SEND: %S" seq)
                          (process-send-string proc seq))
                        (setq continue nil)))))
                 (mistty-log "TRACKING MOUSE OFF (drag)")
 
                 nil))))))))
+
+(defun mistty--button-number (basic-type)
+  "Button number for an event BASIC-TYPE."
+  (pcase basic-type
+    ('mouse-1 1)
+    ('mouse-2 2)
+    ('mouse-3 3)
+    ((or 'mouse-4 'wheel-up) 4)
+    ((or 'mouse-5 'wheel-down) 5)
+    ((or 'mouse-6 'wheel-left) 6)
+    ((or 'mouse-7 'wheel-right) 7)
+    ('mouse-8 8)
+    ('mouse-9 9)
+    ('mouse-10 10)
+    ('mouse-11 11)))
+
 
 (defun mistty--check-frame-focus ()
   "Check and report whether focus was lost or gained for all buffer."

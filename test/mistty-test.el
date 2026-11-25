@@ -6577,8 +6577,9 @@ preexec_functions+=(osc133_preexec)
     (should (equal "\r" (mistty-translate-key (kbd "RET"))))
     (should (equal "\e" (mistty-translate-key (kbd "ESC"))))))
 
-(defun mistty-test-translate-mouse (ev &optional move-posn)
-  (mistty--term-translate-mouse mistty--term ev move-posn mistty-sync-marker))
+(defun mistty-test-translate-mouse (action button start-posn)
+  (mistty--term-translate-mouse
+   mistty--term action button nil start-posn nil mistty-sync-marker))
 
 (mistty-deftest mistty-translate-mouse-clicks-direct-match
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6596,14 +6597,14 @@ preexec_functions+=(osc133_preexec)
     (should
      (equal "\33[<0;6;1M"
             (mistty-test-translate-mouse
-             `(down-mouse-1 ,target-posn 1))))
+             'press 1 target-posn)))
 
 
     ;; release mouse 1
     (should
      (equal "\33[<0;6;1m"
             (mistty-test-translate-mouse
-             `(mouse-1 ,target-posn 1))))))
+             'release 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-other-buttons
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6619,73 +6620,73 @@ preexec_functions+=(osc133_preexec)
     (should
      (equal "\33[<1;6;1M"
             (mistty-test-translate-mouse
-             `(down-mouse-2 ,target-posn 1))))
+             'press 2 target-posn)))
 
     ;; release mouse 2
     (should
      (equal "\33[<1;6;1m"
             (mistty-test-translate-mouse
-             `(mouse-2 ,target-posn 1))))
+             'release 2 target-posn)))
 
     ;; press mouse 3
     (should
      (equal "\33[<2;6;1M"
             (mistty-test-translate-mouse
-             `(down-mouse-3 ,target-posn 1))))
+             'press 3 target-posn)))
 
     ;; release mouse 3
     (should
      (equal "\33[<2;6;1m"
             (mistty-test-translate-mouse
-             `(mouse-3 ,target-posn 1))))
+             'release 3 target-posn)))
 
     ;; press mouse 4
     (should
      (equal "\33[<64;6;1M"
             (mistty-test-translate-mouse
-             `(down-mouse-4 ,target-posn 1))))
+             'press 4 target-posn)))
 
     ;; release mouse 4
     (should
      (equal "\33[<64;6;1m"
             (mistty-test-translate-mouse
-             `(mouse-4 ,target-posn 1))))
+             'release 4 target-posn)))
 
     ;; press mouse 5
     (should
      (equal "\33[<65;6;1M"
             (mistty-test-translate-mouse
-             `(down-mouse-5 ,target-posn 1))))
+             'press 5 target-posn)))
 
     ;; release mouse 5
     (should
      (equal "\33[<65;6;1m"
             (mistty-test-translate-mouse
-             `(mouse-5 ,target-posn 1))))
+             'release 5 target-posn)))
 
     ;; press mouse 6
     (should
      (equal "\33[<66;6;1M"
             (mistty-test-translate-mouse
-             `(down-mouse-6 ,target-posn 1))))
+             'press 6 target-posn)))
 
     ;; release mouse 6
     (should
      (equal "\33[<66;6;1m"
             (mistty-test-translate-mouse
-             `(mouse-6 ,target-posn 1))))
+             'release 6 target-posn)))
 
     ;; press mouse 7
     (should
      (equal "\33[<67;6;1M"
             (mistty-test-translate-mouse
-             `(down-mouse-7 ,target-posn 1))))
+             'press 7 target-posn)))
 
     ;; release mouse 7
     (should
      (equal "\33[<67;6;1m"
             (mistty-test-translate-mouse
-             `(mouse-7 ,target-posn 1))))))
+             'release 7 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-scrolled-partialy
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6708,7 +6709,7 @@ preexec_functions+=(osc133_preexec)
       (should
        (equal "\33[<0;11;5M"
               (mistty-test-translate-mouse
-               `(down-mouse-1 ,target-posn 1))))))
+               'press 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-with-win-scroll
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6736,7 +6737,7 @@ preexec_functions+=(osc133_preexec)
       (should
        (equal "\33[<0;11;5M"
               (mistty-test-translate-mouse
-               `(down-mouse-1 ,target-posn 1))))))
+               'press 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-vertical-split
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6768,7 +6769,7 @@ preexec_functions+=(osc133_preexec)
       (should
        (equal "\33[<0;11;5M"
               (mistty-test-translate-mouse
-               `(down-mouse-1 ,target-posn 1))))))
+               'press 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-left-margin
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6798,7 +6799,7 @@ preexec_functions+=(osc133_preexec)
     (should
      (equal "\33[<0;11;5M"
             (mistty-test-translate-mouse
-             `(down-mouse-1 ,target-posn 1))))))
+             'press 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-with-header-line
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6819,7 +6820,7 @@ preexec_functions+=(osc133_preexec)
       (should
        (equal "\33[<0;9;3M"
               (mistty-test-translate-mouse
-               `(down-mouse-1 ,target-posn 1))))))
+               'press 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-scrolled-fully
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6842,7 +6843,7 @@ preexec_functions+=(osc133_preexec)
       (should
        (equal "\33[<0;11;10M"
               (mistty-test-translate-mouse
-               `(down-mouse-1 ,target-posn 1))))))
+               'press 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-after-clear
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6868,7 +6869,7 @@ preexec_functions+=(osc133_preexec)
       (should
        (equal "\33[<0;8;3M"
               (mistty-test-translate-mouse
-               `(down-mouse-1 ,target-posn 1))))))
+               'press 1 target-posn)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-past-eol
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6882,7 +6883,7 @@ preexec_functions+=(osc133_preexec)
     (should
      (equal "\33[<0;16;2M"
             (mistty-test-translate-mouse
-             `(down-mouse-1 ,(posn-at-x-y 15 1) 1)))))
+             'press 1 (posn-at-x-y 15 1)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-past-eob
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6901,7 +6902,7 @@ preexec_functions+=(osc133_preexec)
     (should
      (equal "\33[<0;11;9M"
             (mistty-test-translate-mouse
-             `(down-mouse-1 ,(posn-at-x-y 10 8) 1)))))
+             'press 1 (posn-at-x-y 10 8)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-past-eob-scrolled
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6928,7 +6929,7 @@ preexec_functions+=(osc133_preexec)
     (should
      (equal "\33[<0;11;9M"
             (mistty-test-translate-mouse
-             `(down-mouse-1 ,(posn-at-x-y 10 8) 1)))))
+             'press 1 (posn-at-x-y 10 8)))))
 
 (mistty-deftest mistty-translate-mouse-clicks-wide-chars
     (:type alacritty :shell fish :selected t :turtles t)
@@ -6947,7 +6948,7 @@ preexec_functions+=(osc133_preexec)
       (should
        (equal "\33[<0;14;1M"
               (mistty-test-translate-mouse
-               `(down-mouse-1 ,target-posn 1))))))
+               'press 1 target-posn)))))
 
 (mistty-deftest mistty-move-cursor-with-click-prompt
     (:type alacritty :shell fish :selected t :turtles t)

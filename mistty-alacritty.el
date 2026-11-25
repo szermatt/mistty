@@ -884,19 +884,32 @@ buffer."
         (mistty-log "REPLY %S" reply)
         (process-send-string proc reply)))))
 
-(cl-defmethod mistty--term-translate-mouse ((term mistty--term-alacritty) ev move-posn sync-pos)
+(cl-defmethod mistty--term-translate-mouse ((term mistty--term-alacritty) action button mods start-posn move-posn sync-pos)
   "Translate a mouse event for TERM into an escape sequence or nil.
 
-EV is a mouse event to possible be reported. Which events are sent to
-this function is controlled by the callback request-report-mouse passed
-to `mistty--create-term'.
+ACTION is \\='press \\='release or \\='motion
+
+BUTTON is the number of the pressed button or nil.
+
+MODS are the event modifiers, as reported by `event-modifiers'.
+
+START-POS is the start position reported by the event.
+
+SYNC-POS is the position at which the terminal is synced. It's only
 
 If MOVE-POSN is non-nil, it is the position of the mouse moved after EV
 happened. This is used to report drag events.
 
 SYNC-POS is the position at which the terminal is synced. It's only
 guaranteed to correspond to the terminal screen top in fullscreen mode."
-  (when-let* ((params (mistty--alacritty-mouse-event-params term ev move-posn sync-pos)))
+  (when-let* ((params (mistty--alacritty-mouse-event-params
+                       term
+                       action
+                       button
+                       mods
+                       start-posn
+                       move-posn
+                       sync-pos)))
     (mistty-log "MOUSE EVENT PARAMS: %s" params)
     (apply #'mistty-alacritty-vt-mouse-seq
            (mistty--term-alacritty-vterm term) params)))
@@ -938,45 +951,23 @@ fullscreen mode."
   "Return the current mouse reporting level for TERM."
   (mistty--term-alacritty-mouse term))
 
-(defun mistty--alacritty-mouse-event-params (term ev move-posn sync-pos)
-  "Convert EV for TERM to parameters for `mistty-alacritty-vt-translate-mouse'.
+(defun mistty--alacritty-mouse-event-params
+    (term action button mods start-posn move-posn sync-pos)
+  "Convert TERM mouse event for `mistty-alacritty-vt-translate-mouse'.
 
 The current buffer is the butter that's going to be used to generate the
 event position. It must contain a subset of the terminal content, with
 scrollines matching the terminal's.
 
-If MOVE-POSN is non-nil, it is the position of the mouse moved after EV
-happened. This is used to report drag events.
+The arguments ACTION BUTTON MODS START-POSN MOVE-POSN and SYNC-POS as
+the same as those of `mistty--term-translate-mouse', which see.
 
-SYNC-POS is the position at which the terminal is synced. It's only
-guaranteed to correspond to the terminal screen top in fullscreen mode.
-
-Return nil if conversion fails."
-  ;; This supports only click and button-down.
-  ;;
-  ;; TODO: add support for mouse wheel, dragging, movements
+Return a terminal sequence or nil if conversion fails or if mouse
+reporting for this event is not enabled in the terminal.."
   (cl-block nil
-    (let* ((start-posn (event-start ev))
-           (win (posn-window start-posn))
-           (posn (or move-posn (event-end ev) start-posn))
+    (let* ((win (posn-window start-posn))
+           (posn (or move-posn start-posn))
            (other-win (posn-window posn))
-           (button (pcase (event-basic-type ev)
-                     ('mouse-1 1)
-                     ('mouse-2 2)
-                     ('mouse-3 3)
-                     ('mouse-4 4)
-                     ('mouse-5 5)
-                     ('mouse-6 6)
-                     ('mouse-7 7)
-                     ('mouse-8 8)
-                     ('mouse-9 9)
-                     ('mouse-10 10)
-                     ('mouse-11 11)))
-           (mods (event-modifiers ev))
-           (action (cond
-                    (move-posn 'motion)
-                    ((memq 'down mods) 'press)
-                    (t 'release)))
            term-x term-y)
       (unless (and (null (posn-area start-posn)) ; window body
                    (window-valid-p win)

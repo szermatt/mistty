@@ -1080,7 +1080,7 @@ Must be called from the term buffer."
                 (when (string-match "stty.*?sane" stty-command)
                   (setf (nth 1 program-args)
                         (concat (match-string 0 stty-command)
-                                " erase ^?"
+                                " iutf8 erase ^?"
                                 (substring stty-command (match-end 0))))))
               (let* ((process-environment
                       (append

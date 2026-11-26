@@ -355,7 +355,7 @@ Returns the process."
                            "/system/bin/sh"
                          "/bin/sh")
                        "-c"
-	               (format "stty -nl echo rows %d columns %d sane erase ^? 2>%s;\
+	               (format "stty -nl echo rows %d columns %d sane iutf8 erase ^? 2>%s;\
 if [ $1 = .. ]; then shift; fi; exec \"$@\""
 		               height width
                                null-device)

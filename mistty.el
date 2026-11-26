@@ -2101,7 +2101,7 @@ can decide what to do, but in some cases, this isn't practical."
       (call-interactively 'backward-delete-char)
     (if (and (numberp n) (< n 0))
         (mistty-send-key (abs n) "\C-d" 'positional)
-      (mistty-send-key n mistty-del 'positional))))
+      (mistty-send-key n "\C-?" 'positional))))
 
 (defun mistty-delete-char (&optional n)
 "Send Control D N times to the terminal.
@@ -2113,7 +2113,7 @@ can decide what to do, but in some cases, this isn't practical."
       (call-interactively 'delete-char)
     (setq mistty--interacted t)
     (if (and (numberp n) (< n 0))
-        (mistty-send-key (abs n) mistty-del 'positional)
+        (mistty-send-key (abs n) "\C-?" 'positional)
       (mistty-send-key n "\C-d" 'positional))))
 
 (defun mistty-tab-command (&optional n)

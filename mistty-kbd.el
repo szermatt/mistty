@@ -23,14 +23,6 @@
 (require 'mistty-custom)
 (require 'mistty-log)
 
-(defconst mistty-del "\C-h"
-  "Sequence to send to the process when backspace is pressed.
-
-Both BS (^H) and DEL (^?) have been used to map to backspace, though
-inconsistently across terminals. Mistty 1.3 and earlier sent DEL, but
-that was switched to BS when Fish 4 started interpreting that as the
-delete key instead of the backspace key.")
-
 (defvar mistty-translation-keymap
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "ESC") (kbd "<escape>"))

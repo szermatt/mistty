@@ -355,12 +355,9 @@ Returns the process."
                            "/system/bin/sh"
                          "/bin/sh")
                        "-c"
-	               (format "stty -nl echo rows %d columns %d sane erase %s 2>%s;\
+	               (format "stty -nl echo rows %d columns %d sane erase ^? 2>%s;\
 if [ $1 = .. ]; then shift; fi; exec \"$@\""
 		               height width
-                               (pcase mistty-del
-                                       ("\C-h" "^H")
-                                       ("\d" "^?"))
                                null-device)
 	               ".."
 	               program args)))

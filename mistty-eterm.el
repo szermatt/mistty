@@ -53,7 +53,7 @@
     (define-key map (kbd "<escape>") "\e")
     (define-key map (kbd "<tab>") "\t")
     (define-key map (kbd "<return>") "\C-m")
-    (define-key map (kbd "<backspace>") "\e[3~")
+    (define-key map (kbd "<backspace>") "\C-?")
     (define-key map (kbd "<delete>") "\C-d")
 
     ;; The following is a reversed copy of xterm-function-map from
@@ -1075,18 +1075,12 @@ Must be called from the term buffer."
             (if called
                 (apply real-start-process name buffer program program-args)
               (setq called t)
-              ;; Set erase to ^H or ^? to stty so the terminal is
-              ;; expecting the right delete value. Issue #12
-              (when-let* ((stty-command (nth 1 program-args))
-                         (erase-char (pcase mistty-del
-                                       ("\C-h" "^H")
-                                       ("\d" "^?"))))
+              (when-let* ((stty-command (nth 1 program-args)))
                 (setq program-args (cl-copy-list program-args))
                 (when (string-match "stty.*?sane" stty-command)
                   (setf (nth 1 program-args)
                         (concat (match-string 0 stty-command)
-                                " erase "
-                                erase-char
+                                " erase ^?"
                                 (substring stty-command (match-end 0))))))
               (let* ((process-environment
                       (append

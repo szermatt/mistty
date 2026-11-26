@@ -4855,7 +4855,7 @@ function prompt {
   (mistty-wait-for-output :str "bar")
   (should (equal "$ prompt\n====\n<>Prompt: foobar"
                  (mistty-test-content :show mistty-sync-marker)))
-  (mistty--send-string mistty-proc (mistty--repeat-string 3 mistty-del))
+  (mistty--send-string mistty-proc (mistty--repeat-string 3 "\C-?"))
   (mistty-wait-for-output :str "foo" :cursor-at-end t)
   (should (equal "$ prompt\n====\n<>Prompt: foo"
                  (mistty-test-content :show mistty-sync-marker)))
@@ -5940,18 +5940,10 @@ preexec_functions+=(osc133_preexec)
       (should-not (equal first-proc mistty-proc))
       (should-not (process-live-p first-proc)))))
 
-(mistty-deftest mistty-set-stty-erase-C-h ( :type all)
-  (let ((mistty-del "\C-h"))
-    (mistty-send-text "stty -a")
-    (let ((stty (mistty-send-and-capture-command-output)))
-      (should (string-match "erase = ^H" stty)))))
-
-(mistty-deftest mistty-set-stty-erase-DEL ( :type all)
-  (let ((mistty-del "\d"))
-    (mistty-send-text "stty -a")
-
-    (let ((stty (mistty-send-and-capture-command-output)))
-      (should (string-match "erase = ^?" stty)))))
+(mistty-deftest mistty-set-stty-erase ( :type all)
+  (mistty-send-text "stty -a")
+  (let ((stty (mistty-send-and-capture-command-output)))
+    (should (string-match "erase = ^?" stty))))
 
 (mistty-deftest mistty-test-zsh-from-fish (:shell fish :type all)
   (ert-with-temp-directory zdotdir

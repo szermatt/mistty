@@ -25,18 +25,24 @@ pub(crate) fn mouse_seq(
     term: &mut VTerm,
     click_events: bool,
     action: Value<'_>,
-    button: i32,
+    button: Option<i32>,
     mods: Vector,
     x: i32,
     y: i32,
 ) -> Option<Vec<u8>> {
-    let options = extract_options(term, click_events)?;
     let action = action_from_lisp(action)?;
-    let button = button_from_lisp(button)?;
+    let button = match button {
+        None => None,
+
+        // Return None if button is not supported. This is different
+        // from not having any button pressed.
+        Some(b) => Some(button_from_lisp(b)?),
+    };
+    let options = extract_options(term, click_events, button.is_some())?;
     let mods = input::mods_from_lisp(mods)?;
     let event = Event {
         action,
-        button: Some(button),
+        button,
         mods,
         pos: Pos {
             x: (x as f32) * CELL_WIDTH + CELL_WIDTH / 2.0,
@@ -52,7 +58,11 @@ pub(crate) fn mouse_seq(
     }
 }
 
-fn extract_options(term: &VTerm, click_events: bool) -> Option<mouse_encode::Options> {
+fn extract_options(
+    term: &VTerm,
+    click_events: bool,
+    any_button_pressed: bool,
+) -> Option<mouse_encode::Options> {
     let mode = term.mode();
     let event = if mode.intersects(TermMode::MOUSE_MOTION) {
         MouseEvent::Any
@@ -80,7 +90,7 @@ fn extract_options(term: &VTerm, click_events: bool) -> Option<mouse_encode::Opt
         event,
         format,
         size,
-        any_button_pressed: true,
+        any_button_pressed,
     })
 }
 
@@ -127,34 +137,34 @@ mod tests {
         let mut processor = VTermProcessor::new();
 
         // Mouse disabled
-        assert!(extract_options(&vterm, false).is_none());
+        assert!(extract_options(&vterm, false, true).is_none());
 
         // click_events
-        let opts = extract_options(&vterm, true).unwrap();
+        let opts = extract_options(&vterm, true, false).unwrap();
         assert_eq!(opts.event, MouseEvent::Normal);
         assert_eq!(opts.format, MouseFormat::Sgr);
 
         // MOUSE_REPORT_CLICK + click_events
         processor.process_bytes(&mut vterm, b"\x1b[?1000h");
-        let opts_with_click = extract_options(&vterm, true).unwrap();
+        let opts_with_click = extract_options(&vterm, true, false).unwrap();
         assert_eq!(opts_with_click.event, MouseEvent::Normal);
         assert_eq!(opts_with_click.format, MouseFormat::Sgr);
 
         // MOUSE_DRAG + click_events
         processor.process_bytes(&mut vterm, b"\x1b[?1002h");
-        let opts = extract_options(&vterm, true).unwrap();
+        let opts = extract_options(&vterm, true, false).unwrap();
         assert_eq!(opts.event, MouseEvent::Button);
         assert_eq!(opts.format, MouseFormat::Sgr);
 
         // MOUSE_MOTION + click_events
         processor.process_bytes(&mut vterm, b"\x1b[?1003h");
-        let opts = extract_options(&vterm, true).unwrap();
+        let opts = extract_options(&vterm, true, false).unwrap();
         assert_eq!(opts.event, MouseEvent::Any);
         assert_eq!(opts.format, MouseFormat::Sgr);
 
         // Terminal enables SGR mouse mode explicitly (\e[?1006h)
         processor.process_bytes(&mut vterm, b"\x1b[?1006h");
-        let opts = extract_options(&vterm, false).unwrap();
+        let opts = extract_options(&vterm, false, false).unwrap();
         assert_eq!(opts.format, MouseFormat::Sgr);
     }
 }

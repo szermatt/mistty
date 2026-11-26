@@ -2155,7 +2155,10 @@
 
            ;; unsupported action or button
            (nil invalid 1 [] 0 0)
-           (nil press 99 [] 0 0)))
+           (nil press 99 [] 0 0)
+
+           ;; motion without button is ignored in drag mode
+           (nil motion nil [] 3 9)))
       (should
        (equal
         expected
@@ -2200,11 +2203,73 @@
            ("\e[<16;1;1M" press 1 [control] 0 0)
            ("\e[<8;1;1M" press 1 [meta] 0 0)
            ("\e[<20;1;1M" press 1 [control shift] 0 0)
-           ("\e[<28;1;1M" press 1 [control meta shift] 0 0)))
+           ("\e[<28;1;1M" press 1 [control meta shift] 0 0)
+
+           ;; motion without button is ignored in drag mode
+           (nil motion nil [] 3 9)))
       (should
        (equal
         expected
         (mistty-alacritty-vt-mouse-seq vterm action button mods line col))))))
+
+(mistty-deftest mistty-alacritty-vt-mouse-seq-motion-x10
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
+    (mistty-alacritty-vt-process-bytes vterm "\e[?1003h") ;; motion
+
+    ;; format defaults to X10
+    (pcase-dolist
+        (`(,expected ,action ,button ,mods ,x ,y)
+         `(;; motion without button
+           ("\e[MC$*" motion nil [] 3 9)
+           ;; repeated motion in the same cell is deduplicated
+           (nil motion nil [] 3 9)
+           ;; motion to a different cell
+           ("\e[MC%*" motion nil [] 4 9)
+           ;; modifiers with no button
+           ("\e[MG&*" motion nil [shift] 5 9)
+           ;; out-of-bounds motion without button is ignored
+           (nil motion nil [] -1 0)
+           (nil motion nil [] 80 0)
+           (nil motion nil [] 0 -1)
+           (nil motion nil [] 0 24)
+           ;; out-of-bounds motion with button (drag) is clamped and reported
+           ("\e[M@p!" motion 1 [] 90 -10)))
+      (should
+       (equal
+        expected
+        (mistty-alacritty-vt-mouse-seq vterm action button mods x y))))))
+
+(mistty-deftest mistty-alacritty-vt-mouse-seq-motion-sgr
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
+    (mistty-alacritty-vt-process-bytes vterm "\e[?1003h") ; motion
+    (mistty-alacritty-vt-process-bytes vterm "\e[?1006h") ; SGR
+
+    (pcase-dolist
+        (`(,expected ,action ,button ,mods ,x ,y)
+         `(;; motion without button
+           ("\e[<35;4;10M" motion nil [] 3 9)
+           ;; repeated motion in the same cell is deduplicated
+           (nil motion nil [] 3 9)
+           ;; motion to a different cell
+           ("\e[<35;5;10M" motion nil [] 4 9)
+           ;; modifiers with no button
+           ("\e[<39;6;10M" motion nil [shift] 5 9)
+           ("\e[<51;7;10M" motion nil [control] 6 9)
+           ("\e[<43;8;10M" motion nil [meta] 7 9)
+           ;; out-of-bounds motion without button is ignored
+           (nil motion nil [] -1 0)
+           (nil motion nil [] 80 0)
+           (nil motion nil [] 0 -1)
+           (nil motion nil [] 0 24)
+           ;; out-of-bounds motion with button (drag) is clamped and reported
+           ("\e[<32;80;1M" motion 1 [] 90 -10)
+           ("\e[<32;1;24M" motion 1 [] -10 25)))
+      (should
+       (equal
+        expected
+        (mistty-alacritty-vt-mouse-seq vterm action button mods x y))))))
 
 (mistty-deftest mistty-alacritty-vt-disallow-clearing-scrollback
     (:features mistty-alacritty-vt :shell none)

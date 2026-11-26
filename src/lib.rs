@@ -286,12 +286,13 @@ pub(crate) fn render<'a>(
 
 /// Translate a mouse event into the appropriate terminal sequence.
 ///
-/// `action` is a symbol, either `press` or `release`
+/// `action` is a symbol: `press`, `release` or `motion`
 ///
 /// button is a number between 1 and 11, corresponding to the mouse
 /// button that is pressed, as reported by emacs `mouse-1`, `mouse-2`,
 /// and so on. `wheel-down` is 4, `wheel-up` is 5, `wheel-left` is 6,
-/// `wheel-right` is 7.
+/// `wheel-right` is 7. For `motion` events with no button pressed,
+/// button may be nil.
 ///
 /// mods is a vector of symbols that correspond to the key modifiers
 /// pressed down during the event.
@@ -306,7 +307,7 @@ fn mouse_seq<'a>(
     term: &mut VTermFacade,
     env: &'a Env,
     action: Value<'_>,
-    button: i32,
+    button: Option<i32>,
     mods: Vector<'_>,
     x: i32,
     y: i32,

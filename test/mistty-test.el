@@ -7869,33 +7869,48 @@ preexec_functions+=(osc133_preexec)
   (should-not track-mouse))
 
 (mistty-deftest mistty-test-motion-fullscreen
-    (:type alacritty :selected t :turtles t :term-size '(60 . 15))
+    (:type alacritty :selected t :turtles t :term-size '(76 . 15))
   (delete-other-windows)
   (mistty--send-string
    mistty-proc
    (concat (expand-file-name invocation-name invocation-directory)
-           " -nw -Q -eval '"
-           "(progn "
-           "  (menu-bar-mode -1)"
-           "  (xterm-mouse-mode))'"))
+           " -nw -Q -eval "
+           (shell-quote-argument
+            (prin1-to-string
+             '(progn
+                (menu-bar-mode -1)
+                (xterm-mouse-mode)
+                (setq tooltip-delay 0.1)
+                (setq tooltip-hide-delay 3600)
+                (setq show-help-function (lambda (msg) (message "YEAH %s." msg)))
+                (with-current-buffer (get-scratch-buffer-create)
+                  (setq mode-line-format
+                        (propertize (concat "This "
+                                            "here "
+                                            "mode line "
+                                            "says things")
+                                    ;; avoid matching the search strings below by accident
+                                    'help-echo "I do! I do!")))
+                (scratch-buffer))))))
   (mistty-send-command)
-  (mistty-wait-for-output :str "*scratch*")
-  (mistty-wait-for-output :str "All")
+  (mistty-wait-for-output :str "This here mode line")
   (mistty-wait-for-output
    :test (lambda ()
            mistty--mouse-reporting))
   (should (equal 'motion mistty--mouse-reporting-requested))
 
-  ;; If we move the mouse above All on the modeline, Emacs displays
-  ;; some help message.
+  ;; The mode-line sometimes gets garbled on eterm. Redraw just before
+  ;; computing mouse movements to work around that.
+  (redraw-display)
+  (mistty-wait-for-output :str "This here mode line")
+
+  ;; If we move the mouse over modeline, Emacs displays the help
+  ;; message.
   (turtles-interaction
-   :mouse-ev 'mouse-movement (turtles-coords "All" :at 'beginning)
-   :mouse-ev 'mouse-movement (turtles-coords "All" :at 'center)
-   (mistty-wait-for-output
-    :test (lambda ()
-            (turtles-with-grab-buffer (:frame t)
-              (goto-char (point-min))
-              (search-forward "Scroll Percentage" nil t))))))
+   :mouse-ev 'mouse-movement (turtles-coords "This here" :at 'beginning)
+   :mouse-ev 'mouse-movement (turtles-coords "This here" :at 'end)
+   :mouse-ev 'mouse-movement (turtles-coords "This here mode line says" :at 'center)
+   (mistty-wait-for-output :start mistty-sync-marker :regexp "YEAH I do!")))
 
 (ert-deftest mistty-test-tag-lookup ()
   (let ((mistty-tag-alist-alist

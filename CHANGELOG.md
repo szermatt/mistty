@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.4.0] - 2026-11-27
+
+This new release assumes users want to use the alacritty terminal type
+and will display a warning if that's not possible. Set customization
+option `mistty-terminal-type` to `'eterm` to turn off the warning.
+
+### Changed
+
+- Fall back to `eterm` with an explanation in the buffer when the `alacritty` module fails to load ([`67e3741`](https://github.com/szermatt/mistty/commit/67e3741), [`7d31bd7`](https://github.com/szermatt/mistty/commit/7d31bd7), [`b8e37c2`](https://github.com/szermatt/mistty/commit/b8e37c2))
+- Never translate `C-c`, `C-f`, and `C-d` into the Kitty keyboard protocol in `alacritty` ([`7c6a3c4`](https://github.com/szermatt/mistty/commit/7c6a3c4))
+
+### Added
+
+- Add `mistty-yank` (`C-c C-y`) to paste text directly into the terminal in any mode, including fullscreen mode ([`c75387b`](https://github.com/szermatt/mistty/commit/c75387b))
+- Forward mouse wheel events (including trackpad events) when mouse reporting is enabled, controlled by `mistty-allow-mwheel-support` ([`16978bd`](https://github.com/szermatt/mistty/commit/16978bd), [`3992f23`](https://github.com/szermatt/mistty/commit/3992f23))
+- Report mouse motion (`DECSET 1003`) when requested by the application ([`01c6938`](https://github.com/szermatt/mistty/commit/01c6938), [`0702a0b`](https://github.com/szermatt/mistty/commit/0702a0b))
+- Support keypad application and numeric modes (`DECKPAM`/`DECKPNM`) in `alacritty` ([`261c54c`](https://github.com/szermatt/mistty/commit/261c54c))
+- Distinguish `TAB`/`C-i`, `RET`/`C-m`, and `ESC`/`C-[` on graphical frames when the Kitty keyboard protocol is enabled ([`5fa3f47`](https://github.com/szermatt/mistty/commit/5fa3f47))
+
+### Fixed
+
+- Consistently set `stty erase` and backspace to `^?` in both `alacritty` and `eterm` ([`4a3aaba`](https://github.com/szermatt/mistty/commit/4a3aaba))
+- Call `stty iutf8` when starting terminals ([`1af35dc`](https://github.com/szermatt/mistty/commit/1af35dc))
+- Report RGB values of named colors in `alacritty`, for `OSC 10`/`11` queries ([`dbf23bc`](https://github.com/szermatt/mistty/commit/dbf23bc))
+
 ## [2.3.1] - 2026-11-19
 
 Just a quick fix to turn off development mode, as it would cause
@@ -10,7 +35,7 @@ issues when downloading the module.
 - Turn off development mode [`d57371c`](https://github.com/szermatt/mistty/commit/a682ab1)
 - Use correct nerd-icon icon for the keyboard [`3a6a458`](https://github.com/szermatt/mistty/commit/3a6a458)
 
-## [2.3] - 2026-11-18
+## [2.3.0] - 2026-11-18
 
 Before upgrading to this release, check any custom keybindings defined
 specifically for fullscreen `eterm`. As there's no buffer switch
@@ -253,8 +278,9 @@ _This release introduces a new recommended terminal backend based on [Alacritty]
 
 _Initial release._
 
+[2.4.0]: https://github.com/szermatt/mistty/releases/tag/2.4.0
 [2.3.1]: https://github.com/szermatt/mistty/releases/tag/2.3.1
-[2.3]: https://github.com/szermatt/mistty/releases/tag/2.3
+[2.3.0]: https://github.com/szermatt/mistty/releases/tag/2.3.0
 [2.2.1]: https://github.com/szermatt/mistty/releases/tag/2.2.1
 [2.2.0]: https://github.com/szermatt/mistty/releases/tag/2.2.0
 [2.1.0]: https://github.com/szermatt/mistty/releases/tag/2.1.0

@@ -50,6 +50,7 @@
 (eval-when-compile
   (require 'mistty-accum-macros))
 (require 'mistty-prompt)
+(require 'mistty-install)
 (require 'mistty-util)
 (require 'mistty-log)
 (require 'mistty-queue)
@@ -1240,7 +1241,23 @@ Upon success, the function returns the newly-created buffer."
     ;; before executing the command, so that the shell known the size
     ;; of the terminal from the very beginning.
     (mistty--pop-to-buffer buf other-window)
-    (with-current-buffer buf (mistty-exec command))
+    (with-current-buffer buf
+      (if-let* ((fallback-error
+                 (when (memq mistty-terminal-type '(nil alacritty))
+                   (mistty--check-alacritty-module))))
+          ;; fallback to eterm with explanations
+          (progn
+            (setq-local mistty-terminal-type 'eterm)
+            (mistty-exec command)
+            (mistty--inhibit-undo
+             (let ((inhibit-modification-hooks t)
+                   (inhibit-read-only t))
+               (mistty--explain-fallback fallback-error)))
+            (set-window-start (get-buffer-window) (point-min)))
+
+        ;; no fallback necessary
+        (mistty-exec command)))
+
     buf))
 
 (defun mistty--generate-new-buffer-name (bufname)

@@ -21,6 +21,7 @@
 
 (require 'mistty-custom)
 (require 'mistty-alacritty)
+(require 'button)
 (require 'cl-lib)
 (require 'url)
 
@@ -528,7 +529,100 @@ The command and its output are appended to the current buffer."
             (insert "\n")))
         (process-exit-status proc))))
 
-(provide 'mistty-install)
+(defun mistty--explain-fallback (fallback-error)
+  "Insert a warning at the start of the buffer explaining FALLBACK-ERROR.
+
+FALLBACK-ERROR is a list, as returned by
+`mistty--check-alacritty-module', which see.
+
+The message is inserted at the beginning of the buffer, before any
+markers so as not to interfere with the terminal."
+  (save-excursion
+    (goto-char (point-min))
+    (insert-before-markers "\n\n")
+    (goto-char (point-min))
+    (mistty--insert-fallback-message fallback-error)
+    (save-mark-and-excursion
+      ;; There doesn't seem to be a nice way of calling fill-paragraph
+      ;; or a region. This simulates a call to the interactive version
+      ;; of the function.
+      (set-marker (mark-marker) (point-min))
+      (activate-mark)
+      (fill-paragraph t t))))
+
+(defun mistty--insert-fallback-message (fallback-error)
+  "Insert the text of the fallback message for FALLBACK-ERROR at point."
+  (let ((modulename (mistty-alacritty-modulename)))
+    (insert (propertize "WARNING:" 'face 'warning))
+    (insert " MisTTY fell back to an eterm terminal, because ")
+    (pcase fallback-error
+      ('(not-found)
+       (insert "the module '" modulename "' was not found.\n\n")
+       (insert "Install the module to get a full-featured terminal. ")
+       (insert "To do that, ")
+       (mistty--insert-install-instructions)
+       (insert ".\n\n")
+       (mistty--insert-install-dir-note))
+
+      (`(wrong-version ,loaded-version ,expected-version ,loaded-file)
+       (insert "of a module version mismatch:\n")
+       (insert (format "Loaded version %s from %s, expected %s in file %s.\n\n"
+                       (or loaded-version "unknown")
+                       (or loaded-file "unknown file")
+                       expected-version
+                       modulename))
+       (insert "To install the right version of the module, ")
+       (mistty--insert-install-instructions)
+       (insert ", then restart Emacs.\n\n")
+       (insert "Note: Once a module with the wrong version has been loaded, restarting Emacs is\n"
+               "the only way to load a new version of the module, even after installing the\n"
+               "right version."))
+
+      ('(no-module-support)
+       (insert "Emacs was built without dynamic module support."))
+
+      (`(load-error ,err-msg)
+       (insert "loading module '" modulename "' failed with '" err-msg "'.\n\n")
+       (insert "To try to reinstall the module, ")
+       (mistty--insert-install-instructions)
+       (insert ".\n\n")
+       (mistty--insert-install-dir-note)))
+
+    (insert "\n\nTo disable this warning and keep using eterm, run ")
+    (mistty--insert-customize-option 'mistty-terminal-type)
+    (insert ", and select 'eterm as terminal type.")))
+
+(defun mistty--insert-install-instructions ()
+  (insert "run ")
+  (mistty--insert-install-button #'mistty-install-dwim)
+  (insert ", or, to choose the installation method, ")
+  (mistty--insert-install-button #'mistty-install))
+
+(defun mistty--insert-install-dir-note ()
+  (insert "Note that the module is installed into "
+               (mistty--choose-install-dir)
+               ". ")
+  (insert "Make sure that directory is on the load-path or select another one on ")
+  (mistty--insert-customize-option 'mistty-install-dir)
+  (insert "."))
+
+(defun mistty--insert-customize-option (option)
+  "Insert a button that opens `customize-option' for OPTION."
+  (insert-text-button
+   (concat "M-x customize-option " (symbol-name option))
+   'action (lambda (_button)
+             (customize-option option))
+     'follow-link t
+     'help-echo "mouse-1, RET: run customize-option"))
+
+(defun mistty--insert-install-button (command)
+  "Insert a button that invokes COMMAND interactively."
+  (insert-text-button
+   (concat "M-x " (symbol-name command))
+   'action (lambda (_button)
+             (call-interactively command))
+   'follow-link t
+   'help-echo (format "mouse-1, RET: run %s" command)))
 
 (provide 'mistty-install)
 

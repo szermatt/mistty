@@ -82,6 +82,16 @@ provide the feature `mistty-alacritty-vt'."
 `mistty-alacritty-modulename' returns the module that should be loaded.
 This variable keeps track of the module that was actually loaded.")
 
+(define-error 'mistty-alacritty-version-error
+  "MisTTY Alacritty module version mismatch")
+
+(defun mistty-alacritty-loaded-version ()
+  "Return the version of the loaded alacritty module, or nil if not loaded."
+  (when (featurep 'mistty-alacritty-vt)
+    (condition-case nil
+        (mistty-alacritty-vt-version)
+      (void-function "unspecified"))))
+
 (defun mistty-alacritty-check-version (&optional noerror)
   "Check that right version of the module is loaded.
 
@@ -89,25 +99,46 @@ This function raises an error unless the right version of the module is
 loaded, unless NOERROR is non-nil, in which case this function returns a
 boolean."
   (interactive)
-  (let (module-version)
+  (let ((module-version (mistty-alacritty-loaded-version)))
     (cond
-     ((and
-       (featurep 'mistty-alacritty-vt)
-       (string= mistty-alacritty-version
-                (setq module-version
-                      (condition-case nil
-                          (mistty-alacritty-vt-version)
-                        (void-function "unspecified")))))
-
-        t)
+     ((and module-version
+           (string= mistty-alacritty-version module-version))
+      t)
      (noerror nil)
      ((not module-version)
       (error "Module %s not loaded yet" (mistty-alacritty-modulename)))
      (t
-      (error "Restart Emacs to load mistty-alacritty-vt %s (Loaded %s, from %s)"
+      (signal 'mistty-alacritty-version-error
+              (list (format "Restart Emacs to load mistty-alacritty-vt %s (Loaded %s, from %s)"
+                            mistty-alacritty-version
+                            module-version
+                            (or mistty--alacritty-loaded "unknown file"))))))))
+
+(defun mistty--check-alacritty-module ()
+  "Try to load the alacritty module and return nil on success.
+
+If the module cannot be loaded or used, return a list describing
+the problem:
+- \\='(no-module-support) if Emacs lacks dynamic module support
+- \\='(not-found) if the module file was not found
+- (list \\='wrong-version LOADED-VERSION EXPECTED-VERSION LOADED-FILE)
+  if a module with a different version is already loaded
+- (list \\='load-error ERROR-MESSAGE) if loading failed for another reason."
+  (cond
+   ((or (not (fboundp 'module-load)) (null module-file-suffix))
+    '(no-module-support))
+   (t
+    (condition-case err
+        (if (mistty-alacritty-load)
+            nil
+          '(not-found))
+      (mistty-alacritty-version-error
+       (list 'wrong-version
+             (mistty-alacritty-loaded-version)
              mistty-alacritty-version
-             module-version
-             (or mistty--alacritty-loaded "unknown file"))))))
+             mistty--alacritty-loaded))
+      (error
+       (list 'load-error (error-message-string err)))))))
 
 (defun mistty-alacritty-load (&optional noerror)
   "Attempt to load the module.

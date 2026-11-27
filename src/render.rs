@@ -27,6 +27,8 @@ emacs::use_functions! {
     make_text_button
     propertize
     set_marker
+    nth
+    color_name_to_rgb
 }
 
 emacs::use_symbols! {
@@ -773,18 +775,33 @@ impl PropertyTracker {
 
 /// Convert a color to a Rgb value if possible
 pub(crate) fn to_emacs_color_rgb(env: &Env, color: Color, fg: bool) -> Result<Option<Rgb>> {
-    let mut color_str = to_emacs_color(env, color, fg)?;
-    if color_str == "unspecified-fg" {
-        color_str = face_color(env, default_face, true)?;
+    let mut color_name = to_emacs_color(env, color, fg)?;
+    if color_name == "unspecified-fg" {
+        color_name = face_color(env, default_face, true)?;
     }
-    if color_str == "unspecified-bg" {
-        color_str = face_color(env, default_face, false)?;
+    if color_name == "unspecified-bg" {
+        color_name = face_color(env, default_face, false)?;
     }
-    if let Ok(rgb) = Rgb::from_str(&color_str) {
-        Ok(Some(rgb))
-    } else {
-        Ok(None)
+    if color_name.starts_with("#")
+        && let Ok(rgb) = Rgb::from_str(&color_name)
+    {
+        return Ok(Some(rgb));
     }
+
+    let rgb_list = env.call(color_name_to_rgb, (color_name,))?;
+    if let (Ok(r), Ok(g), Ok(b)) = (
+        env.call(nth, (0, rgb_list))?.into_rust::<f64>(),
+        env.call(nth, (1, rgb_list))?.into_rust::<f64>(),
+        env.call(nth, (2, rgb_list))?.into_rust::<f64>(),
+    ) {
+        return Ok(Some(Rgb {
+            r: (r * 255.0) as u8,
+            g: (g * 255.0) as u8,
+            b: (b * 255.0) as u8,
+        }));
+    }
+
+    Ok(None)
 }
 
 /// Transform a color index from a ColorRequest into a NamedColor, if

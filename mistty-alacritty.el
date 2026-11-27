@@ -33,6 +33,8 @@
   (require 'mistty-accum-macros))
 
 (require 'ansi-osc) ; links in module use ansi-osc-hyperlink
+(require 'color) ; used in module
+
 (defvar explicit-shell-file-name) ;; defined in shell
 
 ;;; Code:

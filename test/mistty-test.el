@@ -6153,6 +6153,29 @@ preexec_functions+=(osc133_preexec)
       (set-face-foreground 'default nil)
       (set-face-background 'default nil)))
 
+(mistty-deftest mistty-test-osc-10-11-named
+    (:selected t :type all :turtles t)
+  (let ((fg (face-foreground 'default))
+        (bg (face-background 'default)))
+    (unwind-protect
+        (progn
+          (set-face-foreground 'default "yellow")
+          (set-face-background 'default "blue")
+
+          (mistty--send-string mistty-proc "read -rs -d \\\\ -p $'\\e]10;?\\e\\\\'  fg; ")
+          (mistty--send-string mistty-proc "read -rs -d \\\\ -p $'\\e]11;?\\e\\\\'  bg; ")
+          (mistty-send-and-wait-for-prompt)
+
+          (mistty-send-text "echo $fg | strings")
+          (should (equal "]10;rgb:ffff/ffff/0000"
+                         (mistty-send-and-capture-command-output)))
+
+          (mistty-send-text "echo $bg | strings")
+          (should (equal "]11;rgb:0000/0000/ffff"
+                         (mistty-send-and-capture-command-output))))
+      (set-face-foreground 'default fg)
+      (set-face-background 'default bg))))
+
 (ert-deftest mistty-test-mark-scrollines ()
   (ert-with-test-buffer ()
     (let ((fakenl (propertize "\n" 'term-line-wrap t)))

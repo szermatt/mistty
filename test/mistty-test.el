@@ -7530,6 +7530,205 @@ preexec_functions+=(osc133_preexec)
       (goto-char (point-min))
       (should (search-forward "line 01" nil t)))))
 
+(mistty-deftest mistty-test-mouse-motion-keymap (:selected t :type alacritty)
+  (let ((motion-binding
+         (lambda ()
+           (lookup-key (overlay-get mistty--sync-ov 'keymap) [mouse-movement]))))
+    (should-not (funcall motion-binding))
+    (should-not track-mouse)
+
+    ;; click and drag modes do not enable motion map or track-mouse
+    (mistty-send-text "printf '\\e[?1000h'")
+    (mistty-send-and-wait-for-prompt)
+    (should-not (funcall motion-binding))
+    (should-not track-mouse)
+
+    (mistty-send-text "printf '\\e[?1002h'")
+    (mistty-send-and-wait-for-prompt)
+    (should-not (funcall motion-binding))
+    (should-not track-mouse)
+
+    ;; motion mode enables motion map and sets track-mouse to 'dragging
+    (mistty-send-text "printf '\\e[?1003h'")
+    (mistty-send-and-wait-for-prompt)
+    (should (eq #'mistty-report-motion-event (funcall motion-binding)))
+    (should (eq 'dragging track-mouse))
+
+    ;; toggling mouse reporting off disables both
+    (mistty-toggle-mouse)
+    (should-not (funcall motion-binding))
+    (should-not track-mouse)
+
+    ;; toggling mouse reporting back on re-enables both
+    (mistty-toggle-mouse)
+    (should (eq #'mistty-report-motion-event (funcall motion-binding)))
+    (should (eq 'dragging track-mouse))
+
+    ;; disabling motion mode disables both
+    (mistty-send-text "printf '\\e[?1003l\\e[?1002l\\e[?1000l'")
+    (mistty-send-and-wait-for-prompt)
+    (should-not (funcall motion-binding))
+    (should-not track-mouse)))
+
+(mistty-deftest mistty-test-mouse-motion-events
+    (:type alacritty :selected t :turtles t)
+  (mistty-send-text "echo scrollback")
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-text "printf '\\e[?1003h\\e[?1006h'")
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-text "echo hello")
+  (should (redisplay t))
+
+  (let* ((scrollback-pos (mistty-test-pos "scrollback"))
+         (pos1 (mistty-test-pos "echo hello"))
+         (pos2 (mistty-test-pos "hello"))
+         (posn1 (posn-at-point pos1))
+         (posn2 (posn-at-point pos2))
+         (orig-point (point))
+         (sent nil))
+    (should posn1)
+    (should posn2)
+    (should (< scrollback-pos mistty-sync-marker))
+    (should (>= pos1 mistty-sync-marker))
+    (should (eq 'dragging track-mouse))
+
+    ;; [mouse-movement] is bound on mistty--sync-ov, not in scrollback
+    (should-not (when-let* ((map (get-char-property scrollback-pos 'keymap)))
+                  (lookup-key map [mouse-movement])))
+    (should (eq #'mistty-report-motion-event
+                (lookup-key (get-char-property pos1 'keymap) [mouse-movement])))
+
+    (cl-letf (((symbol-function 'process-send-string)
+               (let ((orig-func (symbol-function 'process-send-string))
+                     (this-proc mistty-proc))
+                 (lambda (proc str)
+                   (if (eq this-proc proc)
+                       (push str sent)
+                     (funcall orig-func proc str))))))
+      ;; Motion to pos1 sends SGR motion event with no button (35 = 32 + 3)
+      (mistty-report-motion-event `(mouse-movement ,posn1))
+      (should (= 1 (length sent)))
+      (should (string-match-p "\\`\33\\[<35;[0-9]+;[0-9]+M\\'" (car sent)))
+      ;; Motion does not move point
+      (should (= orig-point (point)))
+
+      ;; Repeated motion in the same cell is deduplicated
+      (setq sent nil)
+      (mistty-report-motion-event `(mouse-movement ,posn1))
+      (should-not sent)
+
+      ;; Motion to a different cell sends a new sequence
+      (mistty-report-motion-event `(mouse-movement ,posn2))
+      (should (= 1 (length sent)))
+      (should (string-match-p "\\`\33\\[<35;[0-9]+;[0-9]+M\\'" (car sent)))
+
+      ;; When mouse reporting is toggled off, motion is not sent
+      (setq sent nil)
+      (mistty-toggle-mouse)
+      (mistty-report-motion-event `(mouse-movement ,posn1))
+      (should-not sent)
+      (mistty-toggle-mouse))))
+
+(mistty-deftest mistty-test-mouse-motion-drag-interaction
+    (:type alacritty :selected t :turtles t)
+  (mistty-send-text "printf '\\e[?1003h\\e[?1006h'")
+  (mistty-send-and-wait-for-prompt)
+  (mistty-send-text "echo hello")
+  (should (redisplay t))
+
+  (let* ((posn1 (posn-at-point (mistty-test-pos "echo")))
+         (posn2 (posn-at-point (mistty-test-pos "hello")))
+         (sent nil))
+    (should posn1)
+    (should posn2)
+    (should (eq 'dragging track-mouse))
+
+    (cl-letf (((symbol-function 'process-send-string)
+               (let ((orig-func (symbol-function 'process-send-string))
+                     (this-proc mistty-proc))
+                 (lambda (proc str)
+                   (if (eq this-proc proc)
+                       (push str sent)
+                     (funcall orig-func proc str))))))
+      ;; Drag while in motion mode sends press (0), button-1 motion (32), release (0m)
+      ;; and keeps track-mouse as 'dragging afterwards.
+      (ert-simulate-keys (vector `(mouse-movement ,posn2)
+                                 `(drag-mouse-1 ,posn1 ,posn2))
+        (mistty-report-mouse-event `(down-mouse-1 ,posn1)))
+      (let ((events (nreverse sent)))
+        (should (= 3 (length events)))
+        (should (string-match-p "\\`\33\\[<0;[0-9]+;[0-9]+M\\'" (nth 0 events)))
+        (should (string-match-p "\\`\33\\[<32;[0-9]+;[0-9]+M\\'" (nth 1 events)))
+        (should (string-match-p "\\`\33\\[<0;[0-9]+;[0-9]+m\\'" (nth 2 events))))
+      (should (eq 'dragging track-mouse))
+
+      ;; If motion mode is disabled during a drag, track-mouse must be
+      ;; cleared once the drag finishes.
+      (let ((orig-read-key (symbol-function 'read-key)))
+        (cl-letf (((symbol-function 'read-key)
+                   (lambda (&rest args)
+                     (mistty--request-mouse-reporting nil)
+                     (apply orig-read-key args))))
+          (ert-simulate-keys (vector `(drag-mouse-1 ,posn1 ,posn2))
+            (mistty-report-mouse-event `(down-mouse-1 ,posn1)))))
+      (should-not track-mouse)
+
+      ;; If motion mode is enabled during a drag, track-mouse must
+      ;; become 'dragging once the drag finishes.
+      (mistty--request-mouse-reporting 'drag)
+      (should-not track-mouse)
+      (let ((orig-read-key (symbol-function 'read-key)))
+        (cl-letf (((symbol-function 'read-key)
+                   (lambda (&rest args)
+                     (mistty--request-mouse-reporting 'motion)
+                     (apply orig-read-key args))))
+          (ert-simulate-keys (vector `(drag-mouse-1 ,posn1 ,posn2))
+            (mistty-report-mouse-event `(down-mouse-1 ,posn1)))))
+      (should (eq 'dragging track-mouse)))))
+
+(mistty-deftest mistty-test-mouse-motion-track-mouse-cleanup
+    (:selected t :type alacritty)
+  (mistty-send-text "printf '\\e[?1003h'")
+  (mistty-send-and-wait-for-prompt)
+  (should (eq 'dragging track-mouse))
+
+  (mistty-send-text "exit")
+  (mistty-send-command)
+  (mistty-wait-for-output :test (lambda () (null mistty-proc)))
+  (should-not track-mouse))
+
+
+(mistty-deftest mistty-test-motion-fullscreen
+    (:type alacritty :selected t :turtles t :term-size '(60 . 15))
+  (delete-other-windows)
+  (mistty--send-string
+   mistty-proc
+   (concat (expand-file-name invocation-name invocation-directory)
+           " -nw -Q -eval '"
+           "(progn "
+           "  (menu-bar-mode -1)"
+           "  (xterm-mouse-mode))'"))
+  (mistty-send-command)
+  (mistty-wait-for-output :str "*scratch*")
+  ;; interrupt Emacs's OSC 10/11 color query timeout.
+  ;; TODO: fix this issue.
+  (mistty--send-string mistty-proc "\C-a")
+  (mistty-wait-for-output
+   :test (lambda ()
+           mistty--mouse-reporting))
+  (should (equal 'motion mistty--mouse-reporting-requested))
+
+  ;; If we move the mouse above All on the modeline, Emacs displays
+  ;; some help message.
+  (turtles-interaction
+   :mouse-ev 'mouse-movement (turtles-coords "All" :at 'beginning)
+   :mouse-ev 'mouse-movement (turtles-coords "All" :at 'center)
+   (mistty-wait-for-output
+    :test (lambda ()
+            (turtles-with-grab-buffer (:frame t)
+              (goto-char (point-min))
+              (search-forward "Scroll Percentage" nil t))))))
+
 (ert-deftest mistty-test-tag-lookup ()
   (let ((mistty-tag-alist-alist
          '((theme-a

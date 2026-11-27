@@ -968,7 +968,8 @@ reporting for this event is not enabled in the terminal.."
            term-x term-y)
       (unless (and (null (posn-area start-posn)) ; window body
                    (window-valid-p win)
-                   button action)
+                   (or button (eq action 'motion))
+                   action)
         (cl-return nil))
 
       ;; Compute the corresponding position in the terminal to fill in

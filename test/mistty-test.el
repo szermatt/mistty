@@ -6134,6 +6134,8 @@ preexec_functions+=(osc133_preexec)
 
 (mistty-deftest mistty-test-osc-10-11
     (:selected t :type all :turtles t)
+  (let ((fg (face-foreground 'default))
+        (bg (face-background 'default)))
     (unwind-protect
         (progn
           (set-face-foreground 'default "#00ff00")
@@ -6150,8 +6152,8 @@ preexec_functions+=(osc133_preexec)
           (mistty-send-text "echo $bg | strings")
           (should (equal "]11;rgb:ffff/ffff/0000"
                          (mistty-send-and-capture-command-output))))
-      (set-face-foreground 'default nil)
-      (set-face-background 'default nil)))
+      (set-face-foreground 'default fg)
+      (set-face-background 'default bg))))
 
 (mistty-deftest mistty-test-osc-10-11-named
     (:selected t :type all :turtles t)
@@ -7625,9 +7627,6 @@ preexec_functions+=(osc133_preexec)
              "  (goto-char (point-min)))'"))
     (mistty-send-command)
     (mistty-wait-for-output :str "*scratch*")
-    ;; interrupt Emacs's OSC 10/11 color query timeout.
-    ;; TODO: fix this issue.
-    (mistty--send-string mistty-proc "\C-a")
     (mistty-wait-for-output
      :test (lambda ()
              (and mistty--mouse-reporting
@@ -7681,9 +7680,6 @@ preexec_functions+=(osc133_preexec)
              "  (goto-char (point-min)))'"))
     (mistty-send-command)
     (mistty-wait-for-output :str "*scratch*")
-    ;; interrupt Emacs's OSC 10/11 color query timeout.
-    ;; TODO: fix this issue.
-    (mistty--send-string mistty-proc "\C-a")
     (mistty-wait-for-output
      :test (lambda ()
              (and mistty--mouse-reporting
@@ -7872,7 +7868,6 @@ preexec_functions+=(osc133_preexec)
   (mistty-wait-for-output :test (lambda () (null mistty-proc)))
   (should-not track-mouse))
 
-
 (mistty-deftest mistty-test-motion-fullscreen
     (:type alacritty :selected t :turtles t :term-size '(60 . 15))
   (delete-other-windows)
@@ -7885,9 +7880,7 @@ preexec_functions+=(osc133_preexec)
            "  (xterm-mouse-mode))'"))
   (mistty-send-command)
   (mistty-wait-for-output :str "*scratch*")
-  ;; interrupt Emacs's OSC 10/11 color query timeout.
-  ;; TODO: fix this issue.
-  (mistty--send-string mistty-proc "\C-a")
+  (mistty-wait-for-output :str "All")
   (mistty-wait-for-output
    :test (lambda ()
            mistty--mouse-reporting))

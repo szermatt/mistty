@@ -90,7 +90,12 @@ precmd_functions+=(prompt_header)
     (setq resize-mini-windows nil)
 
     ;; Don't show line number in mode line; useful when testing mode lines
-    (line-number-mode -1)))
+    (line-number-mode -1)
+
+    ;; Define a white-on-black terminal, to allow color query to work,
+    ;; as the terminal used by turtles doesn't support color queries.
+    (set-face-attribute 'default nil
+                        :background "black" :foreground "white")))
 
 (defvar mistty-wait-for-output-timeout-s
   (if noninteractive 10 3)

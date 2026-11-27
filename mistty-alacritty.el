@@ -303,7 +303,26 @@ for some reason unless NOERROR is non-nil."
     (define-key map (kbd "<f9>") "\e[20~") ; kf9
     (define-key map (kbd "<home>") "\eOH") ; khome
     (define-key map (kbd "<insert>") "\e[2~") ; kich1
-    (define-key map (kbd "<kp-enter>") "\eOM") ; kent
+    (define-key map (kbd "<kp-0>") "0")
+    (define-key map (kbd "<kp-1>") "1")
+    (define-key map (kbd "<kp-2>") "2")
+    (define-key map (kbd "<kp-3>") "3")
+    (define-key map (kbd "<kp-4>") "4")
+    (define-key map (kbd "<kp-5>") "5")
+    (define-key map (kbd "<kp-6>") "6")
+    (define-key map (kbd "<kp-7>") "7")
+    (define-key map (kbd "<kp-8>") "8")
+    (define-key map (kbd "<kp-9>") "9")
+    (define-key map (kbd "<kp-add>") "+")
+    (define-key map (kbd "<kp-decimal>") ".")
+    (define-key map (kbd "<kp-divide>") "/")
+    (define-key map (kbd "<kp-enter>") "\r")
+    (define-key map (kbd "<kp-equal>") "=")
+    (define-key map (kbd "<kp-multiply>") "*")
+    (define-key map (kbd "<kp-separator>") ",")
+    (define-key map (kbd "<kp-space>") " ")
+    (define-key map (kbd "<kp-subtract>") "-")
+    (define-key map (kbd "<kp-tab>") "\t")
     (define-key map (kbd "<left>") "\e[D")
     (define-key map (kbd "<menu>") "\e[1;2S") ; kf16
     (define-key map (kbd "<next>") "\e[6~") ; knp
@@ -343,6 +362,32 @@ for the RET ESC DEL TAB and SPC.")
 
       map)
     "Map used when Cursor Key Application Mode (DECCKM) is enabled.")
+
+(defvar mistty-alacritty--app-keypad-key-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "<kp-0>") "\eOp")
+    (define-key map (kbd "<kp-1>") "\eOq")
+    (define-key map (kbd "<kp-2>") "\eOr")
+    (define-key map (kbd "<kp-3>") "\eOs")
+    (define-key map (kbd "<kp-4>") "\eOt")
+    (define-key map (kbd "<kp-5>") "\eOu")
+    (define-key map (kbd "<kp-6>") "\eOv")
+    (define-key map (kbd "<kp-7>") "\eOw")
+    (define-key map (kbd "<kp-8>") "\eOx")
+    (define-key map (kbd "<kp-9>") "\eOy")
+    (define-key map (kbd "<kp-add>") "\eOk")
+    (define-key map (kbd "<kp-decimal>") "\eOn")
+    (define-key map (kbd "<kp-divide>") "\eOo")
+    (define-key map (kbd "<kp-enter>") "\eOM")
+    (define-key map (kbd "<kp-equal>") "\eOX")
+    (define-key map (kbd "<kp-multiply>") "\eOj")
+    (define-key map (kbd "<kp-separator>") "\eOl")
+    (define-key map (kbd "<kp-space>") "\eO ")
+    (define-key map (kbd "<kp-subtract>") "\eOm")
+    (define-key map (kbd "<kp-tab>") "\eOI")
+
+    map)
+  "Map used when Keypad Application Mode (DECKPAM) is enabled.")
 
 (defun mistty-alacritty-available-p ()
   "Check whether the module is available.
@@ -441,6 +486,9 @@ This is controlled by the custom variable `mistty-alacritty-term-name'"
 
   ;; if non-nil, Cursor Key Application Mode (DECCKM) is enabled
   app-cursor
+
+  ;; if non-nil, Keypad Application Mode (DECKPAM) is enabled
+  app-keypad
 
   ;; if non-nil, we are in fullscreen mode
   fs
@@ -661,6 +709,8 @@ CURSOR-MARKER is updated to the cursor position."
                (funcall (mistty--term-alacritty-show-cursor term) val))
               (`(app-cursor . ,val)
                (setf (mistty--term-alacritty-app-cursor term) val))
+              (`(app-keypad . ,val)
+               (setf (mistty--term-alacritty-app-keypad term) val))
               (`(report-focus . ,val)
                (funcall (mistty--term-alacritty-report-focus term) val))
               (`(bracketed-paste . ,val)
@@ -896,6 +946,8 @@ to the terminal."
        key n
        (when (mistty--term-alacritty-app-cursor term)
          mistty-alacritty--app-cursor-key-map)
+       (when (mistty--term-alacritty-app-keypad term)
+         mistty-alacritty--app-keypad-key-map)
        mistty-alacritty--key-map))))
 
 (cl-defmethod mistty--term-list-special-keys ((_type (eql 'alacritty)))

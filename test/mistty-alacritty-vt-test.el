@@ -2080,6 +2080,22 @@
                    (mistty-alacritty-vt-collect-changes vterm)))
     (should (null (mistty-alacritty-vt-collect-changes vterm)))))
 
+(mistty-deftest mistty-alacritty-vt-report-app-keypad
+    (:features mistty-alacritty-vt :shell none)
+  (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))
+    (mistty-alacritty-vt-process-bytes vterm "\e>")
+    (should (null (mistty-alacritty-vt-collect-changes vterm)))
+
+    (mistty-alacritty-vt-process-bytes vterm "\e=")
+    (should (equal '((app-keypad . t))
+                   (mistty-alacritty-vt-collect-changes vterm)))
+    (should (null (mistty-alacritty-vt-collect-changes vterm)))
+
+    (mistty-alacritty-vt-process-bytes vterm "\e>")
+    (should (equal '((app-keypad . nil))
+                   (mistty-alacritty-vt-collect-changes vterm)))
+    (should (null (mistty-alacritty-vt-collect-changes vterm)))))
+
 (mistty-deftest mistty-alacritty-vt-mouse-seq-disabled
     (:features mistty-alacritty-vt :shell none)
   (let ((vterm (mistty-alacritty-vt-make-vterm 80 24 nil)))

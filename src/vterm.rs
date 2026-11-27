@@ -37,6 +37,7 @@ emacs::use_symbols! {
     title_sym => "title"
     kkp_sym => "kkp"
     app_cursor_sym => "app-cursor"
+    app_keypad_sym => "app-keypad"
     mouse_sym => "mouse"
     click_sym => "click"
     drag_sym => "drag"
@@ -208,6 +209,11 @@ pub(crate) enum VTermChange {
     ///
     /// This changes the sequences issued for the arrow keys.
     AppCursor(bool),
+
+    /// Enable or disable Keypad Application Mode (DECKPAM / DECKPNM)
+    ///
+    /// This changes the sequences issued for the keypad keys.
+    AppKeypad(bool),
 }
 
 /// Mouse mode reported to the lisp side
@@ -240,6 +246,7 @@ impl<'e> IntoLisp<'e> for VTermChange {
             VTermChange::ReportFocus(on) => env.cons(report_focus_sym, on),
             VTermChange::Modified(scrolline) => env.cons(modified_sym, scrolline),
             VTermChange::AppCursor(on) => env.cons(app_cursor_sym, on),
+            VTermChange::AppKeypad(on) => env.cons(app_keypad_sym, on),
         }
     }
 }
@@ -1038,6 +1045,11 @@ fn mode_diff(before: TermMode, mode: TermMode) -> Vec<VTermChange> {
     let on = mode.intersects(TermMode::APP_CURSOR);
     if on != before.intersects(TermMode::APP_CURSOR) {
         reports.push(VTermChange::AppCursor(on));
+    }
+
+    let on = mode.intersects(TermMode::APP_KEYPAD);
+    if on != before.intersects(TermMode::APP_KEYPAD) {
+        reports.push(VTermChange::AppKeypad(on));
     }
 
     reports
@@ -2170,7 +2182,7 @@ mod tests {
         let mut fixture = Fixture::setup();
 
         fixture.process_bytes(
-            b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h\x1b[?25l\x1b[?1004h]\x1b[?1h",
+            b"\x1b[?1049h\x1b[?2004h\x1b[>1u\x1b[?1000h\x1b[?25l\x1b[?1004h]\x1b[?1h\x1b=",
         );
         assert_eq!(
             vec![
@@ -2181,6 +2193,7 @@ mod tests {
                 VTermChange::ShowCursor(false),
                 VTermChange::ReportFocus(true),
                 VTermChange::AppCursor(true),
+                VTermChange::AppKeypad(true),
             ],
             fixture.vterm.collect_changes().unwrap()
         );
@@ -2195,6 +2208,7 @@ mod tests {
                 VTermChange::ShowCursor(true),
                 VTermChange::ReportFocus(false),
                 VTermChange::AppCursor(false),
+                VTermChange::AppKeypad(false),
                 VTermChange::Reset,
             ],
             fixture.vterm.collect_changes().unwrap()
@@ -2842,6 +2856,31 @@ mod tests {
         fixture.process_bytes(b"\x1b[?1l");
         assert_eq!(
             vec![VTermChange::AppCursor(false)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+    }
+
+    #[test]
+    fn collect_mode_changes_app_keypad() {
+        let mut fixture = Fixture::setup();
+
+        fixture.process_bytes(b"\x1b=");
+        assert_eq!(
+            vec![VTermChange::AppKeypad(true)],
+            fixture.vterm.collect_mode_changes()
+        );
+        assert_eq!(
+            Vec::<VTermChange>::new(),
+            fixture.vterm.collect_mode_changes()
+        );
+
+        fixture.process_bytes(b"\x1b>");
+        assert_eq!(
+            vec![VTermChange::AppKeypad(false)],
             fixture.vterm.collect_mode_changes()
         );
         assert_eq!(

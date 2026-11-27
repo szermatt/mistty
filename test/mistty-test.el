@@ -8538,6 +8538,38 @@ preexec_functions+=(osc133_preexec)
 
   (should (equal "\e[A" (mistty--term-translate-key mistty--term (kbd "<up>")))))
 
+(mistty-deftest mistty-test-app-keypad (:type alacritty)
+  (let ((numeric-expected
+         '(("<kp-0>" . "0")
+           ("<kp-1>" . "1")
+           ("<kp-2>" . "2")
+           ("<kp-3>" . "3")
+           ("<kp-add>" . "+")
+           ("<kp-enter>" . "\r")
+           ("<kp-tab>" . "\t")))
+        (app-expected
+         '(("<kp-0>" . "\eOp")
+           ("<kp-1>" . "\eOq")
+           ("<kp-2>" . "\eOr")
+           ("<kp-3>" . "\eOs")
+           ("<kp-add>" . "\eOk")
+           ("<kp-enter>" . "\eOM")
+           ("<kp-tab>" . "\eOI"))))
+    (pcase-dolist (`(,key . ,expected) numeric-expected)
+      (should (equal expected (mistty--term-translate-key mistty--term (kbd key)))))
+
+    (mistty-send-text "printf '\\e='") ;; DECKPAM (APP_KEYPAD on)
+    (mistty-send-and-wait-for-prompt)
+
+    (pcase-dolist (`(,key . ,expected) app-expected)
+      (should (equal expected (mistty--term-translate-key mistty--term (kbd key)))))
+
+    (mistty-send-text "printf '\\e>'") ;; DECKPNM (APP_KEYPAD off)
+    (mistty-send-and-wait-for-prompt)
+
+    (pcase-dolist (`(,key . ,expected) numeric-expected)
+      (should (equal expected (mistty--term-translate-key mistty--term (kbd key)))))))
+
 (mistty-deftest mistty-test-yank (:selected t :type all)
   (kill-new "echo hello")
   (execute-kbd-macro (kbd "C-c C-y"))

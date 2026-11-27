@@ -220,6 +220,12 @@ To add keys to send to the terminal, bind them to `mistty-send-key'.")
     map)
   "Map added to the terminal zone to report mouse wheel events.")
 
+(defvar mistty--report-motion-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mouse-movement] #'mistty-report-motion-event)
+    map)
+  "Map added to the terminal zone to report mouse motion events.")
+
 ;; Variables:
 
 (defvar mistty-interactive-insert-hook
@@ -749,6 +755,9 @@ This map is active whenever the current buffer is in MisTTY mode."
   (setq-local window-point-insertion-type t)
   (setq-local scroll-margin 0)
 
+  ;; fine tracking of mouse events is never useful on a terminal
+  (setq-local mouse-fine-grained-tracking nil)
+
   (add-hook 'pre-redisplay-functions #'mistty--cursor-skip nil t)
   (add-hook 'completion-in-region-mode-hook #'mistty--detect-completion-in-region nil t)
   (add-function :after after-focus-change-function #'mistty--check-frame-focus)
@@ -896,12 +905,7 @@ window."
                         :after-reset
                         (lambda ()
                           (mistty--with-live-buffer work-buffer
-                            (when mistty-fullscreen
-                              (mistty--leave-fullscreen work-buffer))
-                            (mistty--cancel-queue mistty--queue)
-                            (mistty--release-all-changesets)
-                            (setq mistty--inhibit-refresh nil)
-                            (setq mistty-bracketed-paste nil)
+                            (mistty--reset-terminal-state)
                             (mistty--scroll-after-clear)))
                         :sync-scrolline
                         (lambda ()
@@ -934,6 +938,22 @@ window."
             (setq success t))
         (unless success
           (kill-buffer work-buffer))))))
+
+(defun mistty--reset-terminal-state ()
+  "Clear some terminal state.
+
+This is called when the terminal is reset as well as when the process
+exits."
+  (mistty--check-major-mode)
+  (when mistty-fullscreen
+    (mistty--leave-fullscreen (current-buffer)))
+  (mistty--cancel-queue mistty--queue)
+  (mistty--release-all-changesets)
+  (setq mistty--inhibit-refresh nil)
+  (setq mistty-bracketed-paste nil)
+  (setq mistty--mouse-reporting nil)
+  (setq mistty--mouse-reporting-requested nil)
+  (setq mistty--report-focus nil))
 
 (defun mistty--request-mouse-reporting (val)
   "Set mouse reporting VAL.
@@ -1330,10 +1350,8 @@ a special string describing the new process state."
     (mistty--with-live-buffer work-buffer
       (mistty--remove-replay-hooks)
       (remove-hook 'window-size-change-functions #'mistty--window-size-change t)
-      (when mistty--queue
-        (mistty--cancel-queue mistty--queue)
-        (setq mistty--queue nil))
-      (mistty--release-all-changesets)
+      (mistty--reset-terminal-state)
+      (setq mistty--queue nil)
       (setq mistty-proc nil)
 
       (save-restriction
@@ -4033,11 +4051,15 @@ mode map override."
                  (_ nil))))
     (mistty-log "Install overlay map %s [mode: %s, mouse: %s]"
                 map-id (mistty--secondary-mode) mistty--mouse-reporting)
+
+    ;; report mouse clicks
     (when mistty--mouse-reporting
       (push mistty--report-click-map maps)
       (when mistty-allow-mwheel-support
-        (push mistty--report-mwheel-map maps)))
-    ;; TODO: add maps for 'motion
+        (push mistty--report-mwheel-map maps))
+      (when (eq 'motion mistty--mouse-reporting-requested)
+        (push mistty--report-motion-map maps)))
+    (mistty--update-track-mouse)
 
     (overlay-put
      mistty--sync-ov
@@ -4045,6 +4067,24 @@ mode map override."
      (if (length> maps 1)
          (make-composed-keymap maps)
        (car maps)))))
+
+(defun mistty--update-track-mouse ()
+  "Set or unset `track-mouse', as appropriate."
+  (if (and mistty--mouse-reporting
+           (eq 'motion mistty--mouse-reporting-requested))
+      ;; track-mouse must be set to get the motion events the map
+      ;; above registers. Setting it to dragging tells Emacs not to
+      ;; change the pointer shape. Note that
+      (when (eq nil track-mouse)
+        (setq-local track-mouse 'dragging)
+        (mistty-log "TRACKING MOUSE ON"))
+    (when (eq 'dragging track-mouse)
+      ;; Note that if we're inside the track-mouse macro, track-mouse
+      ;; is set to t and we won't clear it until the end of the
+      ;; track-mouse macro. This is why this function must be called
+      ;; after the track-mouse macro ends.
+      (mistty-log "TRACKING MOUSE OFF")
+      (setq-local track-mouse nil))))
 
 (defun mistty-keymap-auto ()
   "Switch back to the default map for the mode.
@@ -4330,18 +4370,16 @@ wheel-down, wheel-left and wheel-right, which must be sent to
                        (memq 'down mods)
                        mistty--mouse-reporting
                        (memq mistty--mouse-reporting-requested '(drag motion))
-                       ;; TODO: add separate support for motion and just
-                       ;; check for drag here
                        (process-live-p proc))
-              (mistty-log "TRACKING MOUSE ON (drag)")
               (track-mouse
+                (mistty-log "DRAGGING MOUSE ON")
                 (let ((continue t))
                   (while continue
                     ;; We must use read-key and not read-event on
                     ;; terminals to get mouse event translation.
                     (pcase (read-key nil 'disable-fallback)
                       (`(mouse-movement ,posn)
-                       (mistty-log "MOUSE MOVE EVENT col,row: %s x,y: %s"
+                       (mistty-log "MOUSE DRAG MOVE EVENT col,row: %s x,y: %s"
                                    (posn-col-row posn) (posn-x-y posn))
                        (when-let* ((seq (mistty--term-translate-mouse
                                          mistty--term
@@ -4351,13 +4389,13 @@ wheel-down, wheel-left and wheel-right, which must be sent to
                                          start-posn
                                          posn
                                          mistty-sync-marker)))
-                         (mistty-log "MOUSE MOVE EVENT SEND: %S" seq)
+                         (mistty-log "MOUSE DRAG MOVE EVENT SEND: %S" seq)
                          (process-send-string proc seq)))
 
                       ((and (pred mouse-event-p)
                             `,move-ev
                             (guard (eq basic-type (event-basic-type move-ev))))
-                       (mistty-log "MOUSE EVENT (drag end): %S" move-ev)
+                       (mistty-log "MOUSE DRAG EVENT (drag end): %S" move-ev)
                        (when-let* ((seq (mistty--term-translate-mouse
                                          mistty--term
                                          'release
@@ -4366,12 +4404,43 @@ wheel-down, wheel-left and wheel-right, which must be sent to
                                          (event-start move-ev)
                                          (event-end move-ev)
                                          mistty-sync-marker)))
-                         (mistty-log "MOUSE EVENT SEND: %S" seq)
+                         (mistty-log "MOUSE DRAG EVENT SEND: %S" seq)
                          (process-send-string proc seq))
                        (setq continue nil)))))
-                (mistty-log "TRACKING MOUSE OFF (drag)")
+                (mistty-log "DRAGGING MOUSE OFF (drag)")
 
-                nil))))))))
+                nil)
+              (mistty--update-track-mouse))))))))
+
+(defun mistty-report-motion-event (ev)
+  "Report mouse motion event EV to the terminal.
+
+This handles `mouse-movement' events with no button pressed when motion
+reporting is enabled."
+  (interactive "e")
+  (mistty-with-errors-logged "mistty-report-motion-event"
+    (when (eq track-mouse 'dragging)
+      ;; Since the track-mouse mouse macro set track-mouse to t, this
+      ;; function has no effect while handling mouse drag.
+      (let* ((posn (event-start ev))
+             (win (posn-window posn))
+             (buf (when (windowp win) (window-buffer win))))
+        (when (buffer-live-p buf)
+          (with-current-buffer buf
+            (let ((proc (mistty--term-proc mistty--term)))
+              (when (process-live-p proc)
+                (mistty-log "MOUSE MOTION EVENT col,row: %s x,y: %s"
+                            (posn-col-row posn) (posn-x-y posn))
+                (when-let* ((seq (mistty--term-translate-mouse
+                                  mistty--term
+                                  'motion
+                                  nil ; button
+                                  nil ; modifiers
+                                  posn
+                                  nil ; move-pos
+                                  mistty-sync-marker)))
+                  (mistty-log "MOUSE MOTION EVENT SEND: %S" seq)
+                  (process-send-string proc seq))))))))))
 
 (defun mistty--button-number (basic-type)
   "Button number for an event BASIC-TYPE."
